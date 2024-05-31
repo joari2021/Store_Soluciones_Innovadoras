@@ -1,0 +1,10 @@
+<p style="color: green"><%= notice %></p>
+
+<%= render @serie_tv %>
+
+<div>
+  <%= link_to "Edit this serie tv", edit_serie_tv_path(@serie_tv) %> |
+  <%= link_to "Back to serie tvs", serie_tvs_path %>
+
+  <%= button_to "Destroy this serie tv", @serie_tv, method: :delete %>
+</div>

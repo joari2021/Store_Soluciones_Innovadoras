@@ -1,0 +1,31 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  poster: MyString
+  name: MyString
+  others_titles: MyString
+  year: 1
+  duration_hours: 1
+  duration_minutes: 1
+  director: MyString
+  reparto: MyString
+  sinopsis: MyText
+  audio: MyString
+  calidad: MyString
+  formato_video: MyString
+  codigo: MyString
+
+two:
+  poster: MyString
+  name: MyString
+  others_titles: MyString
+  year: 1
+  duration_hours: 1
+  duration_minutes: 1
+  director: MyString
+  reparto: MyString
+  sinopsis: MyText
+  audio: MyString
+  calidad: MyString
+  formato_video: MyString
+  codigo: MyString

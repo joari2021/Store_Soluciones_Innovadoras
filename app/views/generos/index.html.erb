@@ -1,0 +1,14 @@
+<p style="color: green"><%= notice %></p>
+
+<h1>Generos</h1>
+
+<div id="generos">
+  <% @generos.each do |genero| %>
+    <%= render genero %>
+    <p>
+      <%= link_to "Show this genero", genero %>
+    </p>
+  <% end %>
+</div>
+
+<%= link_to "New genero", new_genero_path %>

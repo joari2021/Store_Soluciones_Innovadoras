@@ -1,0 +1,79 @@
+<%= form_with(model: serie_tv) do |form| %>
+  <% if serie_tv.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(serie_tv.errors.count, "error") %> prohibited this serie_tv from being saved:</h2>
+      <ul>
+        <% serie_tv.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div>
+    <%= form.label :poster, style: "display: block" %>
+    <%= form.text_field :poster %>
+  </div>
+  <div>
+    <%= form.label :name, style: "display: block" %>
+    <%= form.text_field :name %>
+  </div>
+  <div>
+    <%= form.label :others_title, style: "display: block" %>
+    <%= form.text_field :others_title %>
+  </div>
+  <div>
+    <%= form.label :year, style: "display: block" %>
+    <%= form.number_field :year %>
+  </div>
+  <div>
+    <%= form.label :temporadas, style: "display: block" %>
+    <%= form.number_field :temporadas %>
+  </div>
+  <div>
+    <%= form.label :capitulos, style: "display: block" %>
+    <%= form.number_field :capitulos %>
+  </div>
+  <div>
+    <%= form.label :director, style: "display: block" %>
+    <%= form.text_field :director %>
+  </div>
+  <div>
+    <%= form.label :reparto, style: "display: block" %>
+    <%= form.text_field :reparto %>
+  </div>
+  <div>
+    <%= form.label :sinopsis, style: "display: block" %>
+    <%= form.text_area :sinopsis %>
+  </div>
+  <div>
+    <%= form.label :audio, style: "display: block" %>
+    <%= form.text_field :audio %>
+  </div>
+  <div>
+    <%= form.label :calidad, style: "display: block" %>
+    <%= form.text_field :calidad %>
+  </div>
+  <div>
+    <%= form.label :status, style: "display: block" %>
+    <%= form.text_field :status %>
+  </div>
+  <div>
+    <%= form.label :formato_video, style: "display: block" %>
+    <%= form.text_field :formato_video %>
+  </div>
+  <div>
+    <%= form.label :codigo, style: "display: block" %>
+    <%= form.text_field :codigo %>
+  </div>
+  <div class="field">
+    <%= form.label :disponible %>
+    <%= form.check_box :disponible %>
+  </div>
+  <div class="field">
+    <%= form.label :link_trailer %>
+    <%= form.text_field :link_trailer %>
+  </div>
+  <div>
+    <%= form.submit %>
+  </div>
+<% end %>

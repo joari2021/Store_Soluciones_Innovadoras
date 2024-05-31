@@ -1,0 +1,14 @@
+<p style="color: green"><%= notice %></p>
+
+<h1>Serie tvs</h1>
+
+<div id="serie_tvs">
+  <% @serie_tvs.each do |serie_tv| %>
+    <%= render serie_tv %>
+    <p>
+      <%= link_to "Show this serie tv", serie_tv %>
+    </p>
+  <% end %>
+</div>
+
+<%= link_to "New serie tv", new_serie_tv_path %>
