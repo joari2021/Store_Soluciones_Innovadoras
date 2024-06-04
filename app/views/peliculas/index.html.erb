@@ -1,14 +1,19 @@
 <p style="color: green"><%= notice %></p>
-
-<h1>Peliculas</h1>
-
-<div id="peliculas">
-  <% @peliculas.each do |pelicula| %>
-    <%= render pelicula %>
-    <p>
-      <%= link_to "Show this pelicula", pelicula %>
-    </p>
-  <% end %>
+<!-- app/views/peliculas/index.html.erb -->
+<div class="container mt-5">
+  <h1 class="mb-4">Catálogo de Películas</h1>
+  <div class="row">
+    <% @peliculas.each do |pelicula| %>
+      <div class="col-4 col-sm-3 col-md-2 mb-4">
+        <div class="card">
+          <%= image_tag pelicula.poster, class: "card-img-top", alt: pelicula.name %>
+          <div class="card-body">
+            <h5 class="card-title"><%= pelicula.name %></h5>
+            <p class="card-text"><%= truncate(pelicula.sinopsis, length: 100) %></p>
+            <a href="<%= pelicula_path(pelicula) %>" class="btn btn-primary">Ver Más</a>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
 </div>
-
-<%= link_to "New pelicula", new_pelicula_path %>

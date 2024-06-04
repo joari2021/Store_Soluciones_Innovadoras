@@ -1,75 +1,27 @@
-<%= form_with(model: pelicula) do |form| %>
-  <% if pelicula.errors.any? %>
-    <div style="color: red">
-      <h2><%= pluralize(pelicula.errors.count, "error") %> prohibited this pelicula from being saved:</h2>
-      <ul>
-        <% pelicula.errors.each do |error| %>
-          <li><%= error.full_message %></li>
-        <% end %>
-      </ul>
-    </div>
-  <% end %>
-  <div>
-    <%= form.label :poster, style: "display: block" %>
-    <%= form.text_field :poster %>
+<!-- app/views/peliculas/_form.html.erb -->
+<%= form_with(model: pelicula, local: true) do |form| %>
+  <div class="form-group mb-3">
+    <%= form.label :name, class: "form-label" %>
+    <%= form.text_field :name, class: "form-control" %>
   </div>
-  <div>
-    <%= form.label :name, style: "display: block" %>
-    <%= form.text_field :name %>
+  <div class="form-group mb-3">
+    <%= form.label :poster, class: "form-label" %>
+    <%= form.text_field :poster, class: "form-control" %>
   </div>
-  <div>
-    <%= form.label :others_titles, style: "display: block" %>
-    <%= form.text_field :others_titles %>
+  <div class="form-group mb-3">
+    <%= form.label :sinopsis, class: "form-label" %>
+    <%= form.text_area :sinopsis, class: "form-control", rows: 5 %>
   </div>
-  <div>
-    <%= form.label :year, style: "display: block" %>
-    <%= form.number_field :year %>
+  <div class="form-group mb-3">
+    <%= form.label :disponible, class: "form-label" %>
+    <%= form.check_box :disponible, class: "form-check-input" %>
   </div>
-  <div>
-    <%= form.label :duration_hours, style: "display: block" %>
-    <%= form.number_field :duration_hours %>
+  <div class="form-group mb-3">
+    <%= form.label :link_trailer, class: "form-label" %>
+    <%= form.text_field :link_trailer, class: "form-control" %>
   </div>
-  <div>
-    <%= form.label :duration_minutes, style: "display: block" %>
-    <%= form.number_field :duration_minutes %>
-  </div>
-  <div>
-    <%= form.label :director, style: "display: block" %>
-    <%= form.text_field :director %>
-  </div>
-  <div>
-    <%= form.label :reparto, style: "display: block" %>
-    <%= form.text_field :reparto %>
-  </div>
-  <div>
-    <%= form.label :sinopsis, style: "display: block" %>
-    <%= form.text_area :sinopsis %>
-  </div>
-  <div>
-    <%= form.label :audio, style: "display: block" %>
-    <%= form.text_field :audio %>
-  </div>
-  <div>
-    <%= form.label :calidad, style: "display: block" %>
-    <%= form.text_field :calidad %>
-  </div>
-  <div>
-    <%= form.label :formato_video, style: "display: block" %>
-    <%= form.text_field :formato_video %>
-  </div>
-  <div>
-    <%= form.label :codigo, style: "display: block" %>
-    <%= form.text_field :codigo %>
-  </div>
-  <div class="field">
-    <%= form.label :disponible %>
-    <%= form.check_box :disponible %>
-  </div>
-  <div class="field">
-    <%= form.label :link_trailer %>
-    <%= form.text_field :link_trailer %>
-  </div>
-  <div>
-    <%= form.submit %>
+  <!-- Agrega aquí otros campos del formulario -->
+  <div class="form-group mt-3">
+    <%= form.submit class: "btn btn-primary" %>
   </div>
 <% end %>

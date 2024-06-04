@@ -1,10 +1,25 @@
 <p style="color: green"><%= notice %></p>
-
-<%= render @pelicula %>
-
+<!-- app/views/peliculas/show.html.erb -->
+<div class="container mt-5">
+  <div class="row">
+    <div class="col-md-4">
+      <%= image_tag @pelicula.poster, class: "img-fluid", alt: @pelicula.name %>
+    </div>
+    <div class="col-md-8">
+      <h1><%= @pelicula.name %></h1>
+      <p><strong>Sinopsis:</strong> <%= @pelicula.sinopsis %></p>
+      <p><strong>Año:</strong> <%= @pelicula.year %></p>
+      <p><strong>Duración:</strong> <%= @pelicula.duration_hours %>h <%= @pelicula.duration_minutes %>m</p>
+      <p><strong>Director:</strong> <%= @pelicula.director %></p>
+      <p><strong>Reparto:</strong> <%= @pelicula.reparto %></p>
+      <p><strong>Disponible:</strong> <%= @pelicula.disponible ? 'Sí' : 'No' %></p>
+      <p><strong>Link del Trailer:</strong> <a href="<%= @pelicula.link_trailer %>" target="_blank"><%= @pelicula.link_trailer %></a></p>
+      <a href="<%= peliculas_path %>" class="btn btn-secondary mt-3">Volver al Catálogo</a>
+    </div>
+  </div>
+</div>
 <div>
   <%= link_to "Edit this pelicula", edit_pelicula_path(@pelicula) %> |
   <%= link_to "Back to peliculas", peliculas_path %>
-
   <%= button_to "Destroy this pelicula", @pelicula, method: :delete %>
 </div>

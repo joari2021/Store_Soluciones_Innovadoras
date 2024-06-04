@@ -1,0 +1,34 @@
+/* app/assets/stylesheets/custom.css */
+
+.card-title {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+
+.card-text {
+  font-size: 0.875rem;
+  color: #555;
+}
+
+.img-fluid {
+  max-height: 300px;
+  object-fit: cover;
+}
+
+.container {
+  max-width: 1200px;
+}
+
+.form-group label {
+  font-weight: bold;
+}
+
+.btn-primary {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.btn-primary:hover {
+  background-color: #0056b3;
+  border-color: #004085;
+}
