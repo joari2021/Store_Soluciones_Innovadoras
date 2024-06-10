@@ -16,3 +16,10 @@
 /*
  *= require custom
  */
+/* app/assets/stylesheets/application.scss */
+body {
+  background: url("FondoPagina.png") no-repeat center center fixed;
+  background-size: cover;
+  /* Asegúrate de que el contenido sea legible sobre la imagen de fondo */
+  color: white;
+}
