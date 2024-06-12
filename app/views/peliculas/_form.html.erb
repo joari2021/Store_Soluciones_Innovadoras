@@ -1,5 +1,5 @@
 <!-- app/views/peliculas/_form.html.erb -->
-<%= form_with(model: pelicula, local: true) do |form| %>
+<%= form_for @pelicula, { remote: true, multipart: true }  do |form| %>
   <div class="form-group mb-3">
     <%= form.label :name, class: "form-label" %>
     <%= form.text_field :name, class: "form-control" %>

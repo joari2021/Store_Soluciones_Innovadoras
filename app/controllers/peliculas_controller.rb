@@ -21,15 +21,16 @@ class PeliculasController < ApplicationController
 
   # POST /peliculas or /peliculas.json
   def create
-    @pelicula = Pelicula.new(pelicula_params)
 
+    @pelicula = Pelicula.new(pelicula_params)
     respond_to do |format|
       if @pelicula.save
-        format.html { redirect_to pelicula_url(@pelicula), notice: "Pelicula was successfully created." }
-        format.json { render :show, status: :created, location: @pelicula }
+        format.json {head :no_content}
+        format.js
       else
-        format.html { render :new, status: :unprocessable_entity }
-        format.json { render json: @pelicula.errors, status: :unprocessable_entity }
+        
+        format.json { render json: @pelicula.errors.full_messages, status: :unprocessable_entity }
+        format.js { render :new }
       end
     end
   end

@@ -1,38 +1,22 @@
 <p style="color: green"><%= notice %></p>
-<!-- app/views/peliculas/index.html.erb -->
+<div>
+  <%= link_to new_pelicula_path, { remote: true, class: "btn btn-info" }  do %>
+    <span class="fas fa-plus-square" ></span>
+  <% end %>
+</div>
 <div class="container mt-5">
-  <h1 class="mb-4">Catálogo de Películas</h1>
+  <h1 class="mb-4">CATALOGO DE PELICULAS</h1>
   <div class="row">
     <% @peliculas.each do |pelicula| %>
-      <div class="col-4 col-sm-3 col-md-2 mb-4">
-        <div class="card">
-          <%= image_tag pelicula.poster, class: "card-img-top", alt: pelicula.name %>
-          <h6 class="card-title text-dark text-center fs-6"><%= pelicula.name %></h6>
-          <a href="<%= pelicula_path(pelicula) %>" class="btn btn-primary">Ver Más</a>
+      <a href="<%= pelicula_path(pelicula) %>" >
+        <div class="col-4 col-sm-3 col-md-2 mb-4">
+          <div class="card bg-secondary">
+            <%= image_tag pelicula.poster, class: "card-img-top", alt: pelicula.name %>
+            <h6 class="card-title text-white text-center fs-6"><%= pelicula.name %></h6>
+          </div>
         </div>
-      </div>
+      </a>
     <% end %>
   </div>
 </div>
-<!-- Button trigger modal -->
-<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#staticBackdrop">
-  Launch static backdrop modal
-</button>
-<!-- Modal -->
-<div class="modal fade" id="staticBackdrop" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="staticBackdropLabel" aria-hidden="true">
-  <div class="modal-dialog">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="staticBackdropLabel">Modal title</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body">
-        ...
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary">Understood</button>
-      </div>
-    </div>
-  </div>
-</div>
+<%= render 'modal_peliculas' %>
