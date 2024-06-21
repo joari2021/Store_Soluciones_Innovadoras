@@ -1,5 +1,0 @@
-$('#modal-peliculas-title').html("Nueva Pelicula");
-$('.modal-body-peliculas').html('<%= j render("form") %>');
-<% unless @pelicula.errors.any? %>
-  $("#btn_opened_modal_peliculas").trigger("click");
-<% end %>

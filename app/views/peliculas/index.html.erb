@@ -11,7 +11,7 @@
       <a href="<%= pelicula_path(pelicula) %>" >
         <div class="col-4 col-sm-3 col-md-2 mb-4">
           <div class="card bg-secondary">
-            <%= image_tag pelicula.poster, class: "card-img-top", alt: pelicula.name %>
+            <%= image_tag pelicula.poster, class: "card-img-top", alt: pelicula.name if pelicula.poster.attached? %>
             <h6 class="card-title text-white text-center fs-6"><%= pelicula.name %></h6>
           </div>
         </div>
@@ -19,4 +19,3 @@
     <% end %>
   </div>
 </div>
-<%= render 'modal_peliculas' %>

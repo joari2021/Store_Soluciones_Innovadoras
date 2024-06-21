@@ -3,11 +3,7 @@ class PeliculasController < ApplicationController
 
   # GET /peliculas or /peliculas.json
   def index
-    @peliculas = Pelicula.all
-  end
-
-  # GET /peliculas/1 or /peliculas/1.json
-  def show
+    @peliculas = Pelicula.all.with_attached_poster
   end
 
   # GET /peliculas/new
@@ -15,31 +11,33 @@ class PeliculasController < ApplicationController
     @pelicula = Pelicula.new
   end
 
-  # GET /peliculas/1/edit
-  def edit
-  end
-
   # POST /peliculas or /peliculas.json
   def create
-
     @pelicula = Pelicula.new(pelicula_params)
+
     respond_to do |format|
       if @pelicula.save
-        format.json {head :no_content}
-        format.js
+        redirect_to products_path, notice: "La Pelicula se ha creado correctamente"
       else
-        
-        format.json { render json: @pelicula.errors.full_messages, status: :unprocessable_entity }
-        format.js { render :new }
+        render :new, status: :unprocessable_entity
       end
     end
+  end
+
+   # GET /peliculas/1 or /peliculas/1.json
+   def show
+   end
+ 
+
+  # GET /peliculas/1/edit
+  def edit
   end
 
   # PATCH/PUT /peliculas/1 or /peliculas/1.json
   def update
     respond_to do |format|
       if @pelicula.update(pelicula_params)
-        format.html { redirect_to pelicula_url(@pelicula), notice: "Pelicula was successfully updated." }
+        format.html { redirect_to pelicula_url(@pelicula), notice: "La Pelicula se ha actualizado correctamente." }
         format.json { render :show, status: :ok, location: @pelicula }
       else
         format.html { render :edit, status: :unprocessable_entity }
