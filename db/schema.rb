@@ -11,6 +11,9 @@
 # It's strongly recommended that you check this file into your version control system.
 
 ActiveRecord::Schema[7.1].define(version: 2024_06_21_000540) do
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "plpgsql"
+
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
     t.string "record_type", null: false
@@ -63,8 +66,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_21_000540) do
   end
 
   create_table "generos_animes", force: :cascade do |t|
-    t.integer "anime_id", null: false
-    t.integer "genero_id", null: false
+    t.bigint "anime_id", null: false
+    t.bigint "genero_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["anime_id"], name: "index_generos_animes_on_anime_id"
@@ -72,8 +75,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_21_000540) do
   end
 
   create_table "generos_juegos", force: :cascade do |t|
-    t.integer "juego_id", null: false
-    t.integer "genero_id", null: false
+    t.bigint "juego_id", null: false
+    t.bigint "genero_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["genero_id"], name: "index_generos_juegos_on_genero_id"
@@ -81,8 +84,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_21_000540) do
   end
 
   create_table "generos_peliculas", force: :cascade do |t|
-    t.integer "pelicula_id", null: false
-    t.integer "genero_id", null: false
+    t.bigint "pelicula_id", null: false
+    t.bigint "genero_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["genero_id"], name: "index_generos_peliculas_on_genero_id"
@@ -90,8 +93,8 @@ ActiveRecord::Schema[7.1].define(version: 2024_06_21_000540) do
   end
 
   create_table "generos_serie_tvs", force: :cascade do |t|
-    t.integer "serie_tv_id", null: false
-    t.integer "genero_id", null: false
+    t.bigint "serie_tv_id", null: false
+    t.bigint "genero_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["genero_id"], name: "index_generos_serie_tvs_on_genero_id"

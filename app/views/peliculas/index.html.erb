@@ -6,16 +6,21 @@
 </div>
 <div class="container mt-5">
   <h1 class="mb-4">CATALOGO DE PELICULAS</h1>
+  <div class="flex overflow-x-scroll gap-2 my-4">
+    <%= render(GeneroComponent.with_collection(@generos)) %>
+  </div>
   <div class="row">
     <% @peliculas.each do |pelicula| %>
-      <a href="<%= pelicula_path(pelicula) %>" >
-        <div class="col-4 col-sm-3 col-md-2 mb-4">
-          <div class="card bg-secondary">
-            <%= image_tag pelicula.poster, class: "card-img-top", alt: pelicula.name if pelicula.poster.attached? %>
-            <h6 class="card-title text-white text-center fs-6"><%= pelicula.name %></h6>
+      <div class="col-4 col-sm-3 col-md-2 mb-4">
+        <a href="<%= pelicula_path(pelicula) %>" >
+          <div class="card bg-primary">
+            <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card-im-top poster", alt: pelicula.name %>
+            <div class="m-2">
+              <h6 class="title text-white text-center fs-6"><%= pelicula.name %></h6>
+            </div>
           </div>
-        </div>
-      </a>
+        </a>
+      </div>
     <% end %>
   </div>
 </div>

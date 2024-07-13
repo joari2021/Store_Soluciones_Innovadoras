@@ -3,6 +3,7 @@ class PeliculasController < ApplicationController
 
   # GET /peliculas or /peliculas.json
   def index
+    @generos = Genero.order(genero: :asc).load_async
     @peliculas = Pelicula.all.with_attached_poster
   end
 
@@ -17,7 +18,7 @@ class PeliculasController < ApplicationController
 
     respond_to do |format|
       if @pelicula.save
-        redirect_to products_path, notice: "La Pelicula se ha creado correctamente"
+        redirect_to peliculas_path, notice: "La Pelicula se ha creado correctamente"
       else
         render :new, status: :unprocessable_entity
       end
@@ -26,6 +27,7 @@ class PeliculasController < ApplicationController
 
    # GET /peliculas/1 or /peliculas/1.json
    def show
+    set_pelicula
    end
  
 
@@ -59,7 +61,7 @@ class PeliculasController < ApplicationController
   private
     # Use callbacks to share common setup or constraints between actions.
     def set_pelicula
-      @pelicula = Pelicula.find(params[:id])
+      @pelicula ||= Pelicula.find(params[:id])
     end
 
     # Only allow a list of trusted parameters through.

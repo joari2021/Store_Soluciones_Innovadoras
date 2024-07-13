@@ -1,9 +1,35 @@
-# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
-
 one:
-  pelicula: one
-  genero: one
+  pelicula: freeguy
+  genero: comedia
 
 two:
-  pelicula: two
-  genero: two
+  pelicula: fastandfurious
+  genero: acción
+
+three:
+  pelicula: fastandfurious
+  genero: comedia
+
+four:
+  pelicula: mipobreangelito
+  genero: comedia
+
+five:
+  pelicula: lamomia
+  genero: suspenso
+
+six:
+  pelicula: lamomia
+  genero: drama
+
+seven:
+  pelicula: beckett
+  genero: acción
+
+eight:
+  pelicula: beckett
+  genero: drama
+
+nine:
+  pelicula: beckett
+  genero: suspenso

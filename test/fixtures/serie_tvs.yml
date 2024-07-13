@@ -1,33 +1,18 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
-one:
-  poster: MyString
-  name: MyString
-  others_title: MyString
-  year: 1
-  temporadas: 1
-  capitulos: 1
-  director: MyString
-  reparto: MyString
-  sinopsis: MyText
-  audio: MyString
-  calidad: MyString
-  status: MyString
-  formato_video: MyString
-  codigo: MyString
+#one:
+#poster: MyString
+#name: MyString
+#others_title: MyString
+#year: 1
+#temporadas: 1
+#capitulos: 1
+#director: MyString
+#reparto: MyString
+#sinopsis: MyText
+#audio: MyString
+#calidad: MyString
+#status: MyString
+#formato_video: MyString
+#codigo: MyString
 
-two:
-  poster: MyString
-  name: MyString
-  others_title: MyString
-  year: 1
-  temporadas: 1
-  capitulos: 1
-  director: MyString
-  reparto: MyString
-  sinopsis: MyText
-  audio: MyString
-  calidad: MyString
-  status: MyString
-  formato_video: MyString
-  codigo: MyString

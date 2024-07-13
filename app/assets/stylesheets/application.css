@@ -26,3 +26,11 @@ body {
 a {
   text-decoration: none;
 }
+
+.title {
+  height: 44px !important;
+}
+
+.poster {
+  height: 250px;
+}
