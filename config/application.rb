@@ -23,5 +23,9 @@ module SolucionesInnovadoras
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+    # 
+    
+    # Allow multiquery. Ejecutar consultas de base datos a la vez para ahorrar tiempo de carga
+    config.active_record.async_query_executor = :global_thread_pool
   end
 end

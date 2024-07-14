@@ -1,0 +1,10 @@
+<div class="col-4 col-sm-3 col-md-2 mb-4">
+  <%= link_to pelicula_path(pelicula),  'data-turbo-frame': '_top' do %>
+    <div class="card bg-primary">
+      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card-im-top poster", alt: pelicula.name %>
+      <div class="m-2">
+        <h6 class="title text-white text-center fs-6"><%= pelicula.name %></h6>
+      </div>
+    </div>
+  <%end%>
+</div>

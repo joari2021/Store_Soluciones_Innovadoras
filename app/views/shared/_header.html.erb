@@ -1,0 +1,11 @@
+<%= link_to peliculas_path do %>
+  <h1>Catalogo de Peliculas</h1>
+<%end%>
+<div>
+  <%= link_to new_pelicula_path, { remote: true, class: "btn btn-info" }  do %>
+    <span class="fas fa-plus-square" ></span>
+  <% end %>
+</div>
+<div>
+  <%= link_to "Añadir Generos", new_genero_path %>
+</div>

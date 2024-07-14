@@ -1,7 +1,8 @@
 <div id="<%= dom_id genero %>">
-  <p>
-    <strong>Genero:</strong>
-    <%= genero.genero %>
-  </p>
-
+  <%= genero.name %>
+  <%= link_to "Editar", edit_genero_path(genero) %>
+  <%= link_to "Borrar", genero_path(genero), data: {
+    turbo_method: :delete,
+    turbo_confirm: "Estas seguro de eliminar"
+  } %>
 </div>

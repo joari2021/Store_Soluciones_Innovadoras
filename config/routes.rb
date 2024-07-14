@@ -2,7 +2,7 @@ Rails.application.routes.draw do
   root 'index#home'
   get 'index/home'
   resources :serie_tvs
-  resources :generos
+  resources :generos, except: :show
   resources :juegos
   resources :animes
   resources :peliculas

@@ -1,13 +1,13 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
 acción:
-  genero: Acción
+  name: Acción
 
 drama:
-  genero: Drama
+  name: Drama
 
 comedia:
-  genero: Comedia
+  name: Comedia
 
 suspenso:
-  genero: Suspenso
+  name: Suspenso

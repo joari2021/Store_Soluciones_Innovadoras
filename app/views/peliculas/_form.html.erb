@@ -21,7 +21,15 @@
     <%= form.label :sinopsis %>
     <%= form.text_area :sinopsis %>
   </div>
-  <!-- Añade el resto de los campos necesarios -->
+  <div class="field">
+    <%= form.label :generos %><br>
+    <%= form.collection_check_boxes(:genero_ids, Genero.all, :id, :name) do |b| %>
+      <div class="collection-check-box">
+        <%= b.check_box %>
+        <%= b.label %>
+      </div>
+    <% end %>
+  </div>
   <div class="actions">
     <%= form.submit %>
   </div>

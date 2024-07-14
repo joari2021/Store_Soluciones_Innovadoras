@@ -3,8 +3,12 @@ class PeliculasController < ApplicationController
 
   # GET /peliculas or /peliculas.json
   def index
-    @generos = Genero.order(genero: :asc).load_async
+    @generos = Genero.order(name: :asc).load_async
     @peliculas = Pelicula.all.with_attached_poster
+
+    if params[:genero_id]
+      @peliculas = Pelicula.joins(:generos).where(generos: { id: params[:genero_id] })
+    end
   end
 
   # GET /peliculas/new
@@ -66,6 +70,6 @@ class PeliculasController < ApplicationController
 
     # Only allow a list of trusted parameters through.
     def pelicula_params
-      params.require(:pelicula).permit(:poster, :name, :others_titles, :year, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer)
+      params.require(:pelicula).permit(:poster, :name, :others_titles, :year, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, genero_ids: [])
     end
 end

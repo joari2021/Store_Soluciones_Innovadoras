@@ -1,26 +1,11 @@
 <p style="color: green"><%= notice %></p>
-<div>
-  <%= link_to new_pelicula_path, { remote: true, class: "btn btn-info" }  do %>
-    <span class="fas fa-plus-square" ></span>
-  <% end %>
-</div>
-<div class="container mt-5">
-  <h1 class="mb-4">CATALOGO DE PELICULAS</h1>
-  <div class="flex overflow-x-scroll gap-2 my-4">
-    <%= render(GeneroComponent.with_collection(@generos)) %>
+<%= turbo_frame_tag "generos" do %>
+  <div class="container mt-5">
+    <div class="flex overflow-x-scroll gap-2 my-4">
+      <%= render(GeneroComponent.with_collection(@generos)) %>
+    </div>
+    <div class="row">
+      <%= render partial: "pelicula", collection: @peliculas %>
+    </div>
   </div>
-  <div class="row">
-    <% @peliculas.each do |pelicula| %>
-      <div class="col-4 col-sm-3 col-md-2 mb-4">
-        <a href="<%= pelicula_path(pelicula) %>" >
-          <div class="card bg-primary">
-            <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card-im-top poster", alt: pelicula.name %>
-            <div class="m-2">
-              <h6 class="title text-white text-center fs-6"><%= pelicula.name %></h6>
-            </div>
-          </div>
-        </a>
-      </div>
-    <% end %>
-  </div>
-</div>
+<% end %>
