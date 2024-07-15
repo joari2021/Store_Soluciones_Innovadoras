@@ -10,13 +10,4 @@
     </div>
   </div>
 <% end %>
-<!-- Modal -->
-<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
-  <%= turbo_frame_tag "modal-show"%>
-</div>
-<script>
-  function openedModalPeliculas() {
-    console.log('El botón fue presionado.');
-    $("#btn_opened_modal_peliculas").click();
-  }
-</script>
+<%= render partial: "modal-peliculas"%>
