@@ -8,7 +8,7 @@ class GeneroComponent < ViewComponent::Base
   end
 
   def title
-    genero ? genero.name : t('.all')
+    genero ? genero.name : "Todos"
   end
 
   def link

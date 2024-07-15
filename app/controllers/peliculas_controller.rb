@@ -20,12 +20,10 @@ class PeliculasController < ApplicationController
   def create
     @pelicula = Pelicula.new(pelicula_params)
 
-    respond_to do |format|
-      if @pelicula.save
-        redirect_to peliculas_path, notice: "La Pelicula se ha creado correctamente"
-      else
-        render :new, status: :unprocessable_entity
-      end
+    if @pelicula.save
+      redirect_to peliculas_path, notice: "La Pelicula se ha creado correctamente"
+    else
+      render :new, status: :unprocessable_entity
     end
   end
 
@@ -41,14 +39,10 @@ class PeliculasController < ApplicationController
 
   # PATCH/PUT /peliculas/1 or /peliculas/1.json
   def update
-    respond_to do |format|
-      if @pelicula.update(pelicula_params)
-        format.html { redirect_to pelicula_url(@pelicula), notice: "La Pelicula se ha actualizado correctamente." }
-        format.json { render :show, status: :ok, location: @pelicula }
-      else
-        format.html { render :edit, status: :unprocessable_entity }
-        format.json { render json: @pelicula.errors, status: :unprocessable_entity }
-      end
+    if @pelicula.update(pelicula_params)
+      redirect_to pelicula_url(@pelicula), notice: "La Pelicula se ha actualizado correctamente." 
+    else
+      render :edit, status: :unprocessable_entity 
     end
   end
 
@@ -56,10 +50,7 @@ class PeliculasController < ApplicationController
   def destroy
     @pelicula.destroy!
 
-    respond_to do |format|
-      format.html { redirect_to peliculas_url, notice: "Pelicula was successfully destroyed." }
-      format.json { head :no_content }
-    end
+    redirect_to peliculas_url, notice: "Pelicula was successfully destroyed."
   end
 
   private

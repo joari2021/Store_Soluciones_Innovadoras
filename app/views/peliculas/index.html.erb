@@ -2,6 +2,7 @@
 <%= turbo_frame_tag "generos" do %>
   <div class="container mt-5">
     <div class="flex overflow-x-scroll gap-2 my-4">
+      <%= render(GeneroComponent.new) %>
       <%= render(GeneroComponent.with_collection(@generos)) %>
     </div>
     <div class="row">
@@ -9,3 +10,13 @@
     </div>
   </div>
 <% end %>
+<!-- Modal -->
+<div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <%= turbo_frame_tag "modal-show"%>
+</div>
+<script>
+  function openedModalPeliculas() {
+    console.log('El botón fue presionado.');
+    $("#btn_opened_modal_peliculas").click();
+  }
+</script>
