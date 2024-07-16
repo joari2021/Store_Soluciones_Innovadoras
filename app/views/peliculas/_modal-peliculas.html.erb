@@ -1,4 +1,3 @@
-<!-- app/views/peliculas/show.html.erb -->
 <button type="button" class="btn btn-primary d-none" id="btn_opened_modal_peliculas" data-bs-toggle="modal" data-bs-target="#exampleModal">
   Launch demo modal
 </button>
@@ -6,7 +5,16 @@
 <div class="modal text-danger fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" data-controller="modal">
   <div class="modal-dialog modal-dialog-scrollable">
     <div class="modal-content">
-      <%= turbo_frame_tag "modal-show"%>
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <%= turbo_frame_tag "modal-peliculas"%>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="btn_closed_modal_peliculas" data-bs-dismiss="modal">Close</button>
+      </div>
     </div>
   </div>
 </div>

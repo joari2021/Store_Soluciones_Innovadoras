@@ -1,45 +1,39 @@
-<div data-controller="offcanva">
-  <div class="offcanvas-header">
-    <h5 class="offcanvas-title" id="offcanvasRightLabel">Offcanvas right</h5>
-    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-  </div>
-  <div class="offcanvas-body text-black">
-    <%= form_with(model: pelicula, local: false) do |form| %>
-      <% if pelicula.errors.any? %>
-        <div id="error_explanation">
-          <h2><%= pluralize(pelicula.errors.count, "error") %> prohibited this pelicula from being saved:</h2>
-          <ul>
-            <% pelicula.errors.full_messages.each do |message| %>
-              <li><%= message %></li>
-            <% end %>
-          </ul>
-        </div>
-      <% end %>
-      <div class="field">
-        <%= form.label :poster %>
-        <%= form.file_field :poster %>
-      </div>
-      <div class="field">
-        <%= form.label :name %>
-        <%= form.text_field :name %>
-      </div>
-      <div class="field">
-        <%= form.label :sinopsis %>
-        <%= form.text_area :sinopsis %>
-      </div>
-      <div class="field">
-        <span>Generos:</span>
-        <br>
-        <%= form.collection_check_boxes(:genero_ids, Genero.all, :id, :name) do |b| %>
-          <div class="collection-check-box">
-            <%= b.check_box %>
-            <%= b.label %>
-          </div>
-        <% end %>
-      </div>
-      <div class="actions">
-        <%= form.submit %>
+<%= turbo_frame_tag "modal-peliculas" do%>
+  <%= form_with(model: pelicula, local: false) do |form| %>
+    <% if pelicula.errors.any? %>
+      <div id="error_explanation">
+        <h2><%= pluralize(pelicula.errors.count, "error") %> prohibited this pelicula from being saved:</h2>
+        <ul>
+          <% pelicula.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
       </div>
     <% end %>
-  </div>
-</div>
+    <div class="field">
+      <%= form.label :poster %>
+      <%= form.file_field :poster %>
+    </div>
+    <div class="field">
+      <%= form.label :name %>
+      <%= form.text_field :name %>
+    </div>
+    <div class="field">
+      <%= form.label :sinopsis %>
+      <%= form.text_area :sinopsis %>
+    </div>
+    <div class="field">
+      <span>Generos:</span>
+      <br>
+      <%= form.collection_check_boxes(:genero_ids, Genero.all, :id, :name) do |b| %>
+        <div class="collection-check-box">
+          <%= b.check_box %>
+          <%= b.label %>
+        </div>
+      <% end %>
+    </div>
+    <div class="actions">
+      <%= form.submit %>
+    </div>
+  <% end %>
+<%end%>

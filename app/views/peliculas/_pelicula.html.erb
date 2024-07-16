@@ -1,5 +1,5 @@
 <div class="col-4 col-sm-3 col-md-2 mb-4">
-  <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-show"}, onclick: "openedModalPeliculas()"  do %>
+  <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, onclick: "openedModalPeliculas()"  do %>
     <div class="card bg-primary">
       <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card-im-top poster", alt: pelicula.name %>
       <div class="m-2">

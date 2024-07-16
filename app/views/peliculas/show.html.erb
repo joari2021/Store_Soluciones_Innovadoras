@@ -1,26 +1,17 @@
-<%= turbo_frame_tag "modal-show" do%>
-  <div class="modal-header">
-    <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
-    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+<%= turbo_frame_tag "modal-peliculas" do%>
+  <%= button_to "Edit this pelicula", edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas"} %>
+  <%= button_to "Destroy this pelicula", @pelicula, method: :delete %>
+  <div class="col-md-4">
+    <%= image_tag @pelicula.poster, class: "img-fluid", alt: @pelicula.name if @pelicula.poster.attached? %>
   </div>
-  <div class="modal-body">
-    <div class="col-md-4">
-      <%= image_tag @pelicula.poster, class: "img-fluid", alt: @pelicula.name if @pelicula.poster.attached? %>
-    </div>
-    <div class="col-md-8">
-      <h1><%= @pelicula.name %></h1>
-      <p><strong>Sinopsis:</strong> <%= @pelicula.sinopsis %></p>
-      <p><strong>Año:</strong> <%= @pelicula.year %></p>
-      <p><strong>Duración:</strong> <%= @pelicula.duration_hours %>h <%= @pelicula.duration_minutes %>m</p>
-      <p><strong>Director:</strong> <%= @pelicula.director %></p>
-      <p><strong>Reparto:</strong> <%= @pelicula.reparto %></p>
-      <p><strong>Disponible:</strong> <%= @pelicula.disponible ? 'Sí' : 'No' %></p>
-      <p><strong>Link del Trailer:</strong> <a href="<%= @pelicula.link_trailer %>" target="_blank"><%= @pelicula.link_trailer %></a></p>
-    </div>
-  </div>
-  <div class="modal-footer">
-    <%= button_to "Edit this pelicula", edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info",  id: "openOffcanvasButton", data: { turbo_frame: "offcanva-edit", bs_toggle: "offcanvas", bs_target: "#offcanvasRight" }, aria: { controls: "offcanvasRight" }, onclick: "closedModalPeliculas()"  %>
-    <%= button_to "Destroy this pelicula", @pelicula, method: :delete %>
-    <button type="button" class="btn btn-secondary" id="btn_closed_modal_peliculas" data-bs-dismiss="modal">Close</button>
+  <div class="col-md-8">
+    <h1><%= @pelicula.name %></h1>
+    <p><strong>Sinopsis:</strong> <%= @pelicula.sinopsis %></p>
+    <p><strong>Año:</strong> <%= @pelicula.year %></p>
+    <p><strong>Duración:</strong> <%= @pelicula.duration_hours %>h <%= @pelicula.duration_minutes %>m</p>
+    <p><strong>Director:</strong> <%= @pelicula.director %></p>
+    <p><strong>Reparto:</strong> <%= @pelicula.reparto %></p>
+    <p><strong>Disponible:</strong> <%= @pelicula.disponible ? 'Sí' : 'No' %></p>
+    <p><strong>Link del Trailer:</strong> <a href="<%= @pelicula.link_trailer %>" target="_blank"><%= @pelicula.link_trailer %></a></p>
   </div>
 <%end%>

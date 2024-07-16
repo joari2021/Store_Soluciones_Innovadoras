@@ -15,8 +15,5 @@
     <%= Time.now.strftime("%d/%m/%Y %H:%M:%S") %>
     <%=render "shared/header"%>
     <%= yield %>
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasRight" aria-labelledby="offcanvasRightLabel">
-      <%= turbo_frame_tag "offcanva-new" %>
-    </div>
   </body>
 </html>

@@ -2,7 +2,7 @@
   <h1>Catalogo de Peliculas</h1>
 <%end%>
 <div>
-  <%= button_to new_pelicula_path, remote: true, method: :get, class: "btn btn-info",  id: "openOffcanvasButton", data: { turbo_frame: "offcanva-new", bs_toggle: "offcanvas", bs_target: "#offcanvasRight" }, aria: { controls: "offcanvasRight" } do %>
+  <%= button_to new_pelicula_path, remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas" }, onclick: "openedModalPeliculas()" do %>
     <span class="fas fa-plus-square"></span>
   <% end %>
 </div>
