@@ -19,9 +19,8 @@
     </div>
   </div>
   <div class="modal-footer">
-    <%= link_to "Edit this pelicula", edit_pelicula_path(@pelicula) %>
+    <%= button_to "Edit this pelicula", edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info",  id: "openOffcanvasButton", data: { turbo_frame: "offcanva-edit", bs_toggle: "offcanvas", bs_target: "#offcanvasRight" }, aria: { controls: "offcanvasRight" }, onclick: "closedModalPeliculas()"  %>
     <%= button_to "Destroy this pelicula", @pelicula, method: :delete %>
-    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-    <button type="button" class="btn btn-primary">Save changes</button>
+    <button type="button" class="btn btn-secondary" id="btn_closed_modal_peliculas" data-bs-dismiss="modal">Close</button>
   </div>
 <%end%>

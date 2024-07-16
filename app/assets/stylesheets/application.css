@@ -35,3 +35,7 @@ a {
 .poster {
   height: 250px;
 }
+
+.modal-dialog-scrollable .modal-body {
+  max-height: calc(90vh - 130px);
+}
