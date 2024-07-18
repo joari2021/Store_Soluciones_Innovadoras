@@ -1,5 +1,5 @@
 <%= turbo_frame_tag "modal-peliculas" do%>
-  <%= form_with(model: pelicula, local: false) do |form| %>
+  <%= form_with(model: pelicula, local: false, data: { visit: @editing }, id: "form-peliculas") do |form| %>
     <% if pelicula.errors.any? %>
       <div id="error_explanation">
         <h2><%= pluralize(pelicula.errors.count, "error") %> prohibited this pelicula from being saved:</h2>
