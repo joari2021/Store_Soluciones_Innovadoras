@@ -1,11 +1,16 @@
 Rails.application.routes.draw do
-  root 'index#home'
-  get 'index/home'
+  namespace :authentication, path: '', as: '' do
+    resources :users, only: [:new, :create]
+    resources :sessions, only: [:new, :create]
+  end
+
   resources :serie_tvs
   resources :generos, except: :show
   resources :juegos
   resources :animes
-  resources :peliculas
+  resources :peliculas, path: "/"
+
+  
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
