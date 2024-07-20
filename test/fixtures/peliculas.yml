@@ -11,6 +11,7 @@ freeguy:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  user: jorge
 
 fastandfurious:
   name: Rapidos y Furiosos 5
@@ -25,6 +26,7 @@ fastandfurious:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  user: jorge
 
 mipobreangelito:
   name: Mi Pobre Angelito
@@ -39,6 +41,7 @@ mipobreangelito:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  user: jorge
 
 lamomia:
   name: La Momia
@@ -54,6 +57,7 @@ lamomia:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  user: jorge
 
 beckett:
   name: Beckett
@@ -68,3 +72,4 @@ beckett:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  user: jorge
