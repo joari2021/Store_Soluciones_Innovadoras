@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "modal-peliculas" do%>
-  <%= button_to "Edit this pelicula", edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas"} %>
-  <%= button_to "Destroy this pelicula", @pelicula, method: :delete %>
+  <%= button_to "Edit this pelicula", edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas"} if Current.user&.admin? %>
+  <%= button_to "Destroy this pelicula", @pelicula, method: :delete, data: { confirm: "Are you sure?" } if Current.user&.admin? %>
   <div class="col-md-4">
     <%= image_tag @pelicula.poster, class: "img-fluid", alt: @pelicula.name if @pelicula.poster.attached? %>
   </div>

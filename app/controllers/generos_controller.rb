@@ -1,4 +1,5 @@
 class GenerosController < ApplicationController
+  before_action :require_admin
   # GET /generos or /generos.json
   def index
     @generos = Genero.all

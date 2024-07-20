@@ -14,6 +14,9 @@ class User < ApplicationRecord
     }
   validates :password, length: { minimum: 6 }, if: :password_digest_changed?
 
+  # añadir cuando se añada la funcion de que varios otros usuarios puedan crear peliculas para asi monitorear luego
+  # has_many :products, dependent: :destroy
+
   before_save :downcase_attributes
 
   private

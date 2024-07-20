@@ -2,10 +2,19 @@
   <h1>Catalogo de Peliculas</h1>
 <%end%>
 <div>
-  <%= button_to new_pelicula_path, remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas" }, onclick: "openedModalPeliculas()" do %>
-    <span class="fas fa-plus-square"></span>
+  <% if Current.user&.admin? %>
+    <%= button_to new_pelicula_path, remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas" }, onclick: "openedModalPeliculas()" do %>
+      <span class="fas fa-plus-square"></span>
+    <% end %>
   <% end %>
 </div>
 <div>
-  <%= link_to "Añadir Generos", new_genero_path %>
+  <%= link_to "Añadir Generos", new_genero_path if Current.user&.admin? %>
+  <%= link_to "Ver Generos", generos_path if Current.user&.admin? %>
+  <%= link_to "Ingresar", new_session_path unless Current.user %>
+  <%= link_to "Registrarse", new_user_path unless Current.user %>
+  <%= link_to "Salir", session_path(Current.user.id), data: {
+  turbo_method: :delete,
+  turbo_confirm: "Estas seguro de salir"
+} if Current.user %>
 </div>

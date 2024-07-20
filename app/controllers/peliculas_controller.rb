@@ -1,5 +1,7 @@
 class PeliculasController < ApplicationController
   skip_before_action :protect_pages, only: [:index, :show]
+  before_action :require_admin, except: [:index, :show]
+  
   # GET /peliculas or /peliculas.json
   def index
     @generos = Genero.order(name: :asc).load_async

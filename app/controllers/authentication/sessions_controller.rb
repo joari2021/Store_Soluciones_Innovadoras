@@ -13,4 +13,10 @@ class Authentication::SessionsController < ApplicationController
       redirect_to new_session_path, alert: "usuario o contraseña invalida"
     end
   end
+
+  def destroy
+    session.delete(:user_id)
+
+    redirect_to peliculas_path, notice: "Sesion Finalizada"
+  end
 end
