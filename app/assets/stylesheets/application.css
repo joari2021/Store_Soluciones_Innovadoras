@@ -17,10 +17,10 @@
  *= require custom
  */
 
+/* ESTILOS ANTERIORES
 body {
   background: url("FondoPagina.png") no-repeat center center fixed;
   background-size: cover;
-  /* Asegúrate de que el contenido sea legible sobre la imagen de fondo */
   color: white;
 }
 
@@ -39,3 +39,7 @@ a {
 .modal-dialog-scrollable .modal-body {
   max-height: calc(90vh - 130px);
 }
+  estilos anteriores*/
+
+/* ESTILOS NUEVOS DE PLANTILLA WEB * /
+
