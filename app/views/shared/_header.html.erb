@@ -1,40 +1,26 @@
-<header class="header">
-  <div class="menu container">
-    <%= link_to "Soluciones Innovadoras", peliculas_path, class: "logo" %>
-    <input type="checkbox" id="menu" />
-    <label for="menu">
-      <%= image_tag 'menu.png', class: "menu-icono", alt: "menu" %>
-    </label>
-    <nav class="navbar">
-      <ul>
-        <li>
-          <% if Current.user&.admin? %>
-            <%= link_to new_pelicula_path, remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas" }, onclick: "openedModalPeliculas()" do %>
-              <span class="fas fa-plus-square"></span>
-            <% end %>
-          <% end %>
-        </li>
-        <li><%= link_to "Añadir Generos", new_genero_path if Current.user&.admin? %></li>
-        <li><%= link_to "Ver Generos", generos_path if Current.user&.admin? %></li>
-        <li><%= link_to "Ingresar", new_session_path unless Current.user %></li>
-        <li><%= link_to "Registrarse", new_user_path unless Current.user %></li>
-      </ul>
-    </nav>
-    <%= link_to "Salir", session_path(Current.user.id), class: "btn-1",  data: {
-            turbo_method: :delete,
-            turbo_confirm: "Estas seguro de salir"
-          } if Current.user %>
-  </div>
-  <div class="header-content container">
-    <div class="header-1">
-      <%= image_tag 'venom.png', alt: "poster-G" %>
-      <a href="#" class="btn-2">Ver Ahora</a>
-    </div>
-    <div class="header-2">
-      <h1 class="fw-bold lh-1">
-        LAS MEJORES <br />
-        PELICULAS
-      </h1>
+<!--==================== HEADER ====================-->
+<header class="header" id="header">
+  <div class="header__content">
+    <a href="#" class="header__logo">PELIXS</a>
+
+    <div class="header__actions">
+      <%= link_to "Ingresar", new_session_path unless Current.user %>
+      <%= link_to "Registrarse", new_user_path unless Current.user %>
+      <!--<i class="ri-notification-2-line"></i>
+      <i class="ri-account-circle-line"></i>-->
+
+      <div class="header__menu" id="header-menu">
+        <i class="ri-menu-line"></i>
+      </div>
     </div>
   </div>
+
+  <form action="" class="header__search">
+    <i class="ri-search-line"></i>
+    <input
+      type="search"
+      placeholder="Search movies"
+      class="header__input"
+    />
+  </form>
 </header>

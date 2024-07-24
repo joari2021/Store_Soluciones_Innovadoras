@@ -1,13 +1,19 @@
-<%= form_with(url: sessions_path) do |form| %>
-  <div>
-    <%= form.label :login %>
-    <%= form.text_field :login, required: true %>
+<div class="container">
+  <div class="row">
+    <div class="col-sm-4 caja-login" >
+      <%= form_with(url: sessions_path) do |form| %>
+        <div>
+          <%= form.label :login %>
+          <%= form.text_field :login, required: true %>
+        </div>
+        <div>
+          <%= form.label :password %>
+          <%= form.password_field :password, required: true %>
+        </div>
+        <div>
+          <%= form.submit %>
+        </div>
+      <% end %>
+    </div>
   </div>
-  <div>
-    <%= form.label :password %>
-    <%= form.password_field :password, required: true %>
-  </div>
-  <div>
-    <%= form.submit %>
-  </div>
-<% end %>
+</div>
