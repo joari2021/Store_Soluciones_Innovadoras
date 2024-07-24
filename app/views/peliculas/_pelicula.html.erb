@@ -1,10 +1,11 @@
-<div class="col-4 col-sm-3 col-md-2 mb-4">
+<div class="col-sm-6 col-md-4 col-lg-2">
   <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, onclick: "openedModalPeliculas()"  do %>
-    <div class="card bg-primary">
-      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card-im-top poster", alt: pelicula.name %>
-      <div class="m-2">
-        <h6 class="title text-white text-center fs-6"><%= pelicula.name %></h6>
-      </div>
+    <div class="content">
+      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', alt: pelicula.name %>
+      <h3><%= pelicula.name %></h3>
+      <p>
+        Lorem ipsum dolor sit amet consectetur adipisicing elit. Magnam
+      </p>
     </div>
   <%end%>
 </div>

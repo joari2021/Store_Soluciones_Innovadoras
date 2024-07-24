@@ -1,13 +1,16 @@
 <p style="color: green"><%= notice %></p>
 <%= turbo_frame_tag "generos" do %>
-  <div class="container mt-5">
-    <div class="flex overflow-x-scroll gap-2 my-4">
-      <%= render(GeneroComponent.new) %>
-      <%= render(GeneroComponent.with_collection(@generos)) %>
-    </div>
+  <div class="flex overflow-x-scroll gap-2 my-4">
+    <%= render(GeneroComponent.new) %>
+    <%= render(GeneroComponent.with_collection(@generos)) %>
+  </div>
+  <section class="movies container">
+    <h2>Peliculas mas vistas</h2>
+    <hr />
     <div class="row">
       <%= render partial: "pelicula", collection: @peliculas %>
     </div>
-  </div>
+    <div class="load-more" id="load-more-1">Cargar mas</div>
+  </section>
 <% end %>
 <%= render partial: "modal-peliculas"%>

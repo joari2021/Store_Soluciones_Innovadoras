@@ -188,9 +188,7 @@ hr {
   margin-bottom: 40px;
 }
 
-.box-container-1,
-.box-container-2,
-.box-container-3 {
+.box-container-1 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 40px;
@@ -244,6 +242,7 @@ hr {
 
 .content img {
   width: 100%;
+  height: 300px;
   margin-bottom: 15px;
 }
 
@@ -282,6 +281,36 @@ hr {
 
 .footer a:hover {
   color: #ff2f28;
+}
+
+@media (max-width: 575px) {
+  .content img {
+    height: 420px;
+  }
+}
+
+/* SM */
+@media (min-width: 576px) {
+  .content img {
+    height: 350px;
+  }
+}
+
+/* MD */
+@media (min-width: 768px) {
+  .content img {
+    height: 300px;
+  }
+}
+
+/* LG */
+@media (min-width: 991px) {
+  .content img {
+    height: 220px;
+  }
+  .movies {
+    padding: 30px 50px;
+  }
 }
 
 @media (max-width: 991px) {
