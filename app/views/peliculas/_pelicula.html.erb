@@ -1,11 +1,13 @@
-<div class="col-sm-6 col-md-4 col-lg-2">
-  <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, onclick: "openedModalPeliculas()"  do %>
-    <div class="content">
-      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', alt: pelicula.name %>
-      <h3><%= pelicula.name %></h3>
-      <p>
-        Lorem ipsum dolor sit amet consectetur adipisicing elit. Magnam
-      </p>
-    </div>
-  <%end%>
+<div class="col-sm-3">
+  <article class="card__article swiper-slide">
+    <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, class:"card__link", onclick: "openedModalPeliculas()"  do %>
+      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card__img", alt: pelicula.name %>
+      <div class="card__shadow"></div>
+      <div class="card__data">
+        <h3 class="card__name"><%= pelicula.name %></h3>
+        <span class="card__category">Action</span>
+      </div>
+      <i class="ri-heart-3-line card__like"></i>
+    <%end%>
+  </article>
 </div>

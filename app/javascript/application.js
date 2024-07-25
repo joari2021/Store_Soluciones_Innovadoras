@@ -5,21 +5,31 @@ import "controllers";
 // app/javascript/application.js
 import "bootstrap";
 
-let loadMoreBtn1 = document.querySelector("#load-more-1");
-let currentItem1 = 4;
+/*=============== SHOW MENU ===============*/
+const nav = document.getElementById("nav"),
+  headerMenu = document.getElementById("header-menu"),
+  navClose = document.getElementById("nav-close");
 
-loadMoreBtn1.onclick = () => {
-  let boxes = [...document.querySelectorAll(".box-container-1 .box-1")];
-  // Asegúrate de que el índice no sea mayor que el número de elementos disponibles
-  let nextItems = Math.min(currentItem1 + 4, boxes.length);
+/* Menu show */
+if (headerMenu) {
+  headerMenu.addEventListener("click", () => {
+    nav.classList.add("show-menu");
+  });
+}
 
-  for (let i = currentItem1; i < nextItems; i++) {
-    boxes[i].style.display = "inline-block";
-  }
+/* Menu hidden */
+if (navClose) {
+  navClose.addEventListener("click", () => {
+    nav.classList.remove("show-menu");
+  });
+}
 
-  currentItem1 = nextItems;
-
-  if (currentItem1 >= boxes.length) {
-    loadMoreBtn1.style.display = "none";
-  }
+/*=============== ADD BLUR HEADER ===============*/
+const blurHeader = () => {
+  const header = document.getElementById("header");
+  // Add a class if the bottom offset is greater than 50 of the viewport
+  window.scrollY >= 50
+    ? header.classList.add("blur-header")
+    : header.classList.remove("blur-header");
 };
+window.addEventListener("scroll", blurHeader);

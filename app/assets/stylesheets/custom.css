@@ -1,3 +1,6 @@
+/*=============== GOOGLE FONTS ===============*/
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&display=swap");
+
 /*=============== VARIABLES CSS ===============*/
 :root {
   --header-height: 3.5rem;
@@ -70,6 +73,7 @@ button {
 
 ul {
   list-style: none;
+  padding-inline-start: 0px !important;
 }
 
 a {
@@ -106,8 +110,8 @@ img {
 }
 
 .bg__blur {
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 /*=============== HEADER ===============*/
@@ -116,7 +120,7 @@ img {
   top: 0;
   left: 0;
   width: 100%;
-  /*background-color: transparent;*/
+  background-color: transparent;
   display: grid;
   row-gap: 1.5rem;
   padding: 1rem 1.5rem;
@@ -190,7 +194,7 @@ img {
 }
 
 /*=============== NAV ===============*/
-.nav {
+.nav-especial {
   position: fixed;
   top: 0;
   right: -100%;
@@ -221,11 +225,6 @@ img {
 .nav__list {
   display: grid;
   row-gap: 2rem;
-}
-
-.nav {
-  height: 100vh; /* Asegura que el nav ocupe toda la altura de la pantalla */
-  overflow-y: auto; /* Habilita el scroll vertical */
 }
 
 .nav__menu {
@@ -439,7 +438,7 @@ img {
     padding-top: 7.5rem;
   }
 
-  .nav {
+  .nav-especial {
     right: initial;
     left: 0;
   }

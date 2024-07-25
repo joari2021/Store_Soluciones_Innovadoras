@@ -1,16 +1,20 @@
-<p style="color: green"><%= notice %></p>
-<%= turbo_frame_tag "generos" do %>
-  <div class="flex overflow-x-scroll gap-2 my-4">
-    <%= render(GeneroComponent.new) %>
-    <%= render(GeneroComponent.with_collection(@generos)) %>
-  </div>
-  <section class="movies container">
-    <h2>Peliculas mas vistas</h2>
-    <hr />
-    <div class="row">
-      <%= render partial: "pelicula", collection: @peliculas %>
+<main class="main">
+  <%= turbo_frame_tag "generos" do %>
+    <div class="flex overflow-x-scroll gap-2 my-4">
+      <%= render(GeneroComponent.new) %>
+      <%= render(GeneroComponent.with_collection(@generos)) %>
     </div>
-    <div class="load-more" id="load-more-1">Cargar mas</div>
-  </section>
-<% end %>
+    <!--==================== MOVIES ====================-->
+    <section class="movie">
+      <h3 class="card__title">Movies</h3>
+      <div class="movie__swiper swiper">
+        <div class="row swiper-wrapper">
+          <%= render partial: "pelicula", collection: @peliculas %>
+        </div>
+      </div>
+    </section>
+    <!-- Pagination -->
+    <div class="swiper-pagination"></div>
+  <% end %>
+</main>
 <%= render partial: "modal-peliculas"%>

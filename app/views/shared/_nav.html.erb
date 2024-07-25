@@ -1,5 +1,5 @@
  <!--==================== NAV ====================-->
-<nav class="nav" id="nav">
+<nav class="nav-especial" id="nav">
   <div class="nav__menu">
     <%= link_to "Soluciones Innovadoras", peliculas_path, class: "nav__logo" %>
     <ul class="nav__list">
@@ -39,7 +39,6 @@
         </li>
       </ul>
     </div>
-   
     <% if Current.user&.admin? %>
       <div>
         <h3 class="nav__title">Administrador</h3>
@@ -59,10 +58,9 @@
       </div>
     <% end %>
   </div>
- 
   <% if Current.user%>
     <%= link_to session_path(Current.user.id), 
-        class: "nav__link", 
+        class: "nav__link nav__logout", 
         data: { turbo_method: :delete, turbo_confirm: "Estas seguro de salir" } do %>
       <i class="ri-logout-box-line"></i> <span>Log Out</span>
     <% end %>
