@@ -2,25 +2,22 @@
 <header class="header" id="header">
   <div class="header__content">
     <a href="#" class="header__logo">PELIXS</a>
-
+    <%= link_to "Ingresar", new_session_path unless Current.user %>
+    <%= link_to "Registrarse", new_user_path unless Current.user %>
     <div class="header__actions">
-      <%= link_to "Ingresar", new_session_path unless Current.user %>
-      <%= link_to "Registrarse", new_user_path unless Current.user %>
       <!--<i class="ri-notification-2-line"></i>
       <i class="ri-account-circle-line"></i>-->
-
       <div class="header__menu" id="header-menu">
         <i class="ri-menu-line"></i>
       </div>
     </div>
   </div>
-
   <form action="" class="header__search">
     <i class="ri-search-line"></i>
     <input
       type="search"
       placeholder="Search movies"
       class="header__input"
-    />
-  </form>
-</header>
+    >
+    </form>
+  </header>

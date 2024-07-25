@@ -1,8 +1,5 @@
-// Configure your import map in config/importmap.rb. Read more: https://github.com/rails/importmap-rails
 import "@hotwired/turbo-rails";
 import "controllers";
-
-// app/javascript/application.js
 import "bootstrap";
 
 /*=============== SHOW MENU ===============*/
@@ -12,6 +9,7 @@ const nav = document.getElementById("nav"),
 
 /* Menu show */
 if (headerMenu) {
+  console.log("headerMenu");
   headerMenu.addEventListener("click", () => {
     nav.classList.add("show-menu");
   });
@@ -19,6 +17,7 @@ if (headerMenu) {
 
 /* Menu hidden */
 if (navClose) {
+  console.log("navClose");
   navClose.addEventListener("click", () => {
     nav.classList.remove("show-menu");
   });
