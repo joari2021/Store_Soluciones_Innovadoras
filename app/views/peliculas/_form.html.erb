@@ -19,6 +19,10 @@
       <%= form.text_field :name %>
     </div>
     <div class="field">
+      <%= form.label :date_estreno, "Fecha de Estreno" %>
+      <%= form.date_select :date_estreno, { order: [:day, :month, :year] }, class: "form-control" %>
+    </div>
+    <div class="field">
       <%= form.label :sinopsis %>
       <%= form.text_area :sinopsis %>
     </div>

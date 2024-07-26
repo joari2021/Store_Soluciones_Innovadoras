@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_20_210227) do
+ActiveRecord::Schema[7.1].define(version: 2024_07_26_220610) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -122,7 +122,6 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_20_210227) do
     t.string "poster"
     t.string "name"
     t.string "others_titles"
-    t.integer "year"
     t.integer "duration_hours"
     t.integer "duration_minutes"
     t.string "director"
@@ -137,6 +136,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_20_210227) do
     t.boolean "disponible", default: true
     t.string "link_trailer"
     t.bigint "user_id", null: false
+    t.date "date_estreno"
     t.index ["user_id"], name: "index_peliculas_on_user_id"
   end
 

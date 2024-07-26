@@ -50,6 +50,8 @@ gem "bootsnap", require: false
 #other gemas
 gem 'sassc'
 gem "font-awesome-sass"
+# Postgresql FullTextSearch
+gem "pg_search", "~> 2.3"
 # View Components
 gem "view_component", "~> 3.12"
 
