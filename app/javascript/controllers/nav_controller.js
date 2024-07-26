@@ -26,7 +26,8 @@ export default class extends Controller {
     let listElements = document.querySelectorAll(".list__button--click");
 
     listElements.forEach((listElement) => {
-      listElement.addEventListener("click", () => {
+      listElement.addEventListener("click", (event) => {
+        event.preventDefault();
         listElement.classList.toggle("arrow");
 
         let height = 0;

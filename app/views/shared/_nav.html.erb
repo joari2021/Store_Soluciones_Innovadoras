@@ -4,15 +4,18 @@
     <%= link_to "Soluciones Innovadoras", peliculas_path, class: "nav__logo" %>
     <ul class="nav__list">
       <li class="nav__item">
+        <%= link_to peliculas_path, class: "nav__link" do %>
+          <i class="ri-movie-line"></i> <span>Peliculas</span>
+        <% end %>
+      </li>
+
+      <!--
+      <li class="nav__item">
         <a href="#" class="nav__link">
           <i class="ri-home-5-line"></i> <span>Home</span>
         </a>
       </li>
-      <li class="nav__item">
-        <a href="#" class="nav__link">
-          <i class="ri-movie-line"></i> <span>Movies</span>
-        </a>
-      </li>
+      
       <li class="nav__item">
         <a href="#" class="nav__link">
           <i class="ri-film-line"></i> <span>Series</span>
@@ -23,7 +26,7 @@
           <i class="ri-heart-3-line"></i> <span>Favorites</span>
         </a>
       </li>
-    </ul>
+    </ul>-->
     <% if Current.user&.admin? %>
       <div>
         <ul class="list">
