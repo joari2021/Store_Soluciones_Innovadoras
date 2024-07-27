@@ -1,7 +1,7 @@
 Rails.application.routes.draw do
-  namespace :authentication, path: '', as: '' do
-    resources :users, only: [:new, :create], path: '/register', path_names: { new: '/' }
-    resources :sessions, only: [:new, :create, :destroy], path: '/login', path_names: { new: '/' }
+  namespace :authentication, path: "", as: "" do
+    resources :users, only: [:new, :create], path: "/register", path_names: { new: "/" }
+    resources :sessions, only: [:new, :create, :destroy], path: "/login", path_names: { new: "/" }
   end
 
   resources :serie_tvs
@@ -10,7 +10,6 @@ Rails.application.routes.draw do
   resources :animes
   resources :peliculas, path: "/"
 
-  
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.

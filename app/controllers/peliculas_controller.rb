@@ -45,6 +45,7 @@ class PeliculasController < ApplicationController
   end
 
   # PATCH/PUT /peliculas/1 or /peliculas/1.json
+
   def update
     if pelicula.update(pelicula_params)
       redirect_to pelicula_url(pelicula), notice: "La Pelicula se ha actualizado correctamente."
