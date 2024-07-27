@@ -1,7 +1,7 @@
 class PeliculasController < ApplicationController
   skip_before_action :protect_pages, only: [:index, :show]
   before_action :require_admin, except: [:index, :show]
-  
+
   # GET /peliculas or /peliculas.json
   def index
     @generos = Genero.order(name: :asc).load_async
@@ -9,6 +9,10 @@ class PeliculasController < ApplicationController
 
     if params[:genero_id]
       @peliculas = Pelicula.joins(:generos).where(generos: { id: params[:genero_id] })
+    end
+
+    if params[:query_text].present?
+      @peliculas = @peliculas.whose_name_starts_with(params[:query_text])
     end
   end
 
@@ -29,11 +33,10 @@ class PeliculasController < ApplicationController
     end
   end
 
-   # GET /peliculas/1 or /peliculas/1.json
-   def show
+  # GET /peliculas/1 or /peliculas/1.json
+  def show
     pelicula
-   end
- 
+  end
 
   # GET /peliculas/1/edit
   def edit
@@ -44,9 +47,9 @@ class PeliculasController < ApplicationController
   # PATCH/PUT /peliculas/1 or /peliculas/1.json
   def update
     if pelicula.update(pelicula_params)
-      redirect_to pelicula_url(pelicula), notice: "La Pelicula se ha actualizado correctamente." 
+      redirect_to pelicula_url(pelicula), notice: "La Pelicula se ha actualizado correctamente."
     else
-      render :edit, status: :unprocessable_entity 
+      render :edit, status: :unprocessable_entity
     end
   end
 
@@ -58,13 +61,14 @@ class PeliculasController < ApplicationController
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def pelicula
-      @pelicula ||= Pelicula.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def pelicula_params
-      params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, genero_ids: [])
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def pelicula
+    @pelicula ||= Pelicula.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def pelicula_params
+    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, genero_ids: [])
+  end
 end

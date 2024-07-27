@@ -1,4 +1,9 @@
-<p style="color: green"><%= notice %></p>
-<h1>Generos</h1>
-<%= render partial: "genero", collection: @generos %>
-<%= link_to "New genero", new_genero_path %>
+<div class="container">
+  <div class="row">
+    <div class="col-sm-4 caja-login" >
+      <h1>Generos</h1>
+      <%= render partial: "genero", collection: @generos %>
+      <%= link_to "New genero", new_genero_path %>
+    </div>
+  </div>
+</div>

@@ -11,3 +11,51 @@ comedia:
 
 suspenso:
   name: Suspenso
+
+terror:
+  name: Terror
+
+horror:
+  name: Horror
+
+romance:
+  name: Romance
+
+familia:
+  name: Familia
+
+anime:
+  name: Anime
+
+cienciaFiccion:
+  name: Ciencia Ficción
+
+aventura:
+  name: Aventura
+
+animación:
+  name: Animación
+
+belica:
+  name: Bélica
+
+crimen:
+  name: Crimen
+
+documental:
+  name: Documental
+
+fantasia:
+  name: Fantasía
+
+historia:
+  name: Historia
+
+misterio:
+  name: Misterio
+
+musical:
+  name: Musical
+
+western:
+  name: Western

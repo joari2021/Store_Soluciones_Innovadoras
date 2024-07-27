@@ -1,7 +1,7 @@
 freeguy:
   name: "Free Guy: tomando el control"
   others_titles:
-  year: 2021
+  date_estreno: "2024-07-25"
   duration_hours: 1
   duration_minutes: 55
   director: Shawn Levy
@@ -16,7 +16,7 @@ freeguy:
 fastandfurious:
   name: Rapidos y Furiosos 5
   others_titles: Fast & Furious 5
-  year: 2011
+  date_estreno: "2024-07-25"
   duration_hours: 2
   duration_minutes: 11
   director: Justin Lin
@@ -31,7 +31,7 @@ fastandfurious:
 mipobreangelito:
   name: Mi Pobre Angelito
   others_titles: Solo en Casa, Home Alone
-  year: 1990
+  date_estreno: "2024-07-25"
   duration_hours: 1
   duration_minutes: 43
   director: Chris Columbus
@@ -46,7 +46,7 @@ mipobreangelito:
 lamomia:
   name: La Momia
   others_titles: 
-  year: 1999
+  date_estreno: "2024-07-25"
   duration_hours: 2
   duration_minutes: 4
   director: Stephen Sommers 
@@ -62,7 +62,7 @@ lamomia:
 beckett:
   name: Beckett
   others_titles: 
-  year: 2021
+  date_estreno: "2024-07-25"
   duration_hours: 1
   duration_minutes: 48
   director: Stephen Sommers 
