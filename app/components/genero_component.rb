@@ -15,18 +15,15 @@ class GeneroComponent < ViewComponent::Base
     genero ? peliculas_path(genero_id: genero.id) : peliculas_path
   end
 
-  def active?
-    return true if !genero && !params[:genero_id]
-    genero&.id == params[:genero_id].to_i
-  end
-
   def classes
-    "genero text-gray-600 px-4 py-2 rounded-2xl drop-shadow-sm hover:bg-gray-300 #{background}"
+    "genero nav__link nav__link--inside"
   end
 
-  private
+  def classesTwo
+    "genre-link #{active}"
+  end
 
-  def background
-    active? ? "bg-gray-300" : "bg-white"
+  def active
+    genero&.name == title ? "list__inside" : "list__active"
   end
 end

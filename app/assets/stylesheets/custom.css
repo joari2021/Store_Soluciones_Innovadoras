@@ -4,6 +4,7 @@
 
   /*========== Colors ==========*/
   /*Color mode HSL(hue, saturation, lightness)*/
+  --color-info: #0dcaf0;
   --white-color: hsl(0, 0%, 100%);
   --white-color-light: hsl(0, 0%, 90%);
   --shadow-bg: linear-gradient(
@@ -236,6 +237,14 @@ img {
   column-gap: 0.75rem;
 }
 
+.nav__item:hover a,
+.nav__item:hover i,
+.list__button:hover a,
+.list__button:hover i,
+.nav__logo:hover {
+  color: var(--color-info);
+}
+
 .nav__link i {
   font-size: 1.5rem;
 }
@@ -260,8 +269,24 @@ img {
   text-align: left;
 }
 
-.nav__link--inside:hover {
-  background: #f6f8fa;
+.list__inside:hover {
+  background: #ffffff;
+  border-radius: 5px;
+}
+.list__inside:hover span {
+  color: var(--color-info) !important;
+  /*font-weight: bold;*/
+}
+
+.list__active {
+  background: #ffffff;
+  border-radius: 5px;
+  padding: 10px 0px;
+  text-align: left;
+}
+.list__active span {
+  color: var(--color-info) !important;
+  /*font-weight: bold;*/
 }
 
 .list__item {
@@ -273,6 +298,7 @@ img {
 
 .list__inside {
   padding: 10px 0px;
+  text-align: left;
 }
 
 .list__item--click {
@@ -284,7 +310,7 @@ img {
   align-items: center;
   gap: 1em;
   width: 70%;
-  margin: 0 auto;
+  margin: 0px auto 15px auto;
 }
 
 .arrow .list__arrow {

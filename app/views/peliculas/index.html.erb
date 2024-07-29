@@ -1,8 +1,4 @@
 <main class="main">
-  <div class="flex overflow-x-scroll gap-2 my-4">
-    <%= render(GeneroComponent.new) %>
-    <%= render(GeneroComponent.with_collection(@generos)) %>
-  </div>
   <!--==================== MOVIES ====================-->
   <%= turbo_frame_tag "generos" do %>
     <section class="movie">
@@ -12,7 +8,7 @@
           <%= render partial: "pelicula", collection: @peliculas %>
         </div>
       </div>
-      <%= Time.current.strftime("%d/%m/%Y %H:%M") %>
+      <% Time.current.strftime("%d/%m/%Y %H:%M") %>
     </section>
     <!-- Pagination -->
     <div class="swiper-pagination"></div>

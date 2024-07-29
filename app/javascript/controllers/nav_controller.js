@@ -8,7 +8,6 @@ export default class extends Controller {
 
     /* Menu show */
     if (headerMenu) {
-      console.log("headerMenu");
       headerMenu.addEventListener("click", () => {
         this.element.classList.add("show-menu");
       });
@@ -16,7 +15,6 @@ export default class extends Controller {
 
     /* Menu hidden */
     if (navClose) {
-      console.log("navClose");
       navClose.addEventListener("click", () => {
         this.element.classList.remove("show-menu");
       });

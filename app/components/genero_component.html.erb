@@ -1,1 +1,5 @@
-<%= link_to title, link, class: classes, data: { turbo_frame: "generos" } %>
+<%= link_to link, data: { turbo_frame: "generos" } do %>
+  <li class="<%=classesTwo%>">
+    <span class="<%=classes%>"><%=title%></span>
+  </li>
+<% end %>

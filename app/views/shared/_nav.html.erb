@@ -25,13 +25,34 @@
           <i class="ri-heart-3-line"></i> <span>Favorites</span>
         </a>
       </li>
-    </ul>
+    
     -->
+    </ul>
+    <!-- FILTRAR POR GENEROS -->
+    <div>
+      <ul class="list nav__list">
+        <li class="nav__link">
+          <i class="ri-sound-module-fill"></i>
+          <span class="fw-bold">Filtrar Por</span>
+        </li>
+        <li class="list__item list__item--click">
+          <div class="list__button list__button--click">
+            <a href="#" class="nav__link">Generos</a>
+            <i class="ri-arrow-right-line list__arrow"></i>
+          </div>
+          <ul class="list__show" data-controller="list-genre">
+            <%= render(GeneroComponent.new) %>
+            <%= render(GeneroComponent.with_collection(@generos)) %>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    <% if Current.user&.admin? %>
       <div>
-        <ul class="list">
+        <ul class="list nav__list">
           <li class="list__item list__item--click">
             <div class="list__button list__button--click">
-              <a href="#" class="nav__link">Generos</a>
+              <a href="#" class="nav__link">Administrador</a>
               <i class="ri-arrow-right-line list__arrow"></i>
             </div>
             <ul class="list__show">
@@ -48,52 +69,23 @@
               <li class="list__inside">
                 <%= link_to generos_path, class:"nav__link nav__link--inside" do%>
                   <i class="ri-eye-line"></i>
-                  <span>Ver Generos</span>
+                  <span>Ver</span>
                 <% end %>
               </li>
             </ul>
           </li>
         </ul>
       </div>
-      <% if Current.user&.admin? %>
-        <div>
-          <ul class="list">
-            <li class="list__item list__item--click">
-              <div class="list__button list__button--click">
-                <a href="#" class="nav__link">Administrador</a>
-                <i class="ri-arrow-right-line list__arrow"></i>
-              </div>
-              <ul class="list__show">
-                <li class="list__inside">
-                  <%= link_to new_pelicula_path, remote: true, method: :get, class: "nav__link", data: { turbo_frame: "modal-peliculas" }, onclick: "openedModalPeliculas()", class:"nav__link nav__link--inside" do %>
-                    <i class="fas fa-plus-square"></i> <span>Nueva Pelicula</span>
-                  <% end %>
-                </li>
-                <li class="list__inside">
-                  <%= link_to new_genero_path, class:"nav__link nav__link--inside" do%>
-                    <i class="fas fa-plus-square"></i> <span>Añadir Genero</span>
-                  <% end %>
-                </li>
-                <li class="list__inside">
-                  <%= link_to generos_path, class:"nav__link nav__link--inside" do%>
-                    <i class="ri-eye-line"></i>
-                    <span>Ver Generos</span>
-                  <% end %>
-                </li>
-              </ul>
-            </li>
-          </ul>
-        </div>
-      <% end %>
-    </div>
-    <% if Current.user%>
-      <%= link_to session_path(Current.user.id), 
+    <% end %>
+  </div>
+  <% if Current.user%>
+    <%= link_to session_path(Current.user.id), 
         class: "nav__link nav__logout", 
         data: { turbo_method: :delete, turbo_confirm: "Estas seguro de salir" } do %>
-        <i class="ri-logout-box-line"></i> <span>Log Out</span>
-      <% end %>
+      <i class="ri-logout-box-line"></i> <span>Log Out</span>
     <% end %>
-    <div class="nav__close" id="nav-close">
-      <i class="ri-close-line"></i>
-    </div>
-  </nav>
+  <% end %>
+  <div class="nav__close" id="nav-close">
+    <i class="ri-close-line"></i>
+  </div>
+</nav>
