@@ -6,6 +6,7 @@ class PeliculasController < ApplicationController
   def index
     @generos = Genero.order(name: :asc).load_async
     @peliculas = Pelicula.all.with_attached_poster
+    @year_estreno = Pelicula.pluck(:date_estreno).map { |date| date.year }.uniq
 
     if params[:genero_id]
       @peliculas = Pelicula.joins(:generos).where(generos: { id: params[:genero_id] })

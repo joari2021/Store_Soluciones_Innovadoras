@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 class GeneroComponent < ViewComponent::Base
   attr_reader :genero
 

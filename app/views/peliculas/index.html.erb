@@ -1,4 +1,49 @@
 <main class="main">
+  <!-- FILTROS DE BUSQUEDA -->
+  <ul class="list" data-controller="selects">
+    <li class="nav__link">
+      <i class="ri-sound-module-fill"></i>
+      <span class="fw-bold">Filtrar Por</span>
+    </li>
+    <!-- GENEROS -->
+    <li class="nav__link ms-5">
+      <div class="select-menu">
+        <div class="select-btn">
+          <span class="sBtn-text">Todos</span>
+          <i class="ri-arrow-down-line"></i>
+        </div>
+        <ul class="options">
+          <li class="option">
+            <span class="option-text" data-genero_id="all">Todos</span>
+          </li>
+          <% @generos.each do |genero| %>
+            <li class="option">
+              <span class="option-text" data-genero_id="<%=genero.id%>"><%= genero.name %></span>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </li>
+    <!-- años de estreno-->
+    <li class="nav__link ms-5">
+      <div class="select-menu" id="select_menu_year">
+        <div class="select-btn">
+          <span class="sBtn-text">Todos</span>
+          <i class="ri-arrow-down-line"></i>
+        </div>
+        <ul class="options">
+          <li class="option">
+            <span class="option-text" data-genero_id="all">Todos</span>
+          </li>
+          <% @year_estreno.each do |año| %>
+            <li class="option">
+              <span class="option-text"><%= año %></span>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </li>
+  </ul>
   <!--==================== MOVIES ====================-->
   <%= turbo_frame_tag "generos" do %>
     <section class="movie">
