@@ -5,44 +5,61 @@
       <i class="ri-sound-module-fill"></i>
       <span class="fw-bold">Filtrar Por</span>
     </li>
-    <!-- GENEROS -->
-    <li class="nav__link ms-5">
-      <div class="select-menu">
-        <div class="select-btn">
-          <span class="sBtn-text">Todos</span>
-          <i class="ri-arrow-down-line"></i>
-        </div>
-        <ul class="options">
-          <li class="option">
-            <span class="option-text" data-genero_id="all">Todos</span>
-          </li>
-          <% @generos.each do |genero| %>
-            <li class="option">
-              <span class="option-text" data-genero_id="<%=genero.id%>"><%= genero.name %></span>
-            </li>
-          <% end %>
-        </ul>
-      </div>
-    </li>
-    <!-- años de estreno-->
-    <li class="nav__link ms-5">
+    <!-- AÑOS DE ESTRENO -->
+    <li class="nav__link ms-2" id="boton_select" data-select="year">
       <div class="select-menu" id="select_menu_year">
-        <div class="select-btn">
-          <span class="sBtn-text">Todos</span>
+        <div class="select-btn" id="select_btn_year">
+          <span class="sBtn-text" id="sBtn_text_year">Todos</span>
           <i class="ri-arrow-down-line"></i>
         </div>
-        <ul class="options">
-          <li class="option">
-            <span class="option-text" data-genero_id="all">Todos</span>
+        <ul class="options" id="options_year">
+          <li class="option" id="option_year">
+            <span class="option-text" id="option_text_year" data-genero_id="all">Todos</span>
           </li>
-          <% @year_estreno.each do |año| %>
-            <li class="option">
-              <span class="option-text"><%= año %></span>
+          <% @year_estreno.each do |year| %>
+            <li class="option" id="option_year">
+              <span class="option-text" id="option_text_year"><%= year %></span>
             </li>
           <% end %>
         </ul>
       </div>
     </li>
+    <!-- AÑOS DE ESTRENO -->
+    <li class="nav__link ms-2" id="boton_select" data-select="clasification">
+      <div class="select-menu" id="select_menu_clasification">
+        <div class="select-btn" id="select_btn_clasification">
+          <span class="sBtn-text" id="sBtn_text_clasification">Todos</span>
+          <i class="ri-arrow-down-line"></i>
+        </div>
+        <ul class="options" id="options_clasification">
+          <li class="option" id="option_clasification">
+            <span class="option-text" id="option_text_clasification" data-genero_id="all">Todos</span>
+          </li>
+          <% @clasifications_peliculas.each do |clasification| %>
+            <li class="option" id="option_clasification">
+              <span class="option-text" id="option_text_clasification"><%= clasification %></span>
+            </li>
+          <% end %>
+        </ul>
+      </div>
+    </li>
+    <%= form_with url: peliculas_path, method: :get do |form| %>
+      <div>
+        <%= label_tag :genero, "Género" %>
+        <%= select_tag :genero, options_for_select(@generos, params[:genero]), include_blank: true %>
+      </div>
+      <div>
+        <%= label_tag :year_estreno, "Año de Estreno" %>
+        <%= select_tag :year_estreno, options_for_select(@year_estreno, params[:year_estreno]), include_blank: true %>
+      </div>
+      <div>
+        <%= label_tag :clasification, "Clasificación" %>
+        <%= select_tag :clasification, options_for_select(@clasifications_peliculas, params[:clasification]), include_blank: true %>
+      </div>
+      <div>
+        <%= submit_tag "Buscar", class: "btn btn-primary" %>
+      </div>
+    <% end %>
   </ul>
   <!--==================== MOVIES ====================-->
   <%= turbo_frame_tag "generos" do %>

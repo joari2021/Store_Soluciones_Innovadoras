@@ -1,8 +1,22 @@
 .select-menu {
-  width: 250px;
   color: var(--color-info);
   display: inline-block;
 }
+#select_menu_genero,
+#select_menu_genero #options_genero {
+  width: 220px;
+}
+
+#select_menu_year,
+#select_menu_year #options_year {
+  width: 120px;
+}
+
+#select_menu_clasification,
+#select_menu_clasification #options_clasification {
+  width: 120px;
+}
+
 .select-menu .select-btn {
   display: flex;
   height: 55px;
@@ -25,7 +39,6 @@
 }
 .select-menu .options {
   position: absolute;
-  width: 250px;
   /*padding: 20px;*/
   margin-top: 10px;
   border-radius: 8px;

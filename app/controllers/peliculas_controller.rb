@@ -4,12 +4,21 @@ class PeliculasController < ApplicationController
 
   # GET /peliculas or /peliculas.json
   def index
-    @generos = Genero.order(name: :asc).load_async
+    @generos = Genero.pluck(:name, :id)
     @peliculas = Pelicula.all.with_attached_poster
     @year_estreno = Pelicula.pluck(:date_estreno).map { |date| date.year }.uniq
+    @clasifications_peliculas = Pelicula.distinct.pluck(:clasification)
 
-    if params[:genero_id]
-      @peliculas = Pelicula.joins(:generos).where(generos: { id: params[:genero_id] })
+    if params[:genero]
+      @peliculas = Pelicula.joins(:generos).where(generos: { id: params[:genero] })
+    end
+
+    if params[:clasification].present?
+      @peliculas = @peliculas.where(clasification: params[:clasification])
+    end
+
+    if params[:year_estreno].present?
+      @peliculas = @peliculas.where("DATE_PART('year', date_estreno) = ?", params[:year_estreno].to_i)
     end
 
     if params[:query_text].present?
@@ -71,6 +80,6 @@ class PeliculasController < ApplicationController
 
   # Only allow a list of trusted parameters through.
   def pelicula_params
-    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, genero_ids: [])
+    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification)
   end
 end

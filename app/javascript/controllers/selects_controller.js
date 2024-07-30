@@ -2,21 +2,28 @@ import { Controller } from "@hotwired/stimulus";
 
 export default class extends Controller {
   connect() {
-    const optionMenu = document.querySelector(".select-menu"),
-      selectBtn = optionMenu.querySelector(".select-btn"),
-      options = optionMenu.querySelectorAll(".option"),
-      sBtn_text = optionMenu.querySelector(".sBtn-text");
+    const botonesSelect = document.querySelectorAll("#boton_select");
 
-    selectBtn.addEventListener("click", () =>
-      optionMenu.classList.toggle("active")
-    );
+    botonesSelect.forEach((botonSelect) => {
+      const nameSelect = botonSelect.dataset.select,
+        optionMenu = document.querySelector(`#select_menu_${nameSelect}`),
+        selectBtn = optionMenu.querySelector(`#select_btn_${nameSelect}`),
+        options = optionMenu.querySelectorAll(`#option_${nameSelect}`),
+        sBtn_text = optionMenu.querySelector(`#sBtn_text_${nameSelect}`);
 
-    options.forEach((option) => {
-      option.addEventListener("click", () => {
-        let selectedOption = option.querySelector(".option-text").innerText;
-        sBtn_text.innerText = selectedOption;
+      selectBtn.addEventListener("click", () =>
+        optionMenu.classList.toggle("active")
+      );
 
-        optionMenu.classList.remove("active");
+      options.forEach((option) => {
+        option.addEventListener("click", () => {
+          let selectedOption = option.querySelector(
+            `#option_text_${nameSelect}`
+          ).innerText;
+          sBtn_text.innerText = selectedOption;
+
+          optionMenu.classList.remove("active");
+        });
       });
     });
   }

@@ -8,46 +8,7 @@
           <i class="ri-movie-line"></i> <span>Peliculas</span>
         <% end %>
       </li>
-      <!--
-      <li class="nav__item">
-        <a href="#" class="nav__link">
-          <i class="ri-home-5-line"></i> <span>Home</span>
-        </a>
-      </li>
-      
-      <li class="nav__item">
-        <a href="#" class="nav__link">
-          <i class="ri-film-line"></i> <span>Series</span>
-        </a>
-      </li>
-      <li class="nav__item">
-        <a href="#" class="nav__link">
-          <i class="ri-heart-3-line"></i> <span>Favorites</span>
-        </a>
-      </li>
-    
-    -->
     </ul>
-    <!-- FILTRAR POR GENEROS -->
-    <!--
-    <div>
-      <ul class="list nav__list">
-        <li class="nav__link">
-          <i class="ri-sound-module-fill"></i>
-          <span class="fw-bold">Filtrar Por</span>
-        </li>
-        <li class="list__item list__item--click">
-          <div class="list__button list__button--click">
-            <a href="#" class="nav__link">Generos</a>
-            <i class="ri-arrow-right-line list__arrow"></i>
-          </div>
-          <ul class="list__show" data-controller="list-genre">
-            <%= render(GeneroComponent.new) %>
-            <%= render(GeneroComponent.with_collection(@generos)) %>
-          </ul>
-        </li>
-      </ul>
-    </div>-->
     <% if Current.user&.admin? %>
       <div>
         <ul class="list nav__list">

@@ -11,6 +11,7 @@ freeguy:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  clasification: AI
   user: jorge
 
 fastandfurious:
@@ -26,6 +27,7 @@ fastandfurious:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  clasification: PG
   user: jorge
 
 mipobreangelito:
@@ -41,6 +43,7 @@ mipobreangelito:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  clasification: PG-13
   user: jorge
 
 lamomia:
@@ -57,6 +60,7 @@ lamomia:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  clasification: PG-18
   user: jorge
 
 beckett:
@@ -72,4 +76,5 @@ beckett:
   calidad: 1080p
   formato_video: mp4
   codigo: DSSD1
+  clasification: PG-18
   user: jorge
