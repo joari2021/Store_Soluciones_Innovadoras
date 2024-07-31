@@ -17,8 +17,4 @@
     <i class="ri-search-line"></i>
     <input type="search" placeholder="Search movies" class="header__input">
   </form>-->
-  <%= form_with url: peliculas_path, class:"header__search", method: :get do |form| %>
-    <i class="ri-search-line"></i>
-    <%= form.text_field :query_text, placeholder: "Buscar Pelicula", class: "header__input", onChange: 'this.form.requestSubmit()', value: params[:query_text] %>
-  <%end%>
 </header>

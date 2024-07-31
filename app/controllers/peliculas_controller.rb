@@ -9,7 +9,7 @@ class PeliculasController < ApplicationController
     @year_estreno = Pelicula.pluck(:date_estreno).map { |date| date.year }.uniq
     @clasifications_peliculas = Pelicula.distinct.pluck(:clasification)
 
-    if params[:genero]
+    if params[:genero].present?
       @peliculas = Pelicula.joins(:generos).where(generos: { id: params[:genero] })
     end
 
