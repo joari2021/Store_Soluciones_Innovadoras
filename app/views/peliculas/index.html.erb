@@ -1,43 +1,35 @@
 <%= turbo_frame_tag "peliculas" do%>
   <main class="main">
     <!-- FILTROS DE BUSQUEDA -->
-    <ul class="list" data-controller="selects">
+    <ul data-controller="selects">
       <%= form_with url: peliculas_path, method: :get do |form| %>
         <div class="header__search">
           <i class="ri-search-line"></i>
           <%= form.text_field :query_text, placeholder: "Buscar Pelicula", class: "header__input", onChange: 'this.form.requestSubmit()', value: params[:query_text] %>
         </div>
-        <li class="nav__link">
-          <i class="ri-sound-module-fill"></i>
-          <span class="fw-bold">Filtrar Por</span>
-        </li>
-        <div id="select-container">
-          <label class="select-label" for="select-category">Categoria</label>
-          <div id="select-category-container" class="select-body">
-            <select name="category" id="select-category">
-              <option value="">--</option>
-              <option value="music">Music</option>
-              <option value="book">Book</option>
-            </select>
-            <div class="select-icon">
-              <i class="fa-solid fa-chevron-down"></i>
-            </div>
+        <div class="mt-2 d-flex justify-content-between align-items-center">
+          <li class="nav__link align-middle">
+            <i class="ri-sound-module-fill"></i>
+            <span class="fw-bold">Filtrar Por</span>
+          </li>
+          <%= submit_tag "Buscar", class: "btn btn-dark text-info ms-2 float-right" %>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+          <div class="select-box div-genero ms-2 align-middle">
+            <span class="label">Genero : </span>
+            <%= select_tag :genero, options_for_select(@generos, params[:genero]), include_blank: "Todos", class:"select-genero" %>
+            <i class="fa fa-chevron-down" aria-hidden="true"></i>
           </div>
-        </div>
-        <div class="select">
-          <%= label_tag :genero, "Género" %>
-          <%= select_tag :genero, options_for_select(@generos, params[:genero]), include_blank: "Todos" %>
-        </div>
-        <div>
-          <%= label_tag :year_estreno, "Año de Estreno" %>
-          <%= select_tag :year_estreno, options_for_select(@year_estreno, params[:year_estreno]), include_blank: "Todos" %>
-        </div>
-        <div>
-          <%= label_tag :clasification, "Clasificación" %>
-          <%= select_tag :clasification, options_for_select(@clasifications_peliculas, params[:clasification]), include_blank: "Todos" %>
-        </div>
-        <div>
-          <%= submit_tag "Buscar", class: "btn btn-primary" %>
+          <div class="select-box div-year ms-2 align-middle">
+            <span class="label">Año : </span>
+            <%= select_tag :year_estreno, options_for_select(@year_estreno, params[:year_estreno]), include_blank: "Todos", class:"select-year" %>
+            <i class="fa fa-chevron-down" aria-hidden="true"></i>
+          </div>
+          <div class="select-box div-clasification ms-2 align-middle">
+            <span class="label">Clasificación : </span>
+            <%= select_tag :clasification, options_for_select(@clasifications_peliculas, params[:clasification]), include_blank: "Todos", class:"select-clasification" %>
+            <i class="fa fa-chevron-down" aria-hidden="true"></i>
+          </div>
         </div>
       <% end %>
     </ul>
