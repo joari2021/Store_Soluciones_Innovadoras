@@ -1,0 +1,17 @@
+<main class="main">
+  <p style="color: green"><%= notice %></p>
+  <h1>Plataformas</h1>
+  <%= link_to 'Nueva Plataforma', new_plataforma_pelicula_path, class: 'btn btn-primary' %>
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Escala</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <%= render partial: "plataforma_pelicula", collection: @plataforma_peliculas %>
+    </tbody>
+  </table>
+</main>

@@ -1,0 +1,12 @@
+<div class="field">
+  <%= pf.label :plataforma_pelicula_id, "Plataforma" %>
+  <%= pf.collection_select :plataforma_pelicula_id, PlataformaPelicula.all, :id, :name %>
+</div>
+<div class="field">
+  <%= pf.label :valor, "Puntuación" %>
+  <%= pf.number_field :valor, step: "0.01", min: "0"%>
+</div>
+<div class="field">
+  <%= pf.hidden_field :_destroy %>
+  <%= link_to "Remove", '#', class: "remove_fields" %>
+</div>

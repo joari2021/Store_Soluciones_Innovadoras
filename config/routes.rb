@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 
   resources :serie_tvs
   resources :generos, except: :show
+  resources :plataforma_peliculas, except: :show
   resources :juegos
   resources :animes
   resources :peliculas, path: "/"

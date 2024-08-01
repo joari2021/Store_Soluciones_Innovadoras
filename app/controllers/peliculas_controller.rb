@@ -24,12 +24,18 @@ class PeliculasController < ApplicationController
     if params[:query_text].present?
       @peliculas = @peliculas.whose_name_starts_with(params[:query_text])
     end
+
+    order_by = Pelicula::ORDER_BY.fetch(params[:order_by]&.to_sym, Pelicula::ORDER_BY[:fecha_de_estreno_descendente])
+
+    @peliculas = @peliculas.order(order_by)
   end
 
   # GET /peliculas/new
   def new
     @pelicula = Pelicula.new
+
     @editing = false
+    @pelicula.rankings.build
   end
 
   # POST /peliculas or /peliculas.json
@@ -80,6 +86,6 @@ class PeliculasController < ApplicationController
 
   # Only allow a list of trusted parameters through.
   def pelicula_params
-    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification)
+    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], genero_ids: [])
   end
 end

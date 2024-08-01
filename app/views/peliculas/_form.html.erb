@@ -26,6 +26,13 @@
       <%= form.label :sinopsis %>
       <%= form.text_area :sinopsis %>
     </div>
+    <h3>Puntuaciones</h3>
+    <div id="rankings">
+      <%= form.fields_for :rankings do |pf| %>
+        <%= render "ranking_fields", pf: pf%>
+      <% end %>
+    </div>
+    <%= link_to_add_fields "Add Puntuacion", form, :rankings %>
     <div class="field">
       <span>Generos:</span>
       <br>
@@ -41,3 +48,46 @@
     </div>
   <% end %>
 <%end%>
+<script>
+  document.querySelectorAll('.add_fields').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      let time = new Date().getTime();
+      let link = this;
+      let regexp = new RegExp(link.dataset.id, 'g');
+      document.querySelector('#rankings').insertAdjacentHTML('beforeend', link.dataset.fields.replace(regexp, time));
+    });
+  });
+  /*
+  document.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('remove_fields')) {
+      e.preventDefault();
+      let fieldParent = e.target.closest('.field');
+      if (fieldParent) {
+        fieldParent.remove();
+      }
+    }
+  });*/
+
+  document.querySelectorAll(".remove_fields").forEach(function(button) {
+    button.addEventListener("click", function(event) {
+      event.preventDefault();
+      let field = event.target.closest(".field");
+      field.querySelector("input[type='hidden']").value = "1";
+      field.style.display = "none";
+
+    });
+  });
+
+  /*
+  document.querySelectorAll(".add_fields").forEach(function(button) {
+    button.addEventListener("click", function(event) {
+      let time = new Date().getTime();
+      let link = event.target;
+      let association = link.dataset.association;
+      let content = link.dataset.content.replace(/new_record/g, time);
+      document.querySelector("#puntuaciones").insertAdjacentHTML("beforeend", content);
+      event.preventDefault();
+    });
+  });*/
+</script>

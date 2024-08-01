@@ -1,0 +1,6 @@
+<tr>
+  <td><%= plataforma_pelicula.name %></td>
+  <td><%= plataforma_pelicula.escala %></td>
+  <td><%= link_to 'Editar', edit_plataforma_pelicula_path(plataforma_pelicula), class: 'btn btn-secondary' %></td>
+  <td><%= link_to 'Eliminar', plataforma_pelicula_path(plataforma_pelicula), data: { turbo_method: :delete, turbo_confirm: '¿Estás seguro de que deseas eliminar esta plataforma?' }, class: 'btn btn-danger' %></td>
+</tr>

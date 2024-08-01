@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_07_29_215457) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_01_183935) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -138,7 +138,25 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_29_215457) do
     t.bigint "user_id", null: false
     t.date "date_estreno"
     t.string "clasification"
+    t.float "promedio_ranking"
     t.index ["user_id"], name: "index_peliculas_on_user_id"
+  end
+
+  create_table "plataforma_peliculas", force: :cascade do |t|
+    t.string "name"
+    t.integer "escala"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "rankings", force: :cascade do |t|
+    t.bigint "pelicula_id", null: false
+    t.bigint "plataforma_pelicula_id", null: false
+    t.float "valor", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["pelicula_id"], name: "index_rankings_on_pelicula_id"
+    t.index ["plataforma_pelicula_id"], name: "index_rankings_on_plataforma_pelicula_id"
   end
 
   create_table "serie_tvs", force: :cascade do |t|
@@ -184,4 +202,6 @@ ActiveRecord::Schema[7.1].define(version: 2024_07_29_215457) do
   add_foreign_key "generos_serie_tvs", "generos"
   add_foreign_key "generos_serie_tvs", "serie_tvs"
   add_foreign_key "peliculas", "users"
+  add_foreign_key "rankings", "peliculas"
+  add_foreign_key "rankings", "plataforma_peliculas"
 end
