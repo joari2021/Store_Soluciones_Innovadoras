@@ -13,6 +13,8 @@ class Pelicula < ApplicationRecord
     fecha_de_estreno_ascendente: "date_estreno ASC",
     nombre_descendente: "name DESC",
     nombre_ascendente: "name ASC",
+    puntuacion_promedio_descendente: "promedio_ranking DESC",
+    puntuacion_promedio_ascendente: "promedio_ranking ASC",
   }
   has_one_attached :poster
 
@@ -23,19 +25,21 @@ class Pelicula < ApplicationRecord
 
   belongs_to :user, default: -> { Current.user }
 
-  before_save :calcular_promedio
-  after_update :calcular_promedio
+  after_save :calcular_promedio
 
   def calcular_promedio
     total = 0
     count = 0
 
     self.rankings.each do |ranking|
+      next if ranking.marked_for_destruction?
+
       escala = ranking.plataforma_pelicula.escala
       total += (ranking.valor / escala.to_f) * 10
       count += 1
     end
 
-    self.promedio_ranking = total / count unless count == 0
+    self.promedio_ranking = count == 0 ? nil : (total / count)
+    save(validate: false) if promedio_ranking_changed?
   end
 end

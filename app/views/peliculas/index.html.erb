@@ -7,27 +7,27 @@
           <i class="ri-search-line"></i>
           <%= form.text_field :query_text, placeholder: "Buscar Pelicula", class: "header__input", onChange: 'this.form.requestSubmit()', value: params[:query_text] %>
         </div>
-        <div class="mt-2 d-flex justify-content-between align-items-center">
+        <div><%= form.select :order_by, options_for_select(Pelicula::ORDER_BY.keys.map { |order| [t(".#{order}"), order] }, params[:order_by]), {}, { onChange: 'this.form.requestSubmit()', class: "" } %></div>
+        <div class="mt-2">
           <li class="nav__link align-middle">
             <i class="ri-sound-module-fill"></i>
             <span class="fw-bold">Filtrar Por</span>
           </li>
-          <%= submit_tag "Buscar", class: "btn btn-dark text-info ms-2 float-right" %>
         </div>
         <div class="d-flex justify-content-between align-items-center">
           <div class="select-box div-genero ms-2 align-middle">
             <span class="label">Genero : </span>
-            <%= select_tag :genero, options_for_select(@generos, params[:genero]), include_blank: "Todos", class:"select-genero" %>
+            <%= select_tag :genero, options_for_select(@generos, params[:genero]), include_blank: "Todos", class:"select-genero", onChange: 'this.form.requestSubmit()' %>
             <i class="fa fa-chevron-down" aria-hidden="true"></i>
           </div>
           <div class="select-box div-year ms-2 align-middle">
             <span class="label">Año : </span>
-            <%= select_tag :year_estreno, options_for_select(@year_estreno, params[:year_estreno]), include_blank: "Todos", class:"select-year" %>
+            <%= select_tag :year_estreno, options_for_select(@year_estreno, params[:year_estreno]), include_blank: "Todos", class:"select-year", onChange: 'this.form.requestSubmit()' %>
             <i class="fa fa-chevron-down" aria-hidden="true"></i>
           </div>
           <div class="select-box div-clasification ms-2 align-middle">
             <span class="label">Clasificación : </span>
-            <%= select_tag :clasification, options_for_select(@clasifications_peliculas, params[:clasification]), include_blank: "Todos", class:"select-clasification" %>
+            <%= select_tag :clasification, options_for_select(@clasifications_peliculas, params[:clasification]), include_blank: "Todos", class:"select-clasification", onChange: 'this.form.requestSubmit()' %>
             <i class="fa fa-chevron-down" aria-hidden="true"></i>
           </div>
         </div>

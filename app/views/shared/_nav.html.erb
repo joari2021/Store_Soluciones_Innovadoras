@@ -9,35 +9,6 @@
         <% end %>
       </li>
     </ul>
-    <!-- ORDENAR -->
-    <div>
-      <ul class="list nav__list">
-        <li class="list__item list__item--click">
-          <div class="list__button list__button--click">
-            <a href="#" class="nav__link">Ordenar Por</a>
-            <i class="ri-arrow-right-line list__arrow"></i>
-          </div>
-          <ul class="list__show">
-            <li class="list__inside">
-              <%= link_to new_pelicula_path, remote: true, method: :get, class: "nav__link", data: { turbo_frame: "modal-peliculas" }, onclick: "openedModalPeliculas()", class:"nav__link nav__link--inside" do %>
-                <i class="fas fa-plus-square"></i> <span>Nueva Pelicula</span>
-              <% end %>
-            </li>
-            <li class="list__inside">
-              <%= link_to new_genero_path, class:"nav__link nav__link--inside" do%>
-                <i class="fas fa-plus-square"></i> <span>Añadir Genero</span>
-              <% end %>
-            </li>
-            <li class="list__inside">
-              <%= link_to generos_path, class:"nav__link nav__link--inside" do%>
-                <i class="ri-eye-line"></i>
-                <span>Ver</span>
-              <% end %>
-            </li>
-          </ul>
-        </li>
-      </ul>
-    </div>
     <% if Current.user&.admin? %>
       <div>
         <ul class="list nav__list">
