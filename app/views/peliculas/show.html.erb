@@ -1,18 +1,28 @@
 <%= turbo_frame_tag "modal-peliculas" do%>
-  <%= button_to "Edit this pelicula", edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info", data: { turbo_frame: "modal-peliculas"} if Current.user&.admin? %>
-  <%= button_to "Destroy this pelicula", @pelicula, method: :delete, data: { confirm: "Are you sure?" } if Current.user&.admin? %>
-  <div class="col-md-4">
-    <%= image_tag @pelicula.poster, class: "img-fluid", alt: @pelicula.name if @pelicula.poster.attached? %>
-  </div>
-  <div class="col-md-8">
-    <h1><%= @pelicula.name %></h1>
-    <p><strong>Promedio Ranking:</strong> <%= @pelicula.promedio_ranking %></p>
+  <div class="row modal-content-overlay">
+    <div class="col-md-4">
+      <%= image_tag @pelicula.poster, class: "img-fluid", alt: @pelicula.name if @pelicula.poster.attached? %>
+    </div>
+    <div class="col-md-8">
+      <h1><%= @pelicula.name %></h1>
+      <p><strong>Promedio Ranking:</strong> <%= @pelicula.promedio_ranking %></p>
+      <p><strong>Fecha Estreno:</strong> <%= @pelicula.date_estreno.strftime("%d / %m / %Y") %></p>
+      <p><strong>Duración:</strong> <%= @pelicula.duration_hours %>h <%= @pelicula.duration_minutes %>m</p>
+      <p><strong>Director:</strong> <%= @pelicula.director %></p>
+      <p><strong>Reparto:</strong> <%= @pelicula.reparto %></p>
+      <p><strong>Disponible:</strong> <%= @pelicula.disponible ? 'Sí' : 'No' %></p>
+      <p><strong>Link del Trailer:</strong> <a href="<%= @pelicula.link_trailer %>" target="_blank"><%= @pelicula.link_trailer %></a></p>
+    </div>
     <p><strong>Sinopsis:</strong> <%= @pelicula.sinopsis %></p>
-    <p><strong>Fecha Estreno:</strong> <%= @pelicula.date_estreno.strftime("%d / %m / %Y") %></p>
-    <p><strong>Duración:</strong> <%= @pelicula.duration_hours %>h <%= @pelicula.duration_minutes %>m</p>
-    <p><strong>Director:</strong> <%= @pelicula.director %></p>
-    <p><strong>Reparto:</strong> <%= @pelicula.reparto %></p>
-    <p><strong>Disponible:</strong> <%= @pelicula.disponible ? 'Sí' : 'No' %></p>
-    <p><strong>Link del Trailer:</strong> <a href="<%= @pelicula.link_trailer %>" target="_blank"><%= @pelicula.link_trailer %></a></p>
   </div>
+  <% if Current.user&.admin?%>
+    <div class="top-right-buttons d-flex">
+      <%= link_to edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info me-2 text-white", data: { turbo_frame: "modal-peliculas"} do %>
+        <i class="ri-edit-box-fill"></i>
+      <% end %>
+      <%= button_to @pelicula, method: :delete, data: { confirm: "Are you sure?" }, class:"btn btn-danger" do %>
+        <i class="ri-delete-bin-5-fill"></i>
+      <%end%>
+    </div>
+  <% end %>
 <%end%>

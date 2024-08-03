@@ -21,7 +21,7 @@
   --h2-font-size: 1.25rem;
   --h3-font-size: 1rem;
   --normal-font-size: 0.938rem;
-  --small-font-size: 0.813rem;
+  --small-font-size: 0.85rem;
 
   /*========== Font weight ==========*/
   --font-regular: 400;
@@ -41,7 +41,7 @@
     --h2-font-size: 1.5rem;
     --h3-font-size: 1.25rem;
     --normal-font-size: 1rem;
-    --small-font-size: 0.875rem;
+    --small-font-size: 0.675rem;
   }
 }
 
@@ -369,13 +369,13 @@ img {
 }
 
 /*=============== CARDS ===============*/
+.h-100 {
+  height: 100% !important;
+}
+
 .card__title {
   font-size: var(--h3-font-size);
   margin-bottom: 0.75rem;
-}
-
-.card__article {
-  width: 152px;
 }
 
 .card__link {
@@ -383,6 +383,10 @@ img {
   display: grid;
   place-items: center;
   color: var(--white-color);
+}
+
+.card__link:hover {
+  color: var(--color-info);
 }
 
 .card__img {
@@ -414,12 +418,25 @@ img {
   font-size: var(--small-font-size);
 }
 
-.card__like {
+.card__like,
+.card__ranking {
   position: absolute;
   top: 0.75rem;
   right: 0.75rem;
-  font-size: 1.25rem;
+  font-size: 1rem;
   cursor: pointer;
+}
+
+.transparent-background {
+  background-color: rgba(
+    0,
+    0,
+    0,
+    0.5
+  ); /* Fondo negro con 50% de transparencia */
+
+  padding: 0.3em; /* Añade algo de relleno para mayor legibilidad */
+  border-radius: 4px; /* Esquinas redondeadas opcionales */
 }
 
 /*=============== MOVIES ===============*/
@@ -571,7 +588,7 @@ img {
     bottom: 1.5rem;
   }
   .card__name {
-    font-size: var(--h3-font-size);
+    font-size: var(--normal-font-size);
     margin-bottom: 0.25rem;
   }
   .card__category {
@@ -590,6 +607,9 @@ img {
 .select-box {
   position: relative;
   display: inline-block;
+}
+.div-order {
+  width: 360px;
 }
 .div-genero {
   width: 250px;
@@ -611,7 +631,9 @@ img {
   border: 1px solid var(--color-info);
   background-color: black;
 }
-
+.select-box select.select-order {
+  padding: 16px;
+}
 .select-box select.select-genero {
   padding: 16px 30px 16px 90px;
 }
@@ -646,6 +668,10 @@ img {
   font-size: 18px;
   color: var(--color-info);
 }
+.div-order i {
+  left: 330px;
+  top: -38px;
+}
 .div-genero i {
   left: 220px;
   top: -38px;
@@ -663,4 +689,49 @@ img {
 
 .select-box select:focus + i {
   color: #0dcaf0;
+}
+
+/* MODAL */
+
+.top-right-buttons {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.modal-body {
+  position: relative; /* Hacer que el contenedor modal-body sea relativo para permitir posicionamiento absoluto de los hijos */
+  overflow: hidden; /* Asegúrate de que el contenido no se desborde */
+}
+
+.modal-image-container {
+  position: absolute; /* Posicionar la imagen de fondo en la esquina superior izquierda */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1; /* Asegúrate de que la imagen esté detrás del contenido */
+}
+
+.modal-background-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* Ajusta la imagen para que cubra el área sin distorsionarse */
+}
+
+.modal-content-overlay {
+  position: relative; /* Asegúrate de que el contenido se muestre sobre la imagen de fondo */
+  background: rgba(
+    0,
+    0,
+    0,
+    0.7
+  ); /* Fondo semitransparente para que el texto sea legible */
+  padding: 20px; /* Ajusta el padding según sea necesario */
+  color: #fff; /* Color del texto para que sea visible sobre el fondo oscuro */
+  border-radius: 10px;
+}
+
+.bg-transparent {
+  background: rgba(0, 0, 0, 0.1);
 }

@@ -1,3 +1,8 @@
 <%= turbo_frame_tag "modal-peliculas" do %>
   <%= render "form", pelicula: @pelicula %>
+  <div class="top-right-buttons">
+    <%= link_to pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-secondary me-2 text-white", data: { turbo_frame: "modal-peliculas"} do %>
+      <i class="ri-arrow-left-circle-line"></i>
+    <% end %>
+  </div>
 <% end %>

@@ -1,13 +1,12 @@
-<div class="col-sm-3">
+<div class="col-2 mt-4">
   <article class="card__article swiper-slide">
-    <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, class:"card__link", onclick: "openedModalPeliculas()"  do %>
-      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card__img", alt: pelicula.name %>
+    <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, class:"card__link h-100", onclick: "openedModalPeliculas()"  do %>
+      <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card__img h-100", alt: pelicula.name %>
       <div class="card__shadow"></div>
       <div class="card__data">
-        <h3 class="card__name"><%= pelicula.name %></h3>
-        <span class="card__category">Action</span>
+        <span class="card__name"><%= truncated_name(pelicula.name, 30, ' ...') %> (<%= pelicula.date_estreno.year %>)</span>
       </div>
-      <!--<i class="ri-heart-3-line card__like"></i>-->
+      <span class="card__ranking transparent-background ">9.5 <i class="ri-star-fill text-warning"></i></span>
     <%end%>
   </article>
 </div>

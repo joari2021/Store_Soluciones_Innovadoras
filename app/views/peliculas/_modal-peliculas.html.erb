@@ -3,13 +3,13 @@
 </button>
 <!-- Modal -->
 <div class="modal text-danger fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true" data-controller="modal">
-  <div class="modal-dialog modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg">
     <div class="modal-content">
       <div class="modal-header">
         <h1 class="modal-title fs-5" id="exampleModalLabel">Modal title</h1>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body" style="background-image: url('https://image.tmdb.org/t/p/original/pakDaGsudeZnCg7BIix18bh4mCx.jpg'); background-size: cover; background-position: center;">
         <%= turbo_frame_tag "modal-peliculas"%>
       </div>
       <div class="modal-footer">
