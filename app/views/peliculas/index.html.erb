@@ -48,14 +48,11 @@
       <% end %>
     </ul>
     <!--==================== MOVIES ====================-->
-    <section class="">
-      <h3 class="card__title">Movies</h3>
-      <div class="movie__swiper swiper">
-        <div class="row swiper-wrapper">
-          <%= render partial: "pelicula", collection: @peliculas %>
-        </div>
+    <div class="container">
+      <div class="row ">
+        <%= render partial: "pelicula", collection: @peliculas %>
       </div>
-    </section>
+    </div>
     <!-- Pagination -->
     <div class="swiper-pagination"></div>
   </main>

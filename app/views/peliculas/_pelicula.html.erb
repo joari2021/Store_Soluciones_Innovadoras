@@ -1,4 +1,4 @@
-<div class="col-2 mt-4">
+<div class="col-lg-4 col-xl-3 col-xxl-2 mt-4">
   <article class="card__article swiper-slide">
     <%= link_to pelicula_path(pelicula), remote: true, method: :get, data: {turbo_frame: "modal-peliculas"}, class:"card__link h-100", onclick: "openedModalPeliculas()"  do %>
       <%= image_tag pelicula.poster.attached? ? pelicula.poster : 'placeholder.jpg', class: "card__img h-100", alt: pelicula.name %>

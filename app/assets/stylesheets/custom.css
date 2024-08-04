@@ -108,8 +108,8 @@ img {
 }
 
 .bg__blur {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
 }
 
 /*=============== HEADER ===============*/
@@ -570,7 +570,7 @@ img {
   }
 }
 
-@media screen and (min-width: 1300px) {
+@media screen and (min-width: 1400px) {
   .banner__card,
   .banner__img {
     height: 480px;
@@ -585,8 +585,16 @@ img {
   }
   .card__data {
     padding-inline: 1.5rem;
-    bottom: 1.5rem;
+    bottom: 1rem;
   }
+  .card__name {
+    font-size: var(--small-font-size);
+  }
+  .card__category {
+    font-size: var(--small-font-size);
+  }
+}
+@media screen and (min-width: 1600px) {
   .card__name {
     font-size: var(--normal-font-size);
     margin-bottom: 0.25rem;
@@ -704,21 +712,6 @@ img {
   overflow: hidden; /* Asegúrate de que el contenido no se desborde */
 }
 
-.modal-image-container {
-  position: absolute; /* Posicionar la imagen de fondo en la esquina superior izquierda */
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1; /* Asegúrate de que la imagen esté detrás del contenido */
-}
-
-.modal-background-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover; /* Ajusta la imagen para que cubra el área sin distorsionarse */
-}
-
 .modal-content-overlay {
   position: relative; /* Asegúrate de que el contenido se muestre sobre la imagen de fondo */
   background: rgba(
@@ -730,6 +723,13 @@ img {
   padding: 20px; /* Ajusta el padding según sea necesario */
   color: #fff; /* Color del texto para que sea visible sobre el fondo oscuro */
   border-radius: 10px;
+}
+
+.img-fluid {
+  border-radius: 10px;
+}
+.info-pelicula strong {
+  color: var(--color-info);
 }
 
 .bg-transparent {

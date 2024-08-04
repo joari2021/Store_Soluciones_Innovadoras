@@ -23,6 +23,10 @@
       <%= form.date_select :date_estreno, { order: [:day, :month, :year] }, class: "form-control" %>
     </div>
     <div class="field">
+      <%= form.label :link_trailer %>
+      <%= form.text_field :link_trailer %>
+    </div>
+    <div class="field">
       <%= form.label :sinopsis %>
       <%= form.text_area :sinopsis %>
     </div>

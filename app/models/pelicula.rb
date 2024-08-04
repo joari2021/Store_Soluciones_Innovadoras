@@ -3,7 +3,7 @@ class Pelicula < ApplicationRecord
   pg_search_scope :whose_name_starts_with,
                   against: {
                     name: "A",
-                    date_estreno: "B",
+                    others_titles: "B",
                   },
                   using: {
                     tsearch: { prefix: true },

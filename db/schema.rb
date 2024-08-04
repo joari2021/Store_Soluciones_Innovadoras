@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_01_183935) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_04_153305) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -128,8 +128,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_01_183935) do
     t.string "reparto"
     t.text "sinopsis"
     t.string "audio"
-    t.string "calidad"
-    t.string "formato_video"
+    t.string "calidad_video"
     t.string "codigo"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -139,6 +138,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_01_183935) do
     t.date "date_estreno"
     t.string "clasification"
     t.float "promedio_ranking"
+    t.string "subtitle"
     t.index ["user_id"], name: "index_peliculas_on_user_id"
   end
 
