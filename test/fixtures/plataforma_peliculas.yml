@@ -1,9 +1,17 @@
 # Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
 
-one:
-  name: MyString
-  escala: 1
+SensaCine:
+  name: SensaCine
+  escala: 5
 
-two:
-  name: MyString
-  escala: 1
+IMDb:
+  name: IMDb
+  escala: 10
+
+Filmaffinity:
+  name: Filmaffinity
+  escala: 10
+
+Rakuten:
+  name: Rakuten TV
+  escala: 5

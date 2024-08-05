@@ -1,0 +1,29 @@
+one:
+  pelicula: freeguy
+  plataforma_pelicula: SensaCine
+  valor: 3.6
+
+two:
+  pelicula: freeguy
+  plataforma_pelicula: Filmaffinity
+  valor: 6.2
+
+three:
+  pelicula: freeguy
+  plataforma_pelicula: IMDb
+  valor: 7.1
+
+four:
+  pelicula: fastandfurious5
+  plataforma_pelicula: SensaCine
+  valor: 4.1
+
+five:
+  pelicula: fastandfurious5
+  plataforma_pelicula: Rakuten
+  valor: 4
+
+six:
+  pelicula: fastandfurious5
+  plataforma_pelicula: IMDb
+  valor: 7.3

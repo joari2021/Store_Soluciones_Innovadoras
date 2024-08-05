@@ -1,35 +1,19 @@
 one:
   pelicula: freeguy
-  genero: comedia
-
-two:
-  pelicula: fastandfurious
   genero: acción
 
+two:
+  pelicula: freeguy
+  genero: aventura
+
 three:
-  pelicula: fastandfurious
+  pelicula: freeguy
   genero: comedia
 
 four:
-  pelicula: mipobreangelito
-  genero: comedia
-
-five:
-  pelicula: lamomia
-  genero: suspenso
-
-six:
-  pelicula: lamomia
-  genero: drama
-
-seven:
-  pelicula: beckett
+  pelicula: fastandfurious5
   genero: acción
 
-eight:
-  pelicula: beckett
-  genero: drama
-
-nine:
-  pelicula: beckett
+five:
+  pelicula: fastandfurious5
   genero: suspenso

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_04_153305) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_05_191952) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -139,6 +139,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_04_153305) do
     t.string "clasification"
     t.float "promedio_ranking"
     t.string "subtitle"
+    t.string "backdrop_image"
     t.index ["user_id"], name: "index_peliculas_on_user_id"
   end
 
