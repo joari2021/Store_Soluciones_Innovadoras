@@ -15,3 +15,19 @@ Filmaffinity:
 Rakuten:
   name: Rakuten TV
   escala: 5
+
+Espinof:
+  name: Espinof
+  escala: 10
+
+Lavanguardia:
+  name: La Vanguardia
+  escala: 10
+
+Decine21:
+  name: Decine21
+  escala: 10
+
+abando:
+  name: aBaNDoMovieZ
+  escala: 10

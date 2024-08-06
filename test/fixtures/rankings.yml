@@ -27,3 +27,43 @@ six:
   pelicula: fastandfurious5
   plataforma_pelicula: IMDb
   valor: 7.3
+
+seven:
+  pelicula: anna
+  plataforma_pelicula: SensaCine
+  valor: 3.1
+
+eight:
+  pelicula: anna
+  plataforma_pelicula: Espinof
+  valor: 7
+
+nine:
+  pelicula: annabelle
+  plataforma_pelicula: SensaCine
+  valor: 3.4
+
+ten:
+  pelicula: annabelle
+  plataforma_pelicula: Lavanguardia
+  valor: 5
+
+eleven:
+  pelicula: annabelle
+  plataforma_pelicula: Decine21
+  valor: 6.3
+
+ranking12:
+  pelicula: home
+  plataforma_pelicula: SensaCine
+  valor: 3.9
+
+ranking13:
+  pelicula: home
+  plataforma_pelicula: fimaffinity
+  valor: 5.6
+
+ranking14:
+  pelicula: home
+  plataforma_pelicula: abando
+  valor: 7

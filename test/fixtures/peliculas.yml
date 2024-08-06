@@ -35,50 +35,60 @@ fastandfurious:
   user: jorge
 
 anna:
-  name: Mi Pobre Angelito
-  others_titles: Solo en Casa, Home Alone
-  date_estreno: "2024-07-25"
+  name: "Anna. El Peligro tiene nombre"
+  others_titles: 
+  date_estreno: "2019-08-30"
   duration_hours: 1
-  duration_minutes: 43
-  director: Chris Columbus
-  reparto: Macaulay Culkin, Catherine O'Hara, Joe Pesci
-  sinopsis: "Kevin es un niño de 8 años que se siente marginado e incómodo dentro de su familia ante los maltratos de su hermano mayor y los descuidos de sus padres. Una noche tiene una fuerte discusión con su madre y al instante pide un deseo bastante poco convencional: no tener familia. En la víspera de Navidad, este deseo se ha hecho de pronto realidad: los McCallister se han marchado de vacaciones y, no demasiado sorprendentemente, se han dejado olvidado a Kevin solo en casa. Lejos de asustarse por esta situación, para el niño esta nueva vida es perfecta: ahora va a empezar a divertirse de verdad, sin tener que soportar burlas ni desplantes. Sin embargo esta nueva libertad tiene un precio, pues rápidamente ha de aprender algunas lecciones básicas sobre responsabilidad, madurez e independencia. En el transcurso de éstas descubrirá que pese a todo echa bastante de menos a su familia, sobre todo cuando descubre que dos ladrones tratan de entrar en su casa para robarla. Kevin trazará un plan de acción rápidamente para defender el hogar de los McCallister: no será nada fácil, pero cuenta con todo su ingenio para ello"
+  duration_minutes: 59
+  director: "Luc Besson"
+  reparto: "Sasha Luss, Helen Mirren, Luke Evans"
+  sinopsis: "Bajo la increíble belleza de la supermodelo Anna Poliatova (Sasha Luss) se esconde un secreto que la obligará a sacar toda su fuerza y habilidad en el crimen. Con una mente fría y calculadora, y un entrenamiento militar que no deja lugar a error, la joven terminará por convertirse en una de las asesinas al servicio del gobierno más letales del mundo."
   audio: español latino
   calidad_video: 1080p
   codigo: DSSD1
-  clasification: PG-13
+  clasification: 18+
+  link_trailer: "https://youtu.be/fdGnlN6s9eI"
+  backdrop_image: "https://media.themoviedb.org/t/p/w500_and_h282_face/e7bMo1klzkJcv9xTjTyUUSnGzhB.jpg"
+  promedio_ranking: 6.60
   user: jorge
 
 annabelle:
-  name: "La Momia"
+  name: "Annabelle"
   others_titles:
-  date_estreno: "2024-07-25"
-  duration_hours: 2
-  duration_minutes: 4
-  director: Stephen Sommers
-  reparto: Brendan Fraser, Rachel Weisz, John Hannah
-  sinopsis: "Mucho tiempo antes de la llegada de Cristo"
+  date_estreno: "2014-10-03"
+  duration_hours: 1
+  duration_minutes: 39
+  director: John R. Leonetti
+  reparto: Annabelle Wallis, Ward Horton, Alfre Woodard
+  sinopsis: Spin-off de la diabólica muñeca Annabelle, que aparecía en la película Expediente Warren: The Conjuring. Siguiendo el hilo argumental del anterior filme, una pareja comienza a sufrir experiencias terroríficamente supernaturales en su hogar debido a una muñeca vintage. A raíz de estos extraños sucesos, el hogar se ve invadido de elementos satánicos para controlar a la muñeca poseída por un diablo.
   audio: español latino
   calidad_video: 1080p
   codigo: DSSD1
   clasification: "PG-18"
+  link_trailer: "https://youtu.be/XY6CTMs0h18"
+  backdrop_image: "https://image.tmdb.org/t/p/original/bkwzyWK3bQ54RLaVkmBhjFwNcZD.jpg"
+  promedio_ranking: 6.03
   user: jorge
 
 home:
-  name: Beckett
+  name: Home. Hogar dulce hogar
   others_titles:
-  date_estreno: "2024-07-25"
+  date_estreno: "2015-05-15"
   duration_hours: 1
-  duration_minutes: 48
-  director: Stephen Sommers
-  reparto: Brendan Fraser, Rachel Weisz, John Hannah
-  sinopsis: Una pareja de novios se dispone a pasar unas vacaciones idílicas en Atenas (Grecia). Sin embargo, al poco de llegar a la capital griega acaban envueltos en una violenta y despiadada conspiración. Todo por lo que ambos protagonistas deberán pasar les traerá unas dolorosas y terribles consecuencias difíciles de cambiar.Beckett es un 'thriller' dirigido por el cineasta Ferdinando Cito Filomarino, producido por Luca Guadagnino, y que cuenta con John David Washington y Alicia Vikander, como la pareja protagonista.
+  duration_minutes: 34
+  director: Tim Johnson
+  reparto: Jim Parsons, Rihanna, Steve Martin
+  sinopsis: Un grupo de pacíficos alienígenas se encuentran huyendo de sus enemigos, y deciden esconderse de ellos en la Tierra. Sin embargo, uno de estos humildes extraterrestres accidentalmente notifica a sus perseguidores cuál es su ubicación, y no le queda más remedio que huir junto con una chica adolescente. Los dos, extrañamente, se convierten en grandes amigos y se embarcan en un cómico viaje alrededor del mundo, lo que resulta ser toda una aventura en la que el alienígena consigue por fin comprender el verdadero significado de ser humano. 
   audio: español latino
   calidad_video: 1080p
   codigo: DSSD1
-  clasification: PG-18
+  clasification: PG
+  link_trailer: "https://youtu.be/_ZGmNYaJzYw"
+  backdrop_image: "https://media.themoviedb.org/t/p/w500_and_h282_face/A4lOTSXpMCuDzb5oFXGKhi07Uo1.jpg"
+  promedio_ranking: 6.80
   user: jorge
 
+####################################################
 ironman1:
   name: "Rapidos y Furiosos 5"
   others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 

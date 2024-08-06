@@ -17,3 +17,27 @@ four:
 five:
   pelicula: fastandfurious5
   genero: suspenso
+
+six:
+  pelicula: anna
+  genero: acción
+
+seven:
+  pelicula: anna
+  genero: suspenso
+
+eight:
+  pelicula: annabelle
+  genero: terror
+
+nine:
+  pelicula: annabelle
+  genero: sobrenatural
+
+ten:
+  pelicula: home
+  genero: infantil
+
+eleven:
+  pelicula: home
+  genero: comedia

@@ -3,41 +3,23 @@
 acción:
   name: Acción
 
-drama:
-  name: Drama
-
-comedia:
-  name: Comedia
-
-suspenso:
-  name: Suspenso
-
-terror:
-  name: Terror
-
-horror:
-  name: Horror
-
-romance:
-  name: Romance
-
-familia:
-  name: Familia
+animación:
+  name: Animación
 
 anime:
   name: Anime
 
-cienciaFiccion:
-  name: Ciencia Ficción
-
 aventura:
   name: Aventura
 
-animación:
-  name: Animación
-
 belica:
   name: Bélica
+
+cienciaFiccion:
+  name: Ciencia Ficción
+
+comedia:
+  name: Comedia
 
 crimen:
   name: Crimen
@@ -45,17 +27,41 @@ crimen:
 documental:
   name: Documental
 
+drama:
+  name: Drama
+
+familia:
+  name: Familia
+
 fantasia:
   name: Fantasía
 
+infantil:
+  name: Infantil
+
 historia:
   name: Historia
+
+horror:
+  name: Horror
 
 misterio:
   name: Misterio
 
 musical:
   name: Musical
+
+romance:
+  name: Romance
+
+sobrenatural:
+  name: Sobrenatural
+
+suspenso:
+  name: Suspenso
+
+terror:
+  name: Terror
 
 western:
   name: Western
