@@ -105,3 +105,11 @@ genero26:
 genero27:
   pelicula: kungfupanda3
   genero: comedia
+
+genero28:
+  pelicula: avengersEndgame
+  genero: acción
+
+genero29:
+  pelicula: avengersEndgame
+  genero: cienciaFiccion

@@ -172,3 +172,18 @@ ranking35:
   pelicula: kungfupanda3
   plataforma_pelicula: cartelera
   valor: 8.5
+
+ranking36:
+  pelicula: avengersEndgame
+  plataforma_pelicula: SensaCine
+  valor: 4.5
+
+ranking37:
+  pelicula: avengersEndgame
+  plataforma_pelicula: common
+  valor: 4
+
+ranking38:
+  pelicula: avengersEndgame
+  plataforma_pelicula: Espinof
+  valor: 8
