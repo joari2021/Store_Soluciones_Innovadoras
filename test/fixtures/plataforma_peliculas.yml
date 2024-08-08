@@ -1,33 +1,43 @@
-# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+abando:
+  name: aBaNDoMovieZ
+  escala: 10
 
-SensaCine:
-  name: SensaCine
+aullidos:
+  name: Aullidos.COM
+  escala: 10
+
+cartelera:
+  name: eCartelera
+  escala: 10
+
+common:
+  name: Common Sense Media
   escala: 5
 
-IMDb:
-  name: IMDb
+Decine21:
+  name: Decine21
+  escala: 10
+
+Espinof:
+  name: Espinof
   escala: 10
 
 Filmaffinity:
   name: Filmaffinity
   escala: 10
 
-Rakuten:
-  name: Rakuten TV
-  escala: 5
-
-Espinof:
-  name: Espinof
+IMDb:
+  name: IMDb
   escala: 10
 
 Lavanguardia:
   name: La Vanguardia
   escala: 10
 
-Decine21:
-  name: Decine21
-  escala: 10
+Rakuten:
+  name: Rakuten TV
+  escala: 5
 
-abando:
-  name: aBaNDoMovieZ
-  escala: 10
+SensaCine:
+  name: SensaCine
+  escala: 5

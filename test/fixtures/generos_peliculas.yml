@@ -41,3 +41,67 @@ ten:
 eleven:
   pelicula: home
   genero: comedia
+
+genero12:
+  pelicula: ironman1
+  genero: acción
+
+genero13:
+  pelicula: ironman1
+  genero: cienciaFiccion
+
+genero14:
+  pelicula: ironman2
+  genero: acción
+
+genero15:
+  pelicula: ironman2
+  genero: cienciaFiccion
+
+genero16:
+  pelicula: ironman3
+  genero: acción
+
+genero17:
+  pelicula: ironman3
+  genero: cienciaFiccion
+
+genero18:
+  pelicula: joker
+  genero: suspenso
+
+genero19:
+  pelicula: joker
+  genero: crimen
+
+genero20:
+  pelicula: minions
+  genero: infantil
+
+genero21:
+  pelicula: minions
+  genero: comedia
+
+genero22:
+  pelicula: kungfupanda
+  genero: infantil
+
+genero23:
+  pelicula: kungfupanda
+  genero: comedia
+
+genero24:
+  pelicula: kungfupanda2
+  genero: infantil
+
+genero25:
+  pelicula: kungfupanda2
+  genero: comedia
+
+genero26:
+  pelicula: kungfupanda3
+  genero: infantil
+
+genero27:
+  pelicula: kungfupanda3
+  genero: comedia

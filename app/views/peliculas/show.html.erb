@@ -1,7 +1,7 @@
 <%= turbo_frame_tag "modal-peliculas" do%>
   <!--Data-->
   <span class="d-none" id="namePelicula"><%= @pelicula.name %></span>
-  <span class="d-none" id="imageBackdroupUrl"><%= @pelicula.poster.attached? ? url_for(@pelicula.poster) : 'placeholder.jpg' %></span>
+  <span class="d-none" id="imageBackdroupUrl"><%= @pelicula.backdrop_image.present? ? url_for(@pelicula.backdrop_image) : 'placeholder.jpg' %></span>
   <!-- ·
   #
   #

@@ -60,10 +60,115 @@ ranking12:
 
 ranking13:
   pelicula: home
-  plataforma_pelicula: fimaffinity
+  plataforma_pelicula: Filmaffinity
   valor: 5.6
 
 ranking14:
   pelicula: home
   plataforma_pelicula: abando
   valor: 7
+
+ranking15:
+  pelicula: ironman1
+  plataforma_pelicula: SensaCine
+  valor: 4.3
+
+ranking16:
+  pelicula: ironman1
+  plataforma_pelicula: Filmaffinity
+  valor: 6.6
+
+ranking17:
+  pelicula: ironman1
+  plataforma_pelicula: aullidos
+  valor: 7.6
+
+ranking18:
+  pelicula: ironman2
+  plataforma_pelicula: SensaCine
+  valor: 3.9
+
+ranking19:
+  pelicula: ironman2
+  plataforma_pelicula: Filmaffinity
+  valor: 5.9
+
+ranking20:
+  pelicula: ironman2
+  plataforma_pelicula: common
+  valor: 4
+
+ranking21:
+  pelicula: ironman3
+  plataforma_pelicula: SensaCine
+  valor: 3.7
+
+ranking22:
+  pelicula: ironman3
+  plataforma_pelicula: cartelera
+  valor: 7.5
+
+ranking23:
+  pelicula: ironman3
+  plataforma_pelicula: common
+  valor: 3
+
+ranking24:
+  pelicula: joker
+  plataforma_pelicula: SensaCine
+  valor: 4.4
+
+ranking25:
+  pelicula: joker
+  plataforma_pelicula: Filmaffinity
+  valor: 8
+
+ranking26:
+  pelicula: joker
+  plataforma_pelicula: Espinof
+  valor: 8
+
+ranking27:
+  pelicula: minions
+  plataforma_pelicula: SensaCine
+  valor: 3.9
+
+ranking28:
+  pelicula: kungfupanda
+  plataforma_pelicula: SensaCine
+  valor: 3.9
+
+ranking29:
+  pelicula: kungfupanda
+  plataforma_pelicula: common
+  valor: 3
+
+ranking30:
+  pelicula: kungfupanda2
+  plataforma_pelicula: SensaCine
+  valor: 3.6
+
+ranking31:
+  pelicula: kungfupanda2
+  plataforma_pelicula: common
+  valor: 4
+
+ranking32:
+  pelicula: kungfupanda2
+  plataforma_pelicula: Filmaffinity
+  valor: 6.2
+
+ranking33:
+  pelicula: kungfupanda3
+  plataforma_pelicula: SensaCine
+  valor: 3.8
+
+ranking34:
+  pelicula: kungfupanda3
+  plataforma_pelicula: common
+  valor: 3
+
+ranking35:
+  pelicula: kungfupanda3
+  plataforma_pelicula: cartelera
+  valor: 8.5

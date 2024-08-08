@@ -6,29 +6,29 @@ freeguy:
   duration_minutes: 55
   director: "Shawn Levy"
   reparto: "Ryan Reynolds, Jodie Comer, Lil Rel Howery"
-  sinopsis: "Guy es un tipo alegre que trabaja como cajero de un banco. Un día va a descubrir que en realidad es un personaje no jugable dentro de un brutal videojuego de mundo abierto. Ahora que sabe que es un personaje de videojuego, Guy, acompañado por Molotov Girl, decidirá enfrentarse a todos los villanos que asolan la ciudad.
+  sinopsis: "Guy es un tipo alegre que trabaja como cajero de un banco. Un día va a descubrir que en realidad es un personaje no jugable dentro de un brutal videojuego de mundo abierto. Ahora que sabe que es un personaje de videojuego, Guy, acompañado por Molotov Girl, decidirá enfrentarse a todos los villanos que asolan la ciudad."
   audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
   clasification: "PG-13"
   link_trailer: "https://youtu.be/XHTgyuBQ99Q"
-  backdrop_image: "https://media.themoviedb.org/t/p/w500_and_h282_face/7py8kUCYaOdFn1TfVS87BDBySOz.jpg"
+  backdrop_image: "https://image.tmdb.org/t/p/original/7py8kUCYaOdFn1TfVS87BDBySOz.jpg"
   promedio_ranking: 6.83
   user: jorge
 
-fastandfurious:
+fastandfurious5:
   name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
+  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control"
   date_estreno: "2011-04-29"
   duration_hours: 2
   duration_minutes: 11
   director: "Justin Lin"
   reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
   sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
+  clasification: "PG"
   link_trailer: "https://youtu.be/uBmnUB4TOWQ"
   backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
   promedio_ranking: 7.77
@@ -36,33 +36,33 @@ fastandfurious:
 
 anna:
   name: "Anna. El Peligro tiene nombre"
-  others_titles: 
+  others_titles: ""
   date_estreno: "2019-08-30"
   duration_hours: 1
   duration_minutes: 59
   director: "Luc Besson"
   reparto: "Sasha Luss, Helen Mirren, Luke Evans"
   sinopsis: "Bajo la increíble belleza de la supermodelo Anna Poliatova (Sasha Luss) se esconde un secreto que la obligará a sacar toda su fuerza y habilidad en el crimen. Con una mente fría y calculadora, y un entrenamiento militar que no deja lugar a error, la joven terminará por convertirse en una de las asesinas al servicio del gobierno más letales del mundo."
-  audio: español latino
-  calidad_video: 1080p
+  audio: "español latino"
+  calidad_video: "1080p"
   codigo: DSSD1
-  clasification: 18+
+  clasification: "18+"
   link_trailer: "https://youtu.be/fdGnlN6s9eI"
-  backdrop_image: "https://media.themoviedb.org/t/p/w500_and_h282_face/e7bMo1klzkJcv9xTjTyUUSnGzhB.jpg"
+  backdrop_image: "https://image.tmdb.org/t/p/original/e7bMo1klzkJcv9xTjTyUUSnGzhB.jpg"
   promedio_ranking: 6.60
   user: jorge
 
 annabelle:
   name: "Annabelle"
-  others_titles:
+  others_titles: ""
   date_estreno: "2014-10-03"
   duration_hours: 1
   duration_minutes: 39
-  director: John R. Leonetti
-  reparto: Annabelle Wallis, Ward Horton, Alfre Woodard
-  sinopsis: Spin-off de la diabólica muñeca Annabelle, que aparecía en la película Expediente Warren: The Conjuring. Siguiendo el hilo argumental del anterior filme, una pareja comienza a sufrir experiencias terroríficamente supernaturales en su hogar debido a una muñeca vintage. A raíz de estos extraños sucesos, el hogar se ve invadido de elementos satánicos para controlar a la muñeca poseída por un diablo.
-  audio: español latino
-  calidad_video: 1080p
+  director: "John R. Leonetti"
+  reparto: "Annabelle Wallis, Ward Horton, Alfre Woodard"
+  sinopsis: "Spin-off de la diabólica muñeca Annabelle, que aparecía en la película Expediente Warren: The Conjuring. Siguiendo el hilo argumental del anterior filme, una pareja comienza a sufrir experiencias terroríficamente supernaturales en su hogar debido a una muñeca vintage. A raíz de estos extraños sucesos, el hogar se ve invadido de elementos satánicos para controlar a la muñeca poseída por un diablo."
+  audio: "español latino"
+  calidad_video: "1080p"
   codigo: DSSD1
   clasification: "PG-18"
   link_trailer: "https://youtu.be/XY6CTMs0h18"
@@ -71,128 +71,163 @@ annabelle:
   user: jorge
 
 home:
-  name: Home. Hogar dulce hogar
-  others_titles:
+  name: "Home. Hogar dulce hogar"
+  others_titles: ""
   date_estreno: "2015-05-15"
   duration_hours: 1
   duration_minutes: 34
-  director: Tim Johnson
-  reparto: Jim Parsons, Rihanna, Steve Martin
-  sinopsis: Un grupo de pacíficos alienígenas se encuentran huyendo de sus enemigos, y deciden esconderse de ellos en la Tierra. Sin embargo, uno de estos humildes extraterrestres accidentalmente notifica a sus perseguidores cuál es su ubicación, y no le queda más remedio que huir junto con una chica adolescente. Los dos, extrañamente, se convierten en grandes amigos y se embarcan en un cómico viaje alrededor del mundo, lo que resulta ser toda una aventura en la que el alienígena consigue por fin comprender el verdadero significado de ser humano. 
-  audio: español latino
-  calidad_video: 1080p
+  director: "Tim Johnson"
+  reparto: "Jim Parsons, Rihanna, Steve Martin"
+  sinopsis: "Un grupo de pacíficos alienígenas se encuentran huyendo de sus enemigos, y deciden esconderse de ellos en la Tierra. Sin embargo, uno de estos humildes extraterrestres accidentalmente notifica a sus perseguidores cuál es su ubicación, y no le queda más remedio que huir junto con una chica adolescente. Los dos, extrañamente, se convierten en grandes amigos y se embarcan en un cómico viaje alrededor del mundo, lo que resulta ser toda una aventura en la que el alienígena consigue por fin comprender el verdadero significado de ser humano."
+  audio: "español latino"
+  calidad_video: "1080p"
   codigo: DSSD1
-  clasification: PG
+  clasification: "PG"
   link_trailer: "https://youtu.be/_ZGmNYaJzYw"
-  backdrop_image: "https://media.themoviedb.org/t/p/w500_and_h282_face/A4lOTSXpMCuDzb5oFXGKhi07Uo1.jpg"
+  backdrop_image: "https://image.tmdb.org/t/p/original/A4lOTSXpMCuDzb5oFXGKhi07Uo1.jpg"
   promedio_ranking: 6.80
   user: jorge
 
-####################################################
 ironman1:
-  name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
-  date_estreno: "2011-04-29"
+  name: "Iron Man"
+  others_titles: ""
+  date_estreno: "2008-05-02"
   duration_hours: 2
-  duration_minutes: 11
-  director: "Justin Lin"
-  reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
-  sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+  duration_minutes: 6
+  director: "Jon Favreau"
+  reparto: "Robert Downey Jr., Gwyneth Paltrow, Terrence Howard"
+  sinopsis: "Después de escapar de un secuestro en Afganistán, el magnate de las armas Tony Stark se convierte en Iron Man, un héroe tecnológico para proteger al mundo."
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
-  link_trailer: "https://youtu.be/uBmnUB4TOWQ"
-  backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
-  promedio_ranking: 7.77
+  clasification: "PG-13"
+  link_trailer: "https://youtu.be/8hYlB38asDY"
+  backdrop_image: "https://image.tmdb.org/t/p/original/4U1GtUOiqaidyrINgBKyXExSR1p.jpg"
+  promedio_ranking: 7.9
   user: jorge
 
 ironman2:
-  name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
-  date_estreno: "2011-04-29"
+  name: "Iron Man 2"
+  others_titles: ""
+  date_estreno: "2010-05-07"
   duration_hours: 2
-  duration_minutes: 11
-  director: "Justin Lin"
-  reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
-  sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+  duration_minutes: 4
+  director: "Jon Favreau"
+  reparto: "Robert Downey Jr., Gwyneth Paltrow, Don Cheadle"
+  sinopsis: "El mundo ya sabe que el multimillonario Tony Stark es Iron Man, y ahora enfrenta presión del gobierno, la prensa y el público para compartir su tecnología con el ejército."
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
-  link_trailer: "https://youtu.be/uBmnUB4TOWQ"
-  backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
-  promedio_ranking: 7.77
+  clasification: "PG-13"
+  link_trailer: "https://youtu.be/BoohRoVA9WQ"
+  backdrop_image: "https://image.tmdb.org/t/p/original/7lmBufEG7P7Y1HClYK3gCxYrkgS.jpg"
+  promedio_ranking: 6.8
   user: jorge
 
 ironman3:
-  name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
-  date_estreno: "2011-04-29"
+  name: "Iron Man 3"
+  others_titles: ""
+  date_estreno: "2013-05-03"
   duration_hours: 2
-  duration_minutes: 11
-  director: "Justin Lin"
-  reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
-  sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+  duration_minutes: 10
+  director: "Shane Black"
+  reparto: "Robert Downey Jr., Gwyneth Paltrow, Guy Pearce"
+  sinopsis: "Tony Stark enfrenta su mayor desafío cuando un enemigo llamado el Mandarín destruye su mundo personal, llevándolo a una odisea de reconstrucción y retribución."
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
-  link_trailer: "https://youtu.be/uBmnUB4TOWQ"
-  backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
-  promedio_ranking: 7.77
+  clasification: "PG-13"
+  link_trailer: "https://youtu.be/2CzoSeClcw0"
+  backdrop_image: "https://image.tmdb.org/t/p/original/aZssWFpVpCajlmkJ1A3p5a8o6sC.jpg"
+  promedio_ranking: 6.9
   user: jorge
 
-fastandfurious8:
-  name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
-  date_estreno: "2011-04-29"
+joker:
+  name: "Joker"
+  others_titles: "Guasón"
+  date_estreno: "2019-10-04"
   duration_hours: 2
-  duration_minutes: 11
-  director: "Justin Lin"
-  reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
-  sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+  duration_minutes: 2
+  director: "Todd Phillips"
+  reparto: "Joaquin Phoenix, Robert De Niro, Zazie Beetz"
+  sinopsis: "Arthur Fleck, un hombre con problemas mentales, se convierte en el infame Joker después de enfrentar una vida de abandono y crueldad."
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
-  link_trailer: "https://youtu.be/uBmnUB4TOWQ"
-  backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
-  promedio_ranking: 7.77
+  clasification: "R"
+  link_trailer: "https://youtu.be/zAGVQLHvwOY"
+  backdrop_image: "https://image.tmdb.org/t/p/original/hO7KbdvGOtDdeg0W4Y5nKEHeDDh.jpg"
+  promedio_ranking: 8.5
   user: jorge
 
-spidermanNowayhome:
-  name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
-  date_estreno: "2011-04-29"
-  duration_hours: 2
-  duration_minutes: 11
-  director: "Justin Lin"
-  reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
-  sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+minions:
+  name: "Minions"
+  others_titles: ""
+  date_estreno: "2015-07-10"
+  duration_hours: 1
+  duration_minutes: 31
+  director: "Kyle Balda, Pierre Coffin"
+  reparto: "Sandra Bullock, Jon Hamm, Michael Keaton"
+  sinopsis: "Los Minions buscan a un villano al que servir y encuentran a Scarlett Overkill, quien planea dominar el mundo."
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
-  link_trailer: "https://youtu.be/uBmnUB4TOWQ"
-  backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
-  promedio_ranking: 7.77
+  clasification: "PG"
+  link_trailer: "https://youtu.be/eisKxhjBnZ0"
+  backdrop_image: "https://image.tmdb.org/t/p/original/4JaVWzbHr8l0phTzT7OyedsN0ia.jpg"
+  promedio_ranking: 6.6
   user: jorge
 
-thor3:
-  name: "Rapidos y Furiosos 5"
-  others_titles: "Fast & Furious 5, Rapidos y furiosos: 5in control" 
-  date_estreno: "2011-04-29"
-  duration_hours: 2
-  duration_minutes: 11
-  director: "Justin Lin"
-  reparto: "Vin Diesel, Paul Walker, Dwayne Johnson"
-  sinopsis: "Brian (Paul Walker, 'Ladrones'), Mia (Jordana Brewster, 'La matanza de Texas: El origen') y Dom (Vin Diesel, 'Babylon') están atrapados en Río de Janeiro intentando escapar de la policía tras ayudar al último a salir de la cárcel. Allí no les quedará otra que seguir huyendo si quieren seguir viviendo en libertad por lo que deciden buscar a los mejores corredores y enfrentarse a un empresario corrupto que desea acabar con ellos para siempre. Sin embargo, alguien más va tras ellos. Luke Hobbs (Dwayne Johnson, 'G.I. Joe - La venganza'), un duro agente federal acostumbrado a dar caza a todos sus objetivos, debe confiar en su instinto para atraparles y que nadie más se le adelante. De esta forma, él y su equipo se embarcarán en un veloz viaje sin tregua para frenar a los protagonistas de la saga. Durante la tensión de la persecución, el agente se dará cuenta de lo hostil que se presenta el terreno de lucha, ya que cada vez resulta más difícil diferenciar entre buenos y malos. Así deberá continuar la captura dirigiéndose bajo su propio criterio, sin fiarse de los demás."
-  audio: español latino
+kungfupanda:
+  name: "Kung Fu Panda"
+  others_titles: ""
+  date_estreno: "2008-06-06"
+  duration_hours: 1
+  duration_minutes: 32
+  director: "Mark Osborne, John Stevenson"
+  reparto: "Jack Black, Ian McShane, Angelina Jolie"
+  sinopsis: "Po, un panda torpe y amante del kung fu, es inesperadamente elegido para cumplir una antigua profecía y salvar el Valle de la Paz del malvado Tai Lung."
+  audio: "español latino"
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
-  clasification: PG
-  link_trailer: "https://youtu.be/uBmnUB4TOWQ"
-  backdrop_image: "https://image.tmdb.org/t/p/original/zZ9PDAT509wXpVIyS4Xtxa6Wrvr.jpg"
-  promedio_ranking: 7.77
+  clasification: "PG"
+  link_trailer: "https://youtu.be/PXi3Mv6KMzY"
+  backdrop_image: "https://image.tmdb.org/t/p/original/d1RHScaZc7I8j0lDke1c4AxI435.jpg"
+  promedio_ranking: 7.3
+  user: jorge
+
+kungfupanda2:
+  name: "Kung Fu Panda 2"
+  others_titles: ""
+  date_estreno: "2011-05-26"
+  duration_hours: 1
+  duration_minutes: 31
+  director: "Jennifer Yuh Nelson"
+  reparto: "Jack Black, Angelina Jolie, Dustin Hoffman"
+  sinopsis: "Po y los Cinco Furiosos deben enfrentar a un nuevo enemigo, Lord Shen, que planea usar un arma secreta para conquistar China y destruir el kung fu."
+  audio: "español latino"
+  calidad_video: "1920 x 1080 mp4"
+  codigo: DSSD1
+  clasification: "PG"
+  link_trailer: "https://youtu.be/PJi6ZW9l6NY"
+  backdrop_image: "https://image.tmdb.org/t/p/original/reHkSQwiYKK4SabnGDY1FWKie82.jpg"
+  promedio_ranking: 6.9
+  user: jorge
+
+kungfupanda3:
+  name: "Kung Fu Panda 3"
+  others_titles: ""
+  date_estreno: "2016-01-29"
+  duration_hours: 1
+  duration_minutes: 35
+  director: "Jennifer Yuh Nelson, Alessandro Carloni"
+  reparto: "Jack Black, Bryan Cranston, Dustin Hoffman"
+  sinopsis: "Po se reúne con su padre biológico y descubre un pueblo secreto de pandas, pero debe entrenarlos para enfrentarse al villano sobrenatural, Kai."
+  audio: "español latino"
+  calidad_video: "1920 x 1080 mp4"
+  codigo: DSSD1
+  clasification: "PG"
+  link_trailer: "https://youtu.be/fGPPfZIvtCw"
+  backdrop_image: "https://image.tmdb.org/t/p/original/tfEvP0Pnkj2AOpwLoexap6u7fWW.jpg"
+  promedio_ranking: 6.7
   user: jorge
