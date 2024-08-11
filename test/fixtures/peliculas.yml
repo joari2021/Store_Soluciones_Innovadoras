@@ -234,7 +234,7 @@ kungfupanda3:
 
 avengersEndgame:
   name: "Avengers: Endgame"
-  others_titles: ""
+  others_titles: 
   date_estreno: "2019-04-26"
   duration_hours: 3
   duration_minutes: 1
@@ -245,7 +245,223 @@ avengersEndgame:
   calidad_video: "1920 x 1080 mp4"
   codigo: DSSD1
   clasification: "PG-13"
-  link_trailer: "https://youtu.be/KdL8ucqi1F8"
+  link_trailer: "https://youtu.be/siQ8_HTzNaM"
   backdrop_image: "https://image.tmdb.org/t/p/original/xuYDe1Ntxp9OOvz4aEypxmilgvr.jpg"
   promedio_ranking: 9
+  user: jorge
+
+avengers2:
+  name: "Vengadores: la era de Ultrón"
+  others_titles: "Vengadores: La era de Ultron, Avengers: age of Ultron"
+  date_estreno: "2015-05-01"
+  duration_hours: 2
+  duration_minutes: 21
+  director: "Joss Whedon"
+  reparto: "Robert Downey Jr., Chris Evans, Mark Ruffalo"
+  sinopsis: "El destino del planeta pende de un hilo cuando Tony Stark intenta hacer funcionar un inactivo programa para mantener la paz. Las cosas le salen mal y los héroes más poderosos, incluyendo Iron Man, Capitán América, la Viuda Negra, Thor, el Increíble Hulk y Ojo de Halcón, se ven enfrentados a la prueba definitiva. Cuando el villano Ultrón aparece, es tarea de Los Vengadores el detenerle antes de que lleve a cabo sus terribles planes para el mundo. Inesperadas alianzas y acción por doquier sientan las bases para una épica aventura global."
+  audio: "español latino"
+  calidad_video: "1920 x 1080 mp4"
+  codigo: "DSSD1"
+  clasification: 7
+  link_trailer: "https://youtu.be/DMFBm_lp4rU"
+  backdrop_image: "https://image.tmdb.org/t/p/original/bcpI5BKBtifdcDjFHsVM6DRi5iU.jpg"
+  promedio_ranking: 9
+  user: jorge
+
+avengers4:
+  name: "Avengers: Infinity War"
+  others_titles: 
+  date_estreno: 2018-04-25
+  duration_hours: 2
+  duration_minutes: 29
+  director: Joe Russo, Anthony Russo 
+  reparto: Robert Downey Jr., Chris Evans, Mark Ruffalo
+  sinopsis: "Un nuevo peligro acecha procedente de las sombras del cosmos. Thanos, el infame tirano intergaláctico, tiene como objetivo reunir las seis Gemas del Infinito, artefactos de poder inimaginable, y usarlas para imponer su perversa voluntad a toda la existencia. Los Vengadores y sus aliados tendrán que luchar contra el mayor villano al que se han enfrentado nunca, y evitar que se haga con el control de la galaxia. En su nueva e impactante aventura, el destino de la Tierra nunca había sido más incierto, las Gemas del Infinito estarán en juego, unos querrán protegerlas y otros controlarlas, ¿quién ganará?"
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 12
+  link_trailer: https://youtu.be/3xk11d9hjp0
+  backdrop_image: https://image.tmdb.org/t/p/original/9UlOSnjnDdJ3G2FirAaz8Hqd8cc.jpg
+  promedio_ranking: 7.06
+  user: jorge
+
+deadpool2:
+  name: Deadpool 2
+  others_titles: 
+  date_estreno: 2018-05-15
+  duration_hours: 2
+  duration_minutes: 0
+  director: David Leitch
+  reparto: Ryan Reynolds, Josh Brolin, Morena Baccarin
+  sinopsis: Wade Wilson (Ryan Reynolds), el mutante conocido como Deadpool y el antihéroe más gamberro de Marvel tiene que vérselas esta vez con Cable (Josh Brolin). El poderoso villano ha secuestrado a un chaval llamado Russell (Julian Dennison). Para salvar al joven, el desvergonzado mutante decide montar un hiper-mega escuadrón al que, por toda la cara, va a llamar X-Force. En este escuadrón estarán Domino (Zazie Beetz), Estrella Rota (Lewis Tan), Negasonic (Brianna Hildebrand), Zeitgeist (Bill Skarsgård), Yukio (Shioli Kutsuna), Coloso (Stefan Kapicic) y Bedlam (Terry Crews). Con su característica irreverencia, el antihéroe deberá demostrar a Cable que es un héroe y no solo un payaso.
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 18
+  link_trailer: https://youtu.be/4i6ZePa8jz4
+  backdrop_image: https://image.tmdb.org/t/p/original/1CzUuIdalmARzfYyEX3vGmBy6dn.jpg
+  promedio_ranking: 7.47
+  user: jorge
+
+deadpool3:
+  name: Deadpool & Wolverine
+  others_titles: Deadpool 3, Deadpool y Lobezno
+  date_estreno: 2024-07-25
+  duration_hours: 2
+  duration_minutes: 7
+  director: Shawn Levy
+  reparto: Ryan Reynolds, Hugh Jackman, Emma Corrin
+  sinopsis: Tras pasearse por el tiempo para arreglar los pequeños y grandes errores del pasado, Wade Wilson continúa enfundándose el traje de Deadpool una secuela más y ahora tendrá que enfrentarse a nuevos y muy diferentes escenarios de los que habíamos visto hasta ahora.
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 18
+  link_trailer: https://youtu.be/uDzfa0w86Vw
+  backdrop_image: https://image.tmdb.org/t/p/original/pakDaGsudeZnCg7BIix18bh4mCx.jpg
+  promedio_ranking: 7.43
+  user: jorge
+
+deadpool:
+  name: Deadpool
+  others_titles:
+  date_estreno: 2016-02-12
+  duration_hours: 1
+  duration_minutes: 48
+  director: Tim Miller
+  reparto: Ryan Reynolds, Morena Baccarin, Ed Skrein
+  sinopsis: "Después de alistarse en el ejército, Wade Wilson (Ryan Reynolds) comienza a realizar trabajos de mercenario, y acabará siendo agente de las Fuerzas Especiales de EE.UU. Ya retirado, en su vida civil se dedica a ser un 'matón a sueldo', ayudando a gente que no puede defenderse por sí sola. Su vida transcurre de forma normal, junto a su novia Vanessa (Morena Baccarin), hasta que llega la terrible noticia de que está gravemente enfermo. Sus días están contados y por eso, para salvar su vida, decide ganar tiempo sometiéndose al 'Arma X': un arriesgado experimento que provoca una alteración genética en su organismo, deteniendo así la enfermedad y haciéndole renacer como un indestructible antihéroe cuyo nombre es Deadpool. Eso sí, después de someterse a este complicado experimento, el rostro y el cuerpo de Wilson quedan terriblemente desfigurados. De modo que, decide tomarse con algo más de humor su drama personal, y es entonces cuando Deadpool se lanza a hacer comentarios jocosos, sea cual sea la situación a la que se enfrenta."
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 18
+  link_trailer: https://youtu.be/0JnRdfiUMa8
+  backdrop_image: https://image.tmdb.org/t/p/original/en971MEXui9diirXlogOrPKmsEn.jpg
+  promedio_ranking: 8
+  user: jorge
+
+extraction:
+  name: Extraction
+  others_titles: Mision de rescate, tyler rake
+  date_estreno: 2020-04-24
+  duration_hours: 1
+  duration_minutes: 56
+  director: Sam Hargrave
+  reparto: Chris Hemsworth, Randeep Hooda, Golshifteh Farahani
+  sinopsis: Un hombre de negocios indio contrata a un mercenario para rescatar a su hijo, un niño al que han secuestrado y tienen escondido en Dhaka, en Bangladesh.
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 16
+  link_trailer: https://youtu.be/18fMBzX5PdA
+  backdrop_image: https://image.tmdb.org/t/p/original/1R6cvRtZgsYCkh8UFuWFN33xBP4.jpg
+  promedio_ranking: 7.1
+  user: jorge
+
+extraction2:
+  name: Extraction 2
+  others_titles: Mision de rescate 2, tyler rake 2
+  date_estreno: 2023-06-09
+  duration_hours: 2
+  duration_minutes: 3
+  director: Sam Hargrave
+  reparto: Chris Hemsworth, Golshifteh Farahani, Adam Bessa
+  sinopsis: "Tyler Rake 2 es la secuela de Tyler Rake, que vuelve a estar protagonizada por Chris Hemsworth (Thor: Ragnarok). El actor se meterá de nuevo en la piel del protagonista, un mercenario a sueldo que se verá envuelto de nuevo en un peligroso entramado de acción." 
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 16
+  link_trailer: https://youtu.be/FDy3OSjVQw8
+  backdrop_image: https://image.tmdb.org/t/p/original/9kBBFrh9ZLCLWHAA1iVpsCwYOd3.jpg
+  promedio_ranking: 6.66
+  user: jorge
+
+rapidos1:
+  name: Rapido y furioso
+  others_titles: Fast and Furiuos 1, rapidos y furiosos 1
+  date_estreno: 2001-06-22
+  duration_hours: 1
+  duration_minutes: 46
+  director: Rob Cohen
+  reparto: Paul Walker, Vin Diesel, Michelle Rodriguez
+  sinopsis: La vida de Dominic Toretto (Vin Diesel) está marcada día y noche por la velocidad. Durante el día prepara y tunea coches de carreras de alta gama, mejora sus prestaciones y los embellece. Al caer la noche se organizan competiciones ilegales donde muchos candidatos se enfrentan sin contemplaciones bajo la intensa mirada de sus groupies. Dominic Toretto compite en ellas con su propio bólido a 280 kilómetros por hora, consiguiendo numerosas sumas de dinero gracias a sus victorias. Sin embargo, existe una banda de delincuentes muy misteriosa que roba camiones en marcha desde vehículos deportivos. Este hecho hace que la policía infiltre a uno de sus hombres dentro de las carreras ilegales para investigar a posibles sospechosos. Brian (Paul Walker) es el encargado de infiltrarse en la banda de Toretto, la que figura junto a la de su rival Johnny Tran como principales sospechosos. Rápidamente se ganará la confianza de Toretto, pero todo se complicará cuando aparezca su hermana y se enamora de ella. 
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 13
+  link_trailer: https://youtu.be/D4X0R5VXhEw
+  backdrop_image: https://media.themoviedb.org/t/p/w500_and_h282_face/jY9ef5nqY4xIIMu3yzW3qamUCoi.jpg
+  promedio_ranking: 7.7
+  user: jorge
+
+rapidos2:
+  name: Mas rapido, Mas furioso
+  others_titles: mas rapido, mas furioso; 2 fast 2 furious; rapidos y furiosos 2
+  date_estreno: 2003-06-06
+  duration_hours: 1
+  duration_minutes: 47
+  director: John Singleton
+  reparto: Paul Walker, Tyrese Gibson, Eva Mendes
+  sinopsis: Brian O'Conner ha realizado su acción más hermosa, pero también su falta más grave, dejando escapar al jefe de la banda de ladrones de coches en la que tenía que infiltrarse por una misión. Expulsado de la policía de Los Ángeles, este joven policía rebelde, fan de la velocidad y de las carreras, ha mantenido intacto su honor pero ha echado a perder una bella carrera. Tras dos años buscándose la vida, Brian está ahora en Miami donde le dan la última oportunidad para enmendarse. Vigila junto al FBI y las aduanas locales al hombre de negocios más poderoso, Carter Verone, del que sospechan que lleva a cabo operaciones de blanqueo de dinero. Pero sus esfuerzos han sido en vano y el único indicio del que disponen para atraer y desenmascarar al enigmático criminal es su pasión por las carreras. El tiempo apremia y Brian parece ser la única esperanza.
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 12
+  link_trailer: https://youtu.be/VXItsaRV9hQ
+  backdrop_image: https://image.tmdb.org/t/p/original/xWf5Mjtv2HfIB9FyPYbbaSDdfCW.jpg
+  promedio_ranking: 6.97
+  user: jorge
+
+rapidos4:
+  name: Rapidos y furiosos 4
+  others_titles: "Fast & furious: aun mas rapido"
+  date_estreno: 2011-05-06
+  duration_hours: 1
+  duration_minutes: 47
+  director: Justin Lin
+  reparto: Vin Diesel, Paul Walker, Jordana Brewster
+  sinopsis: "Un asesinato obliga a Don Toretto, un ex convicto huido, y al agente Brian O'Conner a volver a Los Ángeles. donde su pelea se reaviva. Pero al tener que enfrentarse a un enemigo común, se ven obligados a formar una alianza incierta si quieren conseguir desbaratar sus planes. Por un lado, ambos van a la caza del narcotraficante mexicano Arturo Braga, buscado por la policía desde hace bastante tiempo. Sin embargo, pese a que a Brian le mueva la justicia social, su compañero Toretto quiere vengar la muerte de Letty. Si quieren conseguir sus propósitos deberán infiltrase como corredores dentro de la organización para desenmascarar toda una trama destina a la venta de drogas y al blanqueo de dinero negro. Desde asaltos a camiones hasta carreras de precisión que les llevarán fuera de sus propias fronteras, los dos hombres encontrarán el mejor medio de tomarse su revancha: ir más allá de los límites de lo imaginable al volante de un coche."
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 18
+  link_trailer: https://youtu.be/NXfmQsBMYAI
+  backdrop_image: https://image.tmdb.org/t/p/original/9VqS5iOQMfQKPZiKxbGwEnzogTM.jpg
+  promedio_ranking: 7.93
+  user: jorge
+
+rapidos6:
+  name: Rapidos y furiosos 6
+  others_titles: Fast & furious 6
+  date_estreno: 2013-06-21
+  duration_hours: 2
+  duration_minutes: 10
+  director: Justin Lin
+  reparto: Vin Diesel, Paul Walker, Dwayne Johnson
+  sinopsis: "Desde que Dom y Brian destruyeron el imperio de un mafioso y se hicieron con cien millones de dólares, se encuentran en paradero desconocido; no pueden regresar a casa porque la ley los persigue. Entretanto, Hobbs ha seguido la pista por una docena de países a una banda de letales conductores mercenarios, cuyo cerebro cuenta con la inestimable ayuda de la sexy Letty, un viejo amor de Dom que éste daba por muerta. La única forma de detenerlos es enfrentarse a ellos en las calles, así que Hobbs le pide a Dom que reúna a su equipo en Londres. ¿Qué obtendrán a cambio? Un indulto para que todos puedan volver a casa con sus familias."
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 16
+  link_trailer: https://youtu.be/AHGo2fA1YEE
+  backdrop_image: https://image.tmdb.org/t/p/original/mRfI3y2oAd7ejur2di09xC9niqp.jpg
+  promedio_ranking: 6.33
+  user: jorge
+
+rapidos6:
+  name: Rapidos y furiosos 6
+  others_titles: Fast & furious 6
+  date_estreno: 2013-06-21
+  duration_hours: 2
+  duration_minutes: 10
+  director: Justin Lin
+  reparto: Vin Diesel, Paul Walker, Dwayne Johnson
+  sinopsis: Desde que Dom y Brian destruyeron el imperio de un mafioso y se hicieron con cien millones de dólares, se encuentran en paradero desconocido; no pueden regresar a casa porque la ley los persigue. Entretanto, Hobbs ha seguido la pista por una docena de países a una banda de letales conductores mercenarios, cuyo cerebro cuenta con la inestimable ayuda de la sexy Letty, un viejo amor de Dom que éste daba por muerta. La única forma de detenerlos es enfrentarse a ellos en las calles, así que Hobbs le pide a Dom que reúna a su equipo en Londres. ¿Qué obtendrán a cambio? Un indulto para que todos puedan volver a casa con sus familias.
+  audio: español latino
+  calidad_video: 1920 x 1080 mp4
+  codigo: DSSD1
+  clasification: 16
+  link_trailer: https://youtu.be/AHGo2fA1YEE
+  backdrop_image: https://image.tmdb.org/t/p/original/mRfI3y2oAd7ejur2di09xC9niqp.jpg
+  promedio_ranking: 6.33
   user: jorge

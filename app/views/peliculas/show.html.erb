@@ -12,7 +12,7 @@
     </div>
     <div class="col-md-8">
       <span><strong>Otros titulos:</strong> <%= @pelicula.others_titles.present? ? @pelicula.others_titles : "N/A" %></span><br>
-      <strong>Promedio Ranking:</strong> <%= @pelicula.promedio_ranking %><br>
+      <strong>Promedio Ranking:</strong> <%= number_with_precision(@pelicula.promedio_ranking, precision: 2) %><br>
       <strong>Clasificacion:</strong> <%= @pelicula.clasification %><br>
       <strong>Fecha Estreno:</strong> <%= @pelicula.date_estreno.strftime("%d / %m / %Y") %><br>
       <strong>Duración:</strong> <%= @pelicula.duration_hours %>h <%= @pelicula.duration_minutes %>m<br>

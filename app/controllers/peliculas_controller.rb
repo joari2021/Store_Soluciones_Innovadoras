@@ -6,7 +6,7 @@ class PeliculasController < ApplicationController
   def index
     @generos = Genero.pluck(:name, :id)
     @peliculas = Pelicula.all.with_attached_poster
-    @year_estreno = Pelicula.pluck(:date_estreno).map { |date| date.year }.uniq
+    @year_estreno = Pelicula.pluck(:date_estreno).map { |date| date.year }.uniq.sort.reverse
     @clasifications_peliculas = Pelicula.distinct.pluck(:clasification)
 
     if params[:genero].present?

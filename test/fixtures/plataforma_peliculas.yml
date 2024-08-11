@@ -2,12 +2,20 @@ abando:
   name: aBaNDoMovieZ
   escala: 10
 
+altaPeli:
+  name: Alta Peli
+  escala: 10
+
 aullidos:
   name: Aullidos.COM
   escala: 10
 
 cartelera:
   name: eCartelera
+  escala: 10
+
+cinescondite:
+  name: Cinescondite
   escala: 10
 
 common:
@@ -26,6 +34,10 @@ Filmaffinity:
   name: Filmaffinity
   escala: 10
 
+hobby:
+  name: hobbyConsolas
+  escala: 10
+
 IMDb:
   name: IMDb
   escala: 10
@@ -33,6 +45,10 @@ IMDb:
 Lavanguardia:
   name: La Vanguardia
   escala: 10
+
+portal:
+  name: Portal Arlequin
+  escala: 5
 
 Rakuten:
   name: Rakuten TV

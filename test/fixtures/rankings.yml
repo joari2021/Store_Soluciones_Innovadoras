@@ -187,3 +187,163 @@ ranking38:
   pelicula: avengersEndgame
   plataforma_pelicula: Espinof
   valor: 8
+
+ranking39:
+  pelicula: avengers2
+  plataforma_pelicula: SensaCine
+  valor: 4.1
+
+ranking40:
+  pelicula: avengers2
+  plataforma_pelicula: common
+  valor: 3
+
+ranking41:
+  pelicula: avengers2
+  plataforma_pelicula: Espinof
+  valor: 7
+
+ranking42:
+  pelicula: avengers4
+  plataforma_pelicula: SensaCine
+  valor: 4.5
+
+ranking43:
+  pelicula: avengers4
+  plataforma_pelicula: common
+  valor: 5
+
+ranking44:
+  pelicula: avengers4
+  plataforma_pelicula: Espinof
+  valor: 8
+
+ranking45:
+  pelicula: deadpool2
+  plataforma_pelicula: SensaCine
+  valor: 4.2
+
+ranking46:
+  pelicula: deadpool2
+  plataforma_pelicula: common
+  valor: 4
+
+ranking47:
+  pelicula: deadpool2
+  plataforma_pelicula: Espinof
+  valor: 6
+
+ranking48:
+  pelicula: deadpool3
+  plataforma_pelicula: SensaCine
+  valor: 4
+
+ranking49:
+  pelicula: deadpool3
+  plataforma_pelicula: Filmaffinity
+  valor: 7.3
+
+ranking50:
+  pelicula: deadpool3
+  plataforma_pelicula: Espinof
+  valor: 7
+
+ranking51:
+  pelicula: deadpool
+  plataforma_pelicula: SensaCine
+  valor: 4.2
+
+ranking52:
+  pelicula: deadpool
+  plataforma_pelicula: Decine21
+  valor: 7.6
+
+ranking53:
+  pelicula: deadpool
+  plataforma_pelicula: Espinof
+  valor: 7.6
+
+ranking54:
+  pelicula: extraction
+  plataforma_pelicula: SensaCine
+  valor: 3.9
+
+ranking55:
+  pelicula: extraction
+  plataforma_pelicula: altaPeli
+  valor: 7.5
+
+ranking56:
+  pelicula: extraction
+  plataforma_pelicula: cinescondite
+  valor: 6
+
+ranking57:
+  pelicula: extraction2
+  plataforma_pelicula: SensaCine
+  valor: 3.4
+
+ranking58:
+  pelicula: extraction2
+  plataforma_pelicula: Filmaffinity
+  valor: 6.2
+
+ranking59:
+  pelicula: extraction2
+  plataforma_pelicula: Espinof
+  valor: 7
+
+ranking60:
+  pelicula: rapidos1
+  plataforma_pelicula: SensaCine
+  valor: 4.1
+
+ranking61:
+  pelicula: rapidos1
+  plataforma_pelicula: abando
+  valor: 7.2
+
+ranking62:
+  pelicula: rapidos2
+  plataforma_pelicula: SensaCine
+  valor: 3.7
+
+ranking63:
+  pelicula: rapidos2
+  plataforma_pelicula: cartelera
+  valor: 7.5
+
+ranking64:
+  pelicula: rapidos2
+  plataforma_pelicula: Lavanguardia
+  valor: 6
+
+ranking65:
+  pelicula: rapidos4
+  plataforma_pelicula: SensaCine
+  valor: 3.9
+
+ranking66:
+  pelicula: rapidos4
+  plataforma_pelicula: cartelera
+  valor: 8
+
+ranking67:
+  pelicula: rapidos4
+  plataforma_pelicula: portal
+  valor: 4
+
+ranking68:
+  pelicula: rapidos6
+  plataforma_pelicula: SensaCine
+  valor: 4
+
+ranking69:
+  pelicula: rapidos6
+  plataforma_pelicula: hobby
+  valor: 7
+
+ranking70:
+  pelicula: rapidos6
+  plataforma_pelicula: IMDb
+  valor: 7

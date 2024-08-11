@@ -113,3 +113,131 @@ genero28:
 genero29:
   pelicula: avengersEndgame
   genero: cienciaFiccion
+
+genero30:
+  pelicula: avengers2
+  genero: acción
+
+genero31:
+  pelicula: avengers2
+  genero: aventura
+
+genero32:
+  pelicula: avengers2
+  genero: cienciaFiccion
+
+genero33:
+  pelicula: avengers4
+  genero: acción
+
+genero34:
+  pelicula: avengers4
+  genero: aventura
+
+genero35:
+  pelicula: avengers4
+  genero: cienciaFiccion
+
+genero36:
+  pelicula: deadpool2
+  genero: acción
+
+genero37:
+  pelicula: deadpool2
+  genero: comedia
+
+genero38:
+  pelicula: deadpool2
+  genero: aventura
+
+genero39:
+  pelicula: deadpool3
+  genero: acción
+
+genero40:
+  pelicula: deadpool3
+  genero: comedia
+
+genero41:
+  pelicula: deadpool3
+  genero: cienciaFiccion
+
+genero42:
+  pelicula: deadpool
+  genero: acción
+
+genero43:
+  pelicula: deadpool
+  genero: aventura
+
+genero44:
+  pelicula: deadpool
+  genero: comedia
+
+genero45:
+  pelicula: extraction
+  genero: acción
+
+genero46:
+  pelicula: extraction
+  genero: suspenso
+
+genero47:
+  pelicula: extraction2
+  genero: acción
+
+genero48:
+  pelicula: extraction2
+  genero: suspenso
+
+genero49:
+  pelicula: rapidos1
+  genero: acción
+
+genero50:
+  pelicula: rapidos1
+  genero: crimen
+
+genero51:
+  pelicula: rapidos1
+  genero: suspenso
+
+genero52:
+  pelicula: rapidos2
+  genero: acción
+
+genero53:
+  pelicula: rapidos2
+  genero: crimen
+
+genero54:
+  pelicula: rapidos2
+  genero: suspenso
+
+genero55:
+  pelicula: rapidos4
+  genero: acción
+
+genero56:
+  pelicula: rapidos4
+  genero: crimen
+
+genero56:
+  pelicula: rapidos4
+  genero: drama
+
+genero57:
+  pelicula: rapidos4
+  genero: suspenso
+
+genero58:
+  pelicula: rapidos6
+  genero: acción
+
+genero59:
+  pelicula: rapidos6
+  genero: crimen
+
+genero60:
+  pelicula: rapidos6
+  genero: suspenso

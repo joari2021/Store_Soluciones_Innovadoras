@@ -6,7 +6,7 @@
       <div class="card__data">
         <span class="card__name"><%= truncated_name(pelicula.name, 30, ' ...') %> (<%= pelicula.date_estreno.year %>)</span>
       </div>
-      <span class="card__ranking transparent-background ">9.5 <i class="ri-star-fill text-warning"></i></span>
+      <span class="card__ranking transparent-background"><%= number_with_precision(pelicula.promedio_ranking, precision: 2) %> <i class="ri-star-fill text-warning"></i></span>
     <%end%>
   </article>
 </div>
