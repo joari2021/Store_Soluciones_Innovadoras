@@ -28,6 +28,8 @@ class PeliculasController < ApplicationController
     order_by = Pelicula::ORDER_BY.fetch(params[:order_by]&.to_sym, Pelicula::ORDER_BY[:fecha_de_estreno_descendente])
 
     @peliculas = @peliculas.order(order_by)
+
+    @pagy, @peliculas = pagy(@peliculas, items: 6)
   end
 
   # GET /peliculas/new

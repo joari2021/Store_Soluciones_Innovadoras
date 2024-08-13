@@ -48,12 +48,14 @@ gem "bootsnap", require: false
 # gem "image_processing", "~> 1.2"
 
 #other gemas
-gem 'sassc'
+gem "sassc"
 gem "font-awesome-sass"
 # Postgresql FullTextSearch
 gem "pg_search", "~> 2.3"
 # View Components
 gem "view_component", "~> 3.12"
+# pagination
+gem "pagy", "~> 9.0"
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem

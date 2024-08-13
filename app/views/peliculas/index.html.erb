@@ -1,4 +1,4 @@
-<%= turbo_frame_tag "peliculas" do%>
+<%= turbo_frame_tag "home" do%>
   <main class="main">
     <!-- FILTROS DE BUSQUEDA -->
     <ul>
@@ -48,11 +48,14 @@
       <% end %>
     </ul>
     <!--==================== MOVIES ====================-->
-    <div class="container">
-      <div class="row ">
-        <%= render partial: "pelicula", collection: @peliculas %>
+    <%= turbo_frame_tag "peliculas-#{@pagy.page}" do %>
+      <div class="container">
+        <div class="row ">
+          <%= render partial: "pelicula", collection: @peliculas %>
+          <%= turbo_frame_tag "peliculas-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
+        </div>
       </div>
-    </div>
+    <% end %>
     <!-- Pagination -->
     <div class="swiper-pagination"></div>
   </main>
