@@ -29,7 +29,7 @@
       <% @pelicula.generos.each do |genero| %>
         <span class="badge rounded-pill bg-info text-white ms-2"><%= genero.name %></span>
       <% end %><br>
-      <p class="mt-2"><strong>Sinopsis:</strong> <%= @pelicula.sinopsis %></p>
+      <p class="mt-2"><strong>Sinopsis:</strong><%= simple_format(@pelicula.sinopsis) %></p>
     </div>
   </div>
   <% if Current.user&.admin?%>
