@@ -20,7 +20,9 @@ class Pelicula < ApplicationRecord
 
   has_many :generos_peliculas, dependent: :destroy
   has_many :generos, through: :generos_peliculas
+  has_many :video_details, dependent: :destroy
   has_many :rankings, dependent: :destroy
+  accepts_nested_attributes_for :video_details, allow_destroy: true
   accepts_nested_attributes_for :rankings, allow_destroy: true
 
   belongs_to :user, default: -> { Current.user }

@@ -52,20 +52,26 @@
         <%= form.text_field :reparto, class:"form-control" %>
       </div>
       <div class="mb-3">
-        <%= form.label :audio, "Audio", class: "form-label" %>
-        <%= form.select :audio, options_for_select([["Español Latino", "español latino"], ["Castellano", "castellano"], ["Ingles", "ingles"], ["Japones", "japones"]], @pelicula.audio), {}, class: "form-select" %>
       </div>
+      <h4>Detalles de Videos</h4>
+      <div id="video_details">
+        <%= form.fields_for :video_details do |vd| %>
+          <%= render "video_detail_fields", vd: vd %>
+        <% end %>
+      </div>
+      <%= link_to_add_video_details "Añadir Detalles de Video", form, :video_details %>
+      <hr>
       <div class="mb-3">
         <%= form.label :sinopsis, "Sinopsis", class:"form-label" %>
         <%= form.text_area :sinopsis, class:"form-control", rows: 10 %>
       </div>
-      <h3>Puntuaciones</h3>
+      <h5>Puntuaciones</h5>
       <div id="rankings">
         <%= form.fields_for :rankings do |pf| %>
           <%= render "ranking_fields", pf: pf%>
         <% end %>
       </div>
-      <%= link_to_add_fields "Add Puntuacion", form, :rankings %>
+      <%= link_to_add_rankings "Añadir Ranking", form, :rankings %>
       <hr>
       <div class="mb-2">
         <span>Generos:</span>
@@ -87,7 +93,7 @@
   </div>
 <%end%>
 <script>
-  document.querySelectorAll('.add_fields').forEach(button => {
+  document.querySelectorAll('.add_fields_rankings').forEach(button => {
     button.addEventListener('click', function(e) {
       e.preventDefault();
       let time = new Date().getTime();
@@ -97,7 +103,27 @@
     });
   });
 
-  document.querySelectorAll(".remove_fields").forEach(function(button) {
+  document.querySelectorAll(".remove_fields_ranking").forEach(function(button) {
+    button.addEventListener("click", function(event) {
+      event.preventDefault();
+      let field = event.target.closest(".field");
+      field.querySelector("input[type='hidden']").value = "1";
+      field.style.display = "none";
+
+    });
+  });
+
+  document.querySelectorAll('.add_fields_video_details').forEach(button => {
+    button.addEventListener('click', function(e) {
+      e.preventDefault();
+      let time = new Date().getTime();
+      let link = this;
+      let regexp = new RegExp(link.dataset.id, 'g');
+      document.querySelector('#video_details').insertAdjacentHTML('beforeend', link.dataset.fields.replace(regexp, time));
+    });
+  });
+
+  document.querySelectorAll(".remove_fields_video_detail").forEach(function(button) {
     button.addEventListener("click", function(event) {
       event.preventDefault();
       let field = event.target.closest(".field");

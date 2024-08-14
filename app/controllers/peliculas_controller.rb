@@ -38,6 +38,7 @@ class PeliculasController < ApplicationController
 
     @editing = false
     @pelicula.rankings.build
+    @pelicula.video_details.build
   end
 
   # POST /peliculas or /peliculas.json
@@ -88,6 +89,6 @@ class PeliculasController < ApplicationController
 
   # Only allow a list of trusted parameters through.
   def pelicula_params
-    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], genero_ids: [])
+    params.require(:pelicula).permit(:poster, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], video_details_attributes: [:id, :calidad, :audio, :peso, :formato, :resolucion, :subtitulos, :_destroy], genero_ids: [])
   end
 end

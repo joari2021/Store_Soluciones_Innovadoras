@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_05_191952) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_14_154650) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -127,8 +127,6 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_05_191952) do
     t.string "director"
     t.string "reparto"
     t.text "sinopsis"
-    t.string "audio"
-    t.string "calidad_video"
     t.string "codigo"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -138,7 +136,6 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_05_191952) do
     t.date "date_estreno"
     t.string "clasification"
     t.float "promedio_ranking"
-    t.string "subtitle"
     t.string "backdrop_image"
     t.index ["user_id"], name: "index_peliculas_on_user_id"
   end
@@ -192,6 +189,19 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_05_191952) do
     t.index ["username"], name: "index_users_on_username", unique: true
   end
 
+  create_table "video_details", force: :cascade do |t|
+    t.string "calidad"
+    t.string "audio"
+    t.string "peso"
+    t.string "formato"
+    t.string "resolucion"
+    t.string "subtitulos"
+    t.bigint "pelicula_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["pelicula_id"], name: "index_video_details_on_pelicula_id"
+  end
+
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "generos_animes", "animes"
@@ -205,4 +215,5 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_05_191952) do
   add_foreign_key "peliculas", "users"
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
+  add_foreign_key "video_details", "peliculas"
 end

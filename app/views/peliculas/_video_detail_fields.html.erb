@@ -1,0 +1,30 @@
+<div class="row">
+  <div class="col-6">
+    <%= vd.label :calidad, "Calidad", class: "form-label" %>
+    <%= vd.select :calidad, options_for_select([["Estandar", "Estandar"], ["HD", "HD"], ["Full-HD", "Full-HD"], ["Ultra-HD", "Ultra-HD"]], vd.object.calidad), {}, class: "form-select" %>
+  </div>
+  <div class="col-6">
+    <%= vd.label :audio, "Audio", class: "form-label" %>
+    <%= vd.select :audio, options_for_select([["Español Latino", "Español Latino"], ["Castellano", "Castellano"], ["Ingles", "Ingles"], ["Japones", "Japones"]]), {}, class: "form-select" %>
+  </div>
+  <div class="col-6">
+    <%= vd.label :peso, "Peso", class:"form-label" %>
+    <%= vd.text_field :peso, class:"form-control"%>
+  </div>
+  <div class="col-6">
+    <%= vd.label :formato, "Formato", class: "form-label" %>
+    <%= vd.select :formato, options_for_select([["MP4", "MP4"], ["MKV", "MKV"], ["TS", "TS"], ["MOB", "MOB"], ["AVI", "AVI"]]), {}, class: "form-select" %>
+  </div>
+  <div class="col-6">
+    <%= vd.label :resolucion, "Resolución", class:"form-label" %>
+    <%= vd.text_field :resolucion, class:"form-control"%>
+  </div>
+  <div class="col-6">
+    <%= vd.label :subtitulos, "Subtitulos", class:"form-label" %>
+    <%= vd.select :subtitulos, options_for_select([["NO", "NO"], ["Español", "Español"], ["Ingles", "Ingles"]]), {}, class: "form-select" %>
+  </div>
+  <div class="col-12">
+    <%= vd.hidden_field :_destroy %>
+    <%= link_to "Eliminar Detalle", '#', class: "remove_fields_video_detail" %>
+  </div>
+</div>
