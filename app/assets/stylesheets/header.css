@@ -1,0 +1,78 @@
+/*=============== HEADER ===============*/
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background-color: transparent;
+  display: grid;
+  row-gap: 1.5rem;
+  padding: 1rem 1.5rem;
+  z-index: var(--z-fixed);
+}
+
+.header__content,
+.header__actions,
+.header__search {
+  display: flex;
+}
+
+.header__content {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header__logo {
+  color: var(--white-color);
+  font-weight: var(--font-medium);
+}
+
+.header__actions {
+  column-gap: 0.75rem;
+  align-items: center;
+  font-size: 1.25rem;
+}
+
+.header__actions i,
+.header__menu {
+  cursor: pointer;
+}
+
+.header__search {
+  align-items: center;
+  column-gap: 0.5rem;
+  background-color: hsla(0, 0%, 100%, 0.15);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding-inline: 1rem;
+  border-radius: 0.75rem;
+}
+
+.header__search i {
+  font-size: 1.25rem;
+}
+
+.header__input {
+  width: 100%;
+  padding-block: 1rem;
+  background-color: transparent;
+  color: var(--white-color);
+}
+
+.header__input::placeholder {
+  color: var(--white-color);
+}
+
+/* Add blur header */
+.blur-header::after {
+  content: "";
+  position: absolute;
+  width: 1000%;
+  height: 100%;
+  background-color: hsla(0, 0%, 0%, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  top: 0;
+  left: 0;
+  z-index: -1;
+}

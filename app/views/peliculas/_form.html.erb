@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "modal-peliculas" do%>
-  <div class="main" style="width: 500px !important">
-    <%= form_with(model: pelicula, local: false, data: { visit: @editing }, id: "form-peliculas") do |form| %>
+  <div class="row modal-content-overlay info-pelicula" data-controller="modal-form-pelicula">
+    <%= form_with(model: pelicula, local: false, data: { visit: @editing, controller: "form-peliculas" }, id: "form-peliculas") do |form| %>
       <% if pelicula.errors.any? %>
         <div id="error_explanation">
           <h2><%= pluralize(pelicula.errors.count, "error") %> prohibited this pelicula from being saved:</h2>
@@ -14,6 +14,10 @@
       <div class="mb-3">
         <%= form.label :poster, "Poster Pelicula", class: "form-label" %>
         <%= form.file_field :poster, class:"form-control form-control-sm" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :backdrop_image, "Link Imagen Backdrop Pelicula", class: "form-label" %>
+        <%= form.text_field :backdrop_image, class:"form-control form-control-sm" %>
       </div>
       <div class="mb-3">
         <%= form.label :name, "Titulo", class: "form-label" %>
@@ -53,19 +57,19 @@
       </div>
       <div class="mb-3">
       </div>
-      <h4>Detalles de Videos</h4>
+      <h6>Detalles de Videos</h6>
       <div id="video_details">
         <%= form.fields_for :video_details do |vd| %>
           <%= render "video_detail_fields", vd: vd %>
         <% end %>
       </div>
-      <%= link_to_add_video_details "Añadir Detalles de Video", form, :video_details %>
+      <%= link_to_add_video_details "Añadir Detalle De Video", form, :video_details %>
       <hr>
       <div class="mb-3">
         <%= form.label :sinopsis, "Sinopsis", class:"form-label" %>
         <%= form.text_area :sinopsis, class:"form-control", rows: 10 %>
       </div>
-      <h5>Puntuaciones</h5>
+      <h6>Puntuaciones</h6>
       <div id="rankings">
         <%= form.fields_for :rankings do |pf| %>
           <%= render "ranking_fields", pf: pf%>
@@ -73,7 +77,7 @@
       </div>
       <%= link_to_add_rankings "Añadir Ranking", form, :rankings %>
       <hr>
-      <div class="mb-2">
+      <div class="mb-3">
         <span>Generos:</span>
         <br>
         <br>
@@ -86,50 +90,17 @@
           <% end %>
         </div>
       </div>
+      <div class="mb-3">
+        <%= form.label :codigo, "Codigo", class: "form-label" %>
+        <%= form.select :codigo, options_for_select([["DP1", "DP1"], ["DP2", "DP2"]]), {}, class: "form-select" %>
+      </div>
+      <div class="mb-3">
+        <%= form.label :disponible, "Disponible", class: "form-label" %>
+        <%= form.select :disponible, options_for_select([["SI", true], ["NO", false]]), {}, class: "form-select" %>
+      </div>
       <div class="actions">
         <%= form.submit "Guardar", class: "btn btn-info" %>
       </div>
     <% end %>
   </div>
 <%end%>
-<script>
-  document.querySelectorAll('.add_fields_rankings').forEach(button => {
-    button.addEventListener('click', function(e) {
-      e.preventDefault();
-      let time = new Date().getTime();
-      let link = this;
-      let regexp = new RegExp(link.dataset.id, 'g');
-      document.querySelector('#rankings').insertAdjacentHTML('beforeend', link.dataset.fields.replace(regexp, time));
-    });
-  });
-
-  document.querySelectorAll(".remove_fields_ranking").forEach(function(button) {
-    button.addEventListener("click", function(event) {
-      event.preventDefault();
-      let field = event.target.closest(".field");
-      field.querySelector("input[type='hidden']").value = "1";
-      field.style.display = "none";
-
-    });
-  });
-
-  document.querySelectorAll('.add_fields_video_details').forEach(button => {
-    button.addEventListener('click', function(e) {
-      e.preventDefault();
-      let time = new Date().getTime();
-      let link = this;
-      let regexp = new RegExp(link.dataset.id, 'g');
-      document.querySelector('#video_details').insertAdjacentHTML('beforeend', link.dataset.fields.replace(regexp, time));
-    });
-  });
-
-  document.querySelectorAll(".remove_fields_video_detail").forEach(function(button) {
-    button.addEventListener("click", function(event) {
-      event.preventDefault();
-      let field = event.target.closest(".field");
-      field.querySelector("input[type='hidden']").value = "1";
-      field.style.display = "none";
-
-    });
-  });
-</script>

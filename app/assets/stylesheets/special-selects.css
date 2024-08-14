@@ -1,0 +1,88 @@
+/* SELECTS */
+
+.select-box {
+  position: relative;
+  display: inline-block;
+}
+.div-order {
+  width: 360px;
+}
+.div-genero {
+  width: 250px;
+}
+.div-year {
+  width: 150px;
+}
+.div-clasification {
+  width: 250px;
+}
+.select-box select {
+  width: 100%;
+  position: relative;
+  border-radius: 50px;
+  font: 400 16px var(--body-font);
+  -webkit-appearance: none;
+  appearance: none;
+  color: var(--color-info);
+  border: 1px solid var(--color-info);
+  background-color: black;
+}
+.select-box select.select-order {
+  padding: 16px;
+}
+.select-box select.select-genero {
+  padding: 16px 30px 16px 90px;
+}
+.select-box select.select-year {
+  padding: 16px 30px 16px 65px;
+}
+.select-box select.select-clasification {
+  padding: 16px 30px 16px 140px;
+}
+
+.select-box select::ms-expand {
+  display: none;
+}
+
+.select-box select:focus {
+  outline: none;
+  box-shadow: 0 0 20px -1px var(--color-info);
+}
+
+.select-box .label {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  font: 600 16px var(--body-font);
+  color: var(--color-info);
+  top: 38px;
+  left: 16px;
+}
+
+.select-box i {
+  position: relative;
+  font-size: 18px;
+  color: var(--color-info);
+}
+.div-order i {
+  left: 330px;
+  top: -38px;
+}
+.div-genero i {
+  left: 220px;
+  top: -38px;
+}
+
+.div-year i {
+  left: 120px;
+  top: -38px;
+}
+
+.div-clasification i {
+  left: 220px;
+  top: -38px;
+}
+
+.select-box select:focus + i {
+  color: #0dcaf0;
+}

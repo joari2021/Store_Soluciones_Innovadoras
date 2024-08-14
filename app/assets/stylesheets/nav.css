@@ -1,0 +1,144 @@
+/*=============== NAV ===============*/
+.nav-especial {
+  position: fixed;
+  top: 0;
+  right: -100%;
+  background-color: hsla(0, 0%, 0%, 0.2);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  width: 285px;
+  height: 100%;
+  padding: 3rem 3rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  z-index: var(--z-fixed);
+  transition: right 0.4s;
+}
+
+.nav__logo {
+  color: var(--white-color);
+  font-weight: var(--font-semi-bold);
+}
+.nav__logo,
+.nav__list {
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--white-color);
+}
+
+.nav__menu,
+.nav__list {
+  display: grid;
+  row-gap: 1rem;
+}
+
+.nav__menu {
+  max-height: 100%;
+  overflow-y: auto; /* Asegura el scroll dentro del menú si es necesario */
+}
+
+.nav__link {
+  color: var(--white-color);
+  display: inline-flex;
+  align-items: center;
+  column-gap: 0.75rem;
+}
+
+.nav__item:hover a,
+.nav__item:hover i,
+.list__button:hover a,
+.list__button:hover i,
+.nav__logo:hover {
+  color: var(--color-info);
+}
+
+.nav__link i {
+  font-size: 1.5rem;
+}
+
+.nav__title {
+  font-size: var(--normal-font-size);
+  margin-bottom: 0.75rem;
+}
+
+.nav__close {
+  position: absolute;
+  top: 1rem;
+  right: 1.5rem;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+/*###################################### */
+.nav__link--inside {
+  border-radius: 6px;
+  padding-left: 20px;
+  text-align: left;
+}
+
+.list__inside:hover {
+  background: #ffffff;
+  border-radius: 5px;
+}
+.list__inside:hover span {
+  color: var(--color-info) !important;
+  /*font-weight: bold;*/
+}
+
+.list__active {
+  background: #ffffff;
+  border-radius: 5px;
+  padding: 10px 0px;
+  text-align: left;
+}
+.list__active span {
+  color: var(--color-info) !important;
+  /*font-weight: bold;*/
+}
+
+.list__item {
+  list-style: none;
+  width: 100%;
+  text-align: center;
+  overflow: hidden;
+}
+
+.list__inside {
+  padding: 10px 0px;
+  text-align: left;
+}
+
+.list__item--click {
+  cursor: pointer;
+}
+
+.list__button {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+  width: 70%;
+  margin: 0px auto 15px auto;
+}
+
+.arrow .list__arrow {
+  transform: rotate(90deg);
+}
+
+.list__arrow {
+  margin-left: auto;
+  transition: transform 0.3s;
+}
+
+.list__show {
+  width: 80%;
+  margin-left: auto;
+  border-left: 2px solid #303440;
+  list-style: none;
+  transition: height 0.4s;
+  height: 0;
+}
+
+/* Show menu */
+.show-menu {
+  right: 0;
+}

@@ -1,4 +1,4 @@
-<div class="row">
+<div class="row field_video_detail">
   <div class="col-6">
     <%= vd.label :calidad, "Calidad", class: "form-label" %>
     <%= vd.select :calidad, options_for_select([["Estandar", "Estandar"], ["HD", "HD"], ["Full-HD", "Full-HD"], ["Ultra-HD", "Ultra-HD"]], vd.object.calidad), {}, class: "form-select" %>
@@ -25,6 +25,6 @@
   </div>
   <div class="col-12">
     <%= vd.hidden_field :_destroy %>
-    <%= link_to "Eliminar Detalle", '#', class: "remove_fields_video_detail" %>
+    <%= link_to "Eliminar Detalle", '#', class: "remove_fields_video_detail badge bg-danger" %>
   </div>
 </div>

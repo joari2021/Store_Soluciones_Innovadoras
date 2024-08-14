@@ -8,6 +8,7 @@ export default class extends Controller {
       titleModal.innerText = namePelicula;
 
       var modalBody = document.getElementById("modalBody");
+      modalBody.style.backgroundColor = "none";
       modalBody.style.backgroundImage = "url(" + imageUrl + ")";
       modalBody.style.backgroundSize = "cover";
       modalBody.style.backgroundPosition = "center";

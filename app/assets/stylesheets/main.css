@@ -1,0 +1,154 @@
+/*=============== BANNER ===============*/
+.banner__link {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--white-color);
+}
+
+.banner__img {
+  border-radius: 1rem;
+}
+
+.banner__shadow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--shadow-bg);
+  border-radius: 1rem;
+}
+
+.banner__data {
+  position: absolute;
+  bottom: 1.5rem;
+  text-align: center;
+}
+
+.banner__title {
+  font-size: var(--big-font-size);
+}
+
+/*=============== CARDS ===============*/
+.h-100 {
+  height: 100% !important;
+}
+
+.card__title {
+  font-size: var(--h3-font-size);
+  margin-bottom: 0.75rem;
+}
+
+.card__link {
+  position: relative;
+  display: grid;
+  place-items: center;
+  color: var(--white-color);
+}
+
+.card__link:hover {
+  color: var(--color-info);
+}
+
+.card__img {
+  border-radius: 1rem;
+}
+
+.card__shadow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--shadow-bg);
+  border-radius: 1rem;
+}
+
+.card__data {
+  position: absolute;
+  bottom: 1rem;
+  text-align: center;
+  padding-inline: 0.75rem;
+}
+
+.card__name {
+  font-size: var(--normal-font-size);
+}
+
+.card__category {
+  font-size: var(--small-font-size);
+}
+
+.card__like,
+.card__ranking {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.transparent-background {
+  background-color: rgba(
+    0,
+    0,
+    0,
+    0.5
+  ); /* Fondo negro con 50% de transparencia */
+
+  padding: 0.3em; /* Añade algo de relleno para mayor legibilidad */
+  border-radius: 4px; /* Esquinas redondeadas opcionales */
+}
+
+/*=============== MOVIES ===============*/
+.movie {
+  display: grid;
+}
+
+/* Swiper class */
+.swiper {
+  margin-inline: initial;
+}
+
+/*=============== NEW ===============*/
+.new {
+  position: relative;
+  display: grid;
+}
+
+.new__card {
+  scale: 0.8;
+  transition: scale 0.4s;
+}
+
+.new__data {
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+/* Swiper class */
+.swiper-slide-active .new__data {
+  opacity: 1;
+}
+
+.new .swiper-pagination-bullets {
+  bottom: -2.5rem;
+}
+
+.new .swiper-pagination-bullet {
+  width: 1.5rem;
+  height: 0.25rem;
+  border-radius: 1rem;
+  background-color: var(--white-color);
+  transition: background-color 0.3s, opacity 0.3s;
+}
+
+.new .swiper-pagination-bullet-active {
+  background-color: var(--white-color);
+}
+
+.new .swiper-slide-active,
+.new .swiper-slide-duplicate-active {
+  scale: 1;
+}

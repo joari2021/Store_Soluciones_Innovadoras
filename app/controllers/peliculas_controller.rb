@@ -29,7 +29,7 @@ class PeliculasController < ApplicationController
 
     @peliculas = @peliculas.order(order_by)
 
-    @pagy, @peliculas = pagy_countless(@peliculas, items: 12)
+    @pagy, @peliculas = pagy_countless(@peliculas, items: 24)
   end
 
   # GET /peliculas/new

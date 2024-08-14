@@ -12,34 +12,13 @@
  *
  *= require_tree .
  *= require_self
- */
-/*
  *= require custom
+ *= require layout
+ *= require header
+ *= require nav
+ *= require main
+ *= require breakpoints
+ *= require special-selects
+ *= require modal
+ *= require formularios
  */
-
-/* ESTILOS ANTERIORES
-body {
-  background: url("FondoPagina.png") no-repeat center center fixed;
-  background-size: cover;
-  color: white;
-}
-
-a {
-  text-decoration: none;
-}
-
-.title {
-  height: 44px !important;
-}
-
-.poster {
-  height: 250px;
-}
-
-.modal-dialog-scrollable .modal-body {
-  max-height: calc(90vh - 130px);
-}
-  estilos anteriores*/
-
-/* ESTILOS NUEVOS DE PLANTILLA WEB * /
-

@@ -1,0 +1,37 @@
+/* MODAL */
+
+.top-right-buttons {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.modal-body {
+  position: relative; /* Hacer que el contenedor modal-body sea relativo para permitir posicionamiento absoluto de los hijos */
+  overflow: hidden; /* Asegúrate de que el contenido no se desborde */
+}
+
+.modal-content-overlay {
+  position: relative; /* Asegúrate de que el contenido se muestre sobre la imagen de fondo */
+  background: rgba(
+    0,
+    0,
+    0,
+    0.7
+  ); /* Fondo semitransparente para que el texto sea legible */
+  padding: 20px; /* Ajusta el padding según sea necesario */
+  color: #fff; /* Color del texto para que sea visible sobre el fondo oscuro */
+  border-radius: 10px;
+}
+
+.img-fluid {
+  border-radius: 10px;
+}
+.info-pelicula strong,
+.info-pelicula label {
+  color: var(--color-info);
+}
+
+.bg-transparent {
+  background: rgba(0, 0, 0, 0.1);
+}

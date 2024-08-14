@@ -1,4 +1,4 @@
-<div class="row">
+<div class="row field_ranking">
   <div class="col-8">
     <%= pf.label :plataforma_pelicula_id, "Plataforma", class:"form-label" %>
     <%= pf.collection_select :plataforma_pelicula_id, PlataformaPelicula.all, :id, :name, {}, {class: "form-select"} %>
@@ -9,6 +9,6 @@
   </div>
   <div class="col-12">
     <%= pf.hidden_field :_destroy %>
-    <%= link_to "Remove", '#', class: "remove_fields_ranking" %>
+    <%= link_to "Eliminar", '#', class: "remove_fields_ranking badge bg-danger" %>
   </div>
 </div>
