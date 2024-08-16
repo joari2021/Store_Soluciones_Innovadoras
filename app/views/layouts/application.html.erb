@@ -16,8 +16,11 @@
   <body>
     <%= image_tag 'FondoPagina.png', alt: "image", class: "bg__image" %>
     <div class="bg__blur"></div>
+    <%= notice %>
+    <%= alert %>
     <%= render "shared/header" %>
     <%= render "shared/nav" %>
     <%= yield %>
+    <%= render "shared/script_show_notification"%>
   </body>
 </html>

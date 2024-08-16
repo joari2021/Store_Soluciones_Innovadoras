@@ -45,6 +45,20 @@
         </ul>
       </div>
     <% end %>
+    <% unless Current.user %>
+      <ul class="nav__list">
+        <li class="nav__item">
+          <%= link_to new_session_path, class: "nav__link" do %>
+            <i class="ri-login-box-line"></i> <span>Ingresar</span>
+          <% end %>
+        </li>
+        <li class="nav__item">
+          <%= link_to new_user_path, class: "nav__link" do %>
+            <i class="ri-registered-line"></i> <span>Registrarse</span>
+          <% end %>
+        </li>
+      </ul>
+    <% end %>
   </div>
   <% if Current.user%>
     <%= link_to session_path(Current.user.id), 

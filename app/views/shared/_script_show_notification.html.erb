@@ -1,0 +1,39 @@
+<script src="/js/notify/perfect-scrollbar.jquery.min.js"></script>
+<script src="/js/notify/bootstrap-notify.js"></script>
+<script>
+  notice_show = false
+  alert_show = false
+  md = {
+      showNotification: function(message, color) {
+
+          $.notify({
+              message: message
+
+          }, {
+              type: color,
+              timer: 15000,
+              placement: {
+              from: "top",
+              align: "right"
+              }
+          });
+      },
+  }
+  function comprobar_flash_messages(){
+      <%if notice%>
+        console.log("Se ejecuto Notice");
+          if (!notice_show){
+              md.showNotification('<%=notice%>','success')
+              notice_show = true
+          }
+      <%end%>
+
+      <%if alert%>
+        console.log("Se ejecuto Alert");
+          if (!alert_show){
+              md.showNotification('<%=alert%>','danger')
+              alert_show = true
+          }
+      <%end%>
+  }
+</script>
