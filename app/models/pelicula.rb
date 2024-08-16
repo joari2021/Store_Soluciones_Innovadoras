@@ -25,6 +25,20 @@ class Pelicula < ApplicationRecord
   accepts_nested_attributes_for :video_details, allow_destroy: true
   accepts_nested_attributes_for :rankings, allow_destroy: true
 
+  validates :name, presence: true
+  validates :duration_hours, presence: true
+  validates :duration_minutes, presence: true
+  validates :director, presence: true
+  validates :reparto, presence: true
+  validates :sinopsis, presence: true
+  validates :codigo, presence: true
+  validates :disponible, presence: true
+  validates :link_trailer, presence: true
+  validates :date_estreno, presence: true
+  validates :clasification, presence: true
+  validates :backdrop_image, presence: true
+  validate :must_have_at_least_one_asociation
+
   belongs_to :user, default: -> { Current.user }
 
   after_save :calcular_promedio
@@ -43,5 +57,21 @@ class Pelicula < ApplicationRecord
 
     self.promedio_ranking = count == 0 ? nil : (total / count)
     save(validate: false) if promedio_ranking_changed?
+  end
+
+  private
+
+  def must_have_at_least_one_asociation
+    if generos.empty?
+      errors.add(:generos, "La película debe tener al menos un género asociado.")
+    end
+
+    if video_details.empty?
+      errors.add(:video_details, "La película debe tener al menos un Video Details asociado.")
+    end
+
+    if rankings.reject(&:marked_for_destruction?).empty?
+      errors.add(:rankings, "La película debe tener al menos un Ranking asociado.")
+    end
   end
 end

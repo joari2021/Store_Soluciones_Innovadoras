@@ -10,4 +10,6 @@ class Genero < ApplicationRecord
 
   has_many :generos_juegos
   has_many :juegos, through: :generos_juegos
+
+  validates :name, presence: true, uniqueness: true
 end
