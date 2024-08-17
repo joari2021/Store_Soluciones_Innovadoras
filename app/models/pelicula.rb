@@ -38,7 +38,8 @@ class Pelicula < ApplicationRecord
   validates :clasification, presence: true
   validates :backdrop_image, presence: true
   validate :must_have_at_least_one_asociation
-
+  validate :poster_attached
+  
   belongs_to :user, default: -> { Current.user }
 
   after_save :calcular_promedio
@@ -71,7 +72,13 @@ class Pelicula < ApplicationRecord
     end
 
     if rankings.reject(&:marked_for_destruction?).empty?
-      errors.add(:rankings, "La película debe tener al menos un Ranking asociado.")
+      errors.add(:rankings, "La película debe tener al menos un ranking asociado.")
+    end
+  end
+
+  def poster_attached
+    unless poster.attached?
+      errors.add(:poster, "debe tener una imagen adjunta.")
     end
   end
 end
