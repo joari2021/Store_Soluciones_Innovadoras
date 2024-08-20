@@ -1,9 +1,16 @@
-<div class="container">
-  <div class="row">
-    <div class="col-sm-4 caja-login" >
-      <h1>Generos</h1>
+<main class="main">
+  <p style="color: green"><%= notice %></p>
+  <h1>Generos</h1>
+  <%= link_to 'Nuevo Genero', new_genero_path, class: 'btn btn-primary' %>
+  <table>
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
       <%= render partial: "genero", collection: @generos %>
-      <%= link_to "New genero", new_genero_path %>
-    </div>
-  </div>
-</div>
+    </tbody>
+  </table>
+</main>

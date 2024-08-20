@@ -1,12 +1,5 @@
-<div class="container">
-  <div class="row">
-    <div class="col-sm-4 caja-login" >
-      <h1>Editing genero</h1>
-      <%= render "form", genero: @genero %>
-      <br>
-      <div>
-        <%= link_to "Back to generos", generos_path %>
-      </div>
-    </div>
-  </div>
-</div>
+<main class="main">
+  <h1>Editar Genero</h1>
+  <%= render 'form', genero: @genero %>
+  <%= link_to 'Volver', generos_path, class: 'btn btn-secondary' %>
+</main>

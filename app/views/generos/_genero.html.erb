@@ -1,8 +1,5 @@
-<div id="<%= dom_id genero %>">
-  <%= genero.name %>
-  <%= link_to "Editar", edit_genero_path(genero) %>
-  <%= link_to "Borrar", genero_path(genero), data: {
-    turbo_method: :delete,
-    turbo_confirm: "Estas seguro de eliminar"
-  } %>
-</div>
+<tr>
+  <td><%= genero.name %></td>
+  <td><%= link_to 'Editar', edit_genero_path(genero), class: 'btn btn-secondary' %></td>
+  <td><%= link_to 'Eliminar', genero_path(genero), data: { turbo_method: :delete, turbo_confirm: '¿Estás seguro de que deseas eliminar este Genero?' }, class: 'btn btn-danger' %></td>
+</tr>
