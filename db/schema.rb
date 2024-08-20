@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_08_14_154650) do
+ActiveRecord::Schema[7.1].define(version: 2024_08_20_192217) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -88,6 +88,7 @@ ActiveRecord::Schema[7.1].define(version: 2024_08_14_154650) do
     t.bigint "genero_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "orden"
     t.index ["genero_id"], name: "index_generos_peliculas_on_genero_id"
     t.index ["pelicula_id"], name: "index_generos_peliculas_on_pelicula_id"
   end

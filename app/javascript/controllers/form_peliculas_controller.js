@@ -49,15 +49,33 @@ export default class extends Controller {
         field.style.display = "none";
       }
     });
+    // Rellenar el campo genero_ids_order con los IDs en el orden actual
+    let selectedGenres = [];
+    document
+      .querySelectorAll(".form-check-input:checked")
+      .forEach(function (input) {
+        selectedGenres.push(input.value);
+      });
+    document.getElementById("genero_ids_order").value =
+      selectedGenres.join(",");
 
     document.querySelectorAll(".form-check-input").forEach(function (input) {
       input.addEventListener("change", function () {
-        let selectedGenres = [];
-        document
-          .querySelectorAll(".form-check-input:checked")
-          .forEach(function (checkedInput) {
-            selectedGenres.push(checkedInput.dataset.id);
+        let genreId = input.dataset.id;
+
+        if (input.checked) {
+          // Agregar el género al array si está seleccionado
+          if (!selectedGenres.includes(genreId)) {
+            selectedGenres.push(genreId);
+          }
+        } else {
+          // Remover el género del array si se desmarca
+          selectedGenres = selectedGenres.filter(function (id) {
+            return id !== genreId;
           });
+        }
+
+        // Actualizar el valor del input hidden
         document.getElementById("genero_ids_order").value =
           selectedGenres.join(",");
       });

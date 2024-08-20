@@ -82,7 +82,10 @@
         <br>
         <br>
         <div class="row mb-3">
-          <%= form.hidden_field :genero_ids_order, id: "genero_ids_order" %>
+          <%unless pelicula.generos_peliculas.present?%>
+            <%= form.hidden_field :genero_ids_order, id: "genero_ids_order" %>
+          <%else%>
+          <%end%>
           <%= form.collection_check_boxes(:genero_ids, Genero.all, :id, :name) do |b| %>
             <div class="collection-check-box mb-1 col-6">
               <%= b.check_box(class: "form-check-input", data: { id: b.object.id }) %>
@@ -109,3 +112,4 @@
     <% end %>
   </div>
 <%end%>
+<script></script>

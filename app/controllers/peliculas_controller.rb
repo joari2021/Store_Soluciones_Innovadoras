@@ -67,8 +67,21 @@ class PeliculasController < ApplicationController
   # PATCH/PUT /peliculas/1 or /peliculas/1.json
 
   def update
-    @pelicula.genero_ids = params[:pelicula][:genero_ids_order].split(",")
-    if pelicula.update(pelicula_params)
+    # Extraer y procesar el orden de géneros
+    if params[:pelicula][:genero_ids_order].present?
+      genero_ids_order = params[:pelicula][:genero_ids_order].split(",").map(&:to_i)
+    else
+      # Si genero_ids_order está vacío, usar el orden actual de la base de datos
+      genero_ids_order = @pelicula.generos.order(:orden).pluck(:id)
+    end
+
+    # Actualizar manualmente los géneros en el orden correcto
+    pelicula.generos_peliculas.destroy_all # Primero eliminamos las relaciones actuales
+    genero_ids_order.each_with_index do |genero_id, index|
+      @pelicula.generos_peliculas.create(genero_id: genero_id, orden: index + 1)
+    end
+
+    if pelicula.update(pelicula_params.except(:genero_ids_order))
       redirect_to pelicula_url(pelicula), notice: "La Pelicula se ha actualizado correctamente."
     else
       render :edit, status: :unprocessable_entity
@@ -91,6 +104,6 @@ class PeliculasController < ApplicationController
 
   # Only allow a list of trusted parameters through.
   def pelicula_params
-    params.require(:pelicula).permit(:poster, :backdrop_image, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], video_details_attributes: [:id, :calidad, :audio, :peso, :formato, :resolucion, :subtitulos, :_destroy], genero_ids: [])
+    params.require(:pelicula).permit(:poster, :backdrop_image, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification, :genero_ids_order, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], video_details_attributes: [:id, :calidad, :audio, :peso, :formato, :resolucion, :subtitulos, :_destroy], genero_ids: [])
   end
 end
