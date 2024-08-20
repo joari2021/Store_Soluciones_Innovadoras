@@ -3,7 +3,7 @@ class PlataformaPeliculasController < ApplicationController
 
   # GET /plataforma_peliculas or /plataforma_peliculas.json
   def index
-    @plataforma_peliculas = PlataformaPelicula.all.order
+    @plataforma_peliculas = PlataformaPelicula.all.order_by("name ASC")
   end
 
   # GET /plataforma_peliculas/new
