@@ -96,8 +96,8 @@ Rails.application.configure do
   # config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
   #
   ## Configurar Active Storage
-  config.active_storage.service = :local
+  config.active_storage.service = :amazon
 
   # Establecer opciones de URL
-  config.active_storage.url_options = { host: "tu-dominio.com" }
+  #config.active_storage.url_options = { host: "tu-dominio.com" }
 end
