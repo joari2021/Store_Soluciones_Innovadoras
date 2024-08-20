@@ -91,6 +91,10 @@
         </div>
       </div>
       <div class="mb-3">
+        <%= form.label :clasification, "Clasificación", class: "form-label" %>
+        <%= form.select :clasification, options_for_select([["APTA", "APTA"], ["PG-13", "PG-13"], ["PG-18", "PG-18"], ["13", "13"], ["18", "18"]]), {}, class: "form-select" %>
+      </div>
+      <div class="mb-3">
         <%= form.label :codigo, "Codigo", class: "form-label" %>
         <%= form.select :codigo, options_for_select([["DscP1", "DscP1"], ["DscAD", "DscAD"]]), {}, class: "form-select" %>
       </div>
