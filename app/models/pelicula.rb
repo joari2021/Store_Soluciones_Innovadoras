@@ -81,4 +81,23 @@ class Pelicula < ApplicationRecord
       errors.add(:poster, "debe tener una imagen adjunta.")
     end
   end
+
+  def clasification_description
+    case clasification
+    when "AA"
+      "Película recomendada especialmente para niños e infantil."
+    when "A"
+      "Película recomendada para todo público y edad."
+    when "B"
+      "Película recomendada para mayores de 10 años."
+    when "C"
+      "Película recomendada para mayores de 14 años."
+    when "D"
+      "Película recomendada para mayores de 18 años."
+    when "E"
+      "Película exclusivamente para adultos a partir de 21 años."
+    else
+      "Clasificación no disponible."
+    end
+  end
 end

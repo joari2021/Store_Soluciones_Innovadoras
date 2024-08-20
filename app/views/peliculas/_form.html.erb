@@ -82,9 +82,10 @@
         <br>
         <br>
         <div class="row mb-3">
+          <%= form.hidden_field :genero_ids_order, id: "genero_ids_order" %>
           <%= form.collection_check_boxes(:genero_ids, Genero.all, :id, :name) do |b| %>
             <div class="collection-check-box mb-1 col-6">
-              <%= b.check_box(class: "form-check-input") %>
+              <%= b.check_box(class: "form-check-input", data: { id: b.object.id }) %>
               <%= b.label(class: "form-check-label") %>
             </div>
           <% end %>
@@ -92,7 +93,7 @@
       </div>
       <div class="mb-3">
         <%= form.label :clasification, "Clasificación", class: "form-label" %>
-        <%= form.select :clasification, options_for_select([["APTA", "APTA"], ["PG-13", "PG-13"], ["PG-18", "PG-18"], ["13", "13"], ["18", "18"]]), {}, class: "form-select" %>
+        <%= form.select :clasification, options_for_select([["AA", "AA"], ["A", "A"], ["B", "B"], ["C", "C"], ["D", "D"], ["E", "E"]]), {}, class: "form-select" %>
       </div>
       <div class="mb-3">
         <%= form.label :codigo, "Codigo", class: "form-label" %>

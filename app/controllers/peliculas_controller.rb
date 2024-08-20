@@ -44,6 +44,7 @@ class PeliculasController < ApplicationController
   # POST /peliculas or /peliculas.json
   def create
     @pelicula = Pelicula.new(pelicula_params)
+    @pelicula.genero_ids = params[:pelicula][:genero_ids_order].split(",")
 
     if @pelicula.save
       redirect_to peliculas_path, notice: "La Pelicula se ha creado correctamente"
@@ -66,6 +67,7 @@ class PeliculasController < ApplicationController
   # PATCH/PUT /peliculas/1 or /peliculas/1.json
 
   def update
+    @pelicula.genero_ids = params[:pelicula][:genero_ids_order].split(",")
     if pelicula.update(pelicula_params)
       redirect_to pelicula_url(pelicula), notice: "La Pelicula se ha actualizado correctamente."
     else

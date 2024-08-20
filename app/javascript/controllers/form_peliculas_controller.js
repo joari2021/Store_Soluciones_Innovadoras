@@ -49,5 +49,18 @@ export default class extends Controller {
         field.style.display = "none";
       }
     });
+
+    document.querySelectorAll(".form-check-input").forEach(function (input) {
+      input.addEventListener("change", function () {
+        let selectedGenres = [];
+        document
+          .querySelectorAll(".form-check-input:checked")
+          .forEach(function (checkedInput) {
+            selectedGenres.push(checkedInput.dataset.id);
+          });
+        document.getElementById("genero_ids_order").value =
+          selectedGenres.join(",");
+      });
+    });
   }
 }
