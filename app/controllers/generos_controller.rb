@@ -2,7 +2,7 @@ class GenerosController < ApplicationController
   before_action :require_admin
   # GET /generos or /generos.json
   def index
-    @generos = Genero.all
+    @generos = Genero.all.order
   end
 
   # GET /generos/new
@@ -20,18 +20,18 @@ class GenerosController < ApplicationController
     @genero = Genero.new(genero_params)
 
     if @genero.save
-        redirect_to generos_url, notice: "Genero was successfully created."
+      redirect_to generos_url, notice: "Genero was successfully created."
     else
-        render :new, status: :unprocessable_entity
+      render :new, status: :unprocessable_entity
     end
   end
 
   # PATCH/PUT /generos/1 or /generos/1.json
   def update
     if genero.update(genero_params)
-        redirect_to generos_url, notice: "Genero was successfully updated."
+      redirect_to generos_url, notice: "Genero was successfully updated."
     else
-        render :edit, status: :unprocessable_entity 
+      render :edit, status: :unprocessable_entity
     end
   end
 
@@ -39,17 +39,18 @@ class GenerosController < ApplicationController
   def destroy
     genero.destroy!
 
-    redirect_to generos_url, notice: "Genero was successfully destroyed." 
+    redirect_to generos_url, notice: "Genero was successfully destroyed."
   end
 
   private
-    # Use callbacks to share common setup or constraints between actions.
-    def genero
-      @genero = Genero.find(params[:id])
-    end
 
-    # Only allow a list of trusted parameters through.
-    def genero_params
-      params.require(:genero).permit(:name)
-    end
+  # Use callbacks to share common setup or constraints between actions.
+  def genero
+    @genero = Genero.find(params[:id])
+  end
+
+  # Only allow a list of trusted parameters through.
+  def genero_params
+    params.require(:genero).permit(:name)
+  end
 end
