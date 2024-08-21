@@ -1,5 +1,6 @@
 class Pelicula < ApplicationRecord
   attr_accessor :genero_ids_order
+  attr_accessor :disable_association_validation
   include PgSearch::Model
   pg_search_scope :whose_name_starts_with,
                   against: {
@@ -39,6 +40,7 @@ class Pelicula < ApplicationRecord
   validates :clasification, presence: true
   validates :backdrop_image, presence: true
   validate :must_have_at_least_one_asociation
+  validate :must_have_at_least_one_genre, unless: :disable_association_validation
   validate :poster_attached
   
   belongs_to :user, default: -> { Current.user }
@@ -83,16 +85,18 @@ class Pelicula < ApplicationRecord
   private
 
   def must_have_at_least_one_asociation
-    if generos.empty?
-      errors.add(:generos, "La película debe tener al menos un género asociado.")
-    end
-
     if video_details.empty?
       errors.add(:video_details, "La película debe tener al menos un Video Details asociado.")
     end
 
     if rankings.reject(&:marked_for_destruction?).empty?
       errors.add(:rankings, "La película debe tener al menos un ranking asociado.")
+    end
+  end
+
+  def must_have_at_least_one_genre
+    if generos.empty?
+      errors.add(:generos, "La película debe tener al menos un género asociado.")
     end
   end
 

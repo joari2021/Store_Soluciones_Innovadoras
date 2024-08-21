@@ -43,11 +43,30 @@ class PeliculasController < ApplicationController
 
   # POST /peliculas or /peliculas.json
   def create
-    @pelicula = Pelicula.new(pelicula_params)
-    @pelicula.genero_ids = params[:pelicula][:genero_ids_order].split(",")
+    @pelicula = Pelicula.new(pelicula_params.except(:genero_ids_order, :genero_ids))
+
+     # Temporalmente desactivar la validación de asociaciones
+    @pelicula.disable_association_validation = true
 
     if @pelicula.save
-      redirect_to peliculas_path, notice: "La Pelicula se ha creado correctamente"
+      genero_ids_order = params[:pelicula][:genero_ids_order].split(",").map(&:to_i)
+
+      genero_ids_order.each_with_index do |genero_id, index|
+        pelicula_genero = @pelicula.generos_peliculas.build(genero_id: genero_id, orden: index + 1)
+
+        unless pelicula_genero.save
+          @pelicula.errors.add(:base, "Error al asociar género con id #{genero_id}: #{pelicula_genero.errors.full_messages.join(', ')}")
+          render :new and return
+        end
+      end
+
+       # Después de asociar los géneros, volvemos a habilitar la validación
+      @pelicula.disable_association_validation = false
+      if @pelicula.valid?
+        redirect_to peliculas_path, notice: 'Película creada exitosamente.'
+      else
+        render :new, status: :unprocessable_entity
+      end
     else
       render :new, status: :unprocessable_entity
     end
@@ -104,6 +123,6 @@ class PeliculasController < ApplicationController
 
   # Only allow a list of trusted parameters through.
   def pelicula_params
-    params.require(:pelicula).permit(:poster, :backdrop_image, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :genero, :year_estreno, :clasification, :genero_ids_order, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], video_details_attributes: [:id, :calidad, :audio, :peso, :formato, :resolucion, :subtitulos, :_destroy], genero_ids: [])
+    params.require(:pelicula).permit(:poster, :backdrop_image, :name, :others_titles, :date_estreno, :duration_hours, :duration_minutes, :director, :reparto, :sinopsis, :audio, :calidad, :formato_video, :codigo, :disponible, :link_trailer, :year_estreno, :clasification, :genero_ids_order, rankings_attributes: [:id, :valor, :plataforma_pelicula_id, :_destroy], video_details_attributes: [:id, :calidad, :audio, :peso, :formato, :resolucion, :subtitulos, :_destroy], genero_ids: [])
   end
 end

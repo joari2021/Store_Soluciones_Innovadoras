@@ -49,19 +49,16 @@ export default class extends Controller {
         field.style.display = "none";
       }
     });
-    // Rellenar el campo genero_ids_order con los IDs en el orden actual
-    let selectedGenres = [];
-    document
-      .querySelectorAll(".form-check-input:checked")
-      .forEach(function (input) {
-        selectedGenres.push(input.value);
-      });
-    document.getElementById("genero_ids_order").value =
-      selectedGenres.join(",");
+
+    // Toma el valor del input hidden al cargar la página
+    let selectedGenres = document
+      .getElementById("genero_ids_order")
+      .value.split(",")
+      .filter((value) => value !== ""); // Evita valores vacíos
 
     document.querySelectorAll(".form-check-input").forEach(function (input) {
       input.addEventListener("change", function () {
-        let genreId = input.dataset.id;
+        let genreId = input.dataset.index;
 
         if (input.checked) {
           // Agregar el género al array si está seleccionado
