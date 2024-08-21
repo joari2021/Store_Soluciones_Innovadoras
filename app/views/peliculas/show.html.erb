@@ -31,7 +31,7 @@
   </div>
   <% if Current.user&.admin?%>
     <div class="top-right-buttons d-flex mt-3">
-      <%= link_to edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info me-2 text-white", data: { turbo_frame: "modal-peliculas"} do %>
+      <%= link_to edit_pelicula_path(@pelicula), remote: true, method: :get, class: "btn btn-info me-2 text-white", data: { turbo_frame: "edit-pelicula-frame"} do %>
         <i class="ri-edit-box-fill"></i>
       <% end %>
       <%= button_to @pelicula, method: :delete, data: { confirm: "Are you sure?" }, class:"btn btn-danger" do %>

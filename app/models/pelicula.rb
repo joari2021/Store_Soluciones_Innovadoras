@@ -34,7 +34,6 @@ class Pelicula < ApplicationRecord
   validates :reparto, presence: true
   validates :sinopsis, presence: true
   validates :codigo, presence: true
-  validates :disponible, presence: true
   validates :link_trailer, presence: true
   validates :date_estreno, presence: true
   validates :clasification, presence: true
