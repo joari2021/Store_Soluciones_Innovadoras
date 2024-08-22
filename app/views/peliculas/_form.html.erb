@@ -92,7 +92,7 @@
     </div>
     <div class="mb-3">
       <%= form.label :clasification, "Clasificación", class: "form-label" %>
-      <%= form.select :clasification, options_for_select([["AA (Niños)", "AA"], ["A (Todo Público)", "A"], ["B (10+)", "B"], ["C (14+)", "C"], ["D (18+)", "D"], ["E (21+)", "E"]], selected: pelicula.clasification), {}, class: "form-select" %>
+      <%= form.select :clasification, options_for_select([["AA (Niños)", "AA"], ["A (Todo Público)", "A"], ["B (12+)", "B"], ["C (18+)", "C"], ["D (18X)", "D"], ["E (X)", "E"]], selected: pelicula.clasification), {}, class: "form-select" %>
     </div>
     <div class="mb-3">
       <%= form.label :codigo, "Codigo", class: "form-label" %>
