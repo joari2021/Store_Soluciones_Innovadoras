@@ -65,17 +65,17 @@ class Pelicula < ApplicationRecord
   def clasification_description
     case clasification
     when "AA"
-      "Película recomendada especialmente para niños e infantil."
+      "Películas recomendada especialmente a niños y niñas de 0 a 6 años. Sin contenido que pueda ser considerado violento, sexual o inapropiado"
     when "A"
-      "Película recomendada para todo público y edad."
+      "Apta para todo público. Película sin contenido violento, sexual, o lenguaje inapropiado."
     when "B"
-      "Película recomendada para mayores de 10 años."
+      "Apta para mayores de 12 años. Película con contenido que puede ser levemente violento o con temas maduros que no son aptos para menores de esa edad sin la supervisión de un adulto."
     when "C"
-      "Película recomendada para mayores de 14 años."
+      "Apta para mayores de 18 años. Películas con contenido explícito en términos de violencia, sexualidad, o temas que requieren de un criterio adulto"
     when "D"
-      "Película recomendada para mayores de 18 años."
+      "Apta solo para adultos. Películas con contenido extremadamente explícito en violencia, sexualidad, lenguaje u otros temas que las hacen inapropiadas para menores de edad."
     when "E"
-      "Película exclusivamente para adultos a partir de 21 años."
+      "De exhibición especial dirigidas a un público específico, como cine experimental, cultural o de interés especializado, y no al público general"
     else
       "Clasificación no disponible."
     end
