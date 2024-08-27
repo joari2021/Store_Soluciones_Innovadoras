@@ -92,7 +92,7 @@ RUN bundle exec rails assets:precompile
 RUN ${BUILD_COMMAND}
 
 # Default server start instructions.  Generally Overridden by fly.toml.
-ENV PORT 8080
+ENV PORT 3000
 ARG SERVER_COMMAND="bin/rails server"
 ENV SERVER_COMMAND ${SERVER_COMMAND}
 CMD ${SERVER_COMMAND}
