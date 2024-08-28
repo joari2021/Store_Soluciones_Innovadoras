@@ -1,4 +1,4 @@
-ARG RUBY_VERSION=3.3.0
+ARG RUBY_VERSION=3.1.2
 ARG VARIANT=jemalloc-slim
 FROM quay.io/evl.ms/fullstaq-ruby:${RUBY_VERSION}-${VARIANT} as base
 
