@@ -1,10 +1,10 @@
-# fly.toml app configuration file generated for store-soluciones-innovadoras on 2024-08-27T14:34:31-04:00
+# fly.toml app configuration file generated for store-soluciones-innovadoras on 2024-08-28T07:37:54-04:00
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
 app = 'store-soluciones-innovadoras'
-primary_region = 'bog'
+primary_region = 'mia'
 console_command = '/rails/bin/rails console'
 
 [build]
