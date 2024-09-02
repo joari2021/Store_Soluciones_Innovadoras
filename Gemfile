@@ -1,6 +1,6 @@
 source "https://rubygems.org"
 
-ruby "3.1.2"
+ruby "3.3.0"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
 gem "rails", "~> 7.1.3", ">= 7.1.3.2"
@@ -47,8 +47,6 @@ gem "bootsnap", require: false
 # Use Active Storage variants [https://guides.rubyonrails.org/active_storage_overview.html#transforming-images]
 # gem "image_processing", "~> 1.2"
 
-#other gemas
-gem "psych", "~> 4.0"
 gem "sassc"
 gem "font-awesome-sass"
 # Postgresql FullTextSearch
@@ -60,9 +58,11 @@ gem "pagy", "~> 8.4"
 # Amazon
 gem "aws-sdk-s3"
 
-gem "debug", group: :development
-gem "rdoc", group: :development
-gem "irb", group: :development
+group :development, :test do
+  gem "debug"
+  gem "rdoc"
+  gem "irb"
+end
 
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
