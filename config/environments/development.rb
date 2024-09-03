@@ -33,8 +33,8 @@ Rails.application.configure do
     config.cache_store = :null_store
   end
 
-  # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  ## Configurar Active Storage
+  config.active_storage.service = :amazon
   # Establecer opciones de URL
   config.active_storage.url_options = { host: "localhost", port: 3000 }
 

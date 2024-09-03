@@ -62,6 +62,7 @@ group :development, :test do
   gem "debug"
   gem "rdoc"
   gem "irb"
+  gem "dotenv-rails"
 end
 
 group :development do

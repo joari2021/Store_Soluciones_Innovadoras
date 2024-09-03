@@ -118,6 +118,10 @@ GEM
       reline (>= 0.3.8)
     dockerfile-rails (1.6.17)
       rails (>= 3.0.0)
+    dotenv (3.1.2)
+    dotenv-rails (3.1.2)
+      dotenv (= 3.1.2)
+      railties (>= 6.1)
     drb (2.2.1)
     erubi (1.13.0)
     ffi (1.17.0-x86_64-linux-gnu)
@@ -281,6 +285,7 @@ DEPENDENCIES
   capybara
   debug
   dockerfile-rails (>= 1.6)
+  dotenv-rails
   font-awesome-sass
   importmap-rails
   irb
