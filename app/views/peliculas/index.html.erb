@@ -2,12 +2,12 @@
   <main class="main">
     <!-- FILTROS DE BUSQUEDA -->
     <ul>
-      <%= form_with url: peliculas_path, method: :get do |form| %>
-        <div class="d-flex justify-content-between align-items-center"">
+      <%= form_with url: peliculas_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
+        <div class="d-flex justify-content-between align-items-center", data-controller="campo-buscar">
           <div class="d-inline-block">
             <div class="header__search">
               <i class="ri-search-line"></i>
-              <%= form.text_field :query_text, placeholder: "Buscar Pelicula", class: "header__input", onChange: 'this.form.requestSubmit()', value: params[:query_text] %>
+              <%= form.text_field :query_text, placeholder: "Buscar Pelicula", autofocus: true, class: "header__input", id:"search-input", value: params[:query_text] %>
             </div>
           </div>
           <div class="d-inline-block ms-4">
