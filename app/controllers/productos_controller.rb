@@ -2,7 +2,7 @@ class ProductosController < ApplicationController
   before_action :set_producto, only: %i[show edit update destroy]
 
   def index
-    @productos = Producto.all.order(descripcionq: :asc)
+    @productos = Producto.all.order(descripcion: :asc)
     #@productos = Producto.all.with_attached_poster
     @tasa_cambio = TasaCambio.last&.valor || "No disponible"
 

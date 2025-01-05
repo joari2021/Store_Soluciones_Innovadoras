@@ -24,6 +24,6 @@
 }
 
 .tabla-ajustada tr:hover {
-  background-color: #e2e2e2; /* Color al pasar el ratón */
-  color: #000;
+  background-color: #000; /* Color al pasar el ratón */
+  color: #ccc;
 }

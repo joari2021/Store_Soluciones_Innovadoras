@@ -31,6 +31,9 @@
         <%end%>
         <th>Precio Venta ($)</th>
         <th>Precio Venta (Bs)</th>
+        <% if Current.user&.admin? %>
+          <th>Acción</th>
+        <%end%>
       </tr>
     </thead>
     <%= turbo_frame_tag "lista_productos" do%>
@@ -53,6 +56,9 @@
             <% end %>
             <td><%= number_to_currency(producto.precio_venta, unit: "$ ") %></td>
             <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta), unit: "Bs. ")%></td>
+            <% if Current.user&.admin? %>
+              <td><%= link_to "Edit", edit_producto_path(producto), class: "btn btn-primary" %></td>
+            <%end%>
           </tr>
         <% end %>
       </tbody>
