@@ -9,6 +9,13 @@
         <% end %>
       </li>
     </ul>
+    <ul class="nav__list">
+      <li class="nav__item">
+        <%= link_to productos_path, class: "nav__link" do %>
+          <i class="ri-movie-line"></i> <span>Productos</span>
+        <% end %>
+      </li>
+    </ul>
     <% if Current.user&.admin? %>
       <div>
         <ul class="list nav__list">

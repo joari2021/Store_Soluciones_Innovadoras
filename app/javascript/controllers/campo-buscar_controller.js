@@ -2,6 +2,8 @@ import { Controller } from "@hotwired/stimulus";
 
 export default class extends Controller {
   connect() {
+    console.log("Entre");
+
     const inputField = document.getElementById("search-input");
     const form = document.getElementById("formulario_buscar");
 

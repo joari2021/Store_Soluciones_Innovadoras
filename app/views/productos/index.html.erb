@@ -1,0 +1,61 @@
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
+  <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary" %>
+  <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
+  <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
+    <p>Tasa Dolar BCV: <%= @tasa_cambio %> Bs.</p>
+  </div>
+  <h1>Listado de Productos</h1>
+  <%= form_with url: productos_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
+    <div class="d-inline-block">
+      <div class="header__search">
+        <i class="ri-search-line"></i>
+        <%= form.text_field :query_text, placeholder: "Buscar Producto", autofocus: true, class: "header__input", id:"search-input", value: params[:query_text] %>
+      </div>
+    </div>
+  <%end%>
+  <table class="tabla-ajustada">
+    <thead>
+      <tr>
+        <th>Foto</th>
+        <th>Descripción</th>
+        <% if Current.user&.admin? %>
+          <th>Costo Pack ($)</th>
+          <th>Costo Pack (Bs)</th>
+        <%end%>
+        <th>Cantidad</th>
+        <% if Current.user&.admin? %>
+          <th>Costo Unidad ($)</th>
+          <th>Costo Unidad (Bs)</th>
+          <th>Nivel Ganancia</th>
+          <th>PV Sugerido</th>
+        <%end%>
+        <th>Precio Venta ($)</th>
+        <th>Precio Venta (Bs)</th>
+      </tr>
+    </thead>
+    <%= turbo_frame_tag "lista_productos" do%>
+      <tbody>
+        <% @productos.each do |producto| %>
+          <tr>
+            <td><%= image_tag producto.foto if producto.foto.attached? %></td>
+            <td><%= producto.descripcion %></td>
+            <% if Current.user&.admin? %>
+              <td><%= number_to_currency(producto.precio_costo, unit: "$ ") %></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ")%></td>
+            <%end%>
+            <td><%= producto.cant_unidades %></td>
+            <% if Current.user&.admin? %>
+              <% costo_unidad = (producto.precio_costo / producto.cant_unidades).round(2)%>
+              <td><%= number_to_currency(costo_unidad, unit: "$ ") %></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs. ")%></td>
+              <td><%= producto.nivel_ganancia.upcase %></td>
+              <td>Funcion por definir</td>
+            <% end %>
+            <td><%= number_to_currency(producto.precio_venta, unit: "$ ") %></td>
+            <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta), unit: "Bs. ")%></td>
+          </tr>
+        <% end %>
+      </tbody>
+    <%end%>
+  </table>
+</div>

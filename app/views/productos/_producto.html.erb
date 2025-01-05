@@ -1,0 +1,28 @@
+<div id="<%= dom_id producto %>">
+  <p>
+    <strong>Foto:</strong>
+    <%= link_to producto.foto.filename, producto.foto if producto.foto.attached? %>
+  </p>
+  <p>
+    <strong>Descripcion:</strong>
+    <%= producto.descripcion %>
+  </p>
+  <p>
+    <strong>Cant unidades:</strong>
+    <%= producto.cant_unidades %>
+  </p>
+  <% if Current.user&.admin? %>
+    <p>
+      <strong>Precio costo:</strong>
+      <%= producto.precio_costo %>
+    </p>
+    <p>
+      <strong>Nivel ganancia:</strong>
+      <%= producto.nivel_ganancia %>
+    </p>
+  <% end %>
+  <p>
+    <strong>Precio venta:</strong>
+    <%= producto.precio_venta %>
+  </p>
+</div>

@@ -1,4 +1,7 @@
 Rails.application.routes.draw do
+  resources :productos
+  resource :tasa_cambio, only: [:edit, :update]
+
   namespace :authentication, path: "", as: "" do
     resources :users, only: [:new, :create], path: "/register", path_names: { new: "/" }
     resources :sessions, only: [:new, :create, :destroy], path: "/login", path_names: { new: "/" }

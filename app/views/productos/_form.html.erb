@@ -1,0 +1,92 @@
+<script>
+  tasaDolar = <%= TasaCambio.last&.valor || 0 %>;
+
+  function actualizarPrecioSugerido() {
+    const nivelGanancia = document.querySelector(".form-select").value;
+    const precioCostoUnidadUSD = parseFloat(document.getElementById("costo_u_usd").value) || 0;
+
+    let precioSugerido = 0;
+
+    switch (nivelGanancia) {
+      case "Baja":
+        precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.2);
+        break;
+      case "Media":
+        precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.3);
+        break;
+      case "Alta":
+        precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.5);
+        break;
+    }
+
+    // Actualiza el valor del input de precio sugerido
+    document.getElementById("precio_sugerido_usd").value = precioSugeridoUSD.toFixed(2);
+    document.getElementById("precio_sugerido_bs").value = (precioSugeridoUSD.toFixed(2) * tasaDolar).toFixed(2);
+  }
+</script>
+<%= form_with(model: producto, data: { controller: "form-producto" }) do |form| %>
+  <% if producto.errors.any? %>
+    <div style="color: red">
+      <h2><%= pluralize(producto.errors.count, "error") %> prohibited this producto from being saved:</h2>
+      <ul>
+        <% producto.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div>
+    <%= form.label :foto, style: "display: block" %>
+    <%= form.file_field :foto %>
+  </div>
+  <div>
+    <%= form.label :descripcion, style: "display: block" %>
+    <%= form.text_area :descripcion %>
+  </div>
+  <div>
+    <%= form.label :precio_costo, style: "display: block" %>
+    <%= form.text_field :precio_costo %>
+  </div>
+  <div class="col-3">
+    <label>Costo Pack Bs</label>
+    <input type="text" value="" id="precio_c_bs" readonly>
+  </div>
+  <div>
+    <%= form.label :cant_unidades, style: "display: block" %>
+    <%= form.number_field :cant_unidades %>
+  </div>
+  <div class="col-3">
+    <label>Costo Unidad $</label>
+    <input type="text" value="" id="costo_u_usd" readonly>
+  </div>
+  <div class="col-3">
+    <label>Costo Unidad Bs</label>
+    <input type="text" value="" id="costo_u_bs" readonly>
+  </div>
+  <div class="col-3">
+    <%= form.label :nivel_ganancia, "Nivel de Ganancia", class: "form-label" %>
+    <%= form.select :nivel_ganancia, 
+                  options_for_select([["Baja", "Baja"], ["Media", "Media"], ["Alta", "Alta"]], selected: producto.nivel_ganancia), 
+                  {}, 
+                  { class: "form-select", onchange: "actualizarPrecioSugerido()" } %>
+  </div>
+  <div class="col-3">
+    <span>Precio Sugerido $</span>
+    <input type="text" value="" id="precio_sugerido_usd" readonly>
+  </div>
+  <div class="col-3">
+    <span>Precio Sugerido Bs</span>
+    <input type="text" value="" id="precio_sugerido_bs" readonly>
+  </div>
+  <div>
+    <%= form.label :precio_venta, style: "display: block" %>
+    <%= form.text_field :precio_venta %>
+  </div>
+  <div class="col-3">
+    <span>Precio Venta Bs</span>
+    <input type="text" value="" id="precio_venta_bs" readonly>
+  </div>
+  <div>
+    <%= form.submit %>
+  </div>
+<% end %>

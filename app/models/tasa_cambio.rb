@@ -1,0 +1,2 @@
+class TasaCambio < ApplicationRecord
+end

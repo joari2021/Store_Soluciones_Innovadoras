@@ -20,7 +20,9 @@
     <%= alert %>
     <%= render "shared/header" %>
     <%= render "shared/nav" %>
-    <%= yield %>
+    <main class="main">
+      <%= yield %>
+    </main>
     <%= render "shared/script_show_notification"%>
   </body>
 </html>

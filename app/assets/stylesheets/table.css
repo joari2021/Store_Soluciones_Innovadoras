@@ -1,0 +1,29 @@
+.tabla-ajustada {
+  width: 100%; /* La tabla ocupará el ancho completo del contenedor */
+  table-layout: auto; /* Ajusta el ancho de las columnas según el contenido */
+  border-collapse: collapse; /* Elimina los espacios entre celdas */
+  margin: 20px 0;
+}
+
+.tabla-ajustada th,
+.tabla-ajustada td {
+  border: 1px solid #ddd; /* Agrega bordes a las celdas */
+  padding: 10px 15px; /* Margen interno en las celdas */
+  text-align: left; /* Alinea el texto a la izquierda */
+}
+
+.tabla-ajustada th {
+  background-color: #000; /* Fondo para el encabezado */
+  color: #e2e2e2;
+  font-weight: bold; /* Negrita para los encabezados */
+}
+
+.tabla-ajustada tr:nth-child(even) {
+  background-color: #f9f9f9; /* Fondo alternado para filas */
+  color: #000;
+}
+
+.tabla-ajustada tr:hover {
+  background-color: #e2e2e2; /* Color al pasar el ratón */
+  color: #000;
+}
