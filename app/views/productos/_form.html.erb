@@ -24,7 +24,7 @@
     document.getElementById("precio_sugerido_bs").value = (precioSugeridoUSD.toFixed(2) * tasaDolar).toFixed(2);
   }
 </script>
-<%= form_with(model: producto, data: { controller: "form-producto" }) do |form| %>
+<%= form_with(model: producto, data: { controller: "form-producto" }, html: { class: "row g-3" }) do |form| %>
   <% if producto.errors.any? %>
     <div style="color: red">
       <h2><%= pluralize(producto.errors.count, "error") %> prohibited this producto from being saved:</h2>
@@ -39,25 +39,26 @@
     <%= form.label :foto, style: "display: block" %>
     <%= form.file_field :foto %>
   </div>
-  <div>
-    <%= form.label :descripcion, style: "display: block" %>
-    <%= form.text_area :descripcion %>
+  
+  <div class="col-md-4">
+    <%= form.label :descripcion, class: "form-label" %>
+    <%= form.text_field :descripcion, class:"form-control", required: true %>
   </div>
-  <div>
-    <%= form.label :precio_costo, style: "display: block" %>
-    <%= form.text_field :precio_costo %>
+  <div class="col-md-4">
+    <%= form.label :precio_costo, class: "form-label" %>
+    <%= form.text_field :precio_costo, class:"form-control", required: true %>
   </div>
-  <div class="col-3">
-    <label>Costo Pack Bs</label>
-    <input type="text" value="" id="precio_c_bs" readonly>
+  <div class="col-md-4">
+    <label class="form-label">Costo Pack Bs</label>
+    <input type="text" value="" id="precio_c_bs" class="form-control" readonly>
   </div>
-  <div>
-    <%= form.label :cant_unidades, style: "display: block" %>
-    <%= form.number_field :cant_unidades %>
+  <div class="col-md-4">
+    <%= form.label :cant_unidades, class: "form-label" %>
+    <%= form.text_field :cant_unidades, class:"form-control", required: true %>
   </div>
-  <div class="col-3">
-    <label>Costo Unidad $</label>
-    <input type="text" value="" id="costo_u_usd" readonly>
+  <div class="col-md-4">
+    <label class="form-label">Costo Unidad $</label>
+    <input type="text" value="" id="costo_u_usd" class="form-control" readonly>
   </div>
   <div class="col-3">
     <label>Costo Unidad Bs</label>

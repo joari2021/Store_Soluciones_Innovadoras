@@ -34,7 +34,7 @@ Rails.application.configure do
   end
 
   ## Configurar Active Storage
-  config.active_storage.service = :amazon
+  config.active_storage.service = :local
   # Establecer opciones de URL
   config.active_storage.url_options = { host: "localhost", port: 3000 }
 
