@@ -19,7 +19,7 @@
 }
 
 .tabla-ajustada tr:nth-child(even) {
-  background-color: #f9f9f9; /* Fondo alternado para filas */
+  background-color: #c5c1c1; /* Fondo alternado para filas */
   color: #000;
 }
 

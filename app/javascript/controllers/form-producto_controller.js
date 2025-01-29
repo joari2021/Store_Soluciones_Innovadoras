@@ -10,6 +10,50 @@ export default class extends Controller {
     const precioVentaUSD = document.getElementById("producto_precio_venta");
     const precioVentaBs = document.getElementById("precio_venta_bs");
 
+    function editPrecioSugerido() {
+      const nivelGanancia = document.querySelector(".form-select").value;
+      const precioCostoUnidadUSD =
+        parseFloat(document.getElementById("costo_u_usd").value) || 0;
+
+      var precioSugeridoUSD = 0;
+
+      switch (nivelGanancia) {
+        case "Baja":
+          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.2);
+          break;
+        case "Media":
+          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.3);
+          break;
+        case "Alta":
+          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.5);
+          break;
+      }
+      // Actualiza el valor del input de precio sugerido
+      document.getElementById("precio_sugerido_usd").value =
+        precioSugeridoUSD.toFixed(2);
+      document.getElementById("precio_sugerido_bs").value = (
+        precioSugeridoUSD.toFixed(2) * tasaDolar
+      ).toFixed(2);
+    }
+
+    function rellenarCamposVistaEdit() {
+      // Convertir el valor del input a un número y calcular
+      const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
+      const valorPackEnBs = (valorPackUSD * tasaDolar).toFixed(2);
+      const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
+      const valorUnidadUSD = (valorPackUSD / cantidadPackNumber).toFixed(2);
+      const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
+      const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
+
+      // Asignar el valor calculado al input
+      precioCostoPackBs.value = valorPackEnBs;
+      precioCostoUnidadUSD.value = valorUnidadUSD;
+      precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
+      precioVentaBs.value = valorVentaBs;
+      editPrecioSugerido();
+    }
+    rellenarCamposVistaEdit();
+
     // Evento que se ejecuta al escribir en el input de USD
     precioCostoPackUSD.addEventListener("input", function () {
       // Convertir el valor del input a un número y calcular
@@ -23,6 +67,8 @@ export default class extends Controller {
       // Asignar el valor calculado al input
       precioCostoPackBs.value = valorPackEnBs;
       precioCostoUnidadUSD.value = valorUnidadUSD;
+      precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
+      editPrecioSugerido();
     });
 
     cantidadPack.addEventListener("input", function () {
@@ -34,6 +80,7 @@ export default class extends Controller {
       // Asignar el valor calculado al input
       precioCostoUnidadUSD.value = valorUnidadUSD;
       precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
+      editPrecioSugerido();
     });
 
     precioVentaUSD.addEventListener("input", function () {

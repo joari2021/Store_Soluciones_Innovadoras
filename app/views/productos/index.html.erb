@@ -2,9 +2,9 @@
   <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary" %>
   <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <p>Tasa Dolar BCV: <%= @tasa_cambio %> Bs.</p>
+    <span>Tasa Dolar BCV: <strong><%= @tasa_cambio %> Bs.</strong></span>
   </div>
-  <h1>Listado de Productos</h1>
+  <h1 class="my-4">Listado de Productos</h1>
   <%= form_with url: productos_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
     <div class="d-inline-block">
       <div class="header__search">
@@ -13,7 +13,7 @@
       </div>
     </div>
   <%end%>
-  <table class="tabla-ajustada">
+  <table class="tabla-ajustada mt-4">
     <thead>
       <tr>
         <th>Foto</th>

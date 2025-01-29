@@ -1,10 +1,12 @@
-<h1>Editing producto</h1>
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
+  <h1>Editar producto</h1>
 
-<%= render "form", producto: @producto %>
+  <%= render "form", producto: @producto %>
 
-<br>
+  <br>
 
-<div>
-  <%= link_to "Show this producto", @producto %> |
-  <%= link_to "Back to productos", productos_path %>
+  <div>
+    <%= link_to "Ver producto", @producto, class: "btn btn-primary" %> |
+    <%= link_to "Volver", productos_path, class: "btn btn-secondary" %>
+  </div>
 </div>
