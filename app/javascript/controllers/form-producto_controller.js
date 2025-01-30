@@ -7,8 +7,8 @@ export default class extends Controller {
     const cantidadPack = document.getElementById("producto_cant_unidades");
     const precioCostoUnidadUSD = document.getElementById("costo_u_usd");
     const precioCostoUnidadBs = document.getElementById("costo_u_bs");
-    const precioVentaUSD = document.getElementById("producto_precio_venta");
-    const precioVentaBs = document.getElementById("precio_venta_bs");
+    const precioVentaUSD = document.getElementById("producto_precio_venta_usd");
+    const precioVentaBs = document.getElementById("producto_precio_venta_bs");
 
     function editPrecioSugerido() {
       const nivelGanancia = document.querySelector(".form-select").value;
@@ -35,60 +35,45 @@ export default class extends Controller {
         precioSugeridoUSD.toFixed(2) * tasaDolar
       ).toFixed(2);
     }
-
-    function rellenarCamposVistaEdit() {
+    function calcularPrecioCosto() {
       // Convertir el valor del input a un número y calcular
       const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
       const valorPackEnBs = (valorPackUSD * tasaDolar).toFixed(2);
       const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
       const valorUnidadUSD = (valorPackUSD / cantidadPackNumber).toFixed(2);
-      const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
 
       // Asignar el valor calculado al input
       precioCostoPackBs.value = valorPackEnBs;
       precioCostoUnidadUSD.value = valorUnidadUSD;
       precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
+    }
+    function calcularPrecioVenta() {
+      const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
+      const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
+
+      // Asignar el valor calculado al input
       precioVentaBs.value = valorVentaBs;
+    }
+    function rellenarCamposVistaEdit() {
+      calcularPrecioCosto();
       editPrecioSugerido();
+      calcularPrecioVenta();
     }
     rellenarCamposVistaEdit();
 
     // Evento que se ejecuta al escribir en el input de USD
     precioCostoPackUSD.addEventListener("input", function () {
-      // Convertir el valor del input a un número y calcular
-      const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const valorPackEnBs = (valorPackUSD * tasaDolar).toFixed(2);
-
-      // calcular valor de unidad en $
-      const cantidadPackInteger = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
-      const valorUnidadUSD = (valorPackUSD / cantidadPackInteger).toFixed(2);
-
-      // Asignar el valor calculado al input
-      precioCostoPackBs.value = valorPackEnBs;
-      precioCostoUnidadUSD.value = valorUnidadUSD;
-      precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
+      calcularPrecioCosto();
       editPrecioSugerido();
     });
 
     cantidadPack.addEventListener("input", function () {
-      // calcular valor de unidad en $
-      const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
-      const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const valorUnidadUSD = (valorPackUSD / cantidadPackNumber).toFixed(2);
-
-      // Asignar el valor calculado al input
-      precioCostoUnidadUSD.value = valorUnidadUSD;
-      precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
+      calcularPrecioCosto();
       editPrecioSugerido();
     });
 
     precioVentaUSD.addEventListener("input", function () {
-      const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
-
-      // Asignar el valor calculado al input
-      precioVentaBs.value = valorVentaBs;
+      calcularPrecioVenta();
     });
   }
 }

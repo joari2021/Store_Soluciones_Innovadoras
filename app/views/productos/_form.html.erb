@@ -49,6 +49,13 @@
                   {}, 
                   { class: "form-select", onchange: "actualizarPrecioSugerido()" } %>
   </div>
+  <div class="col-md-3">
+    <%= form.label :moneda_base_precio, "Moneda Base Precio Venta", class: "form-label" %>
+    <%= form.select :moneda_base_precio, 
+                  options_for_select([["Bolivar", "Bolivar"], ["Dolar", "Dolar"]], selected: producto.moneda_base_precio), 
+                  {}, 
+                  { class: "form-select", onchange: "actualizarPrecioVenta()" } %>
+  </div>
   <hr>
   <div class="col-md-3">
     <label class="form-label">Precio Sugerido $</label>
@@ -59,12 +66,12 @@
     <input type="text" value="" id="precio_sugerido_bs" class="form-control" readonly>
   </div>
   <div class="col-md-3">
-    <%= form.label :precio_venta, "Precio Venta ($)", class:"form-label" %>
-    <%= form.text_field :precio_venta, class:"form-control" %>
+    <%= form.label :precio_venta_usd, "Precio Venta ($)", class:"form-label" %>
+    <%= form.text_field :precio_venta_usd, class:"form-control" %>
   </div>
   <div class="col-md-3">
-    <label class="form-label">Precio Venta Bs</label>
-    <input type="text" value="" id="precio_venta_bs" class="form-control" readonly>
+    <%= form.label :precio_venta_bs, "Precio Venta (Bs)", class:"form-label" %>
+    <%= form.text_field :precio_venta_bs, class:"form-control" %>
   </div>
   <hr>
   <div>

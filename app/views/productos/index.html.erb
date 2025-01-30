@@ -54,8 +54,8 @@
               <td><%= producto.nivel_ganancia.upcase %></td>
               <td>Funcion por definir</td>
             <% end %>
-            <td><%= number_to_currency(producto.precio_venta, unit: "$ ") %></td>
-            <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta), unit: "Bs. ")%></td>
+            <td><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
+            <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs. ")%></td>
             <% if Current.user&.admin? %>
               <td><%= link_to "Edit", edit_producto_path(producto), class: "btn btn-primary" %></td>
             <%end%>

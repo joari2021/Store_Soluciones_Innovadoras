@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2024_12_29_173455) do
+ActiveRecord::Schema[7.1].define(version: 2025_01_30_013155) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_stat_statements"
   enable_extension "plpgsql"
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -151,11 +152,13 @@ ActiveRecord::Schema[7.1].define(version: 2024_12_29_173455) do
   create_table "productos", force: :cascade do |t|
     t.text "descripcion"
     t.decimal "precio_costo"
-    t.decimal "precio_venta"
+    t.decimal "precio_venta_usd"
     t.integer "cant_unidades"
     t.string "nivel_ganancia"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "moneda_base_precio"
+    t.string "precio_venta_bs"
   end
 
   create_table "rankings", force: :cascade do |t|
