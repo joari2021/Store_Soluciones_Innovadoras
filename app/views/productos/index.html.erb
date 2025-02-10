@@ -1,6 +1,10 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
-  <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary" %>
-  <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
+  <% if Current.user&.personal? %>
+    <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary" %>
+  <% end %>
+  <% if Current.user&.admin? %>
+    <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
+  <% end %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
     <span>Tasa Dolar BCV: <strong><%= @tasa_cambio %> Bs.</strong></span>
   </div>
@@ -21,13 +25,12 @@
         <% if Current.user&.admin? %>
           <th>Costo Pack ($)</th>
           <th>Costo Pack (Bs)</th>
-        <%end%>
-        <th>Cantidad</th>
-        <% if Current.user&.admin? %>
+          <th>Cantidad</th>
           <th>Costo Unidad ($)</th>
           <th>Costo Unidad (Bs)</th>
           <th>Nivel Ganancia</th>
-          <th>PV Sugerido</th>
+          <th>PV Sugerido ($)</th>
+          <th>PV Sugerido (Bs)</th>
         <%end%>
         <th>Precio Venta ($)</th>
         <th>Precio Venta (Bs)</th>
@@ -45,17 +48,21 @@
             <% if Current.user&.admin? %>
               <td><%= number_to_currency(producto.precio_costo, unit: "$ ") %></td>
               <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ")%></td>
-            <%end%>
-            <td><%= producto.cant_unidades %></td>
-            <% if Current.user&.admin? %>
+              <td><%= producto.cant_unidades %></td>
               <% costo_unidad = (producto.precio_costo / producto.cant_unidades).round(2)%>
               <td><%= number_to_currency(costo_unidad, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs. ")%></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs ")%></td>
               <td><%= producto.nivel_ganancia.upcase %></td>
-              <td>Funcion por definir</td>
+              <td><%= number_to_currency(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades), unit: "$ ") %></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades)), unit: "Bs ") %></td>
             <% end %>
-            <td><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
-            <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs. ")%></td>
+            <%if producto.moneda_base_precio === "Dolar"%>
+              <td><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ")%></td>
+            <% else %>
+              <td><%= number_to_currency((producto.precio_venta_bs/@tasa_cambio), unit: "$ ") %></td>
+              <td><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
+            <% end %>
             <% if Current.user&.admin? %>
               <td><%= link_to "Edit", edit_producto_path(producto), class: "btn btn-primary" %></td>
             <%end%>

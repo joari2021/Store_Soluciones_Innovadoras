@@ -1,5 +1,4 @@
 Rails.application.routes.draw do
-  resources :productos
   resource :tasa_cambio, only: [:edit, :update]
 
   namespace :authentication, path: "", as: "" do
@@ -7,6 +6,7 @@ Rails.application.routes.draw do
     resources :sessions, only: [:new, :create, :destroy], path: "/login", path_names: { new: "/" }
   end
 
+  resources :productos
   resources :serie_tvs
   resources :generos, except: :show
   resources :plataforma_peliculas, except: :show

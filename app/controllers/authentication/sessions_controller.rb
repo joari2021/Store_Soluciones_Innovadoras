@@ -8,7 +8,7 @@ class Authentication::SessionsController < ApplicationController
 
     if @user&.authenticate(params[:password])
       session[:user_id] = @user.id
-      redirect_to peliculas_path, notice: "Haz iniciado sesion correctamente"
+      redirect_to productos_path, notice: "Haz iniciado sesion correctamente"
     else
       redirect_to new_session_path, alert: "usuario o contraseña invalida"
     end
@@ -17,6 +17,6 @@ class Authentication::SessionsController < ApplicationController
   def destroy
     session.delete(:user_id)
 
-    redirect_to peliculas_path, notice: "Sesion Finalizada"
+    redirect_to productos_path, notice: "Sesion Finalizada"
   end
 end

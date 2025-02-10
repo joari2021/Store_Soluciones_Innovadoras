@@ -1,5 +1,6 @@
 class Authentication::UsersController < ApplicationController
   skip_before_action :protect_pages
+
   def new
     @user = User.new
   end
@@ -9,7 +10,7 @@ class Authentication::UsersController < ApplicationController
 
     if @user.save
       session[:user_id] = @user.id
-      redirect_to peliculas_path, notice: "Te has registrado con exito"
+      redirect_to productos_path, notice: "Te has registrado con exito"
     else
       render :new, status: :unprocessable_entity
     end

@@ -56,6 +56,14 @@
                   {}, 
                   { class: "form-select", onchange: "actualizarPrecioVenta()" } %>
   </div>
+  <div class="col-md-3">
+    <%= form.label :min_stock, "Min. Stock", class:"form-label" %>
+    <%= form.text_field :min_stock, class:"form-control" %>
+  </div>
+  <div class="col-md-3">
+    <%= form.label :max_stock, "Max. Stock", class:"form-label" %>
+    <%= form.text_field :max_stock, class:"form-control" %>
+  </div>
   <hr>
   <div class="col-md-3">
     <label class="form-label">Precio Sugerido $</label>

@@ -47,17 +47,24 @@ export default class extends Controller {
       precioCostoUnidadUSD.value = valorUnidadUSD;
       precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
     }
-    function calcularPrecioVenta() {
+    function calcularPrecioVentaUSD() {
       const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
       const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
 
       // Asignar el valor calculado al input
       precioVentaBs.value = valorVentaBs;
     }
+    function calcularPrecioVentaBs() {
+      const valorVentaBs = parseFloat(precioVentaBs.value) || 0; // Convierte o usa 0 si está vacío
+      const valorVentaUSD = (valorVentaBs / tasaDolar).toFixed(2);
+
+      // Asignar el valor calculado al input
+      precioVentaUSD.value = valorVentaUSD;
+    }
     function rellenarCamposVistaEdit() {
       calcularPrecioCosto();
       editPrecioSugerido();
-      calcularPrecioVenta();
+      calcularPrecioVentaUSD();
     }
     rellenarCamposVistaEdit();
 
@@ -73,7 +80,11 @@ export default class extends Controller {
     });
 
     precioVentaUSD.addEventListener("input", function () {
-      calcularPrecioVenta();
+      calcularPrecioVentaUSD();
+    });
+
+    precioVentaBs.addEventListener("input", function () {
+      calcularPrecioVentaBs();
     });
   }
 }
