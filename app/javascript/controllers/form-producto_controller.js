@@ -64,7 +64,6 @@ export default class extends Controller {
     function rellenarCamposVistaEdit() {
       calcularPrecioCosto();
       editPrecioSugerido();
-      calcularPrecioVentaUSD();
     }
     rellenarCamposVistaEdit();
 

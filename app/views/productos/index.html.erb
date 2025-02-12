@@ -4,6 +4,9 @@
   <% end %>
   <% if Current.user&.admin? %>
     <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
+    <button type="button" class="invisible" id="btn_alerta">
+      Alerta Precio <span class="badge bg-danger" id="cont_alerta_precio">0</span>
+    </button>
   <% end %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
     <span>Tasa Dolar BCV: <strong><%= @tasa_cambio %> Bs.</strong></span>
@@ -41,6 +44,7 @@
     </thead>
     <%= turbo_frame_tag "lista_productos" do%>
       <tbody>
+        <%@cont_alertas = 0%>
         <% @productos.each do |producto| %>
           <tr>
             <td><%= image_tag producto.foto if producto.foto.attached? %></td>
@@ -57,11 +61,22 @@
               <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades)), unit: "Bs ") %></td>
             <% end %>
             <%if producto.moneda_base_precio === "Dolar"%>
-              <td><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ")%></td>
+              <%if producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades) > producto.precio_venta_usd && Current.user&.admin?%>
+                <%alerta_precio = "bg-danger"%>
+                <%@cont_alertas += 1%>
+              <%else%>
+                <%alerta_precio = ""%>
+              <%end%>
+              <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
+              <td class="<%=alerta_precio%>"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ")%></td>
             <% else %>
-              <td><%= number_to_currency((producto.precio_venta_bs/@tasa_cambio), unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
+              <%if producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades) > producto.precio_venta_usd && Current.user&.admin?%>
+                <%alerta_precio = "bg-danger"%>
+              <%else%>
+                <%alerta_precio = ""%>
+              <%end%>
+              <td class="<%=alerta_precio%>"><%= number_to_currency((producto.precio_venta_usd), unit: "$ ") %></td>
+              <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
             <% end %>
             <% if Current.user&.admin? %>
               <td><%= link_to "Edit", edit_producto_path(producto), class: "btn btn-primary" %></td>
@@ -72,3 +87,18 @@
     <%end%>
   </table>
 </div>
+<script>
+  cont_alertas = <%=@cont_alertas%>
+  contAlertaPrecio = document.getElementById("cont_alerta_precio")
+  btnAlerta = document.getElementById("btn_alerta")
+
+  if (cont_alertas > 0){
+
+    // Reemplazar todas las clases existentes con las nuevas:
+    btnAlerta.classList = "btn btn-warning disabled"; //
+
+    // Reemplazar el contenido del span con el nuevo texto:
+    contAlertaPrecio.innerHTML = cont_alertas; // Puedes usar innerText o innerHTML si necesitas HTML
+
+  }
+</script>
