@@ -72,6 +72,7 @@
             <% else %>
               <%if producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades) > producto.precio_venta_usd && Current.user&.admin?%>
                 <%alerta_precio = "bg-danger"%>
+                <%@cont_alertas += 1%>
               <%else%>
                 <%alerta_precio = ""%>
               <%end%>

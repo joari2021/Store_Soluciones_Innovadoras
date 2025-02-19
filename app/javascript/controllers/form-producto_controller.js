@@ -9,6 +9,9 @@ export default class extends Controller {
     const precioCostoUnidadBs = document.getElementById("costo_u_bs");
     const precioVentaUSD = document.getElementById("producto_precio_venta_usd");
     const precioVentaBs = document.getElementById("producto_precio_venta_bs");
+    const productoNivelGanancia = document.getElementById(
+      "producto_nivel_ganancia"
+    );
 
     function editPrecioSugerido() {
       const nivelGanancia = document.querySelector(".form-select").value;
@@ -84,6 +87,10 @@ export default class extends Controller {
 
     precioVentaBs.addEventListener("input", function () {
       calcularPrecioVentaBs();
+    });
+
+    productoNivelGanancia.addEventListener("change", function () {
+      editPrecioSugerido();
     });
   }
 }

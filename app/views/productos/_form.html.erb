@@ -47,7 +47,7 @@
     <%= form.select :nivel_ganancia, 
                   options_for_select([["Baja", "Baja"], ["Media", "Media"], ["Alta", "Alta"]], selected: producto.nivel_ganancia), 
                   {}, 
-                  { class: "form-select", onchange: "editPrecioSugerido()" } %>
+                  { class: "form-select" } %>
   </div>
   <div class="col-md-3">
     <%= form.label :moneda_base_precio, "Moneda Base Precio Venta", class: "form-label" %>
