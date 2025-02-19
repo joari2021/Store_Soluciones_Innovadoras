@@ -47,14 +47,14 @@
     <%= form.select :nivel_ganancia, 
                   options_for_select([["Baja", "Baja"], ["Media", "Media"], ["Alta", "Alta"]], selected: producto.nivel_ganancia), 
                   {}, 
-                  { class: "form-select", onchange: "actualizarPrecioSugerido()" } %>
+                  { class: "form-select", onchange: "editPrecioSugerido()" } %>
   </div>
   <div class="col-md-3">
     <%= form.label :moneda_base_precio, "Moneda Base Precio Venta", class: "form-label" %>
     <%= form.select :moneda_base_precio, 
                   options_for_select([["Bolivar", "Bolivar"], ["Dolar", "Dolar"]], selected: producto.moneda_base_precio), 
                   {}, 
-                  { class: "form-select", onchange: "actualizarPrecioVenta()" } %>
+                  { class: "form-select" } %>
   </div>
   <div class="col-md-3">
     <%= form.label :min_stock, "Min. Stock", class:"form-label" %>
