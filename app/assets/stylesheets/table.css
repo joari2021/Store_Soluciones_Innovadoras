@@ -17,13 +17,13 @@
   color: #e2e2e2;
   font-weight: bold; /* Negrita para los encabezados */
 }
-
+/* Fondo alternado para filas
 .tabla-ajustada tr:nth-child(even) {
-  background-color: #c5c1c1; /* Fondo alternado para filas */
+  background-color: #c5c1c1; 
   color: #000;
-}
+}*/
 
 .tabla-ajustada tr:hover {
   background-color: #000; /* Color al pasar el ratón */
-  color: #ccc;
+  color: var(--color-info);
 }

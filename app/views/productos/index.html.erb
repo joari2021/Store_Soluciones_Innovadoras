@@ -1,6 +1,6 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
   <% if Current.user&.personal? %>
-    <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary" %>
+    <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary me-4" %>
   <% end %>
   <% if Current.user&.admin? %>
     <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
@@ -43,7 +43,7 @@
       </tr>
     </thead>
     <%= turbo_frame_tag "lista_productos" do%>
-      <tbody>
+      <tbody id="tbody_productos">
         <%@cont_alertas = 0%>
         <% @productos.each do |producto| %>
           <tr>
@@ -91,15 +91,38 @@
 <script>
   cont_alertas = <%=@cont_alertas%>
   contAlertaPrecio = document.getElementById("cont_alerta_precio")
-  btnAlerta = document.getElementById("btn_alerta")
+  const btnAlerta = document.getElementById("btn_alerta")
 
   if (cont_alertas > 0){
-
     // Reemplazar todas las clases existentes con las nuevas:
-    btnAlerta.classList = "btn btn-warning disabled"; //
-
+    btnAlerta.classList = "btn btn-warning mx-3"; //
     // Reemplazar el contenido del span con el nuevo texto:
     contAlertaPrecio.innerHTML = cont_alertas; // Puedes usar innerText o innerHTML si necesitas HTML
-
   }
+
+  // Listener para filtrar filas de la tabla
+  btnAlerta.addEventListener("click", function () {
+    const tbody = document.getElementById("tbody_productos");
+    const rows = tbody.querySelectorAll("tr");
+
+    // Si el botón tiene una bandera de "filtrado activo", restaurar todas las filas
+    if (btnAlerta.dataset.filterActive === "true") {
+      rows.forEach(row => {
+        row.style.display = "";
+      });
+      btnAlerta.dataset.filterActive = "false";
+      btnAlerta.innerHTML = 'Alerta Precio <span class="badge bg-danger" id="cont_alerta_precio">' + cont_alertas + '</span>';
+    } else {
+      rows.forEach(row => {
+        // Se busca alguna celda con la clase 'bg-danger' dentro de la fila
+        if (row.querySelector("td.bg-danger")) {
+          row.style.display = "";
+        } else {
+          row.style.display = "none";
+        }
+      });
+      btnAlerta.dataset.filterActive = "true";
+      btnAlerta.innerHTML = 'Mostrar todos los productos';
+    }
+  });
 </script>
