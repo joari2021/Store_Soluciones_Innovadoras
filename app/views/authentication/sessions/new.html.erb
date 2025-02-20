@@ -1,19 +1,18 @@
-<div class="container">
-  <div class="row">
-    <div class="col-sm-4 caja-login" >
-      <%= form_with(url: sessions_path) do |form| %>
-        <div>
-          <%= form.label :login %>
-          <%= form.text_field :login, required: true %>
-        </div>
-        <div>
-          <%= form.label :password %>
-          <%= form.password_field :password, required: true %>
-        </div>
-        <div>
-          <%= form.submit %>
-        </div>
-      <% end %>
-    </div>
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
+  <div class="col-sm-8" >
+    <h2>Iniciar Sesión</h2>
+    <%= form_with(url: sessions_path) do |form| %>
+      <div class="col-md-6 mt-4">
+        <%= form.label :login, "Correo o Usuario", class: "form-label" %>
+        <%= form.text_field :login, class:"form-control", required: true %>
+      </div>
+      <div class="col-md-6 mt-4">
+        <%= form.label :password, "Contraseña", class: "form-label" %>
+        <%= form.password_field :password, class:"form-control", required: true %>
+      </div>
+      <div class="col-md-6 mt-4">
+        <%= form.submit "Ingresar", class:"btn btn-primary" %>
+      </div>
+    <% end %>
   </div>
 </div>
