@@ -20,6 +20,6 @@
 # Learn more: http://github.com/javan/whenever
 set :output, "log/cron.log"
 # Ejecuta el job cada día a las 17:00 (hora del servidor)
-every 1.day, at: '5:00 pm' do
+every 1.day, at: '1:35 am' do
   runner "BcvScrapeJob.perform_later"
 end

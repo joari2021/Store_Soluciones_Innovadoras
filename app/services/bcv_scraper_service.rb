@@ -12,13 +12,17 @@ class BcvScraperService
       # Ajusta el selector según la página y el dato que necesites
       # Ejemplo: extraer el valor de una tasa que se encuentre en un span con id "tasa-dolar"
       #dato = doc.at_css("#tasa-dolar")&.text&.strip
-      const dato = document.querySelector('#dolar strong').textContent.trim();
+      dato = doc.at_css('#dolar strong')&.text&.strip
+
 
 
       # Aquí podrías actualizar un registro en la base de datos o devolver el dato
       # Por ejemplo, si tienes un modelo TasaCambio:
       if dato.present?
-        tasa_valor = BigDecimal(dato.gsub(/[^\d.]/, ''))
+        dato = dato.tr(',', '.')  # Reemplaza la coma por punto
+        dato_clean = dato.gsub(/[^\d.]/, '')  # Elimina caracteres no numéricos, si los hubiera
+        tasa_valor = BigDecimal(dato_clean).round(2)
+
         TasaCambio.last.update(valor: tasa_valor)
       end
 
