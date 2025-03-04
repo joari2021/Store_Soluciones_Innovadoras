@@ -1,0 +1,17 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  appointment_type: MyString
+  appointment_date: 2025-03-03 21:26:54
+  appointment_time: MyString
+  status: MyString
+  reschedulable: false
+  saime_user: one
+
+two:
+  appointment_type: MyString
+  appointment_date: 2025-03-03 21:26:54
+  appointment_time: MyString
+  status: MyString
+  reschedulable: false
+  saime_user: two

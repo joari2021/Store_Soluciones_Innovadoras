@@ -1,0 +1,15 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  identification: 1
+  entry: MyString
+  temporary_status: MyString
+  confirmed_status: MyString
+  user: one
+
+two:
+  identification: 1
+  entry: MyString
+  temporary_status: MyString
+  confirmed_status: MyString
+  user: two

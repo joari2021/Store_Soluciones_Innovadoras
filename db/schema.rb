@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_02_10_002831) do
+ActiveRecord::Schema[7.1].define(version: 2025_03_04_012654) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_stat_statements"
   enable_extension "plpgsql"
 
   create_table "active_storage_attachments", force: :cascade do |t|
@@ -57,6 +58,18 @@ ActiveRecord::Schema[7.1].define(version: 2025_02_10_002831) do
     t.datetime "updated_at", null: false
     t.boolean "disponible", default: true
     t.string "link_trailer"
+  end
+
+  create_table "appointments", force: :cascade do |t|
+    t.string "appointment_type"
+    t.datetime "appointment_date"
+    t.string "appointment_time"
+    t.string "status"
+    t.boolean "reschedulable"
+    t.bigint "saime_user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["saime_user_id"], name: "index_appointments_on_saime_user_id"
   end
 
   create_table "generos", force: :cascade do |t|
@@ -172,6 +185,17 @@ ActiveRecord::Schema[7.1].define(version: 2025_02_10_002831) do
     t.index ["plataforma_pelicula_id"], name: "index_rankings_on_plataforma_pelicula_id"
   end
 
+  create_table "saime_users", force: :cascade do |t|
+    t.integer "identification"
+    t.string "entry"
+    t.string "temporary_status"
+    t.string "confirmed_status"
+    t.bigint "user_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_saime_users_on_user_id"
+  end
+
   create_table "serie_tvs", force: :cascade do |t|
     t.string "poster"
     t.string "name"
@@ -226,6 +250,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_02_10_002831) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "appointments", "saime_users"
   add_foreign_key "generos_animes", "animes"
   add_foreign_key "generos_animes", "generos"
   add_foreign_key "generos_juegos", "generos"
@@ -237,5 +262,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_02_10_002831) do
   add_foreign_key "peliculas", "users"
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
+  add_foreign_key "saime_users", "users"
   add_foreign_key "video_details", "peliculas"
 end

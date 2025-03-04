@@ -12,7 +12,14 @@ Rails.application.routes.draw do
   resources :plataforma_peliculas, except: :show
   resources :juegos
   resources :animes
-  resources :peliculas, path: "/"
+  resources :peliculas
+  root "peliculas#index" # ← Esto define la ruta de inicio
+
+  resources :saime_users do
+    resources :appointments, only: [:index, :new, :create]
+  end
+
+  resources :appointments, except: [:index, :new, :create]
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
