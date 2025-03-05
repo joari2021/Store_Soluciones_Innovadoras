@@ -1,0 +1,38 @@
+<%= form_with(model: saime_user, local: true) do |f| %>
+  <div class="mb-3">
+    <%= f.label :identification, "Cédula" %>
+    <%= f.text_field :identification, class: "form-control", required: true %>
+  </div>
+  <div class="mb-3">
+    <%= f.label :entry, "Entrada" %>
+    <%= f.text_field :entry, class: "form-control", required: true %>
+  </div>
+  <h4>Citas</h4>
+  <div id="appointments-container">
+    <div class="appointment d-flex align-items-center">
+      <div class="row flex-grow-1">
+        <div class="col-md-4">
+          <label>Fecha de la Cita</label>
+          <input type="date" class="form-control appointment-date" required>
+        </div>
+        <div class="col-md-4">
+          <label>Hora de la Cita</label>
+          <select class="form-control appointment-time" required></select>
+        </div>
+        <div class="col-md-3">
+          <label>Tipo de Cita</label>
+          <select class="form-control appointment-type">
+            <option value="cedula" selected>Cédula</option>
+            <option value="civil">Civil</option>
+            <option value="niño">Niño</option>
+          </select>
+        </div>
+      </div>
+      <button type="button" class="btn btn-danger remove-appointment ms-2">✖</button>
+    </div>
+  </div>
+  <button type="button" id="add-appointment" class="btn btn-primary mt-3">Añadir otra cita</button>
+  <br>
+  <br>
+  <%= f.submit "Guardar", class: "btn btn-success" %>
+<% end %>

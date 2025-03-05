@@ -1,40 +1,19 @@
 class SaimeUsersController < ApplicationController
-  before_action :set_saime_user, only: [:show, :edit, :update, :destroy]
-
-  def index
-    @saime_users = SaimeUser.all
-  end
-
-  def show
-  end
+  before_action :set_saime_user, only: %i[show edit update destroy]
 
   def new
     @saime_user = SaimeUser.new
+    @saime_user.appointments.build(appointment_type: next_appointment_type(@saime_user))
   end
 
   def create
     @saime_user = SaimeUser.new(saime_user_params)
+
     if @saime_user.save
-      redirect_to @saime_user, notice: "SAIME User created successfully."
+      redirect_to saime_users_path, notice: "Saime User and Appointments created successfully."
     else
-      render :new
+      render :new, status: :unprocessable_entity
     end
-  end
-
-  def edit
-  end
-
-  def update
-    if @saime_user.update(saime_user_params)
-      redirect_to @saime_user, notice: "SAIME User updated successfully."
-    else
-      render :edit
-    end
-  end
-
-  def destroy
-    @saime_user.destroy
-    redirect_to saime_users_path, notice: "SAIME User deleted successfully."
   end
 
   private
@@ -44,6 +23,15 @@ class SaimeUsersController < ApplicationController
   end
 
   def saime_user_params
-    params.require(:saime_user).permit(:identification, :entry, :temporary_status, :confirmed_status, :user_id)
+    params.require(:saime_user).permit(:identification, :entry, 
+      appointments_attributes: [:id, :appointment_date, :appointment_type, :_destroy])
+  end
+
+  def next_appointment_type(saime_user)
+    case saime_user.appointments.count
+    when 0 then "cedula"
+    when 1 then "civil"
+    else "niño"
+    end
   end
 end
