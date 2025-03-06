@@ -61,11 +61,11 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_04_012654) do
   end
 
   create_table "appointments", force: :cascade do |t|
-    t.string "appointment_type"
+    t.string "appointment_type", null: false
     t.datetime "appointment_date"
     t.string "appointment_time"
-    t.string "status"
-    t.boolean "reschedulable"
+    t.string "status", default: "activa", null: false
+    t.boolean "reschedulable", default: true, null: false
     t.bigint "saime_user_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -188,8 +188,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_03_04_012654) do
   create_table "saime_users", force: :cascade do |t|
     t.integer "identification"
     t.string "entry"
-    t.string "temporary_status"
-    t.string "confirmed_status"
+    t.string "temporary_status", default: "activo", null: false
+    t.string "confirmed_status", default: "activo", null: false
     t.bigint "user_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false

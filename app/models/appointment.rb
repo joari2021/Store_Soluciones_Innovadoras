@@ -1,8 +1,6 @@
 class Appointment < ApplicationRecord
   belongs_to :saime_user
 
-  
-
   enum appointment_type: { cedula: "cedula", civil: "civil", niño: "niño" }
 
   validates :appointment_type, :appointment_time, :status, presence: true

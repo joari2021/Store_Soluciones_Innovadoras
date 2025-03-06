@@ -1,6 +1,12 @@
 class SaimeUsersController < ApplicationController
   before_action :set_saime_user, only: %i[show edit update destroy]
-
+  def index
+    @saime_users = SaimeUser
+      .left_joins(:appointments)
+      .select("saime_users.*, MIN(CASE WHEN appointments.status = 'activa' THEN appointments.appointment_date ELSE NULL END) as nearest_active_date")
+      .group("saime_users.id")
+      .order("nearest_active_date ASC NULLS LAST")
+  end
   def new
     @saime_user = SaimeUser.new
     @saime_user.appointments.build(appointment_type: next_appointment_type(@saime_user))
@@ -16,6 +22,16 @@ class SaimeUsersController < ApplicationController
     end
   end
 
+  def edit
+  end
+
+  def update
+  end
+
+  def destroy
+  end
+
+
   private
 
   def set_saime_user
@@ -23,9 +39,12 @@ class SaimeUsersController < ApplicationController
   end
 
   def saime_user_params
-    params.require(:saime_user).permit(:identification, :entry, 
-      appointments_attributes: [:id, :appointment_date, :appointment_type, :_destroy])
+    params.require(:saime_user).permit(
+      :identification, :entry,
+      appointments_attributes: [:id, :appointment_date, :appointment_time, :appointment_type, :_destroy]
+    )
   end
+  
 
   def next_appointment_type(saime_user)
     case saime_user.appointments.count

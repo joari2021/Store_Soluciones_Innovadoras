@@ -1,6 +1,6 @@
 <h1>SaimeUsers#index</h1>
 <p>Find me in app/views/saime_users/index.html.erb</p>
-<div class="card" style="width: 18rem;">
+<div class="card bg-primary" style="width: 18rem;">
   <div class="card-body">
     <h5 class="card-title">Card title</h5>
     <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
@@ -14,4 +14,47 @@
     <a href="#" class="card-link">Card link</a>
     <a href="#" class="card-link">Another link</a>
   </div>
+</div>
+<h1 class="my-4">Saime Users and Appointments</h1>
+<div class="row">
+  <% @saime_users.each do |user| %>
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-body bg-success">
+          <h5 class="card-title">Identification: <%= user.identification %></h5>
+          <p class="card-text">
+            Entry: <span class="masked-entry">********</span>
+            <a href="#" class="copy-entry" data-entry="<%= user.entry %>">
+              <i class="ri-file-copy-line"></i>
+            </a>
+          </p>
+          <hr>
+          <h6>Appointments:</h6>
+          <% if user.appointments.any? %>
+            <ul class="list-group list-group-flush">
+              <% user.appointments.each do |appointment| %>
+                <li class="list-group-item">
+                  <strong>Type:</strong> <%= appointment.appointment_type.capitalize %><br>
+                  <strong>Date/Time:</strong>
+                  <%= appointment.appointment_date.strftime("%d/%m/%Y %H:%M") %><br>
+                  <strong>Status:</strong> <%= appointment.status %><br>
+                  <strong>Reschedulable:</strong>
+                  <% if appointment.reschedulable %>
+                    <i class="bi bi-check-circle-fill text-success"></i>
+                  <% else %>
+                    <i class="bi bi-x-circle-fill text-danger"></i>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-muted">No appointments found</p>
+          <% end %>
+        </div>
+        <div class="card-footer text-end">
+          <%= link_to "Edit", edit_saime_user_path(user), class: "btn btn-primary btn-sm" %>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </div>
