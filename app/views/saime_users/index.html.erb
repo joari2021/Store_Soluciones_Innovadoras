@@ -1,6 +1,6 @@
 <h1>SaimeUsers#index</h1>
 <p>Find me in app/views/saime_users/index.html.erb</p>
-<div class="card bg-primary" style="width: 18rem;">
+<div class="card bg-primary" style="width: 10rem;">
   <div class="card-body">
     <h5 class="card-title">Card title</h5>
     <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
@@ -18,7 +18,7 @@
 <h1 class="my-4">Saime Users and Appointments</h1>
 <div class="row">
   <% @saime_users.each do |user| %>
-    <div class="col-md-4 mb-4">
+    <div class="col-md-2 mb-4">
       <div class="card h-100">
         <div class="card-body bg-success">
           <h5 class="card-title">Identification: <%= user.identification %></h5>
@@ -34,15 +34,16 @@
             <ul class="list-group list-group-flush">
               <% user.appointments.each do |appointment| %>
                 <li class="list-group-item">
-                  <strong>Type:</strong> <%= appointment.appointment_type.capitalize %><br>
-                  <strong>Date/Time:</strong>
-                  <%= appointment.appointment_date.strftime("%d/%m/%Y %H:%M") %><br>
+                  <strong>Tipo:</strong> <%= appointment.appointment_type.capitalize %><br>
+                  <strong>Fecha:</strong>
+                  <%= appointment.appointment_date.strftime("%d/%m/%Y") %><br>
+                  <strong>Hora:</strong><%= appointment.appointment_time%>
                   <strong>Status:</strong> <%= appointment.status %><br>
-                  <strong>Reschedulable:</strong>
+                  <strong>Reprogramable:</strong>
                   <% if appointment.reschedulable %>
-                    <i class="bi bi-check-circle-fill text-success"></i>
+                    <i class="ri-checkbox-circle-fill text-success"></i>
                   <% else %>
-                    <i class="bi bi-x-circle-fill text-danger"></i>
+                    <i class="ri-close-circle-fill text-danger"></i>
                   <% end %>
                 </li>
               <% end %>
