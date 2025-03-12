@@ -1,50 +1,44 @@
-<h1>SaimeUsers#index</h1>
-<p>Find me in app/views/saime_users/index.html.erb</p>
-<div class="card bg-primary" style="width: 10rem;">
-  <div class="card-body">
-    <h5 class="card-title">Card title</h5>
-    <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
-  </div>
-  <ul class="list-group list-group-flush">
-    <li class="list-group-item">An item</li>
-    <li class="list-group-item">A second item</li>
-    <li class="list-group-item">A third item</li>
-  </ul>
-  <div class="card-body">
-    <a href="#" class="card-link">Card link</a>
-    <a href="#" class="card-link">Another link</a>
-  </div>
-</div>
-<h1 class="my-4">Saime Users and Appointments</h1>
+<h1 class="my-4">Citas Saime</h1>
 <div class="row">
   <% @saime_users.each do |user| %>
     <div class="col-md-2 mb-4">
       <div class="card h-100">
         <div class="card-body bg-success">
-          <h5 class="card-title">Identification: <%= user.identification %></h5>
-          <p class="card-text">
-            Entry: <span class="masked-entry">********</span>
-            <a href="#" class="copy-entry" data-entry="<%= user.entry %>">
+          <h5 class="card-title d-flex justify-content-between align-items-center">
+            Cédula: <%= user.identification %>
+            <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
+              <i class="ri-file-copy-line"></i>
+            </a>
+          </h5>
+          <p class="card-text d-flex justify-content-between align-items-center">
+            Entrada: <span class="masked-entry ms-2">*************</span>
+            <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
               <i class="ri-file-copy-line"></i>
             </a>
           </p>
           <hr>
-          <h6>Appointments:</h6>
+          <h6 class="fw-bold">CITAS:</h6>
           <% if user.appointments.any? %>
             <ul class="list-group list-group-flush">
               <% user.appointments.each do |appointment| %>
-                <li class="list-group-item">
-                  <strong>Tipo:</strong> <%= appointment.appointment_type.capitalize %><br>
-                  <strong>Fecha:</strong>
-                  <%= appointment.appointment_date.strftime("%d/%m/%Y") %><br>
-                  <strong>Hora:</strong><%= appointment.appointment_time%>
-                  <strong>Status:</strong> <%= appointment.status %><br>
-                  <strong>Reprogramable:</strong>
-                  <% if appointment.reschedulable %>
-                    <i class="ri-checkbox-circle-fill text-success"></i>
-                  <% else %>
-                    <i class="ri-close-circle-fill text-danger"></i>
-                  <% end %>
+                <li class="appointment text-black ">
+                  <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
+                  <p class="d-flex justify-content-between align-items-center">
+                    <strong>Fecha:</strong>
+                    <span class="ms-auto"><%= appointment.appointment_date.strftime("%d/%m/%Y") %></span>
+                  </p>
+                  <p class="d-flex justify-content-between align-items-center"><strong>Hora:</strong><span class="ms-auto"><%= appointment.appointment_time%></span></p>
+                  <p class="d-flex justify-content-between align-items-center"><strong>Status:</strong> <span class="ms-auto"><%= appointment.status %></span></p>
+                  <p class="d-flex justify-content-between align-items-center">
+                    <strong>Reprogramable:</strong>
+                    <span class="ms-auto">
+                      <% if appointment.reschedulable %>
+                        <i class="ri-checkbox-circle-fill text-success fs-3"></i>
+                      <% else %>
+                        <i class="ri-close-circle-fill text-danger fs-3"></i>
+                      <% end %>
+                    </span>
+                  </p class="d-flex justify-content-between align-items-center">
                 </li>
               <% end %>
             </ul>

@@ -13,18 +13,18 @@ const blurHeader = () => {
 window.addEventListener("scroll", blurHeader);
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.querySelectorAll(".copy-entry").forEach((link) => {
+  document.querySelectorAll(".copy").forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      const entryValue = link.dataset.entry;
+      const datoValue = link.dataset.dato;
       navigator.clipboard
-        .writeText(entryValue)
+        .writeText(datoValue)
         .then(() => {
           // Puedes mostrar una notificación, por ejemplo con alert o con una librería de notificaciones
-          alert("Entry copied to clipboard!");
+          alert("Se ha copiado al Portapapeles!");
         })
         .catch((err) => {
-          console.error("Failed to copy!", err);
+          console.error("Falla al Copiar!", err);
         });
     });
   });
