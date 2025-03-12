@@ -70,7 +70,8 @@
               <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
               <td class="<%=alerta_precio%>"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ")%></td>
             <% else %>
-              <%if producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades) > producto.precio_venta_usd && Current.user&.admin?%>
+              <%@precio_sugerido_bs = producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades))%>
+              <%if @precio_sugerido_bs > producto.precio_venta_bs && Current.user&.admin?%>
                 <%alerta_precio = "bg-danger"%>
                 <%@cont_alertas += 1%>
               <%else%>
