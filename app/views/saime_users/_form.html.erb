@@ -52,7 +52,7 @@
           <div class="col-md-4">
             <%= appointment_fields.label :appointment_time, "Hora de la Cita" %>
             <%= appointment_fields.select :appointment_time, 
-                  options_for_select(["08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00"], appointment_fields.object.appointment_time || ""), 
+                  options_for_select(["08:00 am", "09:00 am", "10:00 am", "11:00 am", "01:00 pm", "02:00 pm", "03:00 pm", "04:00 pm", "05:00 pm", "06:00 pm"], appointment_fields.object.appointment_time || ""), 
                   {}, 
                   class: "form-control appointment-time", 
                   required: true %>
