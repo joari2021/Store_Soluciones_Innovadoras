@@ -1,7 +1,6 @@
 import "@hotwired/turbo-rails";
 import "controllers";
 import "bootstrap";
-import "notify";
 
 /*=============== ADD BLUR HEADER ===============*/
 const blurHeader = () => {
