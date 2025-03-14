@@ -16,16 +16,24 @@ class SaimeUsersController < ApplicationController
     @saime_user = SaimeUser.new(saime_user_params)
 
     if @saime_user.save
-      redirect_to saime_users_path, notice: "Saime User and Appointments created successfully."
+      flash[:notice] = "Registro Completado Exitosamente"
+      redirect_to saime_users_path
     else
       render :new, status: :unprocessable_entity
     end
   end
 
   def edit
+    # @saime_user ya se carga en el before_action
   end
 
+  # PATCH/PUT /saime_users/:id
   def update
+    if @saime_user.update(saime_user_params)
+      redirect_to saime_users_path, notice: 'El usuario se actualizó correctamente.'
+    else
+      render :edit
+    end
   end
 
   def destroy

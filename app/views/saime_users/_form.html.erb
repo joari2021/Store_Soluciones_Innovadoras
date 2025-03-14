@@ -1,47 +1,21 @@
 <%= form_with(model: saime_user, local: true) do |f| %>
-  <div class="mb-3">
-    <%= f.label :identification, "Cédula" %>
-    <%= f.text_field :identification, class: "form-control", required: true %>
-  </div>
-  <div class="mb-3">
-    <%= f.label :entry, "Entrada" %>
-    <%= f.text_field :entry, class: "form-control", required: true %>
-  </div>
-  <h4>Citas</h4>
-  <!--
-  <div id="appointments-container">
-    <div class="appointment d-flex align-items-center">
-      <div class="row flex-grow-1">
-        <div class="col-md-4">
-          <label>Fecha de la Cita</label>
-          <input type="date" class="form-control appointment-date" required>
-        </div>
-        <div class="col-md-4">
-          <label>Hora de la Cita</label>
-          <select class="form-control appointment-time" required></select>
-        </div>
-        <div class="col-md-3">
-          <label>Tipo de Cita</label>
-          <select class="form-control appointment-type">
-            <option value="cedula" selected>Cédula</option>
-            <option value="civil">Civil</option>
-            <option value="niño">Niño</option>
-          </select>
-        </div>
-      </div>
-      <button type="button" class="btn btn-danger remove-appointment ms-2">✖</button>
+  <div class="row">
+    <div class="col-md-6 mb-3">
+      <%= f.label :identification, "Cédula" %>
+      <%= f.text_field :identification, class: "form-control", required: true %>
+    </div>
+    <div class="col-md-6 mb-3">
+      <%= f.label :entry, "Entrada" %>
+      <%= f.text_field :entry, class: "form-control", required: true %>
     </div>
   </div>
-  <button type="button" id="add-appointment" class="btn btn-primary mt-3">Añadir otra cita</button>
-  <br>
-  <br>
-  <%= f.submit "Guardar", class: "btn btn-success" %>
-  -->
+  <h4>Citas</h4>
   <div id="appointments-container">
     <%= f.fields_for :appointments do |appointment_fields| %>
-      <div class="appointment border p-3 mb-3">
+      <div class="appointment border p-3 mb-3 text-black">
         <div class="row">
           <div class="col-md-4">
+            <%= appointment_fields.hidden_field :_destroy %>
             <%= appointment_fields.label :appointment_date, "Fecha de la Cita" %>
             <%= appointment_fields.date_field :appointment_date, 
                   class: "form-control appointment-date", 
@@ -52,20 +26,23 @@
           <div class="col-md-4">
             <%= appointment_fields.label :appointment_time, "Hora de la Cita" %>
             <%= appointment_fields.select :appointment_time, 
-                  options_for_select(["08:00 am", "09:00 am", "10:00 am", "11:00 am", "01:00 pm", "02:00 pm", "03:00 pm", "04:00 pm", "05:00 pm", "06:00 pm"], appointment_fields.object.appointment_time || ""), 
-                  {}, 
+                  options_for_select(
+                    ["08:00 am", "09:00 am", "10:00 am", "11:00 am", "01:00 pm", "02:00 pm", "03:00 pm", "04:00 pm", "05:00 pm", "06:00 pm"], 
+                    appointment_fields.object.appointment_time
+                  ), 
+                  { include_blank: "Selecciona la hora" }, 
                   class: "form-control appointment-time", 
                   required: true %>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <%= appointment_fields.label :appointment_type, "Tipo de Cita" %>
             <%= appointment_fields.select :appointment_type, 
                   options_for_select([["Cédula", "cedula"], ["Civil", "civil"], ["Niño", "niño"]], appointment_fields.object.appointment_type || "cedula"), 
                   {}, 
                   class: "form-control appointment-type" %>
           </div>
+          <div class="col-md-1"><button type="button" class="btn btn-danger remove-appointment ms-2 mt-3">✖</button></div>
         </div>
-        <button type="button" class="btn btn-danger btn-sm remove-appointment mt-2">Eliminar</button>
       </div>
     <% end %>
   </div>
@@ -75,7 +52,7 @@
   </div>
   <!-- Template para nueva cita -->
   <template id="appointment-template">
-    <div class="appointment border p-3 mb-3">
+    <div class="appointment border p-3 mb-3 text-black">
       <div class="row">
         <div class="col-md-4">
           <label>Fecha de la Cita</label>
@@ -85,19 +62,19 @@
           <label>Hora de la Cita</label>
           <select name="saime_user[appointments_attributes][INDEX][appointment_time]" class="form-control appointment-time" required>
             <option value="">Seleccione una hora</option>
-            <option value="08:00">08:00</option>
-            <option value="09:00">09:00</option>
-            <option value="10:00">10:00</option>
-            <option value="11:00">11:00</option>
-            <option value="13:00">13:00</option>
-            <option value="14:00">14:00</option>
-            <option value="15:00">15:00</option>
-            <option value="16:00">16:00</option>
-            <option value="17:00">17:00</option>
-            <option value="18:00">18:00</option>
+            <option value="08:00 am">08:00 am</option>
+            <option value="09:00 am">09:00 am</option>
+            <option value="10:00 am">10:00 am</option>
+            <option value="11:00 am">11:00 am</option>
+            <option value="01:00 pm">01:00 pm</option>
+            <option value="02:00 pm">02:00 pm</option>
+            <option value="03:00 pm">03:00 pm</option>
+            <option value="04:00 pm">04:00 pm</option>
+            <option value="05:00 pm">05:00 pm</option>
+            <option value="06:00 pm">06:00 pm</option>
           </select>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
           <label>Tipo de Cita</label>
           <select name="saime_user[appointments_attributes][INDEX][appointment_type]" class="form-control appointment-type">
             <option value="cedula">Cédula</option>
@@ -105,8 +82,8 @@
             <option value="niño">Niño</option>
           </select>
         </div>
+        <div class="col-md-1"><button type="button" class="btn btn-danger remove-appointment ms-2 mt-3">✖</button></div>
       </div>
-      <button type="button" class="btn btn-danger btn-sm remove-appointment mt-2">Eliminar</button>
     </div>
   </template>
 <% end %>
