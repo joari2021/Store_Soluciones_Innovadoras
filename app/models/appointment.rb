@@ -3,7 +3,7 @@ class Appointment < ApplicationRecord
 
   enum appointment_type: { cedula: "cedula", civil: "civil", niño: "niño" }
 
-  validates :appointment_type, :appointment_time, :status, presence: true
+  validates :appointment_type, :status, presence: true
   validates :reschedulable, inclusion: { in: [true, false] }
   validate :valid_appointment_date
 
