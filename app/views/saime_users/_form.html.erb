@@ -23,7 +23,6 @@
                   max: (Date.today + 3.months).to_s, 
                   required: true %>
           </div>
-          <!--
           <div class="col-md-4">
             <%= appointment_fields.label :appointment_time, "Hora de la Cita" %>
             <%= appointment_fields.select :appointment_time, 
@@ -34,7 +33,7 @@
                   { include_blank: "Selecciona la hora" }, 
                   class: "form-control appointment-time", 
                   required: true %>
-          </div>-->
+          </div>
           <div class="col-md-3">
             <%= appointment_fields.label :appointment_type, "Tipo de Cita" %>
             <%= appointment_fields.select :appointment_type, 
@@ -59,7 +58,6 @@
           <label>Fecha de la Cita</label>
           <input type="date" name="saime_user[appointments_attributes][INDEX][appointment_date]" class="form-control appointment-date" required>
         </div>
-        <!--
         <div class="col-md-4">
           <label>Hora de la Cita</label>
           <select name="saime_user[appointments_attributes][INDEX][appointment_time]" class="form-control appointment-time" required>
@@ -75,7 +73,7 @@
             <option value="05:00 pm">05:00 pm</option>
             <option value="06:00 pm">06:00 pm</option>
           </select>
-        </div>-->
+        </div>
         <div class="col-md-3">
           <label>Tipo de Cita</label>
           <select name="saime_user[appointments_attributes][INDEX][appointment_type]" class="form-control appointment-type">

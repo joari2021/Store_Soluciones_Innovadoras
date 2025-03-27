@@ -1,7 +1,6 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <h1 class="mt-2">Citas Saime</h1>
   <%= link_to 'Nuevo Registro', new_saime_user_path, class: "btn btn-primary my-3" %>
-  <button id="btnNotificaciones">Mostrar</button>
   <script>
     $("#btnNotificaciones").click(function (){
       $.notify("Mensaje");
