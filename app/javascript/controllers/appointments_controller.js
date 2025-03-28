@@ -62,6 +62,12 @@ export default class extends Controller {
           }
           // Opcional: ocultar el elemento para indicar la eliminación
           newAppointment.style.display = "none";
+          // Quitar atributo required de todos los inputs, selects y textareas en la cita eliminada
+          newAppointment
+            .querySelectorAll("input, select, textarea")
+            .forEach((el) => {
+              el.removeAttribute("required");
+            });
         });
 
       container.appendChild(newAppointment);
@@ -79,6 +85,12 @@ export default class extends Controller {
           // Si existe, es una cita ya guardada: marca para destruir y oculta el elemento
           destroyInput.value = "1";
           appointmentElem.style.display = "none";
+          // Quitar el atributo required a todos los campos dentro de la cita eliminada
+          appointmentElem
+            .querySelectorAll("input, select, textarea")
+            .forEach((el) => {
+              el.removeAttribute("required");
+            });
         } else {
           // Si es una cita nueva, simplemente remuévela del DOM
           appointmentElem.remove();
