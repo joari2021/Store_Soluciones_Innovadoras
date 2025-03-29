@@ -12,26 +12,6 @@ const blurHeader = () => {
 };
 window.addEventListener("scroll", blurHeader);
 
-/*document.addEventListener("click", (event) => {
-  // Verificar si el elemento clickeado tiene la clase .copy
-  const link = event.target.closest(".copy");
-  if (!link) return; // Si no es un elemento .copy, salir
-
-  event.preventDefault();
-  const datoValue = link.dataset.dato;
-
-  if (datoValue) {
-    navigator.clipboard
-      .writeText(datoValue)
-      .then(() => {
-        alert("Se ha copiado al Portapapeles!");
-      })
-      .catch((err) => {
-        console.error("Falla al Copiar!", err);
-      });
-  }
-});*/
-
 document.addEventListener("click", (event) => {
   // Verificar si el elemento clickeado tiene la clase .copy
   const link = event.target.closest(".copy");

@@ -48,8 +48,8 @@ class SaimeUsersController < ApplicationController
 
   def saime_user_params
     params.require(:saime_user).permit(
-      :identification, :entry,
-      appointments_attributes: [:id, :appointment_date, :appointment_time, :appointment_type, :_destroy]
+      :identification, :entry, :temporary_status, :confirmed_status,
+      appointments_attributes: [:id, :appointment_date, :appointment_type, :reschedulable, :_destroy]
     )
   end
   

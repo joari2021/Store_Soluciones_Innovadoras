@@ -1,13 +1,39 @@
 <%= form_with(model: saime_user, local: true) do |f| %>
+  <% if saime_user.errors.any? %>
+    <div class="alert alert-danger">
+      <h4 class="alert-heading">Por favor, corrige los siguientes errores:</h4>
+      <ul>
+        <% saime_user.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
   <div class="row">
-    <div class="col-md-6 mb-3">
+    <div class="col-md-4 mb-3">
       <%= f.label :identification, "Cédula" %>
       <%= f.text_field :identification, class: "form-control", required: true %>
     </div>
-    <div class="col-md-6 mb-3">
+    <div class="col-md-4 mb-3">
       <%= f.label :entry, "Entrada" %>
       <%= f.text_field :entry, class: "form-control", required: true %>
     </div>
+    <div class="col-md-4 mb-3">
+      <%= f.label :temporary_status, "Status Usuario" %>
+      <%= f.select :temporary_status, 
+          options_for_select([["Activo", "activo"], ["Error en clave", "error en clave"]], selected: saime_user.temporary_status), 
+          {}, 
+          class: "form-control" %>
+    </div>
+    <%if Current.user&.admin?%>
+      <div class="col-md-4 mb-3">
+        <%= f.label :confirmed_status, "Status Confirmado Usuario" %>
+        <%= f.select :confirmed_status, 
+          options_for_select([["Activo", "activo"], ["Bad Request", "bad request"]], selected: saime_user.confirmed_status), 
+          {}, 
+          class: "form-control" %>
+      </div>
+    <%end%>
   </div>
   <h4>Citas</h4>
   <div id="appointments-container">
@@ -18,29 +44,21 @@
             <%= appointment_fields.hidden_field :_destroy %>
             <%= appointment_fields.label :appointment_date, "Fecha de la Cita" %>
             <%= appointment_fields.date_field :appointment_date, 
-                  class: "form-control appointment-date", 
-                  min: Date.today.to_s, 
-                  max: (Date.today + 3.months).to_s, 
-                  required: true %>
+                class: "form-control appointment-date", 
+                min: Date.today.to_s, 
+                max: (Date.today + 3.months).to_s, 
+                required: true %>
           </div>
-          <!--
-          <div class="col-md-4">
-            <%= appointment_fields.label :appointment_time, "Hora de la Cita" %>
-            <%= appointment_fields.select :appointment_time, 
-                  options_for_select(
-                    ["08:00 am", "09:00 am", "10:00 am", "11:00 am", "01:00 pm", "02:00 pm", "03:00 pm", "04:00 pm", "05:00 pm", "06:00 pm"], 
-                    appointment_fields.object.appointment_time
-                  ), 
-                  { include_blank: "Selecciona la hora" }, 
-                  class: "form-control appointment-time", 
-                  required: true %>
-          </div>-->
           <div class="col-md-3">
             <%= appointment_fields.label :appointment_type, "Tipo de Cita" %>
             <%= appointment_fields.select :appointment_type, 
-                  options_for_select([["Cédula", "cedula"], ["Civil", "civil"], ["Niño", "niño"]], appointment_fields.object.appointment_type || "cedula"), 
-                  {}, 
-                  class: "form-control appointment-type" %>
+                options_for_select([["Cédula", "cedula"], ["Civil", "civil"], ["Niño", "niño"]], appointment_fields.object.appointment_type || "cedula"), 
+                {}, 
+                class: "form-control appointment-type" %>
+          </div>
+          <div class="col-md-3 form-check">
+            <%= appointment_fields.check_box :reschedulable, class: "form-check-input" %>
+            <%= appointment_fields.label :reschedulable, "¿Es reprogramable?", class: "form-check-label" %>
           </div>
           <div class="col-md-1"><button type="button" class="btn btn-danger remove-appointment ms-2 mt-3">✖</button></div>
         </div>
@@ -49,7 +67,7 @@
   </div>
   <button type="button" id="add-appointment" class="btn btn-primary mt-3">Añadir otra cita</button>
   <div class="mt-4">
-    <%= f.submit "Guardar", class: "btn btn-success" %>
+    <%= f.submit "Guardar", class: "btn btn-success", id:"btnFormSaime" %>
     <%= link_to "Volver", saime_users_path, class: "btn btn-secondary ms-2" %>
   </div>
   <!-- Template para nueva cita -->
@@ -60,23 +78,6 @@
           <label>Fecha de la Cita</label>
           <input type="date" name="saime_user[appointments_attributes][INDEX][appointment_date]" class="form-control appointment-date" required>
         </div>
-        <!--
-        <div class="col-md-4">
-          <label>Hora de la Cita</label>
-          <select name="saime_user[appointments_attributes][INDEX][appointment_time]" class="form-control appointment-time" required>
-            <option value="">Seleccione una hora</option>
-            <option value="08:00 am">08:00 am</option>
-            <option value="09:00 am">09:00 am</option>
-            <option value="10:00 am">10:00 am</option>
-            <option value="11:00 am">11:00 am</option>
-            <option value="01:00 pm">01:00 pm</option>
-            <option value="02:00 pm">02:00 pm</option>
-            <option value="03:00 pm">03:00 pm</option>
-            <option value="04:00 pm">04:00 pm</option>
-            <option value="05:00 pm">05:00 pm</option>
-            <option value="06:00 pm">06:00 pm</option>
-          </select>
-        </div>-->
         <div class="col-md-3">
           <label>Tipo de Cita</label>
           <select name="saime_user[appointments_attributes][INDEX][appointment_type]" class="form-control appointment-type">
@@ -84,6 +85,10 @@
             <option value="civil">Civil</option>
             <option value="niño">Niño</option>
           </select>
+        </div>
+        <div class="col-md-3 form-check">
+          <input type="checkbox" name="saime_user[appointments_attributes][INDEX][reschedulable]" class="form-check-input" checked>
+          <label class="form-check-label">¿Es reprogramable?</label>
         </div>
         <div class="col-md-1"><button type="button" class="btn btn-danger remove-appointment ms-2 mt-3">✖</button></div>
       </div>
