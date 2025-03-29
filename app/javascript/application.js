@@ -32,7 +32,7 @@ document.addEventListener("click", (event) => {
 
         // Cambiar el contenido del enlace a "Copiado" con estilo en letras pequeñas y color blanco.
         link.innerHTML =
-          '<span class="fs-6 text-white fst-italic">Copiado!</span>';
+          '<span class="fs-6 text-black fst-italic">Copiado!</span>';
 
         // Después de 5 segundos, restaurar el contenido original y remover la clase
         setTimeout(() => {

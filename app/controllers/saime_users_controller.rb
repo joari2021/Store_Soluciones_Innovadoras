@@ -39,7 +39,6 @@ class SaimeUsersController < ApplicationController
   def destroy
   end
 
-
   private
 
   def set_saime_user

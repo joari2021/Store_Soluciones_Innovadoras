@@ -1,8 +1,8 @@
-<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#appointmentModal">
+<button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#appointmentModal">
   Ver Datos
 </button>
 <!-- Modal -->
-<div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="appointmentModalLabel" aria-hidden="true" data-controller="modal">
+<div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="appointmentModalLabel" aria-hidden="true" data-controller="datos-citas">
   <div class="modal-dialog modal-dialog-scrollable modal-lg">
     <div class="modal-content">
       <div class="modal-header bg-dark text-info">
@@ -10,11 +10,247 @@
         <button type="button" class="btn-close bg-info" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" id="modalBody" style="">
-        ""Hola""
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <div class="accordion" id="accordionExample">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                Cedulación de Niño, Niña o Adolescente
+              </button>
+            </h2>
+            <div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row">
+                  <div class="col-12 mb-2">
+                    <h6 class="fw-bold text-primary">Datos de Acta de Nacimiento</h6>
+                    <strong>Estado:</strong> Anzoátegui<br>
+                    <strong>Municipio:</strong> Anaco<br>
+                    <strong>Parroquia:</strong> Anaco<br>
+                    <strong>Registro Civil:</strong> 1era Opcion<br>
+                    <strong>Libro de Registro:</strong> Nacimiento<br>
+                    <strong>Nro de Acta:</strong> <span class="number-aleatorio"></span>
+                    <button data-action="click->datos-citas#generateRandomNumber"><i class="ri-restart-fill text-info fs-5"></i></button>
+                    <a href="#" class="copy copy-number fs-5" data-dato="">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Fecha de Nacimiento:</strong> Elegir cualquier dia del mes que aparezcan en el calendario<br>
+                    <strong>Año de Registro:</strong> Primer Año de la lista<br>
+                  </div>
+                  <hr>
+                  <div class="col-6 my-2">
+                    <h6 class="fw-bold text-primary">Datos de Identidad</h6>
+                    <strong>Primer Nombre:</strong> <span class="name-aleatorio"></span>
+                    <button data-action="click->datos-citas#generateRandomData"><i class="ri-restart-fill text-info fs-5"></i></button>
+                    <a href="#" class="copy copy-nombre fs-5" data-dato="">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Segundo Nombre:</strong> <span class="fst-italic">No colocar</span><br>
+                    <strong>Primer Apellido:</strong> <span class="last-name-aleatorio"></span>
+                    <button data-action="click->datos-citas#generateRandomData"><i class="ri-restart-fill text-info fs-5"></i></button>
+                    <a href="#" class="copy copy-apellido fs-5" data-dato="">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Segundo Apellido:</strong> <span class="fst-italic">No colocar</span><br>
+                    <strong>Sexo:</strong> Elegir Segun el Nombre<br>
+                  </div>
+                  <div class="col-6 my-2">
+                    <h6 class="fw-bold text-primary">Rasgos Personales</h6>
+                    <strong>Color de Ojos:</strong> Ambar<br>
+                    <strong>Color de Cabello:</strong> Castaño<br>
+                    <strong>Estatura:</strong> 110
+                    <a href="#" class="copy fs-5" data-dato="110">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Peso:</strong> 35
+                    <a href="#" class="copy fs-5" data-dato="35">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Color de Piel:</strong> Clara<br>
+                    <strong>Tipo de Sangre:</strong> A+<br>
+                    <strong>Señas Particulares:</strong> <span class="fst-italic">No colocar</span><br>
+                    <strong>Formato de Rostro:</strong> <span class="fst-italic">No colocar</span><br>
+                  </div>
+                  <hr>
+                  <div class="col-6 my-2">
+                    <h6 class="fw-bold text-primary">Datos de Acta de Nacimiento</h6>
+                    <strong>Estado:</strong> Anzoátegui<br>
+                    <strong>Municipio:</strong> Anaco<br>
+                    <strong>Parroquia:</strong> Anaco<br>
+                    <strong>Registro Civil:</strong> 1era Opcion<br>
+                    <strong>Libro de Registro:</strong> Nacimiento<br>
+                    <strong>Año de Registro:</strong> <span class="fst-italic">Dejar como esta</span><br>
+                    <strong>Nro de Acta:</strong> <span class="fst-italic">Dejar como esta</span><br>
+                  </div>
+                  <div class="col-6 my-2">
+                    <h6 class="fw-bold text-primary">Datos del Centro de Salud de Nacimiento</h6>
+                    <strong>Pais:</strong> Venezuela<br>
+                    <strong>Estado:</strong> Anzoátegui<br>
+                    <strong>Municipio:</strong> Anaco<br>
+                    <strong>Parroquia:</strong> Anaco<br>
+                    <strong>Ciudad o Localidad:</strong> Anaco
+                    <a href="#" class="copy fs-5" data-dato="Anaco">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Lugar del Parto:</strong> Parto Extrahospitalario<br>
+                  </div>
+                  <hr>
+                  <div class="col-12 my-2">
+                    <h6 class="fw-bold text-primary">Datos de Dirección</h6>
+                    <div class="row">
+                      <div class="col-6">
+                        <strong>Pais:</strong> Venezuela<br>
+                        <strong>Estado:</strong> Anzoátegui<br>
+                        <strong>Municipio:</strong> Anaco<br>
+                        <strong>Parroquia:</strong> Anaco<br>
+                        <strong>Ciudad o Localidad:</strong> Anaco
+                        <a href="#" class="copy fs-5" data-dato="Anaco">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Codigo Postal:</strong> <span class="fst-italic">No colocar</span><br>
+                        <strong>Tipo de ubicación:</strong> Barrio<br>
+                        <strong>Ubicación:</strong> Centro
+                        <a href="#" class="copy fs-5" data-dato="Centro">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                      </div>
+                      <div class="col-6">
+                        <strong>Tipo de Via:</strong> Avenida<br>
+                        <strong>Via:</strong> Norte
+                        <a href="#" class="copy fs-5" data-dato="Norte">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Tipo de vivienda:</strong> Casa<br>
+                        <strong>Nombre de la Vivienda:</strong> Casa
+                        <a href="#" class="copy fs-5" data-dato="Casa">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Piso:</strong> Numero<br>
+                        <strong>Número:</strong> sn
+                        <a href="#" class="copy fs-5" data-dato="sn">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Codigo Celular:</strong> (0412)<br>
+                        <strong>Número Celular:</strong> 4125057
+                        <a href="#" class="copy fs-5" data-dato="4125057">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Telefono Local:</strong> <span class="fst-italic">No colocar</span><br>
+                      </div>
+                    </div>
+                  </div>
+                  <hr>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                Renovación Cedula Mayor de Edad
+              </button>
+            </h2>
+            <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row">
+                  <div class="col-12 my-2">
+                    <h6 class="fw-bold text-primary">Rasgos Personales</h6>
+                    <strong>Color de Ojos:</strong> Ambar<br>
+                    <strong>Color de Cabello:</strong> Castaño<br>
+                    <strong>Estatura:</strong> 150
+                    <a href="#" class="copy fs-5" data-dato="150">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Peso:</strong> 70
+                    <a href="#" class="copy fs-5" data-dato="70">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Color de Piel:</strong> Clara<br>
+                    <strong>Tipo de Sangre:</strong> A+<br>
+                    <strong>Señas Particulares:</strong> <span class="fst-italic">No colocar</span><br>
+                    <strong>Formato de Rostro:</strong> <span class="fst-italic">No colocar</span><br>
+                  </div>
+                  <hr>
+                  <div class="col-6 mb-2">
+                    <h6 class="fw-bold text-primary">Datos de Acta de Nacimiento</h6>
+                    <strong>Estado:</strong> Anzoátegui<br>
+                    <strong>Municipio:</strong> Anaco<br>
+                    <strong>Parroquia:</strong> Anaco<br>
+                    <strong>Registro Civil:</strong> 1era Opcion<br>
+                    <strong>Libro de Registro:</strong> Nacimiento<br>
+                    <strong>Año de Registro:</strong> Elegir Ultimo Año de la lista<br>
+                    <strong>Nro de Acta:</strong> <span class="number-aleatorio-two"></span>
+                    <button data-action="click->datos-citas#generateRandomNumber"><i class="ri-restart-fill text-info fs-5"></i></button>
+                    <a href="#" class="copy copy-number-two fs-5" data-dato="">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                  </div>
+                  <div class="col-6 my-2">
+                    <h6 class="fw-bold text-primary">Datos del Centro de Salud de Nacimiento</h6>
+                    <strong>Pais:</strong> Venezuela<br>
+                    <strong>Estado:</strong> Anzoátegui<br>
+                    <strong>Municipio:</strong> Anaco<br>
+                    <strong>Parroquia:</strong> Anaco<br>
+                    <strong>Ciudad o Localidad:</strong> Anaco
+                    <a href="#" class="copy fs-5" data-dato="Anaco">
+                      <i class="ri-file-copy-line"></i>
+                    </a><br>
+                    <strong>Lugar del Parto:</strong> Parto Extrahospitalario<br>
+                  </div>
+                  <hr>
+                  <div class="col-12 my-2">
+                    <h6 class="fw-bold text-primary">Datos de Dirección</h6>
+                    <div class="row">
+                      <div class="col-6">
+                        <strong>Pais:</strong> Venezuela<br>
+                        <strong>Estado:</strong> Anzoátegui<br>
+                        <strong>Municipio:</strong> Anaco<br>
+                        <strong>Parroquia:</strong> Anaco<br>
+                        <strong>Ciudad o Localidad:</strong> Anaco
+                        <a href="#" class="copy fs-5" data-dato="Anaco">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Codigo Postal:</strong> <span class="fst-italic">No colocar</span><br>
+                        <strong>Tipo de ubicación:</strong> Barrio<br>
+                        <strong>Ubicación:</strong> Centro
+                        <a href="#" class="copy fs-5" data-dato="Centro">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                      </div>
+                      <div class="col-6">
+                        <strong>Tipo de Via:</strong> Avenida<br>
+                        <strong>Via:</strong> Norte
+                        <a href="#" class="copy fs-5" data-dato="Norte">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Tipo de vivienda:</strong> Casa<br>
+                        <strong>Nombre de la Vivienda:</strong> Casa
+                        <a href="#" class="copy fs-5" data-dato="Casa">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Piso:</strong> Numero<br>
+                        <strong>Número:</strong> sn
+                        <a href="#" class="copy fs-5" data-dato="sn">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Codigo Celular:</strong> (0412)<br>
+                        <strong>Número Celular:</strong> 4125057
+                        <a href="#" class="copy fs-5" data-dato="4125057">
+                          <i class="ri-file-copy-line"></i>
+                        </a><br>
+                        <strong>Telefono Local:</strong> <span class="fst-italic">No colocar</span><br>
+                      </div>
+                    </div>
+                  </div>
+                  <hr>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+    </div>
   </div>
+</div>
 </div>
