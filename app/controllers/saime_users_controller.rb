@@ -3,7 +3,7 @@ class SaimeUsersController < ApplicationController
   def index
     @saime_users = SaimeUser
       .left_joins(:appointments)
-      .select("saime_users.*, MIN(CASE WHEN appointments.status = 'activa' THEN appointments.appointment_date ELSE NULL END) as nearest_active_date")
+      .select("saime_users.*, MIN(CASE WHEN appointments.status = 'disponible' THEN appointments.appointment_date ELSE NULL END) as nearest_active_date")
       .group("saime_users.id")
       .order("nearest_active_date ASC NULLS LAST")
   end
@@ -48,7 +48,7 @@ class SaimeUsersController < ApplicationController
   def saime_user_params
     params.require(:saime_user).permit(
       :identification, :entry, :temporary_status, :confirmed_status,
-      appointments_attributes: [:id, :appointment_date, :appointment_type, :reschedulable, :_destroy]
+      appointments_attributes: [:id, :appointment_date, :appointment_type, :status, :client, :_destroy]
     )
   end
   

@@ -40,7 +40,7 @@
     <%= f.fields_for :appointments do |appointment_fields| %>
       <div class="appointment border p-3 mb-3 text-black">
         <div class="row">
-          <div class="col-md-4">
+          <div class="col-md-2">
             <%= appointment_fields.hidden_field :_destroy %>
             <%= appointment_fields.label :appointment_date, "Fecha de la Cita" %>
             <%= appointment_fields.date_field :appointment_date, 
@@ -56,10 +56,22 @@
                 {}, 
                 class: "form-control appointment-type" %>
           </div>
-          <div class="col-md-3 form-check">
-            <%= appointment_fields.check_box :reschedulable, class: "form-check-input" %>
-            <%= appointment_fields.label :reschedulable, "¿Es reprogramable?", class: "form-check-label" %>
-          </div>
+          <% if @saime_user.persisted? %>
+            <!-- Esto solo se mostrará en la vista edit -->
+            <div class="col-md-3">
+              <%= appointment_fields.label :status, "Status" %>
+              <%= appointment_fields.select :status, 
+                options_for_select([["Disponible", "disponible"], ["Apartada", "apartada"], ["Apartada y Pagada", "pagada"], ["No programable", "inprogramable"]], selected: appointment_fields.object.status), 
+                {}, 
+                class: "form-control select-status", 
+                data: { action: "change->appointment#toggleClient" } %>
+            </div>
+            <!-- Contenedor para el campo Cliente -->
+            <div class="col-md-3 cliente-field-container" style="<%= (appointment_fields.object.status == 'apartada' || appointment_fields.object.status == 'pagada') ? 'display:block;' : 'display:none;' %>">
+              <%= appointment_fields.label :client, "Cliente" %>
+              <%= appointment_fields.text_field :client, class: "form-control" %>
+            </div>
+          <% end %>
           <div class="col-md-1"><button type="button" class="btn btn-danger remove-appointment ms-2 mt-3">✖</button></div>
         </div>
       </div>
@@ -74,7 +86,7 @@
   <template id="appointment-template">
     <div class="appointment border p-3 mb-3 text-black">
       <div class="row">
-        <div class="col-md-4">
+        <div class="col-md-2">
           <label>Fecha de la Cita</label>
           <input type="date" name="saime_user[appointments_attributes][INDEX][appointment_date]" class="form-control appointment-date" required>
         </div>
@@ -85,10 +97,6 @@
             <option value="civil">Civil</option>
             <option value="niño">Niño</option>
           </select>
-        </div>
-        <div class="col-md-3 form-check">
-          <input type="checkbox" name="saime_user[appointments_attributes][INDEX][reschedulable]" class="form-check-input" checked>
-          <label class="form-check-label">¿Es reprogramable?</label>
         </div>
         <div class="col-md-1"><button type="button" class="btn btn-danger remove-appointment ms-2 mt-3">✖</button></div>
       </div>

@@ -12,7 +12,6 @@ export default class extends Controller {
       saveButton.addEventListener("click", (event) => {
         event.preventDefault(); // Prevenir el envío inmediato del formulario
         const form = saveButton.closest("form");
-        console.log(form);
 
         if (form) {
           // Quitar los atributos min, max y required de todos los campos de fecha dentro del formulario
@@ -38,6 +37,23 @@ export default class extends Controller {
           input.max = maxDate.toISOString().split("T")[0];
           input.required = true;
         });
+      }
+    });
+
+    // Se obtienen todas las citas dentro del contenedor
+    const appointmentRows = document.querySelectorAll(".appointment");
+
+    appointmentRows.forEach((row) => {
+      // Buscamos el select por la clase "select-status"
+      const selectStatus = row.querySelector(".select-status");
+
+      if (selectStatus) {
+        // Agregamos el listener para el evento change
+        selectStatus.addEventListener("change", (event) => {
+          this.toggleClient(event.currentTarget);
+        });
+        // Evaluamos el estado actual al cargar la vista (útil en edit)
+        this.toggleClient(selectStatus);
       }
     });
   }
@@ -131,5 +147,26 @@ export default class extends Controller {
       .forEach((el) => {
         el.removeAttribute("required");
       });
+  }
+
+  //Funcion para ocultar y mostrar cliente de cita
+  toggleClient(selectElement) {
+    const selectedStatus = selectElement.value;
+    // Obtenemos la fila de la cita a la que pertenece el select
+    const row = selectElement.closest(".appointment");
+    if (!row) return;
+
+    // Buscamos el contenedor del campo "Cliente" dentro de la fila
+    const clientContainer = row.querySelector(".cliente-field-container");
+    if (!clientContainer) return;
+
+    // Si el status es "apartada" o "pagada" se muestra el campo; de lo contrario se oculta y limpia su valor
+    if (selectedStatus === "apartada" || selectedStatus === "pagada") {
+      clientContainer.style.display = "block";
+    } else {
+      clientContainer.style.display = "none";
+      const inputClient = clientContainer.querySelector("input");
+      if (inputClient) inputClient.value = "";
+    }
   }
 }

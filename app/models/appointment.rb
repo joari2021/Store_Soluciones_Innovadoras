@@ -4,7 +4,7 @@ class Appointment < ApplicationRecord
   enum appointment_type: { cedula: "cedula", civil: "civil", niño: "niño" }
 
   validates :appointment_type, :appointment_date, :status, presence: true
-  validates :reschedulable, inclusion: { in: [true, false] }
+=begin
   validate :valid_appointment_date
 
   def valid_appointment_date
@@ -17,4 +17,5 @@ class Appointment < ApplicationRecord
       errors.add(:appointment_date, "must be within the next three months")
     end
   end
+=end
 end

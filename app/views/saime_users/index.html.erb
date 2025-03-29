@@ -32,16 +32,6 @@
                   </p>
                   <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
                   <p class="d-flex justify-content-between align-items-center"><strong>Status:</strong> <span class="ms-auto"><%= appointment.status %></span></p>
-                  <p class="d-flex justify-content-between align-items-center">
-                    <strong>Reprogramable:</strong>
-                    <span class="ms-auto">
-                      <% if appointment.reschedulable %>
-                        <i class="ri-checkbox-circle-fill text-success fs-3"></i>
-                      <% else %>
-                        <i class="ri-close-circle-fill text-danger fs-3"></i>
-                      <% end %>
-                    </span>
-                  </p class="d-flex justify-content-between align-items-center">
                 </li>
               <% end %>
             </ul>
