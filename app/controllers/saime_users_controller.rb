@@ -1,11 +1,30 @@
 class SaimeUsersController < ApplicationController
   before_action :set_saime_user, only: %i[show edit update destroy]
   def index
+=begin
     @saime_users = SaimeUser
       .left_joins(:appointments)
       .select("saime_users.*, MIN(CASE WHEN appointments.status = 'disponible' THEN appointments.appointment_date ELSE NULL END) as nearest_active_date")
       .group("saime_users.id")
       .order("nearest_active_date ASC NULLS LAST")
+=end
+    filter = params[:filter]
+    @saime_users = case filter
+    when "disponible"
+      SaimeUser.with_available_appointments
+    when "inprogramable"
+      SaimeUser.with_non_schedulable_appointments
+    when "apartadas"
+      SaimeUser.with_reserved_appointments
+    when "temporarily_blocked"
+      SaimeUser.temporarily_blocked
+    when "blocked"
+      SaimeUser.blocked
+    when "por_agendar"
+      SaimeUser.without_appointments
+    else
+      SaimeUser.all
+    end
   end
   def new
     @saime_user = SaimeUser.new
