@@ -20,8 +20,10 @@ class SaimeUsersController < ApplicationController
       SaimeUser.temporarily_blocked
     when "blocked"
       SaimeUser.blocked
-    when "por_agendar"
+    when "registros_disponibles"
       SaimeUser.without_appointments
+    when "por_agendar"
+      Current.user ? SaimeUser.where(user_id: Current.user.id, appointment_registration: false) : SaimeUser.none
     else
       SaimeUser.all
     end
@@ -57,6 +59,18 @@ class SaimeUsersController < ApplicationController
 
   def destroy
   end
+
+  def assign
+    selected_ids = params[:selected_saime_users] || []
+    if selected_ids.any?
+      SaimeUser.where(id: selected_ids).update_all(user_id: Current.user.id)
+      flash[:notice] = "Usuarios asignados correctamente."
+    else
+      flash[:alert] = "No se seleccionó ningún usuario."
+    end
+    redirect_to saime_users_path
+  end
+  
 
   private
 

@@ -16,6 +16,9 @@ Rails.application.routes.draw do
   root "peliculas#index" # ← Esto define la ruta de inicio
 
   resources :saime_users do
+    collection do
+      post :assign
+    end
     resources :appointments, only: [:index, :new, :create]
   end
 

@@ -3,7 +3,7 @@
   <%= link_to 'Nuevo Registro', new_saime_user_path, class: "btn btn-primary me-3" %>
   <%= render "modal-datos-citas"%>
 </div>
-<nav class="navbar navbar-expand-lg navbar-light bg-light mb-3">
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
   <div class="container-fluid">
     <a class="navbar-brand" href="#">Filtros de Citas</a>
     <div class="collapse navbar-collapse">
@@ -24,52 +24,68 @@
           <%= link_to "Usuarios Bloqueados", saime_users_path(filter: "blocked"), class: "nav-link" %>
         </li>
         <li class="nav-item">
+          <%= link_to "Registros Disponibles", saime_users_path(filter: "registros_disponibles"), class: "nav-link" %>
+        </li>
+        <li class="nav-item">
           <%= link_to "Citas por Agendar", saime_users_path(filter: "por_agendar"), class: "nav-link" %>
         </li>
       </ul>
     </div>
   </div>
 </nav>
-<div class="row">
-  <% @saime_users.each do |user| %>
-    <div class="col-md-2 mb-4">
-      <div class="card h-100">
-        <div class="card-body bg-success">
-          <h5 class="card-title d-flex justify-content-between align-items-center">
-            Cédula: <%= user.identification %>
-            <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
-              <i class="ri-file-copy-line"></i>
-            </a>
-          </h5>
-          <p class="card-text d-flex justify-content-between align-items-center">
-            Entrada: <span class="masked-entry ms-2">*************</span>
-            <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
-              <i class="ri-file-copy-line"></i>
-            </a>
-          </p>
-          <hr>
-          <h6 class="fw-bold">CITAS:</h6>
-          <% if user.appointments.any? %>
-            <ul class="list-group list-group-flush">
-              <% user.appointments.each do |appointment| %>
-                <li class="appointment text-black ">
-                  <p class="d-flex justify-content-between align-items-center">
-                    <strong>Fecha:</strong>
-                    <span class="ms-auto"><%= appointment.appointment_date.strftime("%d/%m/%Y") %></span>
-                  </p>
-                  <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
-                  <p class="d-flex justify-content-between align-items-center"><strong>Status:</strong> <span class="ms-auto"><%= appointment.status %></span></p>
-                </li>
-              <% end %>
-            </ul>
-          <% else %>
-            <p class="fst-italic">¡No hay Citas Registradas!</p>
-          <% end %>
-        </div>
-        <div class="card-footer text-end">
-          <%= link_to "Edit", edit_saime_user_path(user), class: "btn btn-primary btn-sm" %>
+<%= form_with url: assign_saime_users_path, method: :post, local: true do %>
+  <div class="row">
+    <% if params[:filter] == "registros_disponibles" %>
+      <div class="mb-3">
+        <%= submit_tag "Asignar seleccionados", class: "btn btn-success" %>
+      </div>
+    <% end %>
+    <% @saime_users.each do |user| %>
+      <div class="col-md-2 mb-4">
+        <div class="card h-100">
+          <div class="card-body bg-success">
+            <% if params[:filter] == "registros_disponibles" %>
+              <div class="form-check">
+                <%= check_box_tag "selected_saime_users[]", user.id, false, class: "form-check-input" %>
+                <%= label_tag "selected_saime_users_#{user.id}", "Seleccionar", class: "form-check-label" %>
+              </div>
+            <% end %>
+            <h5 class="card-title d-flex justify-content-between align-items-center">
+              Cédula: <%= user.identification %>
+              <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
+                <i class="ri-file-copy-line"></i>
+              </a>
+            </h5>
+            <p class="card-text d-flex justify-content-between align-items-center">
+              Entrada: <span class="masked-entry ms-2">*************</span>
+              <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
+                <i class="ri-file-copy-line"></i>
+              </a>
+            </p>
+            <hr>
+            <h6 class="fw-bold">CITAS:</h6>
+            <% if user.appointments.any? %>
+              <ul class="list-group list-group-flush">
+                <% user.appointments.each do |appointment| %>
+                  <li class="appointment text-black ">
+                    <p class="d-flex justify-content-between align-items-center">
+                      <strong>Fecha:</strong>
+                      <span class="ms-auto"><%= appointment.appointment_date.strftime("%d/%m/%Y") %></span>
+                    </p>
+                    <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
+                    <p class="d-flex justify-content-between align-items-center"><strong>Status:</strong> <span class="ms-auto"><%= appointment.status %></span></p>
+                  </li>
+                <% end %>
+              </ul>
+            <% else %>
+              <p class="fst-italic">¡No hay Citas Registradas!</p>
+            <% end %>
+          </div>
+          <div class="card-footer text-end">
+            <%= link_to "Edit", edit_saime_user_path(user), class: "btn btn-primary btn-sm" %>
+          </div>
         </div>
       </div>
-    </div>
-  <% end %>
-</div>
+    <% end %>
+  </div>
+<%end%>
