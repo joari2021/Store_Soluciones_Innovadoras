@@ -9,60 +9,122 @@
     <div class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <%= link_to "Citas Disponibles", saime_users_path(filter: "disponible"), class: "nav-link" %>
+          <%= link_to "Citas Disponibles", saime_users_path, class: "nav-link" %>
         </li>
-        <li class="nav-item">
-          <%= link_to "Citas No Programables", saime_users_path(filter: "inprogramable"), class: "nav-link" %>
-        </li>
-        <li class="nav-item">
-          <%= link_to "Citas Apartadas", saime_users_path(filter: "apartadas"), class: "nav-link" %>
-        </li>
-        <li class="nav-item">
-          <%= link_to "Usuarios Bloqueados Temporalmente", saime_users_path(filter: "temporarily_blocked"), class: "nav-link" %>
-        </li>
-        <li class="nav-item">
-          <%= link_to "Usuarios Bloqueados", saime_users_path(filter: "blocked"), class: "nav-link" %>
-        </li>
-        <li class="nav-item">
-          <%= link_to "Registros Disponibles", saime_users_path(filter: "registros_disponibles"), class: "nav-link" %>
-        </li>
-        <li class="nav-item">
-          <%= link_to "Citas por Agendar", saime_users_path(filter: "por_agendar"), class: "nav-link" %>
-        </li>
+        <%if Current.user.admin?%>
+          <li class="nav-item">
+            <%= link_to "Citas No Programables", saime_users_path(filter: "inprogramable"), class: "nav-link" %>
+          </li>
+          <li class="nav-item">
+            <%= link_to saime_users_path(filter: "apartadas"), class: "nav-link" do %>
+              Citas Apartadas 
+              <span class="badge bg-primary" style="position: relative; top: -7px;">
+                <%= Appointment.where(status: ['apartada', 'pagada'], saime_user_id: SaimeUser.with_reserved_appointments.select(:id)).count %>
+              </span>
+            <% end %>
+          </li>
+          <li class="nav-item">
+            <%= link_to saime_users_path(filter: "temporarily_blocked"), class: "nav-link" do %>
+              Usuarios Bloqueados Temporalmente 
+              <span class="badge bg-warning" style="position: relative; top: -7px;">
+                <%= SaimeUser.temporarily_blocked.count %>
+              </span>
+            <% end %>
+          </li>
+          <li class="nav-item">
+            <%= link_to "Usuarios Bloqueados", saime_users_path(filter: "blocked"), class: "nav-link" %>
+          </li>
+        <%end%>
+        <%if Current.user.personal_saime?%>
+          <li class="nav-item">
+            <%= link_to saime_users_path(filter: "registros_disponibles"), class: "nav-link" do %>
+              Registros Disponibles 
+              <span class="badge bg-info" style="position: relative; top: -7px;">
+                <%= SaimeUser.without_appointments.to_a.size %>
+              </span>
+            <% end %>
+          </li>
+          <li class="nav-item">
+            <%= link_to saime_users_path(filter: "por_agendar"), class: "nav-link" do %>
+              Citas por Agendar 
+              <span class="badge bg-success" style="position: relative; top: -7px;">
+                <%= Current.user ? SaimeUser.where(user_id: Current.user.id, appointment_registration: false).count : 0 %>
+              </span>
+            <% end %>
+          </li>
+        <%end%>
       </ul>
     </div>
   </div>
 </nav>
+<% if params[:filter].blank? %>
+  <div class="card p-3 mb-4 shadow-sm">
+    <h6 class="mb-1 text-black">Buscar Citas por Rango de Fechas</h6>
+    <%= form_with url: saime_users_path, method: :get, local: true, html: { id: "search-form" } do %>
+      <input type="hidden" name="filter" value="disponible">
+      <div class="row">
+        <div class="col-md-3">
+          <%= label_tag :start_date, "Desde:" %>
+          <%= date_field_tag :start_date, params[:start_date], 
+        class: "form-control", 
+        min: Date.tomorrow, 
+        max: (Date.today + 1.month) %>
+        </div>
+        <div class="col-md-3">
+          <%= label_tag :end_date, "Hasta:" %>
+          <%= date_field_tag :end_date, params[:end_date], 
+        class: "form-control", 
+        min: Date.tomorrow, 
+        max: (Date.today + 1.month) %>
+        </div>
+        <div class="col-md-2 d-flex align-items-end">
+          <%= submit_tag "Buscar", class: "btn btn-primary" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>
 <%= form_with url: assign_saime_users_path, method: :post, local: true do %>
   <div class="row">
-    <% if params[:filter] == "registros_disponibles" %>
-      <div class="mb-3">
-        <%= submit_tag "Asignar seleccionados", class: "btn btn-success" %>
-      </div>
+    <% if params[:filter] == "registros_disponibles" && Current.user.personal_saime? %>
+      <%if SaimeUser.without_appointments.to_a.size > 0%>
+        <div class="mb-3">
+          <%= submit_tag "Asignar seleccionados", class: "btn btn-success" %>
+        </div>
+      <%else%>
+        <div class="bg-success fst-italic p-5 text-center">No hay Registros Disponibles</div>
+      <%end%>
     <% end %>
     <% @saime_users.each do |user| %>
       <div class="col-md-2 mb-4">
         <div class="card h-100">
+          <%if Current.user.admin? || params[:filter] == "por_agendar" && Current.user.personal_saime?%>
+            <div class="card-header text-end">
+              <%= link_to "Editar", edit_saime_user_path(user), class: "btn btn-primary btn-sm" %>
+            </div>
+          <%end%>
           <div class="card-body bg-success">
-            <% if params[:filter] == "registros_disponibles" %>
+            <% if params[:filter] == "registros_disponibles" && Current.user.personal_saime? %>
               <div class="form-check">
                 <%= check_box_tag "selected_saime_users[]", user.id, false, class: "form-check-input" %>
                 <%= label_tag "selected_saime_users_#{user.id}", "Seleccionar", class: "form-check-label" %>
               </div>
             <% end %>
-            <h5 class="card-title d-flex justify-content-between align-items-center">
-              Cédula: <%= user.identification %>
-              <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
-                <i class="ri-file-copy-line"></i>
-              </a>
-            </h5>
-            <p class="card-text d-flex justify-content-between align-items-center">
-              Entrada: <span class="masked-entry ms-2">*************</span>
-              <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
-                <i class="ri-file-copy-line"></i>
-              </a>
-            </p>
-            <hr>
+            <% if Current.user.admin? || Current.user.personal_saime? && params[:filter] == "por_agendar"%>
+              <h6 class="card-title d-flex justify-content-between align-items-center">
+                Cédula: <%= user.identification %>
+                <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
+                  <i class="ri-file-copy-line"></i>
+                </a>
+              </h6>
+              <p class="card-text d-flex justify-content-between align-items-center">
+                Entrada: <span class="masked-entry ms-2">*************</span>
+                <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
+                  <i class="ri-file-copy-line"></i>
+                </a>
+              </p>
+              <hr>
+            <%end%>
             <h6 class="fw-bold">CITAS:</h6>
             <% if user.appointments.any? %>
               <ul class="list-group list-group-flush">
@@ -73,16 +135,24 @@
                       <span class="ms-auto"><%= appointment.appointment_date.strftime("%d/%m/%Y") %></span>
                     </p>
                     <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
-                    <p class="d-flex justify-content-between align-items-center"><strong>Status:</strong> <span class="ms-auto"><%= appointment.status %></span></p>
+                    <p class="d-flex justify-content-between align-items-center">
+                      <strong>Status:</strong>
+                      <span class="badge ms-auto 
+                        <%= case appointment.status
+                          when 'disponible' then 'bg-success'
+                          when 'apartada', 'pagada' then 'bg-danger'
+                          when 'inprogramable' then 'bg-secondary'
+                          else 'bg-dark' # Color por defecto si hay otros estados
+                        end %>">
+                        <%= appointment.status.capitalize %>
+                      </span>
+                    </p>
                   </li>
                 <% end %>
               </ul>
             <% else %>
               <p class="fst-italic">¡No hay Citas Registradas!</p>
             <% end %>
-          </div>
-          <div class="card-footer text-end">
-            <%= link_to "Edit", edit_saime_user_path(user), class: "btn btn-primary btn-sm" %>
           </div>
         </div>
       </div>

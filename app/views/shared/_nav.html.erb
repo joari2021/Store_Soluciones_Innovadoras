@@ -16,7 +16,7 @@
         <% end %>
       </li>
     </ul>
-    <% if Current.user&.personal?%>
+    <% if Current.user&.personal? || Current.user&.personal_saime?%>
       <ul class="nav__list">
         <li class="nav__item">
           <%= link_to saime_users_path, class: "nav__link" do %>

@@ -34,6 +34,15 @@
           class: "form-control" %>
       </div>
     <%end%>
+    <% if @saime_user.persisted? %>
+      <div class="col-md-4 mb-3">
+        <%= f.label :appointment_registration, "Registro Terminado" %>
+        <%= f.select :appointment_registration, 
+          options_for_select([["SI", true], ["NO", false]], selected: saime_user.appointment_registration), 
+          {}, 
+          class: "form-control" %>
+      </div>
+    <%end%>
   </div>
   <h4>Citas</h4>
   <div id="appointments-container">
@@ -80,7 +89,7 @@
   <button type="button" id="add-appointment" class="btn btn-primary mt-3">Añadir otra cita</button>
   <div class="mt-4">
     <%= f.submit "Guardar", class: "btn btn-success", id:"btnFormSaime" %>
-    <%= link_to "Volver", saime_users_path, class: "btn btn-secondary ms-2" %>
+    <%= link_to "Volver", "javascript:history.back()", class: "btn btn-secondary ms-2" %>
   </div>
   <!-- Template para nueva cita -->
   <template id="appointment-template">

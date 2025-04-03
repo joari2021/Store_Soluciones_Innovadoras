@@ -8,10 +8,14 @@ class SaimeUser < ApplicationRecord
   validates :identification, presence: true, uniqueness: true
   validates :entry, presence: true
 
+  # Callback para borrar user_id si appointment_registration es true
+  before_update :clear_user_id_if_registered
+
   # Scope para "Citas Disponibles": Usuarios que tengan al menos una cita con fecha a partir de hoy y status "disponible".
   scope :with_available_appointments, -> {
     joins(:appointments)
-      .where("appointments.appointment_date >= ? AND appointments.status = ?", Date.today, "disponible")
+      .where(temporary_status: 'activo', confirmed_status: 'activo')
+      .where("appointments.appointment_date > ? AND appointments.status = ?", Date.today, "disponible")
       .group("saime_users.id")
       .order("MIN(appointments.appointment_date) ASC")
   }
@@ -38,13 +42,54 @@ class SaimeUser < ApplicationRecord
   # Scope para "Usuarios Bloqueados": confirmed_status igual a "bad request".
   scope :blocked, -> { where(confirmed_status: "bad request") }
 
-  # Scope para "Citas por Agendar": Usuarios sin citas asociadas.
+  # Scope para "Registros Disponibles": Usuarios sin citas agendddas y/o citas vencidas.
   scope :without_appointments, -> {
   left_outer_joins(:appointments)
+    .where(temporary_status: 'activo', confirmed_status: 'activo', user_id: nil)
+    .where.not(id: Appointment.where(status: 'pagada').select(:saime_user_id))
     .group("saime_users.id")
-    .having(
-      "(COUNT(appointments.id) = 0 OR (SUM(CASE WHEN appointments.appointment_date >= ? THEN 1 ELSE 0 END) = 0 AND SUM(CASE WHEN appointments.appointment_date <= ? THEN 1 ELSE 0 END) > 0)) AND SUM(CASE WHEN appointments.status = 'pagada' THEN 1 ELSE 0 END) = 0",
-      Date.tomorrow, Date.today
-    )
+    .select(<<~SQL.squish)
+      saime_users.*,
+      CASE 
+        WHEN COUNT(appointments.id) > 0 
+             AND SUM(CASE WHEN appointments.appointment_date > '#{Date.today}' 
+                       AND appointments.status <> 'inprogramable' 
+                   THEN 1 ELSE 0 END) = 0
+          AND (COUNT(appointments.id) - SUM(CASE WHEN appointments.status = 'inprogramable' 
+                                                THEN 1 ELSE 0 END)) > 0
+          THEN 1
+        WHEN COUNT(appointments.id) = 0 
+          THEN 2
+        WHEN COUNT(appointments.id) > 0 
+             AND SUM(CASE WHEN appointments.status <> 'inprogramable' THEN 1 ELSE 0 END) = 0 
+             AND SUM(CASE WHEN appointments.appointment_type = 'niño' THEN 1 ELSE 0 END) <= 4
+          THEN 3
+        ELSE 4
+      END AS group_order,
+      MIN(appointments.appointment_date) AS min_date
+    SQL
+    .having("CASE 
+        WHEN COUNT(appointments.id) > 0 
+          AND SUM(CASE WHEN appointments.appointment_date > ? 
+                       AND appointments.status <> 'inprogramable' 
+                   THEN 1 ELSE 0 END) = 0
+          AND (COUNT(appointments.id) - SUM(CASE WHEN appointments.status = 'inprogramable' 
+                                                THEN 1 ELSE 0 END)) > 0
+          THEN 1
+        WHEN COUNT(appointments.id) = 0 
+          THEN 2
+        WHEN COUNT(appointments.id) > 0 
+             AND SUM(CASE WHEN appointments.status <> 'inprogramable' THEN 1 ELSE 0 END) = 0 
+             AND SUM(CASE WHEN appointments.appointment_type = 'niño' THEN 1 ELSE 0 END) <= 4
+          THEN 3
+        ELSE 4
+      END < 4", Date.today)
+    .order("group_order ASC, min_date ASC")
   }
+
+  private
+
+  def clear_user_id_if_registered
+    self.user_id = nil if appointment_registration?
+  end
 end

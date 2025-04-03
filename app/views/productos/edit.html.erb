@@ -1,12 +1,9 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <h1>Editar producto</h1>
-
   <%= render "form", producto: @producto %>
-
   <br>
-
   <div>
     <%= link_to "Ver producto", @producto, class: "btn btn-primary" %> |
-    <%= link_to "Volver", productos_path, class: "btn btn-secondary" %>
+    <%= link_to "Volver", "javascript:history.back()", class: "btn btn-secondary" %>
   </div>
 </div>
