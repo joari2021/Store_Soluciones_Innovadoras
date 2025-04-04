@@ -17,18 +17,24 @@
           </li>
           <li class="nav-item">
             <%= link_to saime_users_path(filter: "apartadas"), class: "nav-link" do %>
-              Citas Apartadas 
-              <span class="badge bg-primary" style="position: relative; top: -7px;">
-                <%= Appointment.where(status: ['apartada', 'pagada'], saime_user_id: SaimeUser.with_reserved_appointments.select(:id)).count %>
-              </span>
+              Citas Apartadas
+              <%@citas_apartadas = Appointment.where(status: ['apartada', 'pagada'], saime_user_id: SaimeUser.with_reserved_appointments.select(:id)).count %>
+              <% if @citas_apartadas > 0%>
+                <span class="badge bg-primary" style="position: relative; top: -7px;">
+                  <%= @citas_apartadas %>
+                </span>
+              <%end%>
             <% end %>
           </li>
           <li class="nav-item">
             <%= link_to saime_users_path(filter: "temporarily_blocked"), class: "nav-link" do %>
-              Usuarios Bloqueados Temporalmente 
-              <span class="badge bg-warning" style="position: relative; top: -7px;">
-                <%= SaimeUser.temporarily_blocked.count %>
-              </span>
+              Usuarios Bloqueados Temporalmente
+              <%@bloqueados = SaimeUser.temporarily_blocked.count%>
+              <%if @bloqueados > 0%>
+                <span class="badge bg-warning" style="position: relative; top: -7px;">
+                  <%=  @bloqueados%>
+                </span>
+              <%end%>
             <% end %>
           </li>
           <li class="nav-item">
@@ -38,18 +44,24 @@
         <%if Current.user.personal_saime?%>
           <li class="nav-item">
             <%= link_to saime_users_path(filter: "registros_disponibles"), class: "nav-link" do %>
-              Registros Disponibles 
-              <span class="badge bg-info" style="position: relative; top: -7px;">
-                <%= SaimeUser.without_appointments.to_a.size %>
-              </span>
-            <% end %>
+              Registros Disponibles
+              <%@registros_disponibles = SaimeUser.without_appointments.to_a.size%>
+              <%if @registros_disponibles > 0%>
+                <span class="badge bg-info" style="position: relative; top: -7px;">
+                  <%=  @registros_disponibles%>
+                </span>
+              <% end %>
+            <%end%>
           </li>
           <li class="nav-item">
             <%= link_to saime_users_path(filter: "por_agendar"), class: "nav-link" do %>
-              Citas por Agendar 
-              <span class="badge bg-success" style="position: relative; top: -7px;">
-                <%= Current.user ? SaimeUser.where(user_id: Current.user.id, appointment_registration: false).count : 0 %>
-              </span>
+              Citas por Agendar
+              <%@por_agendar = Current.user ? SaimeUser.where(user_id: Current.user.id, appointment_registration: false).count : 0%>
+              <%if @por_agendar > 0%>
+                <span class="badge bg-success" style="position: relative; top: -7px;">
+                  <%= @por_agendar %>
+                </span>
+              <%end%>
             <% end %>
           </li>
         <%end%>
