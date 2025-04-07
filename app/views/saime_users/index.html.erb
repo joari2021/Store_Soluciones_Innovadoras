@@ -112,7 +112,7 @@
         <div class="card h-100">
           <%if Current.user.admin? || params[:filter] == "por_agendar" && Current.user.personal_saime?%>
             <div class="card-header text-end">
-              <%= link_to "Editar", edit_saime_user_path(user), class: "btn btn-primary btn-sm" %>
+              <%= link_to "Editar", edit_saime_user_path(user, filter: params[:filter]), class: "btn btn-primary btn-sm" %>
             </div>
           <%end%>
           <div class="card-body bg-success">

@@ -37,7 +37,7 @@ class SaimeUser < ApplicationRecord
   }
 
   # Scope para "Usuarios Bloqueados Temporalmente": temporary_status igual a "error en clave".
-  scope :temporarily_blocked, -> { where(temporary_status: "error en clave") }
+  scope :temporarily_blocked, -> { where(temporary_status: "error en clave", confirmed_status: "activo") }
 
   # Scope para "Usuarios Bloqueados": confirmed_status igual a "bad request".
   scope :blocked, -> { where(confirmed_status: "bad request") }

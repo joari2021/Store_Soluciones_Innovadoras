@@ -9,6 +9,7 @@
       </ul>
     </div>
   <% end %>
+  <%= hidden_field_tag :filter, params[:filter] %>
   <div class="row">
     <div class="col-md-4 mb-3">
       <%= f.label :identification, "Cédula" %>

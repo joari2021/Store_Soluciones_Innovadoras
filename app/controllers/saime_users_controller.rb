@@ -9,7 +9,6 @@ class SaimeUsersController < ApplicationController
   before_action :require_admin, only: [:destroy]
 
   def index
-
     # Primero, aseguramos que exista un usuario actual
     unless Current.user
       flash[:alert] = "Debes iniciar sesión."
@@ -80,7 +79,7 @@ class SaimeUsersController < ApplicationController
   # PATCH/PUT /saime_users/:id
   def update
     if @saime_user.update(saime_user_params)
-      redirect_to saime_users_path, notice: 'El usuario se actualizó correctamente.'
+      redirect_to saime_users_path(filter: params[:filter]), notice: 'El usuario se actualizó correctamente.'
     else
       render :edit
     end
