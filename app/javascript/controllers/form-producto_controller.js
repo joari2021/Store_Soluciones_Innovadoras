@@ -50,14 +50,14 @@ export default class extends Controller {
       precioCostoUnidadUSD.value = valorUnidadUSD;
       precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
     }
-    function calcularPrecioVentaUSD() {
+    function calcularPrecioVentaBs() {
       const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
       const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
 
       // Asignar el valor calculado al input
       precioVentaBs.value = valorVentaBs;
     }
-    function calcularPrecioVentaBs() {
+    function calcularPrecioVentaUSD() {
       const valorVentaBs = parseFloat(precioVentaBs.value) || 0; // Convierte o usa 0 si está vacío
       const valorVentaUSD = (valorVentaBs / tasaDolar).toFixed(2);
 
@@ -82,11 +82,11 @@ export default class extends Controller {
     });
 
     precioVentaUSD.addEventListener("input", function () {
-      calcularPrecioVentaUSD();
+      calcularPrecioVentaBs();
     });
 
     precioVentaBs.addEventListener("input", function () {
-      calcularPrecioVentaBs();
+      calcularPrecioVentaUSD();
     });
 
     productoNivelGanancia.addEventListener("change", function () {

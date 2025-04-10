@@ -73,6 +73,15 @@
     <label class="form-label">Precio Sugerido Bs</label>
     <input type="text" value="" id="precio_sugerido_bs" class="form-control" readonly>
   </div>
+  <%if producto.moneda_base_precio === "Dolar"%>
+    <script>
+      calcularPrecioVentaBs()
+    </script>
+  <%else%>
+    <script>
+      calcularPrecioVentaUSD()
+    </script>
+  <%end%>
   <div class="col-md-3">
     <%= form.label :precio_venta_usd, "Precio Venta ($)", class:"form-label" %>
     <%= form.text_field :precio_venta_usd, class:"form-control" %>
