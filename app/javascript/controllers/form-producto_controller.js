@@ -68,7 +68,7 @@ export default class extends Controller {
     function rellenarCamposVistaEdit() {
       calcularPrecioCosto();
       editPrecioSugerido();
-      if (monedaPrecio.value == "Bs") {
+      if (monedaPrecio.value == "Bolivar") {
         calcularPrecioVentaUSD();
       } else {
         calcularPrecioVentaBs();
