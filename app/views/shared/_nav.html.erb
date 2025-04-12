@@ -17,6 +17,15 @@
       </li>
     </ul>
     <% if Current.user&.personal? || Current.user&.personal_saime?%>
+      <% if Current.user&.personal? %>
+        <ul class="nav__list">
+          <li class="nav__item">
+            <%= link_to services_path, class: "nav__link" do %>
+              <i class="ri-movie-line"></i> <span>Servicios</span>
+            <% end %>
+          </li>
+        </ul>
+      <% end %>
       <ul class="nav__list">
         <li class="nav__item">
           <%= link_to saime_users_path, class: "nav__link" do %>
@@ -42,6 +51,11 @@
               <li class="list__inside">
                 <%= link_to new_genero_path, class:"nav__link nav__link--inside" do%>
                   <i class="fas fa-plus-square"></i> <span>Añadir Genero</span>
+                <% end %>
+              </li>
+              <li class="list__inside">
+                <%= link_to system_services_path, class:"nav__link nav__link--inside" do%>
+                  <i class="fas fa-plus-square"></i> <span>Sistemas de Servicios</span>
                 <% end %>
               </li>
               <li class="list__inside">

@@ -7,6 +7,8 @@ Rails.application.routes.draw do
   end
 
   resources :productos
+  resources :services
+  resources :system_services
   resources :serie_tvs
   resources :generos, except: :show
   resources :plataforma_peliculas, except: :show

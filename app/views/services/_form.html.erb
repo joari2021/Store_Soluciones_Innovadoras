@@ -1,0 +1,29 @@
+<%= form_with model: @service, local: true do |form| %>
+  <div>
+    <%= form.label :description %>
+    <%= form.text_field :description, class: "form-control" %>
+  </div>
+  <div>
+    <%= form.label :cost_price %>
+    <%= form.number_field :cost_price, step: 0.01, class: "form-control" %>
+  </div>
+  <div>
+    <%= form.label :sale_price %>
+    <%= form.number_field :sale_price, step: 0.01, class: "form-control" %>
+  </div>
+  <div>
+    <%= form.label :value_units %>
+    <%= form.number_field :value_units, class: "form-control" %>
+  </div>
+  <div>
+    <%= form.label :cost %>
+    <%= form.check_box :cost %>
+  </div>
+  <div>
+    <%= form.label :system_service_id, "System Service" %>
+    <%= form.collection_select :system_service_id, SystemService.all, :id, :name, { include_blank: "Select a System" }, class: "form-control" %>
+  </div>
+  <div>
+    <%= form.submit class: "btn btn-primary" %>
+  </div>
+<% end %>

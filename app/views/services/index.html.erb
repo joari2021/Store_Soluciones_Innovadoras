@@ -1,0 +1,29 @@
+<h1>Services</h1>
+<div><%= link_to 'New Service', new_service_path, class: "btn btn-primary" %></div>
+<table class="tabla-ajustada">
+  <thead>
+    <tr>
+      <th>Description</th>
+      <th>Cost Price</th>
+      <th>Sale Price</th>
+      <th>Value Units</th>
+      <th>Cost</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @services.each do |service| %>
+      <tr>
+        <td><%= service.description %></td>
+        <td><%= number_to_currency(service.cost_price) %></td>
+        <td><%= number_to_currency(service.sale_price) %></td>
+        <td><%= service.value_units %></td>
+        <td><%= service.cost ? "Yes" : "No" %></td>
+        <td>
+          <%= link_to 'Edit', edit_service_path(service), class: "btn btn-warning" %>
+          <%= link_to 'Delete', service_path(service), method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-danger" %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
