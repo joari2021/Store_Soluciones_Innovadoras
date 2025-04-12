@@ -9,7 +9,7 @@
     </button>
   <% end %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <span>Tasa Dolar BCV: <strong><%= @tasa_cambio %> Bs.</strong></span>
+    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_cambio, unit: "Bs ") %></strong></span>
   </div>
   <h1 class="my-4">Listado de Productos</h1>
   <%= form_with url: productos_path, method: :get, html: { id: "formulario_buscar" } do |form| %>

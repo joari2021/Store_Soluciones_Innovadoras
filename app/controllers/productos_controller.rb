@@ -36,6 +36,11 @@ class ProductosController < ApplicationController
   end
 
   def destroy
+    if @producto.destroy
+      redirect_to productos_path, notice: "Producto eliminado exitosamente."
+    else
+      redirect_to productos_path, alert: "No se pudo eliminar el producto."
+    end
   end
 
   private
