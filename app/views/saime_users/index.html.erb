@@ -3,68 +3,68 @@
   <%= link_to 'Nuevo Registro', new_saime_user_path, class: "btn btn-primary me-3" %>
   <%= render "modal-datos-citas"%>
 </div>
+<!-- filepath: /home/jocari/SistemaRails/Store_Soluciones_Innovadoras/app/views/saime_users/index.html.erb -->
 <nav class="navbar navbar-expand-lg navbar-light bg-light">
   <div class="container-fluid">
-    <a class="navbar-brand" href="#">Filtros de Citas</a>
     <div class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto mb-2 mb-lg-0">
         <li class="nav-item">
-          <%= link_to "Citas Disponibles", saime_users_path, class: "nav-link" %>
+          <%= link_to "Citas Disponibles", saime_users_path, class: "nav-link #{'active' if params[:filter].blank?}" %>
         </li>
-        <%if Current.user.admin?%>
+        <% if Current.user.admin? %>
           <li class="nav-item">
-            <%= link_to "Citas No Programables", saime_users_path(filter: "inprogramable"), class: "nav-link" %>
+            <%= link_to "Citas No Programables", saime_users_path(filter: "inprogramable"), class: "nav-link #{'active' if params[:filter] == 'inprogramable'}" %>
           </li>
           <li class="nav-item">
-            <%= link_to saime_users_path(filter: "apartadas"), class: "nav-link" do %>
+            <%= link_to saime_users_path(filter: "apartadas"), class: "nav-link #{'active' if params[:filter] == 'apartadas'}" do %>
               Citas Apartadas
-              <%@citas_apartadas = Appointment.where(status: ['apartada', 'pagada'], saime_user_id: SaimeUser.with_reserved_appointments.select(:id)).count %>
-              <% if @citas_apartadas > 0%>
+              <% @citas_apartadas = Appointment.where(status: ['apartada', 'pagada'], saime_user_id: SaimeUser.with_reserved_appointments.select(:id)).count %>
+              <% if @citas_apartadas > 0 %>
                 <span class="badge bg-primary" style="position: relative; top: -7px;">
                   <%= @citas_apartadas %>
                 </span>
-              <%end%>
+              <% end %>
             <% end %>
           </li>
           <li class="nav-item">
-            <%= link_to saime_users_path(filter: "temporarily_blocked"), class: "nav-link" do %>
+            <%= link_to saime_users_path(filter: "temporarily_blocked"), class: "nav-link #{'active' if params[:filter] == 'temporarily_blocked'}" do %>
               Usuarios Bloqueados Temporalmente
-              <%@bloqueados = SaimeUser.temporarily_blocked.count%>
-              <%if @bloqueados > 0%>
+              <% @bloqueados = SaimeUser.temporarily_blocked.count %>
+              <% if @bloqueados > 0 %>
                 <span class="badge bg-warning" style="position: relative; top: -7px;">
-                  <%=  @bloqueados%>
-                </span>
-              <%end%>
-            <% end %>
-          </li>
-          <li class="nav-item">
-            <%= link_to "Usuarios Bloqueados", saime_users_path(filter: "blocked"), class: "nav-link" %>
-          </li>
-        <%end%>
-        <%if Current.user.personal_saime?%>
-          <li class="nav-item">
-            <%= link_to saime_users_path(filter: "registros_disponibles"), class: "nav-link" do %>
-              Registros Disponibles
-              <%@registros_disponibles = SaimeUser.without_appointments.to_a.size%>
-              <%if @registros_disponibles > 0%>
-                <span class="badge bg-info" style="position: relative; top: -7px;">
-                  <%=  @registros_disponibles%>
+                  <%= @bloqueados %>
                 </span>
               <% end %>
-            <%end%>
+            <% end %>
           </li>
           <li class="nav-item">
-            <%= link_to saime_users_path(filter: "por_agendar"), class: "nav-link" do %>
+            <%= link_to "Usuarios Bloqueados", saime_users_path(filter: "blocked"), class: "nav-link #{'active' if params[:filter] == 'blocked'}" %>
+          </li>
+        <% end %>
+        <% if Current.user.personal_saime? %>
+          <li class="nav-item">
+            <%= link_to saime_users_path(filter: "registros_disponibles"), class: "nav-link #{'active' if params[:filter] == 'registros_disponibles'}" do %>
+              Registros Disponibles
+              <% @registros_disponibles = SaimeUser.without_appointments.to_a.size %>
+              <% if @registros_disponibles > 0 %>
+                <span class="badge bg-info" style="position: relative; top: -7px;">
+                  <%= @registros_disponibles %>
+                </span>
+              <% end %>
+            <% end %>
+          </li>
+          <li class="nav-item">
+            <%= link_to saime_users_path(filter: "por_agendar"), class: "nav-link #{'active' if params[:filter] == 'por_agendar'}" do %>
               Citas por Agendar
-              <%@por_agendar = Current.user ? SaimeUser.where(user_id: Current.user.id, appointment_registration: false).count : 0%>
-              <%if @por_agendar > 0%>
+              <% @por_agendar = Current.user ? SaimeUser.where(user_id: Current.user.id, appointment_registration: false).count : 0 %>
+              <% if @por_agendar > 0 %>
                 <span class="badge bg-success" style="position: relative; top: -7px;">
                   <%= @por_agendar %>
                 </span>
-              <%end%>
+              <% end %>
             <% end %>
           </li>
-        <%end%>
+        <% end %>
       </ul>
     </div>
   </div>
