@@ -77,7 +77,7 @@
               <%else%>
                 <%alerta_precio = ""%>
               <%end%>
-              <td class="<%=alerta_precio%>"><%= number_to_currency((producto.precio_venta_usd), unit: "$ ") %></td>
+              <td class="<%=alerta_precio%>"><%= number_to_currency((producto.precio_venta_bs / @tasa_cambio), unit: "$ ") %></td>
               <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
             <% end %>
             <% if Current.user&.admin? %>
