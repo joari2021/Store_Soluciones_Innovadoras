@@ -12,6 +12,7 @@ export default class extends Controller {
     const productoNivelGanancia = document.getElementById(
       "producto_nivel_ganancia"
     );
+    const monedaPrecio = document.getElementById("moneda_precio");
 
     function editPrecioSugerido() {
       const nivelGanancia = document.querySelector(".form-select").value;
@@ -67,6 +68,11 @@ export default class extends Controller {
     function rellenarCamposVistaEdit() {
       calcularPrecioCosto();
       editPrecioSugerido();
+      if (monedaPrecio.value == "Bs") {
+        calcularPrecioVentaUSD();
+      } else {
+        calcularPrecioVentaBs();
+      }
     }
     rellenarCamposVistaEdit();
 

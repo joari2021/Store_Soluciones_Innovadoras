@@ -54,7 +54,7 @@
     <%= form.select :moneda_base_precio, 
                   options_for_select([["Bolivar", "Bolivar"], ["Dolar", "Dolar"]], selected: producto.moneda_base_precio), 
                   {}, 
-                  { class: "form-select" } %>
+                  { class: "form-select", id: "moneda_precio" } %>
   </div>
   <div class="col-md-3">
     <%= form.label :min_stock, "Min. Stock", class:"form-label" %>
