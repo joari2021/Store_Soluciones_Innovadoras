@@ -1,29 +1,55 @@
-<%= form_with model: @service, local: true do |form| %>
-  <div>
-    <%= form.label :description %>
-    <%= form.text_field :description, class: "form-control" %>
-  </div>
-  <div>
-    <%= form.label :cost_price %>
-    <%= form.number_field :cost_price, step: 0.01, class: "form-control" %>
-  </div>
-  <div>
-    <%= form.label :sale_price %>
-    <%= form.number_field :sale_price, step: 0.01, class: "form-control" %>
-  </div>
-  <div>
-    <%= form.label :value_units %>
-    <%= form.number_field :value_units, class: "form-control" %>
-  </div>
-  <div>
-    <%= form.label :cost %>
-    <%= form.check_box :cost %>
-  </div>
-  <div>
-    <%= form.label :system_service_id, "System Service" %>
-    <%= form.collection_select :system_service_id, SystemService.all, :id, :name, { include_blank: "Select a System" }, class: "form-control" %>
-  </div>
-  <div>
-    <%= form.submit class: "btn btn-primary" %>
-  </div>
-<% end %>
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
+  <%= form_with(model: @service, local: true, data: {  controller: "form-services" }, id: "form-services") do |form| %>
+    <% if @service.errors.any? %>
+      <div class="alert alert-danger">
+        <h4>Errores:</h4>
+        <ul>
+          <% @service.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <div class="row">
+      <div class="col-md-3 mb-2">
+        <%= form.label :system_service_id, "System Service", class:"form-label" %>
+        <%= form.collection_select :system_service_id, SystemService.all, :id, :name, { include_blank: "Selecciona Un Sistema" }, class: "form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :description, "Descripcion", class:"form-label" %>
+        <%= form.text_field :description, class: "form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :currency_base_price, "Referencia del Precio", class:"form-label" %>
+        <%= form.select :currency_base_price, [["Bs", "Bs"], ["$", "$"]], { include_blank: "Selecciona una opción" }, class: "form-control", data: { action: "change->form-services#toggleFields" } %>
+      </div>
+      <div class="col-md-3 mb-2" id="value-units-field">
+        <%= form.label :value_units, "Unidades de Valor", class:"form-label" %>
+        <%= form.number_field :value_units, class: "form-control" %>
+      </div>
+      <div class="col-md-3 mb-2" id="sale-price-field" style="display: none;">
+        <%= form.label :sale_price, "Precio", class:"form-label" %>
+        <%= form.number_field :sale_price, step: 0.01, class: "form-control" %>
+      </div>
+      <div class="col-md-3 my-4 ms-3 form-check">
+        <%= form.check_box :cost, class: "form-check-input", id: "cost", data: { action: "change->form-services#toggleManagers" } %>
+        <%= form.label :cost, "Tiene Costo", class: "form-check-label", for: "cost" %>
+      </div>
+      <div id="service_managers" style="display: none;">
+        <%= form.fields_for :service_managers do |m| %>
+          <% unless m.object.new_record? %>
+            <%= render "service_manager_fields", m: m %>
+          <% end %>
+        <% end %>
+      </div>
+      <div id="add-manager-link" class="mb-3" style="display: none;">
+        <%= link_to_add_service_managers "Añadir Gestor", form, :service_managers %>
+      </div>
+      <hr>
+      <div class="">
+        <%= form.submit "Actualizar", class: "btn btn-primary" %>
+        <%= link_to 'Volver', services_path, class: "btn btn-secondary ms-2" %>
+      </div>
+    </div>
+  <% end %>
+</div>

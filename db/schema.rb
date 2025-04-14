@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_04_12_183416) do
+ActiveRecord::Schema[7.1].define(version: 2025_04_14_150200) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -132,6 +132,12 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_12_183416) do
     t.string "link_trailer"
   end
 
+  create_table "managers", force: :cascade do |t|
+    t.string "name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
   create_table "peliculas", force: :cascade do |t|
     t.string "poster"
     t.string "name"
@@ -218,11 +224,21 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_12_183416) do
     t.string "link_trailer"
   end
 
+  create_table "service_managers", force: :cascade do |t|
+    t.bigint "service_id", null: false
+    t.bigint "manager_id", null: false
+    t.float "cost"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "reference_cost"
+    t.string "symbol_tasa"
+    t.index ["manager_id"], name: "index_service_managers_on_manager_id"
+    t.index ["service_id"], name: "index_service_managers_on_service_id"
+  end
+
   create_table "services", force: :cascade do |t|
     t.string "description"
     t.boolean "cost"
-    t.float "cost_price"
-    t.string "currency_cost_price"
     t.float "value_units"
     t.float "sale_price"
     t.string "currency_base_price"
@@ -242,6 +258,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_12_183416) do
     t.decimal "valor"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "description"
   end
 
   create_table "users", force: :cascade do |t|
@@ -285,6 +302,8 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_12_183416) do
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
   add_foreign_key "saime_users", "users"
+  add_foreign_key "service_managers", "managers"
+  add_foreign_key "service_managers", "services"
   add_foreign_key "services", "system_services"
   add_foreign_key "video_details", "peliculas"
 end

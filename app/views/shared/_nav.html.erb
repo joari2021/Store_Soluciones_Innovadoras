@@ -59,6 +59,12 @@
                 <% end %>
               </li>
               <li class="list__inside">
+                <%= link_to managers_path, class:"nav__link nav__link--inside" do%>
+                  <i class="ri-eye-line"></i>
+                  <span>Gestores</span>
+                <% end %>
+              </li>
+              <li class="list__inside">
                 <%= link_to generos_path, class:"nav__link nav__link--inside" do%>
                   <i class="ri-eye-line"></i>
                   <span>Ver Generos</span>
@@ -68,6 +74,12 @@
                 <%= link_to plataforma_peliculas_path, class:"nav__link nav__link--inside" do%>
                   <i class="ri-eye-line"></i>
                   <span>Plataformas peliculas</span>
+                <% end %>
+              </li>
+              <li class="list__inside">
+                <%= link_to tasa_cambios_path, class:"nav__link nav__link--inside" do%>
+                  <i class="ri-eye-line"></i>
+                  <span>Tasas de Cambio</span>
                 <% end %>
               </li>
             </ul>

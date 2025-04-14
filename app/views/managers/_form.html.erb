@@ -1,0 +1,10 @@
+<%= form_with model: @manager, local: true do |form| %>
+  <div class="mb-3">
+    <%= form.label :name, "Nombre del Gestor", class: "form-label" %>
+    <%= form.text_field :name, class: "form-control" %>
+  </div>
+  <div>
+    <%= form.submit class: "btn btn-primary" %>
+    <%= link_to 'Cancelar', managers_path, class: "btn btn-secondary" %>
+  </div>
+<% end %>

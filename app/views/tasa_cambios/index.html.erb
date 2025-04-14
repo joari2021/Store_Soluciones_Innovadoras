@@ -1,0 +1,25 @@
+<h1>Listado de Tasas de Cambio</h1>
+<div class="mb-3">
+  <%= link_to 'Nueva Tasa de Cambio', new_tasa_cambio_path, class: "btn btn-primary" %>
+</div>
+<table class="tabla-ajustada">
+  <thead>
+    <tr>
+      <th>Valor</th>
+      <th>Fecha de Creación</th>
+      <th>Acciones</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @tasa_cambios.each do |tasa_cambio| %>
+      <tr>
+        <td><%= tasa_cambio.valor %></td>
+        <td><%= tasa_cambio.created_at.strftime("%d/%m/%Y %H:%M") %></td>
+        <td>
+          <%= link_to 'Editar', edit_tasa_cambio_path(tasa_cambio), class: "btn btn-warning btn-sm" %>
+          <%= link_to 'Eliminar', tasa_cambio_path(tasa_cambio), method: :delete, data: { confirm: "¿Estás seguro de que deseas eliminar esta tasa de cambio?" }, class: "btn btn-danger btn-sm" %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

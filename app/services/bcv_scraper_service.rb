@@ -23,7 +23,7 @@ class BcvScraperService
         dato_clean = dato.gsub(/[^\d.]/, '')  # Elimina caracteres no numéricos, si los hubiera
         tasa_valor = BigDecimal(dato_clean).round(2)
 
-        TasaCambio.last.update(valor: tasa_valor)
+        TasaCambio.find_by(name: "Dolar BCV").update(valor: tasa_valor)
       end
 
       dato

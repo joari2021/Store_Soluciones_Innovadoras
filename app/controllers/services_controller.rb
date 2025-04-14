@@ -7,23 +7,27 @@ class ServicesController < ApplicationController
 
   def new
     @service = Service.new
+    @service.service_managers.build
+    @managers = Manager.all.order(:name)
   end
 
   def create
     @service = Service.new(service_params)
     if @service.save
-      redirect_to services_path, notice: "Service created successfully."
+      redirect_to services_path, notice: "Servicio creado exitosamente."
     else
-      render :new
+      render :new, status: :unprocessable_entity
     end
   end
 
   def edit
+    @service.service_managers.build if @service.service_managers.empty? # Asegura que haya al menos un ServiceManager para renderizar
+    @managers = Manager.all.order(:name)
   end
 
   def update
     if @service.update(service_params)
-      redirect_to services_path, notice: "Service updated successfully."
+      redirect_to services_path, notice: "Servicio actualizado exitosamente."
     else
       render :edit, status: :unprocessable_entity
     end
@@ -44,7 +48,7 @@ class ServicesController < ApplicationController
   end
 
   def service_params
-    params.require(:service).permit(:description, :cost_price, :currency_cost_price, :sale_price, :currency_base_price, :value_units, :cost, :system_service_id)
+    params.require(:service).permit(:description, :sale_price, :currency_base_price, :value_units, :cost, :system_service_id, service_managers_attributes: [:id, :manager_id, :cost, :reference_cost, :_destroy])
   end
  
 end
