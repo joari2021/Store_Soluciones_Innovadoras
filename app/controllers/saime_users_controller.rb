@@ -55,6 +55,7 @@ class SaimeUsersController < ApplicationController
       end
       users
     end
+    @pagy, @saime_users = pagy_countless(@saime_users, items: 24) 
   end
   def new
     @saime_user = SaimeUser.new

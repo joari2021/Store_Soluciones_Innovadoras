@@ -3,11 +3,17 @@
   <%= link_to 'Nuevo Registro', new_saime_user_path, class: "btn btn-primary me-3" %>
   <%= render "modal-datos-citas"%>
 </div>
-<!-- filepath: /home/jocari/SistemaRails/Store_Soluciones_Innovadoras/app/views/saime_users/index.html.erb -->
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
+<nav class="navbar <%= Current.user.admin? ? 'navbar-expand-xxl' : 'navbar-expand' %> navbar-light bg-light">
   <div class="container-fluid">
-    <div class="collapse navbar-collapse">
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+    <!-- Botón de hamburguesa para dispositivos pequeños (solo visible si admin) -->
+    <% if Current.user.admin? %>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+    <% end %>
+    <!-- Contenedor colapsable -->
+    <div class="<%= Current.user.admin? ? 'collapse navbar-collapse show' : '' %>" id="navbarNav">
+      <ul class="navbar-nav me-auto mb-2 mb-xl-0">
         <li class="nav-item">
           <%= link_to "Citas Disponibles", saime_users_path, class: "nav-link #{'active' if params[:filter].blank?}" %>
         </li>
@@ -97,77 +103,80 @@
   </div>
 <% end %>
 <%= form_with url: assign_saime_users_path, method: :post, local: true do %>
-  <div class="row">
-    <% if params[:filter] == "registros_disponibles" && Current.user.personal_saime? %>
-      <%if SaimeUser.without_appointments.to_a.size > 0%>
-        <div class="mb-3">
-          <%= submit_tag "Asignar seleccionados", class: "btn btn-success" %>
-        </div>
-      <%else%>
-        <div class="bg-success fst-italic p-5 text-center">No hay Registros Disponibles</div>
-      <%end%>
-    <% end %>
-    <% @saime_users.each do |user| %>
-      <div class="col-md-2 mb-4">
-        <div class="card h-100">
-          <%if Current.user.admin? || params[:filter] == "por_agendar" && Current.user.personal_saime?%>
-            <div class="card-header text-end">
-              <%= link_to "Editar", edit_saime_user_path(user, filter: params[:filter]), class: "btn btn-primary btn-sm" %>
-            </div>
-          <%end%>
-          <div class="card-body bg-success">
-            <% if params[:filter] == "registros_disponibles" && Current.user.personal_saime? %>
-              <div class="form-check">
-                <%= check_box_tag "selected_saime_users[]", user.id, false, class: "form-check-input" %>
-                <%= label_tag "selected_saime_users_#{user.id}", "Seleccionar", class: "form-check-label" %>
+  <% if params[:filter] == "registros_disponibles" && Current.user.personal_saime? %>
+    <%if SaimeUser.without_appointments.to_a.size > 0%>
+      <div class="mb-3">
+        <%= submit_tag "Asignar seleccionados", class: "btn btn-success" %>
+      </div>
+    <%else%>
+      <div class="bg-success fst-italic p-5 text-center">No hay Registros Disponibles</div>
+    <%end%>
+  <% end %>
+  <%= turbo_frame_tag "saime_users-#{@pagy.page}" do%>
+    <div class="row">
+      <% @saime_users.each do |user| %>
+        <div class="col-sm-6 col-lg-4 col-xl-3 <%= Current.user.admin? ? 'col-xxl-2' : '' %> mb-4">
+          <div class="card h-100">
+            <%if Current.user.admin? || params[:filter] == "por_agendar" && Current.user.personal_saime?%>
+              <div class="card-header text-end">
+                <%= link_to "Editar", edit_saime_user_path(user, filter: params[:filter]), class: "btn btn-primary btn-sm", data: { turbo_frame: "_top" } %>
               </div>
-            <% end %>
-            <% if Current.user.admin? || Current.user.personal_saime? && params[:filter] == "por_agendar"%>
-              <h6 class="card-title d-flex justify-content-between align-items-center">
-                Cédula: <%= user.identification %>
-                <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
-                  <i class="ri-file-copy-line"></i>
-                </a>
-              </h6>
-              <p class="card-text d-flex justify-content-between align-items-center">
-                Entrada: <span class="masked-entry ms-2">*************</span>
-                <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
-                  <i class="ri-file-copy-line"></i>
-                </a>
-              </p>
-              <hr>
             <%end%>
-            <h6 class="fw-bold">CITAS:</h6>
-            <% if user.appointments.any? %>
-              <ul class="list-group list-group-flush">
-                <% user.appointments.each do |appointment| %>
-                  <li class="appointment text-black ">
-                    <p class="d-flex justify-content-between align-items-center">
-                      <strong>Fecha:</strong>
-                      <span class="ms-auto"><%= appointment.appointment_date.strftime("%d/%m/%Y") %></span>
-                    </p>
-                    <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
-                    <p class="d-flex justify-content-between align-items-center">
-                      <strong>Status:</strong>
-                      <span class="badge ms-auto 
-                        <%= case appointment.status
-                          when 'disponible' then 'bg-success'
-                          when 'apartada', 'pagada' then 'bg-danger'
-                          when 'inprogramable' then 'bg-secondary'
-                          else 'bg-dark' # Color por defecto si hay otros estados
-                        end %>">
-                        <%= appointment.status.capitalize %>
-                      </span>
-                    </p>
-                  </li>
-                <% end %>
-              </ul>
-            <% else %>
-              <p class="fst-italic">¡No hay Citas Registradas!</p>
-            <% end %>
+            <div class="card-body bg-success">
+              <% if params[:filter] == "registros_disponibles" && Current.user.personal_saime? %>
+                <div class="form-check">
+                  <%= check_box_tag "selected_saime_users[]", user.id, false, class: "form-check-input" %>
+                  <%= label_tag "selected_saime_users_#{user.id}", "Seleccionar", class: "form-check-label" %>
+                </div>
+              <% end %>
+              <% if Current.user.admin? || Current.user.personal_saime? && params[:filter] == "por_agendar"%>
+                <h6 class="card-title d-flex justify-content-between align-items-center">
+                  Cédula: <%= user.identification %>
+                  <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.identification %>">
+                    <i class="ri-file-copy-line"></i>
+                  </a>
+                </h6>
+                <p class="card-text d-flex justify-content-between align-items-center">
+                  Entrada: <span class="masked-entry ms-2">*******</span>
+                  <a href="#" class="copy fs-3 ms-auto" data-dato="<%= user.entry %>">
+                    <i class="ri-file-copy-line"></i>
+                  </a>
+                </p>
+                <hr>
+              <%end%>
+              <h6 class="fw-bold">CITAS:</h6>
+              <% if user.appointments.any? %>
+                <ul class="list-group list-group-flush">
+                  <% user.appointments.each do |appointment| %>
+                    <li class="appointment text-black ">
+                      <p class="d-flex justify-content-between align-items-center">
+                        <strong>Fecha:</strong>
+                        <span class="ms-auto"><%= appointment.appointment_date.strftime("%d/%m/%Y") %></span>
+                      </p>
+                      <p class="d-flex justify-content-between align-items-center"><strong>Tipo:</strong><span class="ms-auto"><%= appointment.appointment_type.capitalize %></span></p>
+                      <p class="d-flex justify-content-between align-items-center">
+                        <strong>Status:</strong>
+                        <span class="badge ms-auto 
+                          <%= case appointment.status
+                            when 'disponible' then 'bg-success'
+                            when 'apartada', 'pagada' then 'bg-danger'
+                            when 'inprogramable' then 'bg-secondary'
+                            else 'bg-dark' # Color por defecto si hay otros estados
+                          end %>">
+                          <%= appointment.status.capitalize %>
+                        </span>
+                      </p>
+                    </li>
+                  <% end %>
+                </ul>
+              <% else %>
+                <p class="fst-italic">¡No hay Citas Registradas!</p>
+              <% end %>
+            </div>
           </div>
         </div>
-      </div>
-    <% end %>
-  </div>
+      <% end %>
+    </div>
+    <%= turbo_frame_tag "saime_users-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
+  <%end%>
 <%end%>
