@@ -17,6 +17,15 @@
       </li>
     </ul>
     <% if Current.user&.personal? || Current.user&.personal_saime?%>
+      <% if Current.user&.personal? %>
+        <ul class="nav__list">
+          <li class="nav__item">
+            <%= link_to services_path, class: "nav__link" do %>
+              <i class="ri-movie-line"></i> <span>Servicios</span>
+            <% end %>
+          </li>
+        </ul>
+      <% end %>
       <ul class="nav__list">
         <li class="nav__item">
           <%= link_to saime_users_path, class: "nav__link" do %>
@@ -45,6 +54,17 @@
                 <% end %>
               </li>
               <li class="list__inside">
+                <%= link_to system_services_path, class:"nav__link nav__link--inside" do%>
+                  <i class="fas fa-plus-square"></i> <span>Sistemas de Servicios</span>
+                <% end %>
+              </li>
+              <li class="list__inside">
+                <%= link_to managers_path, class:"nav__link nav__link--inside" do%>
+                  <i class="ri-eye-line"></i>
+                  <span>Gestores</span>
+                <% end %>
+              </li>
+              <li class="list__inside">
                 <%= link_to generos_path, class:"nav__link nav__link--inside" do%>
                   <i class="ri-eye-line"></i>
                   <span>Ver Generos</span>
@@ -54,6 +74,12 @@
                 <%= link_to plataforma_peliculas_path, class:"nav__link nav__link--inside" do%>
                   <i class="ri-eye-line"></i>
                   <span>Plataformas peliculas</span>
+                <% end %>
+              </li>
+              <li class="list__inside">
+                <%= link_to tasa_cambios_path, class:"nav__link nav__link--inside" do%>
+                  <i class="ri-eye-line"></i>
+                  <span>Tasas de Cambio</span>
                 <% end %>
               </li>
             </ul>

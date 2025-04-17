@@ -1,0 +1,14 @@
+<%= form_with model: @tasa_cambio, local: true do |form| %>
+  <div class="mb-3">
+    <%= form.label :description, "Descripcion", class: "form-label" %>
+    <%= form.text_field :description, class: "form-control", placeholder: "Ingrese una descripcion" %>
+  </div>
+  <div class="mb-3">
+    <%= form.label :valor, "Valor de la Tasa de Cambio", class: "form-label" %>
+    <%= form.number_field :valor, step: 0.01, class: "form-control", placeholder: "Ingrese el valor de la tasa de cambio" %>
+  </div>
+  <div>
+    <%= form.submit class: "btn btn-primary" %>
+    <%= link_to 'Cancelar', tasa_cambios_path, class: "btn btn-secondary" %>
+  </div>
+<% end %>

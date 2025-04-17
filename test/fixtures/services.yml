@@ -1,0 +1,15 @@
+# Read about fixtures at https://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  description: MyString
+  cost_price: 1.5
+  sale_price: 1.5
+  value_units: 1
+  cost: false
+
+two:
+  description: MyString
+  cost_price: 1.5
+  sale_price: 1.5
+  value_units: 1
+  cost: false

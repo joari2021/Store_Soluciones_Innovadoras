@@ -1,7 +1,4 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
-  <% if Current.user&.personal? %>
-    <%= link_to 'Actualizar Tasa de Cambio', edit_tasa_cambio_path, class: "btn btn-primary me-4" %>
-  <% end %>
   <% if Current.user&.admin? %>
     <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
     <button type="button" class="invisible" id="btn_alerta">

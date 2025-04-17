@@ -1,10 +1,2 @@
-<h1>Actualizar Tasa de Cambio</h1>
-<%= form_with model: @tasa_cambio, url: tasa_cambio_path, method: :put do |form| %>
-  <div>
-    <%= form.label :valor, "Valor del dólar (Bs.):" %>
-    <%= form.number_field :valor, step: 0.01, class: "form-control" %>
-  </div>
-  <div>
-    <%= form.submit "Actualizar", class: "btn btn-primary" %>
-  </div>
-<% end %>
+<h1>Editar Tasa de Cambio</h1>
+<%= render 'form', tasa_cambio: @tasa_cambio %>

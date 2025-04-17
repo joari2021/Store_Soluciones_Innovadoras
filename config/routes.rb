@@ -1,5 +1,5 @@
 Rails.application.routes.draw do
-  resource :tasa_cambio, only: [:edit, :update]
+  resources :tasa_cambios, except: [:show]
 
   namespace :authentication, path: "", as: "" do
     resources :users, only: [:new, :create], path: "/register", path_names: { new: "/" }
@@ -7,6 +7,11 @@ Rails.application.routes.draw do
   end
 
   resources :productos
+  resources :managers
+  resources :services do
+    resources :service_managers, only: %i[new create edit update destroy]
+  end
+  resources :system_services
   resources :serie_tvs
   resources :generos, except: :show
   resources :plataforma_peliculas, except: :show
