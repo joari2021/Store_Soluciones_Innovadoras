@@ -58,6 +58,7 @@ gem "pagy", "~> 8.4"
 # Amazon
 gem "aws-sdk-s3"
 gem "nokogiri"
+gem 'selenium-webdriver'
 
 group :development, :test do
   gem "debug"
@@ -70,6 +71,8 @@ group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
   gem "whenever", require: false
+  gem 'ruby-lsp', require: false
+  gem 'rubocop', require: false
   #gem "certified"
 
   # Add speed badges [https://github.com/MiniProfiler/rack-mini-profiler]
@@ -82,7 +85,6 @@ end
 group :test do
   # Use system testing [https://guides.rubyonrails.org/testing.html#system-testing]
   gem "capybara"
-  gem "selenium-webdriver"
 end
 
 gem "dockerfile-rails", ">= 1.6", :group => :development
