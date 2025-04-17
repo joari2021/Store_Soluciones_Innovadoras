@@ -6,7 +6,7 @@
     </button>
   <% end %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_cambio, unit: "Bs ") %></strong></span>
+    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
   </div>
   <h1 class="my-4">Listado de Productos</h1>
   <%= form_with url: productos_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
@@ -74,7 +74,7 @@
               <%else%>
                 <%alerta_precio = ""%>
               <%end%>
-              <td class="<%=alerta_precio%>"><%= number_to_currency((producto.precio_venta_bs / @tasa_cambio), unit: "$ ") %></td>
+              <td class="<%=alerta_precio%>"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></td>
               <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
             <% end %>
             <% if Current.user&.admin? %>

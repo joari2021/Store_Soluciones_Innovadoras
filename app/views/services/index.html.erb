@@ -1,29 +1,60 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
   <h1>Servicios</h1>
-  <div><%= link_to 'Nuevo Servicio', new_service_path, class: "btn btn-primary" %></div>
+  <% if Current.user&.admin? %>
+    <div><%= link_to 'Nuevo Servicio', new_service_path, class: "btn btn-primary" %></div>
+  <% end %>
+  <%= form_with url: services_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
+    <div class="d-inline-block">
+      <div class="header__search">
+        <i class="ri-search-line"></i>
+        <%= form.text_field :query_text, placeholder: "Buscar Servicios", autofocus: true, class: "header__input", id:"search-input", value: params[:query_text] %>
+      </div>
+    </div>
+  <%end%>
   <table class="tabla-ajustada">
     <thead>
       <tr>
-        <th>Descricion</th>
-        <th>Sale Price</th>
-        <th>Value Units</th>
-        <th>Cost</th>
-        <th>Actions</th>
+        <th>Sistema</th>
+        <th>Descripcion</th>
+        <th>Costo</th>
+        <% if Current.user&.admin? %>
+          <th>Actions</th>
+        <%end%>
       </tr>
     </thead>
-    <tbody>
-      <% @services.each do |service| %>
-        <tr>
-          <td><%= service.description %></td>
-          <td><%= number_to_currency(service.sale_price) %></td>
-          <td><%= service.value_units %></td>
-          <td><%= service.cost ? "Yes" : "No" %></td>
-          <td>
-            <%= link_to 'Edit', edit_service_path(service), class: "btn btn-warning" %>
-            <%= link_to 'Delete', service_path(service), method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-danger" %>
-          </td>
-        </tr>
-      <% end %>
-    </tbody>
+    <%= turbo_frame_tag "lista_servicios" do%>
+      <tbody>
+        <% @services.each do |service| %>
+          <tr>
+            <td><%= service.system_service&.name || "Sin Sistema" %></td>
+            <td><%= service.description %></td>
+            <td>
+              <% if service.currency_base_price == "$" %>
+                <%= number_to_currency(service.sale_price, unit: "$ ") %>
+                <% if @tasa_dolar_bcv.present? %>
+                  (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)
+                <% else %>
+                  <span class="text-danger">(Tasa no disponible)</span>
+                <% end %>
+              <% elsif service.currency_base_price == "Bs" %>
+                <% if @unidad_VI.present? %>
+                  <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
+                <% else %>
+                  <span class="text-danger">Tasa no disponible</span>
+                <% end %>
+              <% else %>
+                <span class="text-muted">Sin referencia</span>
+              <% end %>
+            </td>
+            <% if Current.user&.admin? %>
+              <td>
+                <%= link_to 'Edit', edit_service_path(service), class: "btn btn-warning" %>
+                <%= link_to 'Delete', service_path(service), method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-danger" %>
+              </td>
+            <%end%>
+          </tr>
+        <% end %>
+      </tbody>
+    <%end%>
   </table>
 </div>

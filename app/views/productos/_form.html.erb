@@ -1,5 +1,5 @@
 <script>
-  tasaDolar = <%= TasaCambio.last&.valor || 0 %>
+  tasaDolar = <%= @tasa_dolar_bcv || 0 %>
 </script>
 <%= form_with(model: producto, data: { controller: "form-producto" }, html: { class: "row g-3" }) do |form| %>
   <% if producto.errors.any? %>

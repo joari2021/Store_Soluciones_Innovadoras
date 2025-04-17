@@ -4,7 +4,6 @@ class ProductosController < ApplicationController
   def index
     @productos = Producto.all.order(descripcion: :asc)
     #@productos = Producto.all.with_attached_poster
-    @tasa_cambio = TasaCambio.last&.valor || "No disponible"
 
     if params[:query_text].present?
       @productos = @productos.whose_name_starts_with(params[:query_text])

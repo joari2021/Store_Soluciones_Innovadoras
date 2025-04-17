@@ -1,0 +1,12 @@
+# filepath: /home/jocari/SistemaRails/Store_Soluciones_Innovadoras/config/locales/es.yml
+es:
+  number:
+    currency:
+      format:
+        delimiter: "." # Separador de miles
+        separator: "," # Separador de decimales
+        format: "%n %u" # Formato: número seguido de la unidad
+        unit: "Bs" # Unidad de moneda (puedes cambiarla según sea necesario)
+    format:
+      delimiter: "." # Separador de miles
+      separator: "," # Separador de decimales

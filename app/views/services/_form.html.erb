@@ -13,7 +13,7 @@
     <div class="row">
       <div class="col-md-3 mb-2">
         <%= form.label :system_service_id, "System Service", class:"form-label" %>
-        <%= form.collection_select :system_service_id, SystemService.all, :id, :name, { include_blank: "Selecciona Un Sistema" }, class: "form-control" %>
+        <%= form.collection_select :system_service_id, SystemService.order(:name), :id, :name, { include_blank: "Selecciona Un Sistema" }, class: "form-control" %>
       </div>
       <div class="col-md-3 mb-2">
         <%= form.label :description, "Descripcion", class:"form-label" %>
@@ -25,7 +25,7 @@
       </div>
       <div class="col-md-3 mb-2" id="value-units-field">
         <%= form.label :value_units, "Unidades de Valor", class:"form-label" %>
-        <%= form.number_field :value_units, class: "form-control" %>
+        <%= form.number_field :value_units, step: 0.01, class: "form-control" %>
       </div>
       <div class="col-md-3 mb-2" id="sale-price-field" style="display: none;">
         <%= form.label :sale_price, "Precio", class:"form-label" %>

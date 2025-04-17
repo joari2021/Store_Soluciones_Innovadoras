@@ -5,16 +5,18 @@
 <table class="tabla-ajustada">
   <thead>
     <tr>
-      <th>Valor</th>
-      <th>Fecha de Creación</th>
+      <th>Descripción</th>
+      <th>Valor (Bs)</th>
+      <th>Fecha de Actualización</th>
       <th>Acciones</th>
     </tr>
   </thead>
   <tbody>
     <% @tasa_cambios.each do |tasa_cambio| %>
       <tr>
+        <td><%= tasa_cambio.description %></td>
         <td><%= tasa_cambio.valor %></td>
-        <td><%= tasa_cambio.created_at.strftime("%d/%m/%Y %H:%M") %></td>
+        <td><%= tasa_cambio.updated_at.strftime("%d/%m/%Y %H:%M") %></td>
         <td>
           <%= link_to 'Editar', edit_tasa_cambio_path(tasa_cambio), class: "btn btn-warning btn-sm" %>
           <%= link_to 'Eliminar', tasa_cambio_path(tasa_cambio), method: :delete, data: { confirm: "¿Estás seguro de que deseas eliminar esta tasa de cambio?" }, class: "btn btn-danger btn-sm" %>
