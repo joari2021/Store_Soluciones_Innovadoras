@@ -13,7 +13,7 @@ class Producto < ApplicationRecord
   # Calcular el precio en bolívares
   
   def calcular_precio_bs(valor_en_dolares)
-    tasa = TasaCambio.last&.valor || 0
+    tasa = TasaCambio.find_by(description: "Dolar BCV")&.valor || 0
     (valor_en_dolares * tasa).round(2)
   end
   
