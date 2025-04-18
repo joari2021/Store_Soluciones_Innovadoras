@@ -32,52 +32,51 @@
         <%end%>
       </tr>
     </thead>
-    <%= turbo_frame_tag "productos-#{@pagy.page}" do%>
+    <%= turbo_frame_tag "productos" do %>
       <tbody id="tbody_productos">
-        <%@cont_alertas = 0%>
+        <% @cont_alertas = 0 %>
         <% @productos.each do |producto| %>
           <tr>
             <td><%= image_tag producto.foto if producto.foto.attached? %></td>
             <td><%= producto.descripcion %></td>
             <% if Current.user&.admin? %>
               <td><%= number_to_currency(producto.precio_costo, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ")%></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></td>
               <td><%= producto.cant_unidades %></td>
-              <% costo_unidad = (producto.precio_costo / producto.cant_unidades).round(2)%>
+              <% costo_unidad = (producto.precio_costo / producto.cant_unidades).round(2) %>
               <td><%= number_to_currency(costo_unidad, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs ")%></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs ") %></td>
               <td><%= producto.nivel_ganancia.upcase %></td>
-              <td><%= number_to_currency(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades), unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades)), unit: "Bs ") %></td>
+              <td><%= number_to_currency(producto.precio_sugerido_usd(producto.precio_costo, producto.cant_unidades), unit: "$ ") %></td>
+              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo, producto.cant_unidades)), unit: "Bs ") %></td>
             <% end %>
-            <%if producto.moneda_base_precio === "Dolar"%>
-              <%if producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades) > producto.precio_venta_usd && Current.user&.admin?%>
-                <%alerta_precio = "bg-danger"%>
-                <%@cont_alertas += 1%>
-              <%else%>
-                <%alerta_precio = ""%>
-              <%end%>
-              <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
-              <td class="<%=alerta_precio%>"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ")%></td>
+            <% if producto.moneda_base_precio === "Dolar" %>
+              <% if producto.precio_sugerido_usd(producto.precio_costo, producto.cant_unidades) > producto.precio_venta_usd && Current.user&.admin? %>
+                <% alerta_precio = "bg-danger" %>
+                <% @cont_alertas += 1 %>
+              <% else %>
+                <% alerta_precio = "" %>
+              <% end %>
+              <td class="<%= alerta_precio %>"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
+              <td class="<%= alerta_precio %>"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></td>
             <% else %>
-              <%@precio_sugerido_bs = producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo,producto.cant_unidades))%>
-              <%if @precio_sugerido_bs > producto.precio_venta_bs && Current.user&.admin?%>
-                <%alerta_precio = "bg-danger"%>
-                <%@cont_alertas += 1%>
-              <%else%>
-                <%alerta_precio = ""%>
-              <%end%>
-              <td class="<%=alerta_precio%>"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></td>
-              <td class="<%=alerta_precio%>"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
+              <% @precio_sugerido_bs = producto.calcular_precio_bs(producto.precio_sugerido_usd(producto.precio_costo, producto.cant_unidades)) %>
+              <% if @precio_sugerido_bs > producto.precio_venta_bs && Current.user&.admin? %>
+                <% alerta_precio = "bg-danger" %>
+                <% @cont_alertas += 1 %>
+              <% else %>
+                <% alerta_precio = "" %>
+              <% end %>
+              <td class="<%= alerta_precio %>"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></td>
+              <td class="<%= alerta_precio %>"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
             <% end %>
             <% if Current.user&.admin? %>
               <td><%= link_to "Edit", edit_producto_path(producto), class: "btn btn-primary" %></td>
-            <%end%>
+            <% end %>
           </tr>
         <% end %>
       </tbody>
     <%end%>
-    <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
   </table>
 </div>
 <script>
