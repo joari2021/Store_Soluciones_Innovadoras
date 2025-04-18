@@ -1,4 +1,4 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <% if Current.user&.admin? %>
     <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
     <button type="button" class="invisible" id="btn_alerta">
@@ -9,14 +9,7 @@
     <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
   </div>
   <h1 class="my-4">Listado de Productos</h1>
-  <%= form_with url: productos_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
-    <div class="d-inline-block">
-      <div class="header__search">
-        <i class="ri-search-line"></i>
-        <%= form.text_field :query_text, placeholder: "Buscar Producto", autofocus: true, class: "header__input", id:"search-input", value: params[:query_text] %>
-      </div>
-    </div>
-  <%end%>
+  <%= render "shared/campo_buscar", url: productos_path, busqueda: "Productos" %>
   <table class="tabla-ajustada mt-4">
     <thead>
       <tr>
@@ -39,7 +32,7 @@
         <%end%>
       </tr>
     </thead>
-    <%= turbo_frame_tag "lista_productos" do%>
+    <%= turbo_frame_tag "productos-#{@pagy.page}" do%>
       <tbody id="tbody_productos">
         <%@cont_alertas = 0%>
         <% @productos.each do |producto| %>
@@ -83,6 +76,7 @@
           </tr>
         <% end %>
       </tbody>
+      <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
     <%end%>
   </table>
 </div>

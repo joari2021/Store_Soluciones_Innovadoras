@@ -10,11 +10,12 @@ class Service < ApplicationRecord
   validates :value_units, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   pg_search_scope :whose_name_starts_with,
-                  against: {
-                    description: "A"
+                  against: { description: 'B' }, # Asigna grado "B" a la descripción del servicio
+                  associated_against: {
+                    system_service: { name: 'A' } # Asigna grado "A" al nombre del sistema asociado
                   },
                   using: {
-                    tsearch: { prefix: true },
+                    tsearch: { prefix: true }
                   }
 end
 

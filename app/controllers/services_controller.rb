@@ -2,10 +2,10 @@ class ServicesController < ApplicationController
   before_action :set_service, only: %i[edit update destroy]
 
   def index
-    @services = Service.includes(:system_service).order('system_services.name ASC, services.description ASC')
-
     if params[:query_text].present?
-      @services = @services.whose_name_starts_with(params[:query_text])
+      @services = Service.joins(:system_service).whose_name_starts_with(params[:query_text])
+    else
+      @services = Service.includes(:system_service).order('system_services.name ASC, services.description ASC')
     end
   end
 

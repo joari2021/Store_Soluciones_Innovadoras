@@ -8,7 +8,7 @@ Rails.application.routes.draw do
 
   resources :productos
   resources :managers
-  resources :services do
+  resources :services, except: [:show] do
     resources :service_managers, only: %i[new create edit update destroy]
   end
   resources :system_services

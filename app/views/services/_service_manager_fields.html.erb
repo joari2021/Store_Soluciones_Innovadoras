@@ -4,19 +4,19 @@
     <%= m.collection_select :manager_id, Manager.all.order(:name), :id, :name, {}, {class: "form-select"} %>
   </div>
   <div class="col-3">
-    <%= m.label :reference_cost, "Tasa Dolar del Costo", class:"form-label" %>
+    <%= m.label :reference_cost, "Tasa Dolar del Costo", class: "form-label" %>
     <%= m.select :reference_cost, 
-        options_for_select(
-          [["Dolar Promedio", "Dolar Promedio"]] + 
-          TasaCambio.all.map { |tasa| [tasa.description, tasa.description] }, 
-          m.object.reference_cost
-        ), 
-        { include_blank: "Selecciona una opción" }, 
-        class: "form-control" %>
+      options_for_select(
+        TasaCambio.where.not(description: "Unidad VI").map { |tasa| [tasa.description, tasa.description] }, 
+        m.object.reference_cost
+      ), 
+      {}, 
+      class: "form-control", 
+      data: { action: "change->form-services#updateCostLabel", reference_cost: true } %>
   </div>
   <div class="col-3">
-    <%= m.label :cost, "Costo", class:"form-label" %>
-    <%= m.number_field :cost, step: "0.01", min: "0", class:"form-control"%>
+    <%= m.label :cost, "Costo", class: "form-label", data: { cost_label: true } %>
+    <%= m.number_field :cost, step: "0.01", min: "0", class: "form-control", data: { action: "input->form-services#updateCostLabel", cost_input: true } %>
   </div>
   <div class="col-3">
     <%= m.label :symbol_tasa, "Simbolo de la Tasa", class:"form-label" %>

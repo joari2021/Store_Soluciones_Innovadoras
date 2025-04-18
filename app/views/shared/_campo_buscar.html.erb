@@ -1,0 +1,8 @@
+<%= form_with url: url, method: :get, html: { id: "formulario_buscar", class: "mt-3", data: { controller: "campo-buscar" } } do |form| %>
+  <div class="d-inline-block">
+    <div class="header__search">
+      <i class="ri-search-line"></i>
+      <%= form.text_field :query_text, placeholder: "Buscar #{busqueda}", autofocus: true, class: "header__input", id:"search-input", value: params[:query_text] %>
+    </div>
+  </div>
+<% end %>

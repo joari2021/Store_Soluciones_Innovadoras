@@ -1,22 +1,18 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;" data-controller="campo-buscar">
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <h1>Servicios</h1>
   <% if Current.user&.admin? %>
     <div><%= link_to 'Nuevo Servicio', new_service_path, class: "btn btn-primary" %></div>
   <% end %>
-  <%= form_with url: services_path, method: :get, html: { id: "formulario_buscar" } do |form| %>
-    <div class="d-inline-block">
-      <div class="header__search">
-        <i class="ri-search-line"></i>
-        <%= form.text_field :query_text, placeholder: "Buscar Servicios", autofocus: true, class: "header__input", id:"search-input", value: params[:query_text] %>
-      </div>
-    </div>
-  <%end%>
+  <%= render "shared/campo_buscar", url: services_path, busqueda: "Servicios" %>
   <table class="tabla-ajustada">
     <thead>
       <tr>
         <th>Sistema</th>
-        <th>Descripcion</th>
-        <th>Costo</th>
+        <th>Descripcion del Servicio</th>
+        <% if Current.user&.admin? %>
+          <th>Costo</th>
+        <%end%>
+        <th>Precio</th>
         <% if Current.user&.admin? %>
           <th>Actions</th>
         <%end%>
@@ -28,6 +24,22 @@
           <tr>
             <td><%= service.system_service&.name || "Sin Sistema" %></td>
             <td><%= service.description %></td>
+            <%if Current.user&.admin?%>
+              <td>
+                <% if service.cost %>
+                  <% service.service_managers.each do |service_manager| %>
+                    <div style="display: flex; justify-content: space-between;">
+                      <span><%= service_manager.manager.name %></span>
+                      <span>
+                        <%= number_to_currency((service_manager.cost * TasaCambio.find_by(description: service_manager.reference_cost)&.valor.to_f) / @tasa_dolar_bcv, unit: "$") %>
+                      </span>
+                    </div>
+                  <% end %>
+                <% else %>
+                  <span class="text-muted">Sin costo</span>
+                <% end %>
+              </td>
+            <%end%>
             <td>
               <% if service.currency_base_price == "$" %>
                 <%= number_to_currency(service.sale_price, unit: "$ ") %>
@@ -49,7 +61,7 @@
             <% if Current.user&.admin? %>
               <td>
                 <%= link_to 'Edit', edit_service_path(service), class: "btn btn-warning" %>
-                <%= link_to 'Delete', service_path(service), method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-danger" %>
+                <%= link_to 'Delete', service_path(service), data: { turbo_method: :delete, confirm: "Are you sure?" }, class: "btn btn-danger" %>
               </td>
             <%end%>
           </tr>

@@ -1,5 +1,5 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
-  <%= form_with(model: @service, local: true, data: {  controller: "form-services" }, id: "form-services") do |form| %>
+  <%= form_with(model: @service, local: true, data: { controller: "form-services", tasa_bcv: @tasa_dolar_bcv, tasas: @tasas.to_json }, id: "form-services") do |form| %>
     <% if @service.errors.any? %>
       <div class="alert alert-danger">
         <h4>Errores:</h4>

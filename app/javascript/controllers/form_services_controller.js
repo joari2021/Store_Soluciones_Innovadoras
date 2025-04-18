@@ -5,6 +5,14 @@ export default class extends Controller {
     this.toggleFields(); // Llama a la función al cargar la página
     this.initializeManagers(); // Configura los managers al cargar la página
 
+    // Valores de las tasas (puedes pasarlos desde el backend si cambian dinámicamente)
+    this.tasaBCV = parseFloat(this.element.dataset.tasaBcv || 1); // Tasa BCV
+    this.tasas = JSON.parse(this.element.dataset.tasas || "{}"); // Otras tasas
+    // Ejecutar updateCostLabel para cada fila al cargar la vista
+    this.element.querySelectorAll(".field_service_manager").forEach((row) => {
+      this.updateCostLabelOnRow(row);
+    });
+
     document
       .getElementById("add_fields_service_managers")
       .addEventListener("click", function (e) {
@@ -28,6 +36,31 @@ export default class extends Controller {
         field.style.display = "none";
       }
     });
+  }
+  updateCostLabel(event) {
+    // Encuentra la fila actual del gestor de servicios
+    const row = event.target.closest(".field_service_manager");
+    this.updateCostLabelOnRow(row);
+  }
+  updateCostLabelOnRow(row) {
+    // Encuentra los elementos relevantes dentro de la fila
+    const referenceCostSelect = row.querySelector("[data-reference-cost]");
+    const costInput = row.querySelector("[data-cost-input]");
+    const costLabel = row.querySelector("[data-cost-label]");
+
+    if (!referenceCostSelect || !costInput || !costLabel) return;
+
+    // Obtiene los valores necesarios para el cálculo
+    const referenceCost = this.tasas[referenceCostSelect.value] || 1;
+    const cost = parseFloat(costInput.value) || 0;
+
+    // Realiza el cálculo y actualiza el label
+    if (cost > 0 && referenceCost > 0) {
+      const result = (cost * referenceCost) / this.tasaBCV;
+      costLabel.innerHTML = `Costo <small class="fst-italic">(Tasa BCV: ${result.toFixed(
+        2
+      )})</small>`;
+    }
   }
   toggleFields() {
     const currencySelect = this.element.querySelector(

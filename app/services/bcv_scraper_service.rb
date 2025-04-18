@@ -28,7 +28,12 @@ class BcvScraperService
           tasa_valor = BigDecimal(dato_clean).round(2)
 
           # Actualizar el registro en la base de datos
-          TasaCambio.find_by(description: "Dolar BCV").update(valor: tasa_valor)
+          tasa_bcv = TasaCambio.find_by(description: "Dolar BCV")
+          tasa_paralelo = TasaCambio.find_by(description: "Dolar Paralelo") 
+          tasa_promedio = TasaCambio.find_by(description: "Dolar Promedio")
+          tasa_bcv.update(valor: tasa_valor)
+          new_promedio = (tasa_bcv.valor + tasa_paralelo.valor) / 2
+          tasa_promedio.update(valor: new_promedio)
         else
           Rails.logger.info "La fecha de validez #{fecha_validez} no coincide con la fecha actual #{fecha_actual}. No se actualizó el dato."
         end

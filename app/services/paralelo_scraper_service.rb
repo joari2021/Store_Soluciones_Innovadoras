@@ -59,6 +59,12 @@ class ParaleloScraperService
   def self.update_tasa_cambio(description, value)
     return unless value.present?
     tasa_valor = BigDecimal(value).round(2)
-    TasaCambio.find_by(description: description)&.update(valor: tasa_valor)
+    tasa_paralelo = TasaCambio.find_by(description: description)
+    tasa_bcv = TasaCambio.find_by(description: "Dolar BCV")
+    tasa_promedio = TasaCambio.find_by(description: "Dolar Promedio")
+
+    tasa_paralelo.update(valor: tasa_valor)
+    new_promedio = BigDecimal((tasa_bcv.valor + tasa_paralelo.valor) / 2).round(2)
+    tasa_promedio.update(valor: new_promedio)
   end
 end
