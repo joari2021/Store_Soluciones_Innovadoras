@@ -76,8 +76,8 @@
           </tr>
         <% end %>
       </tbody>
-      <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
     <%end%>
+    <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
   </table>
 </div>
 <script>
