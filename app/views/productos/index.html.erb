@@ -36,6 +36,8 @@
       <tbody id="tbody_productos">
         <% @cont_alertas = 0 %>
         <% @productos.each do |producto| %>
+          <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
+          <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
           <tr>
             <td><%= image_tag producto.foto if producto.foto.attached? %></td>
             <td><%= producto.descripcion %></td>
@@ -43,11 +45,9 @@
               <td><%= number_to_currency(producto.precio_costo, unit: "$ ") %></td>
               <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></td>
               <td><%= producto.cant_unidades %></td>
-              <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
               <td><%= number_to_currency(costo_unidad, unit: "$ ") %></td>
               <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs ") %></td>
               <td><%= producto.nivel_ganancia.upcase %></td>
-              <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
               <td><%= number_to_currency(precio_sugerido_usd, unit: "$ ") %></td>
               <td><%= number_to_currency(producto.calcular_precio_bs(precio_sugerido_usd), unit: "Bs ") %></td>
             <% end %>
