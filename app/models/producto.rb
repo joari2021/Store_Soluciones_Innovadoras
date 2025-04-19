@@ -18,7 +18,7 @@ class Producto < ApplicationRecord
   end
   
   def precio_sugerido_usd(precio_costo_pack, cantidad)
-    precio_costo_unidad_usd = precio_costo_pack / cantidad
+    precio_costo_unidad_usd = (precio_costo_pack / cantidad).round(2)
     case nivel_ganancia
     when "Baja"
       (precio_costo_unidad_usd / (1 - 0.2)).round(2)
