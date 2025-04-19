@@ -1,6 +1,6 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <% if Current.user&.admin? %>
-    <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success" %>
+    <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success mb-3" %>
     <button type="button" class="invisible" id="btn_alerta">
       Alerta Precio <span class="badge bg-danger" id="cont_alerta_precio">0</span>
     </button>
@@ -8,109 +8,148 @@
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
     <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
   </div>
-  <h1 class="my-4">Listado de Productos</h1>
+  <h1 class="my-4 text-center">Listado de Productos</h1>
   <%= render "shared/campo_buscar", url: productos_path, busqueda: "Productos" %>
-  <table class="tabla-ajustada mt-4">
-    <thead>
-      <tr>
-        <th>Foto</th>
-        <th>Descripción</th>
-        <% if Current.user&.admin? %>
-          <th>Costo Pack ($)</th>
-          <th>Costo Pack (Bs)</th>
-          <th>Cantidad</th>
-          <th>Costo Unidad ($)</th>
-          <th>Costo Unidad (Bs)</th>
-          <th>Nivel Ganancia</th>
-          <th>PV Sugerido ($)</th>
-          <th>PV Sugerido (Bs)</th>
-        <%end%>
-        <th>Precio Venta ($)</th>
-        <th>Precio Venta (Bs)</th>
-        <% if Current.user&.admin? %>
-          <th>Acción</th>
-        <%end%>
-      </tr>
-    </thead>
-    <%= turbo_frame_tag "productos" do %>
-      <tbody id="tbody_productos">
-        <% @cont_alertas = 0 %>
-        <% @productos.each do |producto| %>
-          <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
-          <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
-          <tr>
-            <td><%= image_tag producto.foto if producto.foto.attached? %></td>
-            <td><%= producto.descripcion %></td>
-            <% if Current.user&.admin? %>
-              <td><%= number_to_currency(producto.precio_costo, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></td>
-              <td><%= producto.cant_unidades %></td>
-              <td><%= number_to_currency(costo_unidad, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(costo_unidad), unit: "Bs ") %></td>
-              <td><%= producto.nivel_ganancia.upcase %></td>
-              <td><%= number_to_currency(precio_sugerido_usd, unit: "$ ") %></td>
-              <td><%= number_to_currency(producto.calcular_precio_bs(precio_sugerido_usd), unit: "Bs ") %></td>
-            <% end %>
-            <% if producto.moneda_base_precio === "Dolar" %>
-              <% if precio_sugerido_usd > producto.precio_venta_usd && Current.user&.admin? %>
-                <% alerta_precio = "bg-danger" %>
-                <% @cont_alertas += 1 %>
-              <% else %>
-                <% alerta_precio = "" %>
-              <% end %>
-              <td class="<%= alerta_precio %>"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></td>
-              <td class="<%= alerta_precio %>"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></td>
-            <% else %>
-              <% @precio_sugerido_bs = producto.calcular_precio_bs(precio_sugerido_usd) %>
-              <% if @precio_sugerido_bs > producto.precio_venta_bs && Current.user&.admin? %>
-                <% alerta_precio = "bg-danger" %>
-                <% @cont_alertas += 1 %>
-              <% else %>
-                <% alerta_precio = "" %>
-              <% end %>
-              <td class="<%= alerta_precio %>"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></td>
-              <td class="<%= alerta_precio %>"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></td>
-            <% end %>
-            <% if Current.user&.admin? %>
-              <td><%= link_to "Edit", edit_producto_path(producto), class: "btn btn-primary" %></td>
-            <% end %>
-          </tr>
+  <%= turbo_frame_tag "productos-#{@pagy.page}" do%>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-4 mt-2" id="productos-container">
+      <% @cont_alertas = 0 %>
+      <% @productos.each do |producto| %>
+        <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
+        <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
+        <% alerta_precio = "" %>
+        <% if producto.moneda_base_precio === "Dolar" %>
+          <% if precio_sugerido_usd > producto.precio_venta_usd && Current.user&.admin? %>
+            <% alerta_precio = "border-danger border-3" %>
+            <% @cont_alertas += 1 %>
+          <% end %>
+        <% else %>
+          <% @precio_sugerido_bs = producto.calcular_precio_bs(precio_sugerido_usd) %>
+          <% if @precio_sugerido_bs > producto.precio_venta_bs && Current.user&.admin? %>
+            <% alerta_precio = "border-danger border-3" %>
+            <% @cont_alertas += 1 %>
+          <% end %>
         <% end %>
-      </tbody>
-    <%end%>
-  </table>
+        <div class="col">
+          <div class="card h-100 shadow-sm <%= alerta_precio %> text-black">
+            <% if Current.user&.admin? %>
+              <div class="card-header d-flex justify-content-end">
+                <%= link_to edit_producto_path(producto), class: "btn btn-primary btn-sm" do %>
+                  <i class="fas fa-edit"></i>
+                <% end %>
+              </div>
+            <% end %>
+            <div class="image-container">
+              <% if producto.foto.attached? %>
+                <%= image_tag producto.foto, class: "card-img-top", alt: producto.descripcion %>
+              <% else %>
+                <%= image_tag "default_image.jpeg", class: "card-img-top", alt: "Imagen por defecto" %>
+              <% end %>
+            </div>
+            <div class="card-body">
+              <h5 class="card-title text-info"><%= producto.descripcion.titleize %></h5>
+              <hr class="text-info" style="height: 3px;">
+              <% if Current.user&.admin? %>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Pack ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_costo, unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Pack (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Cantidad:</span>
+                  <strong class="d-block text-end"><%= producto.cant_unidades %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Unidad ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_costo / producto.cant_unidades), unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Unidad (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo / producto.cant_unidades), unit: "Bs ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Nivel Ganancia:</span>
+                  <strong class="d-block text-end"><%= producto.nivel_ganancia.upcase %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">PV Sugerido ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(precio_sugerido_usd, unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">PV Sugerido (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(precio_sugerido_usd), unit: "Bs ") %></strong>
+                </p>
+                <hr>
+              <% end %>
+              <p class="card-text mb-1">
+                <span class="d-block text-start">Precio Venta ($):</span>
+                <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
+              </p>
+              <hr>
+              <p class="card-text mb-1">
+                <span class="d-block text-start">Precio Venta (Bs):</span>
+                <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></strong>
+              </p>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
+  <%end%>
 </div>
+<style>
+  .image-container {
+    position: relative;
+    width: 100%;
+    padding-top: 130%; /* Relación de aspecto 130% */
+    overflow: hidden;
+  }
+
+  .image-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
+  }
+</style>
 <script>
-  cont_alertas = <%=@cont_alertas%>
+  cont_alertas = <%= @cont_alertas %>
   contAlertaPrecio = document.getElementById("cont_alerta_precio")
   btnAlerta = document.getElementById("btn_alerta")
 
-  if (cont_alertas > 0){
-    // Reemplazar todas las clases existentes con las nuevas:
-    btnAlerta.classList = "btn btn-warning mx-3"; //
-    // Reemplazar el contenido del span con el nuevo texto:
-    contAlertaPrecio.innerHTML = cont_alertas; // Puedes usar innerText o innerHTML si necesitas HTML
+  if (cont_alertas > 0) {
+    btnAlerta.classList = "btn btn-warning mx-3";
+    contAlertaPrecio.innerHTML = cont_alertas;
   }
 
-  // Listener para filtrar filas de la tabla
   btnAlerta.addEventListener("click", function () {
-    const tbody = document.getElementById("tbody_productos");
-    const rows = tbody.querySelectorAll("tr");
+    const container = document.getElementById("productos-container");
+    const cards = container.querySelectorAll(".card");
 
-    // Si el botón tiene una bandera de "filtrado activo", restaurar todas las filas
     if (btnAlerta.dataset.filterActive === "true") {
-      rows.forEach(row => {
-        row.style.display = "";
+      cards.forEach(card => {
+        card.style.display = "";
       });
       btnAlerta.dataset.filterActive = "false";
       btnAlerta.innerHTML = 'Alerta Precio <span class="badge bg-danger" id="cont_alerta_precio">' + cont_alertas + '</span>';
     } else {
-      rows.forEach(row => {
-        // Se busca alguna celda con la clase 'bg-danger' dentro de la fila
-        if (row.querySelector("td.bg-danger")) {
-          row.style.display = "";
+      cards.forEach(card => {
+        if (card.classList.contains("border-danger")) {
+          card.style.display = "";
         } else {
-          row.style.display = "none";
+          card.style.display = "none";
         }
       });
       btnAlerta.dataset.filterActive = "true";
