@@ -21,11 +21,11 @@ class Producto < ApplicationRecord
     precio_costo_unidad_usd = precio_costo_pack / cantidad
     case nivel_ganancia
     when "Baja"
-      precio_costo_unidad_usd / (1 - 0.2)
+      (precio_costo_unidad_usd / (1 - 0.2)).round(2)
     when "Media"
-      precio_costo_unidad_usd / (1 - 0.3)
+      (precio_costo_unidad_usd / (1 - 0.3)).round(2)
     when "Alta"
-      precio_costo_unidad_usd / (1 - 0.5)
+      (precio_costo_unidad_usd / (1 - 0.5)).round(2)
     else
       # Si no se cumple ninguna condición, puedes devolver el precio de costo o nil
       precio_costo_unidad_usd
