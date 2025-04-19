@@ -111,7 +111,12 @@ class ParaleloScraperService
 
           # Actualizar el registro en la base de datos
           tasa_paralelo = TasaCambio.find_by(description: "Dolar Paralelo")
+          tasa_bcv = TasaCambio.find_by(description: "Dolar BCV")
+          tasa_promedio = TasaCambio.find_by(description: "Dolar Promedio")
+          
           tasa_paralelo.update(valor: tasa_valor)
+          new_promedio = BigDecimal((tasa_bcv.valor + tasa_valor) / 2).round(2)
+          tasa_promedio.update(valor: new_promedio)
 
           Rails.logger.info "Tasa Dólar Paralelo actualizada a #{tasa_valor}"
         else
