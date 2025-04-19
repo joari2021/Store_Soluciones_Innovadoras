@@ -22,7 +22,7 @@ class BcvScraperService
         fecha_actual = Time.now.in_time_zone('Caracas').to_date
 
         # Comparar la fecha de validez con la fecha actual
-        if fecha_validez != fecha_actual
+        if fecha_validez == fecha_actual
           dato = dato.tr(',', '.')  # Reemplaza la coma por punto
           dato_clean = dato.gsub(/[^\d.]/, '')  # Elimina caracteres no numéricos, si los hubiera
           tasa_valor = BigDecimal(dato_clean).round(2)

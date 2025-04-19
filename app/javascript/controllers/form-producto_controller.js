@@ -16,8 +16,9 @@ export default class extends Controller {
 
     function editPrecioSugerido() {
       const nivelGanancia = document.querySelector(".form-select").value;
-      const precioCostoUnidadUSD =
-        parseFloat(document.getElementById("costo_u_usd").value) || 0;
+      const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
+      const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
+      const precioCostoUnidadUSD = valorPackUSD / cantidadPackNumber;
 
       var precioSugeridoUSD = 0;
 
@@ -36,7 +37,7 @@ export default class extends Controller {
       document.getElementById("precio_sugerido_usd").value =
         precioSugeridoUSD.toFixed(2);
       document.getElementById("precio_sugerido_bs").value = (
-        precioSugeridoUSD.toFixed(2) * tasaDolar
+        precioSugeridoUSD * tasaDolar
       ).toFixed(2);
     }
     function calcularPrecioCosto() {
@@ -44,11 +45,11 @@ export default class extends Controller {
       const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
       const valorPackEnBs = (valorPackUSD * tasaDolar).toFixed(2);
       const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
-      const valorUnidadUSD = (valorPackUSD / cantidadPackNumber).toFixed(2);
+      const valorUnidadUSD = valorPackUSD / cantidadPackNumber;
 
       // Asignar el valor calculado al input
       precioCostoPackBs.value = valorPackEnBs;
-      precioCostoUnidadUSD.value = valorUnidadUSD;
+      precioCostoUnidadUSD.value = valorUnidadUSD.toFixed(2);
       precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
     }
     function calcularPrecioVentaBs() {

@@ -17,15 +17,14 @@ class Producto < ApplicationRecord
     (valor_en_dolares * tasa).round(2)
   end
   
-  def precio_sugerido_usd(precio_costo_pack, cantidad)
-    precio_costo_unidad_usd = (precio_costo_pack / cantidad).round(2)
+  def precio_sugerido_usd(precio_costo_unidad_usd)
     case nivel_ganancia
     when "Baja"
-      (precio_costo_unidad_usd / (1 - 0.2)).round(2)
+      precio_costo_unidad_usd / (1 - 0.2)
     when "Media"
-      (precio_costo_unidad_usd / (1 - 0.3)).round(2)
+      precio_costo_unidad_usd / (1 - 0.3)
     when "Alta"
-      (precio_costo_unidad_usd / (1 - 0.5)).round(2)
+      precio_costo_unidad_usd / (1 - 0.5)
     else
       # Si no se cumple ninguna condición, puedes devolver el precio de costo o nil
       precio_costo_unidad_usd
