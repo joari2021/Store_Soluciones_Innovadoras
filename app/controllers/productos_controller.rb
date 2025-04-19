@@ -8,7 +8,6 @@ class ProductosController < ApplicationController
     if params[:query_text].present?
       @productos = @productos.whose_name_starts_with(params[:query_text])
     end
-    #@pagy, @productos = pagy_countless(@productos, items: 30)
   end
 
   def new
