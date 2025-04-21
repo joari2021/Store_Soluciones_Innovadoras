@@ -48,6 +48,7 @@
             <div class="card-body">
               <h5 class="card-title text-info"><%= producto.descripcion.titleize %></h5>
               <hr class="text-info" style="height: 3px;">
+              <!--
               <% if Current.user&.admin? %>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Costo Pack ($):</span>
@@ -90,15 +91,28 @@
                 </p>
                 <hr>
               <% end %>
-              <p class="card-text mb-1">
-                <span class="d-block text-start">Precio Venta ($):</span>
-                <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
-              </p>
-              <hr>
-              <p class="card-text mb-1">
-                <span class="d-block text-start">Precio Venta (Bs):</span>
-                <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></strong>
-              </p>
+              -->
+              <% if producto.moneda_base_precio === "Dolar" %>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></strong>
+                </p>
+              <% else %>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
+                </p>
+              <% end %>
             </div>
           </div>
         </div>
