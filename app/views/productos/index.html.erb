@@ -1,9 +1,13 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <% if Current.user&.admin? %>
     <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success mb-3" %>
-    <button type="button" class="invisible" id="btn_alerta">
-      Alerta Precio <span class="badge bg-danger" id="cont_alerta_precio">0</span>
-    </button>
+    <%if @total_alertas > 0%>
+      <%= link_to(
+      "#{params[:filter] == 'alerta' ? 'Mostrar todos los productos' : 'Alerta Precio'} <span class='badge bg-danger'>#{@total_alertas}</span>".html_safe,
+      params[:filter] == "alerta" ? productos_path : productos_path(filter: "alerta"),
+      class: "btn #{params[:filter] == 'alerta' ? 'btn-primary' : 'btn-warning'} mx-3"
+    ) %>
+    <%end%>
   <% end %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
     <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
@@ -16,24 +20,11 @@
       <% @productos.each do |producto| %>
         <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
         <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
-        <% alerta_precio = "" %>
-        <% if producto.moneda_base_precio === "Dolar" %>
-          <% if precio_sugerido_usd > producto.precio_venta_usd && Current.user&.admin? %>
-            <% alerta_precio = "border-danger border-3" %>
-            <% @cont_alertas += 1 %>
-          <% end %>
-        <% else %>
-          <% @precio_sugerido_bs = producto.calcular_precio_bs(precio_sugerido_usd) %>
-          <% if @precio_sugerido_bs > producto.precio_venta_bs && Current.user&.admin? %>
-            <% alerta_precio = "border-danger border-3" %>
-            <% @cont_alertas += 1 %>
-          <% end %>
-        <% end %>
         <div class="col">
-          <div class="card h-100 shadow-sm <%= alerta_precio %> text-black">
+          <div class="card h-100 shadow-sm text-black">
             <% if Current.user&.admin? %>
               <div class="card-header d-flex justify-content-end">
-                <%= link_to edit_producto_path(producto), class: "btn btn-primary btn-sm" do %>
+                <%= link_to edit_producto_path(producto), class: "btn btn-primary btn-sm", data: { turbo_frame: "_top" } do %>
                   <i class="fas fa-edit"></i>
                 <% end %>
               </div>
@@ -48,7 +39,6 @@
             <div class="card-body">
               <h5 class="card-title text-info"><%= producto.descripcion.titleize %></h5>
               <hr class="text-info" style="height: 3px;">
-              <!--
               <% if Current.user&.admin? %>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Costo Pack ($):</span>
@@ -91,7 +81,6 @@
                 </p>
                 <hr>
               <% end %>
-              -->
               <% if producto.moneda_base_precio === "Dolar" %>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Precio Venta ($):</span>
@@ -138,36 +127,3 @@
     object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
   }
 </style>
-<script>
-  cont_alertas = <%= @cont_alertas %>
-  contAlertaPrecio = document.getElementById("cont_alerta_precio")
-  btnAlerta = document.getElementById("btn_alerta")
-
-  if (cont_alertas > 0) {
-    btnAlerta.classList = "btn btn-warning mx-3";
-    contAlertaPrecio.innerHTML = cont_alertas;
-  }
-
-  btnAlerta.addEventListener("click", function () {
-    const container = document.getElementById("productos-container");
-    const cards = container.querySelectorAll(".card");
-
-    if (btnAlerta.dataset.filterActive === "true") {
-      cards.forEach(card => {
-        card.style.display = "";
-      });
-      btnAlerta.dataset.filterActive = "false";
-      btnAlerta.innerHTML = 'Alerta Precio <span class="badge bg-danger" id="cont_alerta_precio">' + cont_alertas + '</span>';
-    } else {
-      cards.forEach(card => {
-        if (card.classList.contains("border-danger")) {
-          card.style.display = "";
-        } else {
-          card.style.display = "none";
-        }
-      });
-      btnAlerta.dataset.filterActive = "true";
-      btnAlerta.innerHTML = 'Mostrar todos los productos';
-    }
-  });
-</script>
