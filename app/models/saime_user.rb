@@ -15,8 +15,9 @@ class SaimeUser < ApplicationRecord
   scope :with_available_appointments, -> {
     joins(:appointments)
       .where(temporary_status: 'activo', confirmed_status: 'activo')
-      .where("appointments.appointment_date > ? AND appointments.status = ?", Date.today, "disponible")
+      .where("appointments.appointment_date > ? AND appointments.status = ?", Date.today.end_of_day, "disponible")
       .group("saime_users.id")
+      .having("SUM(CASE WHEN appointments.appointment_date <= ? THEN 1 ELSE 0 END) = 0", Date.today.end_of_day)
       .order("MIN(appointments.appointment_date) ASC")
   }
 
