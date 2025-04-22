@@ -44,13 +44,14 @@ class SaimeUsersController < ApplicationController
       users = SaimeUser.with_available_appointments
 
       # Filtrar por rango de fechas si los parámetros están presentes
+
       if params[:start_date].present? && params[:end_date].present?
         start_date = Date.parse(params[:start_date]) rescue nil
         end_date = Date.parse(params[:end_date]) rescue nil
-
+      
         if start_date && end_date
           users = users.joins(:appointments)
-                      .where(appointments: { appointment_date: start_date..end_date })
+                       .where("DATE(appointments.appointment_date) BETWEEN ? AND ?", start_date, end_date)
         end
       end
       users
