@@ -15,9 +15,9 @@ class SaimeUser < ApplicationRecord
   scope :with_available_appointments, -> {
     joins(:appointments)
       .where(temporary_status: 'activo', confirmed_status: 'activo')
-      .where("appointments.appointment_date > ? AND appointments.status = ?", Date.today.end_of_day, "disponible")
+      .where("DATE(appointments.appointment_date) > ? AND appointments.status = ?", Date.today, "disponible")
       .group("saime_users.id")
-      .having("SUM(CASE WHEN appointments.appointment_date <= ? THEN 1 ELSE 0 END) = 0", Date.today.end_of_day)
+      .having("SUM(CASE WHEN DATE(appointments.appointment_date) <= ? THEN 1 ELSE 0 END) = 0", Date.today)
       .order("MIN(appointments.appointment_date) ASC")
   }
 
@@ -45,47 +45,47 @@ class SaimeUser < ApplicationRecord
 
   # Scope para "Registros Disponibles": Usuarios sin citas agendddas y/o citas vencidas.
   scope :without_appointments, -> {
-  left_outer_joins(:appointments)
-    .where(temporary_status: 'activo', confirmed_status: 'activo', user_id: nil)
-    .where.not(id: Appointment.where(status: 'pagada').select(:saime_user_id))
-    .group("saime_users.id")
-    .select(<<~SQL.squish)
-      saime_users.*,
-      CASE 
-        WHEN COUNT(appointments.id) > 0 
-             AND SUM(CASE WHEN appointments.appointment_date > '#{Date.today}' 
-                       AND appointments.status <> 'inprogramable' 
-                   THEN 1 ELSE 0 END) = 0
-          AND (COUNT(appointments.id) - SUM(CASE WHEN appointments.status = 'inprogramable' 
-                                                THEN 1 ELSE 0 END)) > 0
-          THEN 1
-        WHEN COUNT(appointments.id) = 0 
-          THEN 2
-        WHEN COUNT(appointments.id) > 0 
-             AND SUM(CASE WHEN appointments.status <> 'inprogramable' THEN 1 ELSE 0 END) = 0 
-             AND SUM(CASE WHEN appointments.appointment_type = 'niño' THEN 1 ELSE 0 END) <= 4
-          THEN 3
-        ELSE 4
-      END AS group_order,
-      MIN(appointments.appointment_date) AS min_date
-    SQL
-    .having("CASE 
-        WHEN COUNT(appointments.id) > 0 
-          AND SUM(CASE WHEN appointments.appointment_date > ? 
-                       AND appointments.status <> 'inprogramable' 
-                   THEN 1 ELSE 0 END) = 0
-          AND (COUNT(appointments.id) - SUM(CASE WHEN appointments.status = 'inprogramable' 
-                                                THEN 1 ELSE 0 END)) > 0
-          THEN 1
-        WHEN COUNT(appointments.id) = 0 
-          THEN 2
-        WHEN COUNT(appointments.id) > 0 
-             AND SUM(CASE WHEN appointments.status <> 'inprogramable' THEN 1 ELSE 0 END) = 0 
-             AND SUM(CASE WHEN appointments.appointment_type = 'niño' THEN 1 ELSE 0 END) <= 4
-          THEN 3
-        ELSE 4
-      END < 4", Date.today)
-    .order("group_order ASC, min_date ASC")
+    left_outer_joins(:appointments)
+      .where(temporary_status: 'activo', confirmed_status: 'activo', user_id: nil)
+      .where.not(id: Appointment.where(status: 'pagada').select(:saime_user_id))
+      .group("saime_users.id")
+      .select(<<~SQL.squish)
+        saime_users.*,
+        CASE 
+          WHEN COUNT(appointments.id) > 0 
+                AND SUM(CASE WHEN DATE(appointments.appointment_date) > '#{Date.today}' 
+                          AND appointments.status <> 'inprogramable' 
+                      THEN 1 ELSE 0 END) = 0
+            AND (COUNT(appointments.id) - SUM(CASE WHEN appointments.status = 'inprogramable' 
+                                                  THEN 1 ELSE 0 END)) > 0
+            THEN 1
+          WHEN COUNT(appointments.id) = 0 
+            THEN 2
+          WHEN COUNT(appointments.id) > 0 
+                AND SUM(CASE WHEN appointments.status <> 'inprogramable' THEN 1 ELSE 0 END) = 0 
+                AND SUM(CASE WHEN appointments.appointment_type = 'niño' THEN 1 ELSE 0 END) <= 4
+            THEN 3
+          ELSE 4
+        END AS group_order,
+        MIN(appointments.appointment_date) AS min_date
+      SQL
+      .having("CASE 
+          WHEN COUNT(appointments.id) > 0 
+            AND SUM(CASE WHEN DATE(appointments.appointment_date) > ? 
+                          AND appointments.status <> 'inprogramable' 
+                      THEN 1 ELSE 0 END) = 0
+            AND (COUNT(appointments.id) - SUM(CASE WHEN appointments.status = 'inprogramable' 
+                                                  THEN 1 ELSE 0 END)) > 0
+            THEN 1
+          WHEN COUNT(appointments.id) = 0 
+            THEN 2
+          WHEN COUNT(appointments.id) > 0 
+                AND SUM(CASE WHEN appointments.status <> 'inprogramable' THEN 1 ELSE 0 END) = 0 
+                AND SUM(CASE WHEN appointments.appointment_type = 'niño' THEN 1 ELSE 0 END) <= 4
+            THEN 3
+          ELSE 4
+        END < 4", Date.today)
+      .order("group_order ASC, min_date ASC")
   }
 
   private
