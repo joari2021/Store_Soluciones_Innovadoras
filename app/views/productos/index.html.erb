@@ -39,6 +39,7 @@
             <div class="card-body">
               <h5 class="card-title text-info"><%= producto.descripcion.titleize %></h5>
               <hr class="text-info" style="height: 3px;">
+              <!--
               <% if Current.user&.admin? %>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Costo Pack ($):</span>
@@ -81,6 +82,7 @@
                 </p>
                 <hr>
               <% end %>
+              -->
               <% if producto.moneda_base_precio === "Dolar" %>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Precio Venta ($):</span>
