@@ -37,8 +37,6 @@
               <% end %>
             </div>
             <div class="card-body">
-              <h5 class="card-title text-info"><%= producto.descripcion.titleize %></h5>
-              <hr class="text-info" style="height: 3px;">
               <!--
               <% if Current.user&.admin? %>
                 <p class="card-text mb-1">
@@ -104,6 +102,8 @@
                   <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
                 </p>
               <% end %>
+              <hr class="text-info" style="height: 3px;">
+              <h6 class="card-title text-info fw-bold"><%= producto.descripcion.titleize %></h6>
             </div>
           </div>
         </div>
