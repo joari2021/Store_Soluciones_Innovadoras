@@ -84,7 +84,7 @@
               <% if producto.moneda_base_precio === "Dolar" %>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Precio Venta ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
+                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
                 </p>
                 <hr>
                 <p class="card-text mb-1">
@@ -99,7 +99,7 @@
                 <hr>
                 <p class="card-text mb-1">
                   <span class="d-block text-start">Precio Venta (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
+                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
                 </p>
               <% end %>
               <hr class="text-info" style="height: 3px;">
