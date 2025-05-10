@@ -4,6 +4,7 @@ export default class extends Controller {
   connect() {
     const inputField = document.getElementById("search-input");
     const form = document.getElementById("formulario_buscar");
+    const clearButton = document.getElementById("clear-search");
 
     if (inputField) {
       // Aplicar debounce al evento input
@@ -21,6 +22,18 @@ export default class extends Controller {
           inputField.value.length,
           inputField.value.length
         ); // Colocar el cursor al final
+      });
+
+      // Mostrar el botón de limpiar solo si hay texto
+      inputField.addEventListener("input", () => {
+        clearButton.style.display = inputField.value ? "inline" : "none";
+      });
+
+      // Limpiar el campo al hacer clic en el botón de limpiar
+      clearButton.addEventListener("click", () => {
+        inputField.value = "";
+        clearButton.style.display = "none";
+        form.requestSubmit(); // Enviar el formulario para resetear los resultados
       });
     }
   }
