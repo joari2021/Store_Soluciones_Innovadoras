@@ -7,6 +7,8 @@ class ServicesController < ApplicationController
     else
       @services = Service.includes(:system_service).order('system_services.name ASC, services.description ASC')
     end
+
+    @pagy, @services = pagy_countless(@services, items: 24)
   end
 
   def new

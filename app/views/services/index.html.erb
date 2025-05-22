@@ -4,69 +4,100 @@
     <div><%= link_to 'Nuevo Servicio', new_service_path, class: "btn btn-primary" %></div>
   <% end %>
   <%= render "shared/campo_buscar", url: services_path, busqueda: "Servicios" %>
-  <table class="tabla-ajustada">
-    <thead>
-      <tr>
-        <th>Sistema</th>
-        <th>Descripcion del Servicio</th>
-        <% if Current.user&.admin? %>
-          <th>Costo</th>
-        <%end%>
-        <th>Precio</th>
-        <% if Current.user&.admin? %>
-          <th>Actions</th>
-        <%end%>
-      </tr>
-    </thead>
-    <%= turbo_frame_tag "lista_servicios" do%>
-      <tbody>
-        <% @services.each do |service| %>
-          <tr>
-            <td><%= service.system_service&.name || "Sin Sistema" %></td>
-            <td><%= service.description %></td>
-            <%if Current.user&.admin?%>
-              <td>
-                <% if service.cost %>
-                  <% service.service_managers.each do |service_manager| %>
-                    <div style="display: flex; justify-content: space-between;">
-                      <span><%= service_manager.manager.name %></span>
-                      <span>
-                        <%= number_to_currency((service_manager.cost * TasaCambio.find_by(description: service_manager.reference_cost)&.valor.to_f) / @tasa_dolar_bcv, unit: "$") %>
-                      </span>
-                    </div>
+  <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
+    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
+  </div>
+  <%= turbo_frame_tag "services-#{@pagy.page}" do%>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-4 mt-2" id="services-container">
+      <% @services.each do |service| %>
+        <div class="col">
+          <div class="card h-100 shadow-sm text-black">
+            <% if Current.user&.admin? %>
+              <div class="card-header d-flex justify-content-end">
+                <%= link_to edit_service_path(service), class: "btn btn-primary btn-sm me-2", data: { turbo_frame: "_top" } do %>
+                  <i class="fas fa-edit"></i>
+                <% end %>
+                <%= link_to service_path(service), class: "btn btn-danger btn-sm", data: { turbo_method: :delete, confirm: "Estas Seguro?" } do %>
+                  <i class="fas fa-trash"></i>
+                <% end %>
+              </div>
+            <% end %>
+            <div class="image-container position-relative">
+              <% if service.system_service&.image.attached? %>
+                <%= image_tag service.system_service.image, class: "card-img-top", alt: service.system_service.name %>
+              <% else %>
+                <%= image_tag "default_image.jpeg", class: "card-img-top", alt: "Imagen por defecto" %>
+              <% end %>
+              <% if service.system_service.present? %>
+                <span class="position-absolute bottom-0 end-0 m-2 badge rounded-pill bg-info text-dark shadow">
+                  <%= service.system_service.name %>
+                </span>
+              <% end %>
+            </div>
+            <div class="card-body">
+              <% if Current.user&.admin? %>
+                <p class="card-text mb-1">
+                  <p class="text-center fw-bold">Costo</p>
+                  <% if service.cost %>
+                    <% service.service_managers.each do |service_manager| %>
+                      <div class="d-flex justify-content-between">
+                        <span><%= service_manager.manager.name %></span>
+                        <strong class="text-danger"><%= number_to_currency((service_manager.cost * TasaCambio.find_by(description: service_manager.reference_cost)&.valor.to_f) / @tasa_dolar_bcv, unit: "$") %></strong>
+                      </div>
+                    <% end %>
+                  <% else %>
+                    <span class="text-muted">Sin costo</span>
                   <% end %>
-                <% else %>
-                  <span class="text-muted">Sin costo</span>
-                <% end %>
-              </td>
-            <%end%>
-            <td>
+                </p>
+                <hr>
+              <%end%>
+              <span class="d-block text-start">Precio</span>
               <% if service.currency_base_price == "$" %>
-                <%= number_to_currency(service.sale_price, unit: "$ ") %>
-                <% if @tasa_dolar_bcv.present? %>
-                  (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)
-                <% else %>
-                  <span class="text-danger">(Tasa no disponible)</span>
-                <% end %>
+                <strong class="d-block text-end">
+                  <%= number_to_currency(service.sale_price, unit: "$ ") %>
+                  <% if @tasa_dolar_bcv.present? %>
+                    (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)
+                  <% else %>
+                    <span class="text-danger">(Tasa no disponible)</span>
+                  <% end %>
+                </strong>
               <% elsif service.currency_base_price == "Bs" %>
-                <% if @unidad_VI.present? %>
-                  <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
-                <% else %>
-                  <span class="text-danger">Tasa no disponible</span>
-                <% end %>
+                <strong class="d-block text-end">
+                  <% if @unidad_VI.present? %>
+                    <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
+                  <% else %>
+                    <span class="text-danger">Tasa no disponible</span>
+                  <% end %>
+                </strong>
               <% else %>
                 <span class="text-muted">Sin referencia</span>
               <% end %>
-            </td>
-            <% if Current.user&.admin? %>
-              <td>
-                <%= link_to 'Edit', edit_service_path(service), class: "btn btn-warning" %>
-                <%= link_to 'Delete', service_path(service), data: { turbo_method: :delete, confirm: "Are you sure?" }, class: "btn btn-danger" %>
-              </td>
-            <%end%>
-          </tr>
-        <% end %>
-      </tbody>
-    <%end%>
-  </table>
+              <p class="card-text mb-1">
+              </p>
+              <hr class="text-info" style="height: 3px;">
+              <h6 class="card-title text-info fw-bold"><%= service.description.titleize %></h6>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
+  <%end%>
 </div>
+<style>
+  .image-container {
+    position: relative;
+    width: 100%;
+    padding-top: 50%; /* Relación de aspecto 130% */
+    overflow: hidden;
+  }
+
+  .image-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
+  }
+</style>

@@ -3,6 +3,10 @@
     <%= form.label :name, "Nombre del Sistema de Servicios", class: "form-label" %>
     <%= form.text_field :name, class: "form-control", placeholder: "Ingrese el nombre del sistema de servicios" %>
   </div>
+  <div class="mb-3">
+    <%= form.label :image, "Imagen" %>
+    <%= form.file_field :image, direct_upload: true, class: "form-control" %>
+  </div>
   <div>
     <%= form.submit class: "btn btn-primary" %>
     <%= link_to 'Cancelar', system_services_path, class: "btn btn-secondary" %>

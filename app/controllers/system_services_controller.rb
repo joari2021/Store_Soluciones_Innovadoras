@@ -41,6 +41,6 @@ class SystemServicesController < ApplicationController
   end
 
   def system_service_params
-    params.require(:system_service).permit(:name)
+    params.require(:system_service).permit(:name, :image)
   end
 end
