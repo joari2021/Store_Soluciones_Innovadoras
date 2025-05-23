@@ -5,6 +5,7 @@
 <table class="tabla-ajustada">
   <thead>
     <tr>
+      <th>Logo</th>
       <th>Descripcion</th>
       <th>Acciones</th>
     </tr>
@@ -12,6 +13,15 @@
   <tbody>
     <% @system_services.each do |system_service| %>
       <tr>
+        <td>
+          <div class="image-container">
+            <% if system_service.image.attached? %>
+              <%= image_tag system_service.image, class: "img-thumbnail", alt: system_service.name %>
+            <% else %>
+              <%= image_tag "default_image.jpeg", class: "img-thumbnail", alt: "Imagen por defecto" %>
+            <% end %>
+          </div>
+        </td>
         <td><%= system_service.name %></td>
         <td>
           <%= link_to 'Editar', edit_system_service_path(system_service), class: "btn btn-warning btn-sm" %>
@@ -21,3 +31,20 @@
     <% end %>
   </tbody>
 </table>
+<style>
+  .image-container {
+    position: relative;
+    width: 100%;
+    padding-top: 50%; /* Relación de aspecto 130% */
+    overflow: hidden;
+  }
+
+  .image-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
+  }
+</style>

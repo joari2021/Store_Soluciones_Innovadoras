@@ -33,6 +33,15 @@
                   <%= service.system_service.name %>
                 </span>
               <% end %>
+              <%# Imagen superpuesta "no-disponible.png" %>
+              <!--
+              <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
+              <% if service.system_service.present? %>
+                <span class="position-absolute bottom-0 end-0 m-2 badge rounded-pill bg-info text-dark shadow">
+                  <%= service.system_service.name %>
+                </span>
+              <% end %>
+              -->
             </div>
             <div class="card-body">
               <% if Current.user&.admin? %>
@@ -75,7 +84,7 @@
               <p class="card-text mb-1">
               </p>
               <hr class="text-info" style="height: 3px;">
-              <h6 class="card-title text-info fw-bold"><%= service.description.titleize %></h6>
+              <h6 class="card-title text-primary fw-bold"><%= service.description %></h6>
             </div>
           </div>
         </div>
@@ -99,5 +108,15 @@
     width: 100%;
     height: 100%;
     object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
+  }
+  .image-container img.overlay-no-disponible {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Permite hacer clic en la imagen de abajo */
+    object-fit: contain;
+    z-index: 2;
   }
 </style>
