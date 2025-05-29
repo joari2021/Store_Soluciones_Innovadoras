@@ -41,7 +41,7 @@
       <hr class="my-2">
       <div class="col-md-3 mb-2">
         <%= form.label :physical_requirements, "Requisitos Fisicos", class:"form-label" %>
-        <%= form.text_area :physical_requirements, class:"form-control" %>
+        <%= form.text_area :physical_requirements, class: "form-control" %>
       </div>
       <div class="col-md-3 mb-2">
         <%= form.label :digital_requirements, "Requisitos Digitales (Fotos o Escaneos)", class:"form-label" %>
@@ -89,3 +89,23 @@
     </div>
   <% end %>
 </div>
+<script>
+  // Ajusta todos los textarea automáticamente al escribir
+  document.addEventListener("input", function(e) {
+    if (e.target.tagName.toLowerCase() === "textarea") {
+      e.target.style.height = "auto";
+      e.target.style.height = (e.target.scrollHeight) + "px";
+    }
+  });
+
+  // Ajusta todos los textarea automáticamente al cargar la página o al navegar con Turbo
+  function autoResizeTextareas() {
+    document.querySelectorAll("textarea").forEach(function(textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = (textarea.scrollHeight) + "px";
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", autoResizeTextareas);
+  document.addEventListener("turbo:load", autoResizeTextareas);
+</script>
