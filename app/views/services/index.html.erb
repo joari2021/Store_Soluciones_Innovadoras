@@ -12,16 +12,25 @@
       <% @services.each do |service| %>
         <div class="col">
           <div class="card h-100 shadow-sm text-black">
-            <% if Current.user&.admin? %>
-              <div class="card-header d-flex justify-content-end">
-                <%= link_to edit_service_path(service), class: "btn btn-primary btn-sm me-2", data: { turbo_frame: "_top" } do %>
+            <div class="card-header d-flex justify-content-end">
+              <% if Current.user&.admin? %>
+                <button type="button"
+                      class="btn btn-outline-info btn-sm view-service"
+                      data-service-id="<%= service.id %>"
+                      data-service-description="<%= service.description %> (<%= service.system_service.name%>)"
+                      data-bs-toggle="modal"
+                      data-bs-target="#serviceModal"
+                      title="Ver detalles">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <%= link_to edit_service_path(service), class: "btn btn-primary btn-sm mx-2", data: { turbo_frame: "_top" } do %>
                   <i class="fas fa-edit"></i>
                 <% end %>
                 <%= link_to service_path(service), class: "btn btn-danger btn-sm", data: { turbo_method: :delete, confirm: "Estas Seguro?" } do %>
                   <i class="fas fa-trash"></i>
                 <% end %>
-              </div>
-            <% end %>
+              <% end %>
+            </div>
             <div class="image-container position-relative">
               <% if service.system_service&.image.attached? %>
                 <%= image_tag service.system_service.image, class: "card-img-top", alt: service.system_service.name %>
@@ -33,15 +42,9 @@
                   <%= service.system_service.name %>
                 </span>
               <% end %>
-              <%# Imagen superpuesta "no-disponible.png" %>
-              <!--
-              <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
-              <% if service.system_service.present? %>
-                <span class="position-absolute bottom-0 end-0 m-2 badge rounded-pill bg-info text-dark shadow">
-                  <%= service.system_service.name %>
-                </span>
+              <% unless service.available? %>
+                <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
               <% end %>
-              -->
             </div>
             <div class="card-body">
               <% if Current.user&.admin? %>
@@ -81,9 +84,7 @@
               <% else %>
                 <span class="text-muted">Sin referencia</span>
               <% end %>
-              <p class="card-text mb-1">
-              </p>
-              <hr class="text-info" style="height: 3px;">
+              <hr class="text-primary" style="height: 3px;">
               <h6 class="card-title text-primary fw-bold"><%= service.description %></h6>
             </div>
           </div>
@@ -92,6 +93,19 @@
     </div>
     <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
   <%end%>
+</div>
+<div class="modal fade" id="serviceModal" tabindex="-1" aria-labelledby="serviceModalLabel" aria-hidden="true" data-controller="modal-service">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-primary fw-bold" id="serviceModalLabel"></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body position-relative" id="service-modal-body" data-modal-service-target="modalBody" style="max-height: 60vh; overflow-y: auto;">
+        <!-- Aquí se cargará el contenido dinámicamente -->
+      </div>
+    </div>
+  </div>
 </div>
 <style>
   .image-container {

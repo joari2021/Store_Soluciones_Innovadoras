@@ -26,6 +26,13 @@ class ServicesController < ApplicationController
     end
   end
 
+  def show
+    @service = Service.find(params[:id])
+    respond_to do |format|
+      format.html { render partial: "services/show", locals: { service: @service } }
+    end
+  end
+
   def edit
     @service.service_managers.build if @service.service_managers.empty? # Asegura que haya al menos un ServiceManager para renderizar
     @managers = Manager.all.order(:name)
@@ -54,7 +61,22 @@ class ServicesController < ApplicationController
   end
 
   def service_params
-    params.require(:service).permit(:description, :sale_price, :currency_base_price, :value_units, :cost, :system_service_id, service_managers_attributes: [:id, :manager_id, :cost, :reference_cost, :_destroy])
+    params.require(:service).permit(
+    :description, 
+    :sale_price, 
+    :currency_base_price, 
+    :value_units, 
+    :cost, 
+    :system_service_id, 
+    :physical_requirements,
+    :digital_requirements,
+    :required_data,
+    :personal_steps,
+    :note,
+    :delivery_content,
+    :delivery_time,
+    :available,
+    service_managers_attributes: [:id, :manager_id, :cost, :_destroy])
   end
  
 end

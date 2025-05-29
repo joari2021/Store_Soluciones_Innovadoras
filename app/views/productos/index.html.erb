@@ -35,6 +35,9 @@
               <% else %>
                 <%= image_tag "default_image.jpeg", class: "card-img-top", alt: "Imagen por defecto" %>
               <% end %>
+              <% unless producto.available? %>
+                <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
+              <% end %>
             </div>
             <div class="card-body">
               <!--
@@ -127,5 +130,15 @@
     width: 100%;
     height: 100%;
     object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
+  }
+  .image-container img.overlay-no-disponible {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Permite hacer clic en la imagen de abajo */
+    object-fit: contain;
+    z-index: 2;
   }
 </style>

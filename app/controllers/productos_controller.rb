@@ -115,6 +115,6 @@ class ProductosController < ApplicationController
   end
 
   def producto_params
-    params.require(:producto).permit(:descripcion, :precio_costo, :precio_venta_usd, :precio_venta_bs, :cant_unidades, :foto, :nivel_ganancia, :min_stock, :max_stock, :moneda_base_precio)
+    params.require(:producto).permit(:descripcion, :precio_costo, :precio_venta_usd, :precio_venta_bs, :cant_unidades, :foto, :nivel_ganancia, :min_stock, :max_stock, :moneda_base_precio, :available)
   end
 end

@@ -1,0 +1,122 @@
+import { Controller } from "@hotwired/stimulus";
+
+export default class extends Controller {
+  static targets = ["modalBody"];
+
+  connect() {
+    const modal = document.getElementById("serviceModal");
+    modal.addEventListener("hidden.bs.modal", () => {
+      this.modalBodyTarget.innerHTML = "";
+      document.getElementById("serviceModalLabel").textContent = "";
+    });
+
+    document.addEventListener("click", (event) => {
+      if (event.target.closest(".view-service")) {
+        const button = event.target.closest(".view-service");
+        const serviceId = button.dataset.serviceId;
+        const serviceDescription = button.dataset.serviceDescription;
+        this.loadService(serviceId, serviceDescription);
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      // Copiar todo
+      if (event.target.closest("#copy-service-modal")) {
+        const copyBtn = event.target.closest("#copy-service-modal");
+        // 1. Título del modal
+        const title = document
+          .getElementById("serviceModalLabel")
+          .textContent.trim();
+        let text = `*${title}*\n\n`;
+
+        // 2. Precio
+        const priceBadge = document.querySelector(
+          "#serviceModal .badge.bg-primary"
+        );
+        if (priceBadge) {
+          text += `*Precio:* ${priceBadge.textContent.trim()}\n\n`;
+        }
+
+        // 3. Cards (excepto pasos a seguir y datos requeridos)
+        const cards = document.querySelectorAll(
+          "#serviceModal .card:not([data-no-copy])"
+        );
+        let cardTexts = [];
+        cards.forEach((card) => {
+          const header = card.querySelector(".card-header");
+          const body = card.querySelector(".card-body");
+          if (header && body) {
+            const title = header.textContent.trim();
+            let bodyText = body.innerHTML
+              .replace(/<br\s*\/?>/gi, "\n")
+              .replace(/<\/p>\s*<p>/gi, "\n")
+              .replace(/<\/?p>/gi, "")
+              .replace(/&nbsp;/g, " ")
+              .replace(/<[^>]+>/g, "");
+            bodyText = bodyText.replace(/\n+/g, "\n").trim();
+
+            // Si es "Nota" o "Tiempo de entrega", título en negrita seguido del contenido en cursiva, sin salto de línea
+            if (title === "Nota" || title === "Tiempo de Entrega") {
+              cardTexts.push(`*${title}:* _${bodyText}_`);
+            } else {
+              cardTexts.push(`*${title}*\n${bodyText}`);
+            }
+          }
+        });
+
+        if (cardTexts.length > 0) {
+          text += cardTexts.join("\n\n") + "\n";
+        }
+
+        // Copiar al portapapeles
+        navigator.clipboard.writeText(text.trimEnd()).then(() => {
+          copyBtn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+          setTimeout(() => {
+            copyBtn.innerHTML =
+              '<i class="fas fa-copy"></i> Copiar información del servicio';
+          }, 1500);
+        });
+      }
+
+      // Copiar solo datos requeridos
+      if (event.target.closest("#copy-required-data")) {
+        const copyBtn = event.target.closest("#copy-required-data");
+        const card = document.getElementById("required-data-card");
+        if (!card) return;
+        const header = card.querySelector(".card-header");
+        const body = card.querySelector(".card-body");
+        if (header && body) {
+          let text = `*${header.textContent.trim()}*\n`;
+          let bodyText = body.innerHTML
+            .replace(/<button[\s\S]*?<\/button>/gi, "")
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/p>\s*<p>/gi, "\n")
+            .replace(/<\/?p>/gi, "")
+            .replace(/&nbsp;/g, " ")
+            .replace(/<[^>]+>/g, "");
+          bodyText = bodyText.replace(/\n+/g, "\n").trim();
+          text += bodyText + "\n\n";
+          text += `*Nota:* _copiar este mensaje en su chat para llenar los datos aquí requeridos y volver a enviar. Es importante que no obvie ningún dato a menos que el dato a llenar diga (opcional)._`;
+          navigator.clipboard.writeText(text).then(() => {
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copiado';
+            setTimeout(() => {
+              copyBtn.innerHTML =
+                '<i class="fas fa-copy"></i> Copiar datos requeridos';
+            }, 1500);
+          });
+        }
+      }
+    });
+  }
+
+  loadService(serviceId, serviceDescription) {
+    fetch(`/services/${serviceId}`)
+      .then((response) => response.text())
+      .then((html) => {
+        this.modalBodyTarget.innerHTML = html;
+        // Coloca la descripción directamente en el título del modal
+        document.getElementById("serviceModalLabel").textContent =
+          serviceDescription || "";
+      });
+  }
+}

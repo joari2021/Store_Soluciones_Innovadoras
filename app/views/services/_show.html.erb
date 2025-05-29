@@ -1,0 +1,101 @@
+<div class="container text-black">
+  <div class="d-flex flex-column align-items-end position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
+    <% if service.required_data.present? %>
+      <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-required-data">
+        <i class="fas fa-copy"></i> Copiar datos requeridos
+      </button>
+    <% end %>
+    <button type="button" class="btn btn-outline-success btn-sm" id="copy-service-modal">
+      <i class="fas fa-copy"></i> Copiar información del servicio
+    </button>
+  </div>
+  <p>
+    <h4 class="fw-bold">Precio 
+      <span class="badge bg-primary">
+        <% if service.currency_base_price == "$" %>
+          <%= number_to_currency(service.sale_price, unit: "$ ") %>
+          <% if defined?(@tasa_dolar_bcv) && @tasa_dolar_bcv.present? %>
+            (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)
+          <% end %>
+        <% else %>
+          <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
+        <% end %>
+      </span>
+    </h3>
+  </p>
+  <hr>
+  <div class="row g-3">
+    <% if service.physical_requirements.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-warning mb-3">
+          <div class="card-header fw-bold">Requisitos Físicos</div>
+          <div class="card-body">
+            <p class="card-text"><%= simple_format(service.physical_requirements) %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <% if service.digital_requirements.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-warning mb-3">
+          <div class="card-header fw-bold">Requisitos Digitales (Fotos o Escaneos)</div>
+          <div class="card-body">
+            <p class="card-text"><%= simple_format(service.digital_requirements) %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <% if service.required_data.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-warning mb-3" data-no-copy="true" id="required-data-card">
+          <div class="card-header fw-bold">Datos Requeridos</div>
+          <div class="card-body">
+            <p class="card-text"><%= simple_format(service.required_data) %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <% if service.note.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-danger text-white mb-3">
+          <div class="card-header fw-bold">Nota</div>
+          <div class="card-body">
+            <p class="card-text"><em><%= simple_format(service.note) %></em></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <hr>
+    <% if service.delivery_time.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-primary text-white mb-3">
+          <div class="card-header fw-bold">Tiempo de Entrega</div>
+          <div class="card-body">
+            <div class="card-text"><%= simple_format(service.delivery_time) %></div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <% if service.delivery_content.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-success text-white mb-3">
+          <div class="card-header fw-bold">El Cliente Recibira</div>
+          <div class="card-body">
+            <p class="card-text"><%= simple_format(service.delivery_content) %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <hr>
+    <% if service.personal_steps.present? %>
+      <div class="col-md-6 mx-auto">
+        <div class="card bg-info mb-3" data-no-copy="true">
+          <div class="card-header fw-bold">Pasos a seguir (Solo Personal)</div>
+          <div class="card-body">
+            <p class="card-text"><%= simple_format(service.personal_steps) %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

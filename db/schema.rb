@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_04_14_150200) do
+ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -179,6 +179,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_14_150200) do
     t.decimal "precio_venta_bs"
     t.integer "min_stock"
     t.integer "max_stock"
+    t.boolean "available", default: true, null: false
   end
 
   create_table "rankings", force: :cascade do |t|
@@ -231,7 +232,6 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_14_150200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "reference_cost"
-    t.string "symbol_tasa"
     t.index ["manager_id"], name: "index_service_managers_on_manager_id"
     t.index ["service_id"], name: "index_service_managers_on_service_id"
   end
@@ -245,6 +245,14 @@ ActiveRecord::Schema[7.1].define(version: 2025_04_14_150200) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "system_service_id"
+    t.string "physical_requirements"
+    t.string "digital_requirements"
+    t.string "required_data"
+    t.text "personal_steps"
+    t.text "note"
+    t.string "delivery_content"
+    t.string "delivery_time"
+    t.boolean "available", default: true, null: false
     t.index ["system_service_id"], name: "index_services_on_system_service_id"
   end
 

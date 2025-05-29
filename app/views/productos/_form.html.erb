@@ -12,6 +12,13 @@
       </ul>
     </div>
   <% end %>
+  <div class="col-md-3 mb-2">
+    <div class="form-check form-switch mt-4">
+      <%= form.label :available, "Producto disponible", class: "form-check-label", for: "available" %>
+      <%= form.check_box :available, class: "form-check-input", id: "available" %>
+    </div>
+  </div>
+  <hr>
   <div class="col-md-5">
     <%= form.label :foto, class:"form-label" %>
     <%= form.file_field :foto, class:"form-control" %>

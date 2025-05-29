@@ -12,6 +12,13 @@
     <% end %>
     <div class="row">
       <div class="col-md-3 mb-2">
+        <div class="form-check form-switch mt-4">
+          <%= form.label :available, "Servicio disponible", class: "form-check-label", for: "available" %>
+          <%= form.check_box :available, class: "form-check-input", id: "available" %>
+        </div>
+      </div>
+      <hr>
+      <div class="col-md-3 mb-2">
         <%= form.label :system_service_id, "System Service", class:"form-label" %>
         <%= form.collection_select :system_service_id, SystemService.order(:name), :id, :name, { include_blank: "Selecciona Un Sistema" }, class: "form-control" %>
       </div>
@@ -30,6 +37,35 @@
       <div class="col-md-3 mb-2" id="sale-price-field" style="display: none;">
         <%= form.label :sale_price, "Precio", class:"form-label" %>
         <%= form.number_field :sale_price, step: 0.01, class: "form-control" %>
+      </div>
+      <hr class="my-2">
+      <div class="col-md-3 mb-2">
+        <%= form.label :physical_requirements, "Requisitos Fisicos", class:"form-label" %>
+        <%= form.text_area :physical_requirements, class:"form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :digital_requirements, "Requisitos Digitales (Fotos o Escaneos)", class:"form-label" %>
+        <%= form.text_area :digital_requirements, class:"form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :required_data, "Datos Requeridos", class:"form-label" %>
+        <%= form.text_area :required_data, class:"form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :personal_steps, "Pasos a Seguir (Solo Personal Autorizado)", class:"form-label" %>
+        <%= form.text_area :personal_steps, class:"form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :note, "Nota", class:"form-label" %>
+        <%= form.text_area :note, class:"form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :delivery_content, "Contenido de Entrega", class:"form-label" %>
+        <%= form.text_area :delivery_content, class:"form-control" %>
+      </div>
+      <div class="col-md-3 mb-2">
+        <%= form.label :delivery_time, "Tiempo de Entrega", class:"form-label" %>
+        <%= form.text_field :delivery_time, class:"form-control" %>
       </div>
       <div class="col-md-3 my-4 ms-3 form-check">
         <%= form.check_box :cost, class: "form-check-input", id: "cost", data: { action: "change->form-services#toggleManagers" } %>
