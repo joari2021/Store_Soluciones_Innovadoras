@@ -28,7 +28,7 @@
     <% if service.physical_requirements.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-warning mb-3">
-          <div class="card-header fw-bold">Requisitos Físicos</div>
+          <div class="card-header fw-bold">REQUISITOS FISICOS</div>
           <div class="card-body">
             <p class="card-text"><%= simple_format(service.physical_requirements) %></p>
           </div>
@@ -38,7 +38,7 @@
     <% if service.digital_requirements.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-warning mb-3">
-          <div class="card-header fw-bold">Requisitos Digitales (Fotos o Escaneos)</div>
+          <div class="card-header fw-bold">REQUISITOS DIGITALES (FOTOS O ESCANEOS)</div>
           <div class="card-body">
             <p class="card-text"><%= simple_format(service.digital_requirements) %></p>
           </div>
@@ -48,7 +48,7 @@
     <% if service.required_data.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-warning mb-3" data-no-copy="true" id="required-data-card">
-          <div class="card-header fw-bold">Datos Requeridos</div>
+          <div class="card-header fw-bold">DATOS REQUERIDOS</div>
           <div class="card-body">
             <p class="card-text"><%= simple_format(service.required_data) %></p>
           </div>
@@ -58,7 +58,7 @@
     <% if service.note.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-danger text-white mb-3">
-          <div class="card-header fw-bold">Nota</div>
+          <div class="card-header fw-bold">NOTA</div>
           <div class="card-body">
             <p class="card-text"><em><%= simple_format(service.note) %></em></p>
           </div>
@@ -69,7 +69,7 @@
     <% if service.delivery_time.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-primary text-white mb-3">
-          <div class="card-header fw-bold">Tiempo de Entrega</div>
+          <div class="card-header fw-bold">TIEMPO DE ENTREGA</div>
           <div class="card-body">
             <div class="card-text"><%= simple_format(service.delivery_time) %></div>
           </div>
@@ -79,7 +79,7 @@
     <% if service.delivery_content.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-success text-white mb-3">
-          <div class="card-header fw-bold">El Cliente Recibira</div>
+          <div class="card-header fw-bold">EL CLIENTE RECIBIRA</div>
           <div class="card-body">
             <p class="card-text"><%= simple_format(service.delivery_content) %></p>
           </div>
@@ -90,7 +90,7 @@
     <% if service.personal_steps.present? %>
       <div class="col-md-6 mx-auto">
         <div class="card bg-info mb-3" data-no-copy="true">
-          <div class="card-header fw-bold">Pasos a seguir (Solo Personal)</div>
+          <div class="card-header fw-bold">PASOS A SEGUIR (SOLO PERSONAL)</div>
           <div class="card-body">
             <p class="card-text"><%= simple_format(service.personal_steps) %></p>
           </div>
