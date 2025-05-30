@@ -27,7 +27,9 @@ export default class extends Controller {
         const title = document
           .getElementById("serviceModalLabel")
           .textContent.trim();
-        let text = `*${title}*\n\n`;
+        let underlineLength = Math.min(title.length, 30);
+        let underline = "=".repeat(underlineLength);
+        let text = `*${title}*\n${underline}\n\n`;
 
         // 2. Precio
         const priceBadge = document.querySelector(
@@ -83,10 +85,20 @@ export default class extends Controller {
         const copyBtn = event.target.closest("#copy-required-data");
         const card = document.getElementById("required-data-card");
         if (!card) return;
+
+        // Título del servicio con subrayado grueso
+        const title = document
+          .getElementById("serviceModalLabel")
+          .textContent.trim();
+        let underlineLength = Math.min(title.length, 30);
+        let underline = "=".repeat(underlineLength);
+        let text = `*${title}*\n${underline}\n\n`;
+
+        // Card de datos requeridos
         const header = card.querySelector(".card-header");
         const body = card.querySelector(".card-body");
         if (header && body) {
-          let text = `*${header.textContent.trim()}*\n`;
+          text += `*${header.textContent.trim()}*\n\n`;
           let bodyText = body.innerHTML
             .replace(/<button[\s\S]*?<\/button>/gi, "")
             .replace(/<br\s*\/?>/gi, "\n")
@@ -95,8 +107,23 @@ export default class extends Controller {
             .replace(/&nbsp;/g, " ")
             .replace(/<[^>]+>/g, "");
           bodyText = bodyText.replace(/\n+/g, "\n").trim();
-          text += bodyText + "\n\n";
-          text += `*Nota:* _copiar este mensaje en su chat para llenar los datos aquí requeridos y volver a enviar. Es importante que no obvie ningún dato a menos que el dato a llenar diga (opcional)._`;
+
+          // Procesa cada línea: elimina * inicial, pone en mayúsculas, agrega * al inicio y final, : al final, y punto de lista
+          let formattedLines = bodyText
+            .split("\n")
+            .map((line) => {
+              let cleanLine = line.replace(/^\*+/, "").trim();
+              if (cleanLine) {
+                cleanLine = cleanLine.toUpperCase();
+                return `• *${cleanLine}*:`;
+              }
+              return "";
+            })
+            .filter((line) => line !== "")
+            .join("\n");
+
+          text += `${formattedLines}\n\n`;
+          text += `_*NOTA:* copiar este mensaje en su chat para llenar los datos aquí requeridos y volver a enviar. Es importante que no obvie ningún dato a menos que el dato a llenar diga (opcional)._`;
           navigator.clipboard.writeText(text).then(() => {
             copyBtn.innerHTML = '<i class="fas fa-check"></i> Copiado';
             setTimeout(() => {

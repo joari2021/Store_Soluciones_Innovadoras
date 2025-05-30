@@ -13,10 +13,7 @@
     <h4 class="fw-bold">PRECIO 
       <span class="badge bg-primary">
         <% if service.currency_base_price == "$" %>
-          <%= number_to_currency(service.sale_price, unit: "$ ") %>
-          <% if defined?(@tasa_dolar_bcv) && @tasa_dolar_bcv.present? %>
-            (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)
-          <% end %>
+          <%= number_to_currency(service.sale_price, unit: "$ ") %><% if defined?(@tasa_dolar_bcv) && @tasa_dolar_bcv.present? %> (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)<% end %>
         <% else %>
           <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
         <% end %>

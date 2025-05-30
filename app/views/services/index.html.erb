@@ -17,7 +17,7 @@
                 <button type="button"
                       class="btn btn-outline-info btn-sm view-service"
                       data-service-id="<%= service.id %>"
-                      data-service-description="<%= service.description %> (<%= service.system_service.name%>)"
+                      data-service-description="<%= service.description.upcase %> (<%= service.system_service.name.upcase %>)"
                       data-bs-toggle="modal"
                       data-bs-target="#serviceModal"
                       title="Ver detalles">
