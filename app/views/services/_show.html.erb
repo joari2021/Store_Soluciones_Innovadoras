@@ -1,16 +1,16 @@
 <div class="container text-black">
   <div class="d-flex flex-column align-items-end position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
     <% if service.required_data.present? %>
-      <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-required-data">
+      <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-service-modal">
+        <i class="fas fa-copy"></i> Copiar información del servicio
+      </button>
+      <button type="button" class="btn btn-outline-success btn-sm" id="copy-required-data">
         <i class="fas fa-copy"></i> Copiar datos requeridos
       </button>
     <% end %>
-    <button type="button" class="btn btn-outline-success btn-sm" id="copy-service-modal">
-      <i class="fas fa-copy"></i> Copiar información del servicio
-    </button>
   </div>
   <p>
-    <h4 class="fw-bold">Precio 
+    <h4 class="fw-bold">PRECIO 
       <span class="badge bg-primary">
         <% if service.currency_base_price == "$" %>
           <%= number_to_currency(service.sale_price, unit: "$ ") %>
@@ -21,7 +21,7 @@
           <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
         <% end %>
       </span>
-    </h3>
+    </h4>
   </p>
   <hr>
   <div class="row g-3">
