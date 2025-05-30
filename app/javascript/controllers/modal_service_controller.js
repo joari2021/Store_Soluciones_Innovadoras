@@ -36,7 +36,7 @@ export default class extends Controller {
           "#serviceModal .badge.bg-primary"
         );
         if (priceBadge) {
-          text += `*PRECIO:* ${priceBadge.textContent.trim()}\n\n`;
+          text += `💰 *PRECIO:* ${priceBadge.textContent.trim()}\n\n`;
         }
 
         // 3. Cards (excepto pasos a seguir y datos requeridos)
@@ -58,7 +58,7 @@ export default class extends Controller {
             bodyText = bodyText.replace(/\n+/g, "\n").trim();
 
             // Si es "NOTA" o "TIEMPO DE ENTREGA", título en negrita seguido del contenido en cursiva, sin salto de línea
-            if (title === "NOTA" || title === "TIEMPO DE ENTREGA") {
+            if (title === "⚠️ NOTA" || title === "⏰ TIEMPO DE ENTREGA") {
               cardTexts.push(`*${title}:* _${bodyText}_`);
             } else {
               cardTexts.push(`*${title}*\n${bodyText}`);
