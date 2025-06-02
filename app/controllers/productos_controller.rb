@@ -46,12 +46,12 @@ class ProductosController < ApplicationController
     # Filtrar productos con alerta de precio si el filtro está activado
     if params[:filter] == "alerta"
       @productos = @productos.where(
-        "(moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+        "(available = true AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
           WHEN 'Baja' THEN 20
           WHEN 'Media' THEN 30
           WHEN 'Alta' THEN 50
         END AS float) / 100)) OR
-         (moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+         (available = true AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
           WHEN 'Baja' THEN 20
           WHEN 'Media' THEN 30
           WHEN 'Alta' THEN 50
@@ -61,12 +61,12 @@ class ProductosController < ApplicationController
 
     # Contar el total de productos con alerta (sin importar el filtro)
     @total_alertas = Producto.where(
-      "(moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+      "(available = true AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
         WHEN 'Baja' THEN 20
         WHEN 'Media' THEN 30
         WHEN 'Alta' THEN 50
       END AS float) / 100)) OR
-       (moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+       (available = true AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
         WHEN 'Baja' THEN 20
         WHEN 'Media' THEN 30
         WHEN 'Alta' THEN 50
