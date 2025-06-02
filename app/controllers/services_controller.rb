@@ -76,7 +76,7 @@ class ServicesController < ApplicationController
     :delivery_content,
     :delivery_time,
     :available,
-    service_managers_attributes: [:id, :manager_id, :cost, :_destroy])
+    service_managers_attributes: [:id, :manager_id, :cost, :reference_cost, :_destroy])
   end
  
 end
