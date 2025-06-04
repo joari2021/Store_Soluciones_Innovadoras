@@ -5,7 +5,7 @@
       <%= link_to(
       "#{params[:filter] == 'alerta' ? 'Mostrar todos los productos' : 'Alerta Precio'} <span class='badge bg-danger'>#{@total_alertas}</span>".html_safe,
       params[:filter] == "alerta" ? productos_path : productos_path(filter: "alerta"),
-      class: "btn #{params[:filter] == 'alerta' ? 'btn-primary' : 'btn-warning'} mx-3"
+      class: "btn #{params[:filter] == 'alerta' ? 'btn-primary' : 'btn-warning'} mb-3"
     ) %>
     <%end%>
   <% end %>

@@ -1,5 +1,6 @@
 class ProductosController < ApplicationController
   before_action :set_producto, only: %i[show edit update destroy]
+  before_action :require_admin, except: [:index, :show]
 
   def index
     @productos = Producto.all.order(descripcion: :asc)
@@ -88,6 +89,8 @@ class ProductosController < ApplicationController
       render :new
     end
   end
+
+  def show;end
 
   def edit
   end

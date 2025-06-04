@@ -1,9 +1,9 @@
 <div class="container text-black">
   <div class="d-flex flex-column align-items-end position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
+    <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-service-modal">
+      <i class="fas fa-copy"></i> Copiar información del servicio
+    </button>
     <% if service.required_data.present? %>
-      <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-service-modal">
-        <i class="fas fa-copy"></i> Copiar información del servicio
-      </button>
       <button type="button" class="btn btn-outline-success btn-sm" id="copy-required-data">
         <i class="fas fa-copy"></i> Copiar datos requeridos
       </button>

@@ -8,7 +8,7 @@ module Authorization
     def require_admin
       unless Current.user&.admin?
         flash[:alert] = "Acceso denegado."
-        redirect_to peliculas_path
+        redirect_to root_path
       end
     end
   end
