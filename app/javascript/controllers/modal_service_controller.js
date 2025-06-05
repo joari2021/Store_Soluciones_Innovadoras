@@ -134,6 +134,31 @@ export default class extends Controller {
         }
       }
     });
+
+    // Evento global para copiar y mostrar tooltip (esto solo una vez, fuera de la clase si usas Stimulus)
+    document.addEventListener("click", function (e) {
+      const link = e.target.closest("a.custom-copy-link");
+      if (link) {
+        e.preventDefault();
+        const url = link.getAttribute("href");
+        navigator.clipboard.writeText(url).then(() => {
+          // Elimina tooltips previos
+          link.querySelectorAll(".copied-tooltip").forEach((t) => t.remove());
+          // Crea el tooltip
+          const tooltip = document.createElement("span");
+          tooltip.className = "copied-tooltip";
+          tooltip.textContent = "Copiado";
+          link.appendChild(tooltip);
+          // Forzar reflow y agregar la clase .show para activar la transición
+          setTimeout(() => {
+            tooltip.classList.add("show");
+          }, 10);
+          setTimeout(() => {
+            tooltip.remove();
+          }, 1300);
+        });
+      }
+    });
   }
 
   loadService(serviceId, serviceDescription) {
@@ -144,6 +169,22 @@ export default class extends Controller {
         // Coloca la descripción directamente en el título del modal
         document.getElementById("serviceModalLabel").textContent =
           serviceDescription || "";
+        // Inicializa los enlaces de copia en los pasos a seguir
+        this.initializeCopyLinks();
       });
+  }
+
+  initializeCopyLinks() {
+    const card = document.getElementById("personal-steps-card");
+    if (card) {
+      const cardBody = card.querySelector(".card-body");
+      if (cardBody) {
+        let html = cardBody.innerHTML;
+        html = html.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
+          return `<a href="${url}" class="custom-copy-link">${url}</a>`;
+        });
+        cardBody.innerHTML = html;
+      }
+    }
   }
 }
