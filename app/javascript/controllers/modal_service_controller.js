@@ -57,15 +57,31 @@ export default class extends Controller {
               .replace(/<[^>]+>/g, "");
             bodyText = bodyText.replace(/\n+/g, "\n").trim();
 
+            // Si es "DATOS REQUERIDOS", cada línea en negrita y con dos puntos al final
+            if (title === "📝 DATOS REQUERIDOS") {
+              let formattedLines = bodyText
+                .split("\n")
+                .map((line) => {
+                  let cleanLine = line.trim();
+                  if (cleanLine) {
+                    return `*${cleanLine}*:`; // Negrita y dos puntos
+                  }
+                  return "";
+                })
+                .filter((line) => line !== "")
+                .join("\n");
+              cardTexts.push(
+                `*${title}*\n${formattedLines}\n\n_Es importante que no obvie ningún dato a menos que el dato a llenar diga (opcional)._`
+              );
+            }
             // Si es "NOTA" o "TIEMPO DE ENTREGA", título en negrita seguido del contenido en cursiva, sin salto de línea
-            if (title === "⚠️ NOTA" || title === "⏰ TIEMPO DE ENTREGA") {
+            else if (title === "⚠️ NOTA" || title === "⏰ TIEMPO DE ENTREGA") {
               cardTexts.push(`*${title}:* _${bodyText}_`);
             } else {
               cardTexts.push(`*${title}*\n${bodyText}`);
             }
           }
         });
-
         if (cardTexts.length > 0) {
           text += cardTexts.join("\n\n") + "\n";
         }
@@ -81,6 +97,7 @@ export default class extends Controller {
       }
 
       // Copiar solo datos requeridos
+      /*
       if (event.target.closest("#copy-required-data")) {
         const copyBtn = event.target.closest("#copy-required-data");
         const card = document.getElementById("required-data-card");
@@ -132,7 +149,7 @@ export default class extends Controller {
             }, 1500);
           });
         }
-      }
+      }*/
     });
 
     // Evento global para copiar y mostrar tooltip (esto solo una vez, fuera de la clase si usas Stimulus)

@@ -3,11 +3,13 @@
     <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-service-modal">
       <i class="fas fa-copy"></i> Copiar información del servicio
     </button>
+    <!--
     <% if service.required_data.present? %>
       <button type="button" class="btn btn-outline-success btn-sm" id="copy-required-data">
         <i class="fas fa-copy"></i> Copiar datos requeridos
       </button>
     <% end %>
+    -->
   </div>
   <p>
     <h4 class="fw-bold">💰 PRECIO 
@@ -44,7 +46,7 @@
     <% end %>
     <% if service.required_data.present? %>
       <div class="col-md-6 mx-auto">
-        <div class="card bg-warning mb-3" data-no-copy="true" id="required-data-card">
+        <div class="card bg-warning mb-3" id="required-data-card">
           <div class="card-header fw-bold">📝 DATOS REQUERIDOS</div>
           <div class="card-body">
             <p class="card-text"><%= simple_format(service.required_data) %></p>
