@@ -57,23 +57,24 @@ export default class extends Controller {
               .replace(/<[^>]+>/g, "");
             bodyText = bodyText.replace(/\n+/g, "\n").trim();
 
-            // Si es "DATOS REQUERIDOS", cada línea en negrita y con dos puntos al final
             if (title === "📝 DATOS REQUERIDOS") {
               let formattedLines = bodyText
                 .split("\n")
                 .map((line) => {
-                  let cleanLine = line.trim();
+                  // Elimina asteriscos y espacios al inicio
+                  let cleanLine = line.trim().replace(/^\*+\s*/, "");
                   if (cleanLine) {
-                    return `*${cleanLine}*:`; // Negrita y dos puntos
+                    return ` 〽️ ${cleanLine}:`; // Solo un asterisco al inicio y al final
                   }
                   return "";
                 })
                 .filter((line) => line !== "")
                 .join("\n");
               cardTexts.push(
-                `*${title}*\n${formattedLines}\n\n_Es importante que no obvie ningún dato a menos que el dato a llenar diga (opcional)._`
+                `*${title}*\n${formattedLines}\n\n_*Es importante que no obvie ningún dato a menos que el dato a llenar diga (opcional).*_`
               );
             }
+
             // Si es "NOTA" o "TIEMPO DE ENTREGA", título en negrita seguido del contenido en cursiva, sin salto de línea
             else if (title === "⚠️ NOTA" || title === "⏰ TIEMPO DE ENTREGA") {
               cardTexts.push(`*${title}:* _${bodyText}_`);
