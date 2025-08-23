@@ -12,7 +12,8 @@ class ProductosController < ApplicationController
 
     # Mapeo de nivel_ganancia a valores numéricos
     @nivel_ganancia_map = {
-      "Baja" => 20,
+      "Baja" => 15,
+      "Justa" => 23,
       "Media" => 30,
       "Alta" => 50
     }
@@ -20,12 +21,14 @@ class ProductosController < ApplicationController
     if params[:filter] == "alerta"
       @productos = @productos.where(
         "(available = true AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
-          WHEN 'Baja' THEN 20
+          WHEN 'Baja' THEN 15
+          WHEN 'Justa' THEN 23
           WHEN 'Media' THEN 30
           WHEN 'Alta' THEN 50
         END AS float) / 100)) OR
          (available = true AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
-          WHEN 'Baja' THEN 20
+          WHEN 'Baja' THEN 15
+          WHEN 'Justa' THEN 23
           WHEN 'Media' THEN 30
           WHEN 'Alta' THEN 50
         END AS float) / 100)) * #{@tasa_dolar_bcv})"
@@ -35,12 +38,14 @@ class ProductosController < ApplicationController
     # Contar el total de productos con alerta (sin importar el filtro)
     @total_alertas = Producto.where(
       "(available = true AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
-        WHEN 'Baja' THEN 20
+        WHEN 'Baja' THEN 15
+        WHEN 'Justa' THEN 23
         WHEN 'Media' THEN 30
         WHEN 'Alta' THEN 50
       END AS float) / 100)) OR
        (available = true AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
-        WHEN 'Baja' THEN 20
+        WHEN 'Baja' THEN 15
+        WHEN 'Justa' THEN 23
         WHEN 'Media' THEN 30
         WHEN 'Alta' THEN 50
       END AS float) / 100)) * #{@tasa_dolar_bcv})"

@@ -52,7 +52,7 @@
   <div class="col-md-3">
     <%= form.label :nivel_ganancia, "Nivel de Ganancia", class: "form-label" %>
     <%= form.select :nivel_ganancia, 
-                  options_for_select([["Baja", "Baja"], ["Media", "Media"], ["Alta", "Alta"]], selected: producto.nivel_ganancia), 
+                  options_for_select([["Baja", "Baja"], ["Justa", "Justa"], ["Media", "Media"], ["Alta", "Alta"]], selected: producto.nivel_ganancia), 
                   {}, 
                   { class: "form-select" } %>
   </div>
