@@ -24,7 +24,10 @@ export default class extends Controller {
 
       switch (nivelGanancia) {
         case "Baja":
-          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.2);
+          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.15);
+          break;
+        case "Justa":
+          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.23);
           break;
         case "Media":
           precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.3);

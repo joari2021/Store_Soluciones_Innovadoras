@@ -20,7 +20,9 @@ class Producto < ApplicationRecord
   def precio_sugerido_usd(precio_costo_unidad_usd)
     case nivel_ganancia
     when "Baja"
-      precio_costo_unidad_usd / (1 - 0.2)
+      precio_costo_unidad_usd / (1 - 0.15)
+    when "Justa"
+      precio_costo_unidad_usd / (1 - 0.23)
     when "Media"
       precio_costo_unidad_usd / (1 - 0.3)
     when "Alta"
