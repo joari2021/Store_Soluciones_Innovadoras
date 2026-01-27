@@ -10,7 +10,8 @@
     <%end%>
   <% end %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
+    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span><br>
+    <span>Tasa Euro BCV: <strong><%= number_to_currency(@tasa_euro_bcv, unit: "Bs ") %></strong></span>
   </div>
   <h1 class="my-4 text-center">Listado de Productos</h1>
   <%= render "shared/campo_buscar", url: productos_path, busqueda: "Productos" %>

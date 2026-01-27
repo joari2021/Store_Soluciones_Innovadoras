@@ -5,7 +5,8 @@
   <% end %>
   <%= render "shared/campo_buscar", url: services_path, busqueda: "Servicios" %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span>
+    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span><br>
+    <span>Tasa Euro BCV: <strong><%= number_to_currency(@tasa_euro_bcv, unit: "Bs ") %></strong></span>
   </div>
   <%= turbo_frame_tag "services-#{@pagy.page}" do%>
     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-4 mt-2" id="services-container">
