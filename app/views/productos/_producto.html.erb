@@ -2,27 +2,53 @@
   <p>
     <strong>Foto:</strong>
     <%= link_to producto.foto.filename, producto.foto if producto.foto.attached? %>
+    <p>
+      <strong>Porcentaje ganancia:</strong>
+      <%= producto.porcentaje_ganancia %>
+    </p>
   </p>
   <p>
-    <strong>Descripcion:</strong>
-    <%= producto.descripcion %>
+    <strong>Existencia:</strong>
+    <%= format_quantity(producto.total_quantity) %>
   </p>
   <p>
-    <strong>Cant unidades:</strong>
-    <%= producto.cant_unidades %>
+    <strong>Porcentaje ganancia:</strong>
+    <%= producto.porcentaje_ganancia %>
   </p>
-  <% if Current.user&.admin? %>
-    <p>
-      <strong>Precio costo:</strong>
-      <%= producto.precio_costo %>
-    </p>
-    <p>
-      <strong>Nivel ganancia:</strong>
-      <%= producto.nivel_ganancia %>
-    </p>
+  <p>
+    <strong>Stock de seguridad por variación:</strong>
+  </p>
+  <% if producto.product_variations.any? %>
+    <ul>
+      <% producto.product_variations.order(:id).each do |variation| %>
+        <li>
+          <%= variation.description %>: <%= format_quantity(variation.safety_stock) %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>Sin variaciones registradas.</p>
   <% end %>
   <p>
     <strong>Precio venta:</strong>
-    <%= producto.precio_venta_usd %>
+    <%= format_money(producto.precio_venta_usd, unit: "$") %>
   </p>
+  <p>
+    <strong>Inventario por lotes (FIFO):</strong>
+  </p>
+  <% available_lots = producto.inventory_lots.select { |lot| lot.quantity_remaining.to_d > 0 } %>
+  <% if available_lots.any? %>
+    <ul>
+      <% available_lots.each do |lot| %>
+        <li>
+          <%= lot.supplier_display_name %>
+          — costo: <%= format_money(lot.unit_cost_usd, unit: '$') %>
+          — compradas: <%= format_quantity(lot.quantity_in) %>
+          — restantes: <%= format_quantity(lot.quantity_remaining) %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p>Sin lotes registrados.</p>
+  <% end %>
 </div>

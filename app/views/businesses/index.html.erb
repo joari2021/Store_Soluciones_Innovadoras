@@ -1,0 +1,73 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Negocios</h1>
+        <p class="mt-1 text-sm text-slate-500">Crea y administra los negocios que manejas en el sistema.</p>
+      </div>
+      <%= link_to new_business_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+          <path d="M12 4.5a.75.75 0 0 1 .75.75v6h6a.75.75 0 0 1 0 1.5h-6v6a.75.75 0 0 1-1.5 0v-6h-6a.75.75 0 0 1 0-1.5h6v-6a.75.75 0 0 1 .75-.75Z" />
+        </svg>
+        Nuevo negocio
+      <% end %>
+    </div>
+  </div>
+  <% if @businesses.any? %>
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <% @businesses.each do |business| %>
+        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sm font-bold text-sky-700">
+                <%= business.name.to_s.first&.upcase || 'N' %>
+              </div>
+              <div class="min-w-0">
+                <h3 class="truncate text-base font-bold text-slate-800"><%= business.name %></h3>
+                <p class="text-xs text-slate-500">Negocio registrado</p>
+              </div>
+            </div>
+            <% if current_business&.id == business.id %>
+              <span class="inline-flex items-center rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">Actual</span>
+            <% end %>
+          </div>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <% if current_business&.id != business.id %>
+              <%= button_to select_business_path(business), method: :post, form: { class: 'inline-flex' }, class: 'inline-flex items-center gap-1 rounded-lg bg-sky-600 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-700 transition-colors' do %>
+                <i data-lucide="check" class="h-3.5 w-3.5"></i>
+                Seleccionar
+              <% end %>
+            <% else %>
+              <span class="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
+                <i data-lucide="check-circle" class="h-3.5 w-3.5"></i>
+                En uso
+              </span>
+            <% end %>
+            <%= link_to edit_business_path(business), class: 'inline-flex items-center justify-center rounded-lg bg-amber-50 p-2 text-amber-600 hover:bg-amber-100 transition-colors', title: 'Editar', 'aria-label': 'Editar' do %>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                <path d="M16.862 3.487a2.625 2.625 0 1 1 3.712 3.713L8.25 19.524l-4.5.75.75-4.5L16.862 3.487Z" />
+              </svg>
+            <% end %>
+            <%= link_to business_path(business),
+                        data: { swal_delete: 'business' },
+                        class: 'inline-flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition-colors',
+                        title: 'Eliminar',
+                        'aria-label': 'Eliminar' do %>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                <path fill-rule="evenodd" d="M16.5 4.5V6h3a.75.75 0 0 1 0 1.5h-.638l-1.02 11.214A2.25 2.25 0 0 1 15.603 21H8.397a2.25 2.25 0 0 1-2.24-2.286L5.138 7.5H4.5a.75.75 0 0 1 0-1.5h3V4.5A1.5 1.5 0 0 1 9 3h6a1.5 1.5 0 0 1 1.5 1.5Zm-7.5 0V6h6V4.5h-6Z" clip-rule="evenodd" />
+              </svg>
+            <% end %>
+          </div>
+        </article>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+        <i data-lucide="building" class="h-6 w-6"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">No hay negocios registrados</h3>
+      <p class="mt-1 text-sm text-slate-500">Crea un negocio para empezar a registrar productos y movimientos.</p>
+    </div>
+  <% end %>
+</div>

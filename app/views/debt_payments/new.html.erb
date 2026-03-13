@@ -1,0 +1,149 @@
+<% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
+<% debt_currency_symbol = Account::CURRENCIES.dig(@debt.currency, :symbol) || @debt.currency %>
+<% payment_account_options = @accounts.map do |account| %>
+  <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
+<% end %>
+<% selected_account = @accounts.find { |account| account.id == @debt_payment.account_id } %>
+<% show_method = selected_account&.account_type == "bank_account" %>
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400"><%= action_label %></p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @debt.name %></h1>
+        <p class="mt-1 text-sm text-slate-500">Puedes pagar en cualquier moneda con conversion automatica a <%= @debt.currency %>.</p>
+        <p class="mt-1 text-xs text-slate-400">Saldo pendiente base: <%= number_to_currency(@debt.balance, unit: "#{debt_currency_symbol} ") %></p>
+      </div>
+      <%= link_to debt_path(@debt), class: "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+        Volver
+      <% end %>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <%= form_with model: [@debt, @debt_payment], local: true, class: "space-y-6", data: { debt_payment_form: true } do |form| %>
+      <% if @debt_payment.errors.any? %>
+        <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold">No se pudo registrar el pago</h4>
+            <span class="text-xs font-medium"><%= pluralize(@debt_payment.errors.count, 'error') %></span>
+          </div>
+          <ul class="mt-2 list-disc pl-5 text-sm">
+            <% @debt_payment.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div>
+          <%= form.label :currency, "Moneda del pago", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :currency,
+                          Account.currency_options,
+                          {},
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_payment_currency: true } %>
+        </div>
+        <div>
+          <%= form.label :account_id, "Cuenta", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :account_id,
+                          options_for_select(payment_account_options, form.object.account_id),
+                          { include_blank: "Selecciona una cuenta" },
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_payment_account: true } %>
+        </div>
+        <div class="<%= show_method ? '' : 'hidden' %>" data-debt-payment-method-wrapper="true">
+          <%= form.label :payment_method, "Metodo (solo banco)", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :payment_method,
+                          options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], form.object.payment_method),
+                          { include_blank: "Selecciona" },
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_payment_method: true } %>
+        </div>
+        <div>
+          <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.number_field :amount, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <%= form.label :reference, "Referencia", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :reference, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "6 digitos" %>
+        </div>
+        <div>
+          <%= form.label :occurred_at, "Fecha del pago", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.date_field :occurred_at, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div class="md:col-span-2">
+          <%= form.label :notes, "Notas", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_area :notes, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <%= form.submit action_label, class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800" %>
+        <%= link_to debt_path(@debt), class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+          Cancelar
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+<script>
+  (function () {
+    const form = document.querySelector("[data-debt-payment-form='true']");
+    if (!form || form.dataset.bound === "true") return;
+    form.dataset.bound = "true";
+
+    const currencySelect = form.querySelector("[data-debt-payment-currency='true']");
+    const accountSelect = form.querySelector("[data-debt-payment-account='true']");
+    const methodWrapper = form.querySelector("[data-debt-payment-method-wrapper='true']");
+    const methodSelect = form.querySelector("[data-debt-payment-method='true']");
+
+    const filterAccountsByCurrency = () => {
+      if (!currencySelect || !accountSelect) return;
+
+      const selectedCurrency = String(currencySelect.value || "");
+      Array.from(accountSelect.options).forEach((option) => {
+        if (!option.value) {
+          option.hidden = false;
+          option.disabled = false;
+          return;
+        }
+
+        const optionCurrency = String(option.dataset.accountCurrency || "");
+        const matches = !selectedCurrency || optionCurrency === selectedCurrency;
+        option.hidden = !matches;
+        option.disabled = !matches;
+      });
+
+      const selectedOption = accountSelect.options[accountSelect.selectedIndex];
+      if (selectedOption?.disabled) {
+        accountSelect.value = "";
+      }
+    };
+
+    const updateMethodVisibility = () => {
+      if (!methodWrapper || !methodSelect || !accountSelect) return;
+
+      const selectedOption = accountSelect.options[accountSelect.selectedIndex];
+      const isBankAccount = selectedOption?.dataset.accountType === "bank_account";
+
+      methodWrapper.classList.toggle("hidden", !isBankAccount);
+
+      if (!isBankAccount) {
+        methodSelect.value = "";
+      }
+    };
+
+    if (currencySelect) {
+      currencySelect.addEventListener("change", () => {
+        filterAccountsByCurrency();
+        updateMethodVisibility();
+      });
+    }
+
+    if (accountSelect) {
+      accountSelect.addEventListener("change", updateMethodVisibility);
+    }
+
+    filterAccountsByCurrency();
+    updateMethodVisibility();
+  })();
+</script>

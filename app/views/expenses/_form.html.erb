@@ -1,0 +1,106 @@
+<%= form_with model: @expense, local: true, class: "space-y-6" do |form| %>
+  <% if @expense.errors.any? %>
+    <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar el gasto</h4>
+        <span class="text-xs font-medium"><%= pluralize(@expense.errors.count, 'error') %></span>
+      </div>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% @expense.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle del gasto</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div>
+        <%= form.label :name, "Nombre", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :name, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :expense_type, "Tipo", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :expense_type, Expense.expense_type_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div class="md:col-span-2">
+        <%= form.label :description, "Descripcion", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :description, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Monto base</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div>
+        <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.number_field :amount, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "Opcional para gastos variables" %>
+      </div>
+      <div>
+        <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :currency, Account.currency_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Programacion</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div>
+        <%= form.label :frequency, "Frecuencia", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :frequency, Expense.frequency_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :start_date, "Fecha de inicio", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.date_field :start_date, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :end_date, "Fecha de fin", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.date_field :end_date, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :occurrences_limit, "Cantidad de pagos", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.number_field :occurrences_limit, min: 1, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "Opcional" %>
+      </div>
+    </div>
+  </div>
+  <% if @expense.new_record? %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago inicial</p>
+          <p class="mt-1 text-sm text-slate-500">Registra un pago de inmediato si es un gasto unico.</p>
+        </div>
+        <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+          <%= check_box_tag :register_payment, "1", params[:register_payment] == "1", class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
+          Registrar pago ahora
+        </label>
+      </div>
+      <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Cuenta</label>
+          <%= select_tag :payment_account_id, options_for_select(@accounts.map { |account| ["#{account.name} (#{account.currency})", account.id] }, params[:payment_account_id]), include_blank: "Selecciona una cuenta", class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Monto pagado</label>
+          <%= number_field_tag :payment_amount, params[:payment_amount], step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Metodo (solo banco)</label>
+          <%= select_tag :payment_method, options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], params[:payment_method]), include_blank: "Selecciona", class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Referencia</label>
+          <%= text_field_tag :payment_reference, params[:payment_reference], class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "6 digitos" %>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Fecha de pago</label>
+          <%= datetime_local_field_tag :payment_occurred_at, params[:payment_occurred_at], class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  <div class="flex flex-wrap items-center gap-3">
+    <%= form.submit(@expense.persisted? ? "Actualizar gasto" : "Crear gasto", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
+    <%= link_to 'Cancelar', expenses_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+  </div>
+<% end %>

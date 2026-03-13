@@ -1,0 +1,144 @@
+<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
+  <% if Current.user&.admin? %>
+    <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success mb-3" %>
+    <%if @total_alertas > 0%>
+      <%= link_to(
+      "#{params[:filter] == 'alerta' ? 'Mostrar todos los productos' : 'Alerta Precio'} <span class='badge bg-danger'>#{@total_alertas}</span>".html_safe,
+      params[:filter] == "alerta" ? productos_path : productos_path(filter: "alerta"),
+      class: "btn #{params[:filter] == 'alerta' ? 'btn-primary' : 'btn-warning'} mb-3"
+    ) %>
+    <%end%>
+  <% end %>
+  <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
+    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span><br>
+    <span>Tasa Euro BCV: <strong><%= number_to_currency(@tasa_euro_bcv, unit: "Bs ") %></strong></span>
+  </div>
+  <h1 class="my-4 text-center">Listado de Productos</h1>
+  <%= turbo_frame_tag "productos-#{@pagy.page}" do%>
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-4 mt-2" id="productos-container">
+      <% @cont_alertas = 0 %>
+      <% @productos.each do |producto| %>
+        <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
+        <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
+        <div class="col">
+          <div class="card h-100 shadow-sm text-black">
+            <% if Current.user&.admin? %>
+              <div class="card-header d-flex justify-content-end">
+                <%= link_to edit_producto_path(producto), class: "btn btn-primary btn-sm", data: { turbo_frame: "_top" } do %>
+                  <i class="fas fa-edit"></i>
+                <% end %>
+              </div>
+            <% end %>
+            <div class="image-container">
+              <% if producto.foto.attached? %>
+                <%= image_tag producto.foto, class: "card-img-top", alt: producto.descripcion %>
+              <% else %>
+                <%= image_tag "default_image.jpeg", class: "card-img-top", alt: "Imagen por defecto" %>
+              <% end %>
+              <% unless producto.available? %>
+                <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
+              <% end %>
+            </div>
+            <div class="card-body">
+              <!--
+              <% if Current.user&.admin? %>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Pack ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_costo, unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Pack (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Cantidad:</span>
+                  <strong class="d-block text-end"><%= producto.cant_unidades %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Unidad ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_costo / producto.cant_unidades), unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Costo Unidad (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo / producto.cant_unidades), unit: "Bs ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Nivel Ganancia:</span>
+                  <strong class="d-block text-end"><%= producto.nivel_ganancia.upcase %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">PV Sugerido ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(precio_sugerido_usd, unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">PV Sugerido (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(precio_sugerido_usd), unit: "Bs ") %></strong>
+                </p>
+                <hr>
+              <% end %>
+              -->
+              <% if producto.moneda_base_precio === "Dolar" %>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta ($):</span>
+                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta (Bs):</span>
+                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></strong>
+                </p>
+              <% else %>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta ($):</span>
+                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></strong>
+                </p>
+                <hr>
+                <p class="card-text mb-1">
+                  <span class="d-block text-start">Precio Venta (Bs):</span>
+                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
+                </p>
+              <% end %>
+              <hr class="text-info" style="height: 3px;">
+              <h6 class="card-title text-primary fw-bold"><%= producto.descripcion %></h6>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+    <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
+  <%end%>
+</div>
+<style>
+  .image-container {
+    position: relative;
+    width: 100%;
+    padding-top: 130%; /* Relación de aspecto 130% */
+    overflow: hidden;
+  }
+
+  .image-container img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
+  }
+  .image-container img.overlay-no-disponible {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Permite hacer clic en la imagen de abajo */
+    object-fit: contain;
+    z-index: 2;
+  }
+</style>

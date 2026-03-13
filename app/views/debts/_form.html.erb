@@ -1,0 +1,855 @@
+<%= form_with model: @debt, local: true, class: "space-y-6", data: { debt_form: true } do |form| %>
+  <% if @debt.errors.any? %>
+    <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar la deuda</h4>
+        <span class="text-xs font-medium"><%= pluralize(@debt.errors.count, 'error') %></span>
+      </div>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% @debt.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <% initial_cliente = @clientes.find { |cliente| cliente.id == form.object.cliente_id } %>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle de la deuda</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div data-debt-receivable>
+        <%= form.label :cliente_id, "Cliente", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.hidden_field :cliente_id,
+                              data: {
+                                debt_cliente_id: true,
+                                debt_cliente_name: initial_cliente&.name.to_s,
+                                debt_cliente_document: initial_cliente&.document_label.to_s
+                              } %>
+        <div class="relative mt-1">
+          <input type="text"
+                 autocomplete="off"
+                 placeholder="Buscar cliente"
+                 class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                 data-debt-client-search="true">
+          <div class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl" data-debt-client-results="true">
+            <button type="button"
+                  class="flex w-full cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50"
+                    data-debt-client-add="true">
+              + Cliente no registrado
+            </button>
+            <div class="max-h-48 overflow-y-auto" data-debt-client-list="true"></div>
+          </div>
+        </div>
+        <div class="mt-2 <%= initial_cliente.present? ? 'flex' : 'hidden' %> items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-debt-client-selected="true">
+          <div>
+            <p class="text-xs text-slate-500">Cliente seleccionado</p>
+            <p class="text-sm font-semibold text-slate-700" data-debt-client-selected-name="true"><%= initial_cliente.present? ? "#{initial_cliente.name} (#{initial_cliente.document_label})" : "" %></p>
+          </div>
+          <button type="button" class="cursor-pointer text-slate-400 hover:text-red-500" data-debt-client-clear="true">x</button>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 <%= initial_cliente.present? ? 'hidden' : '' %>" data-debt-client-empty="true">Selecciona un cliente para esta deuda.</p>
+      </div>
+      <div data-debt-payable>
+        <%= form.label :supplier_id, "Proveedor", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.collection_select :supplier_id, @suppliers, :id, :nombre, { include_blank: "Selecciona un proveedor" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :name, "Concepto", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :name, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :debt_kind, "Tipo", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :debt_kind, Debt.debt_kind_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", data: { debt_kind: true } %>
+      </div>
+      <div>
+        <%= form.label :origin_kind, "Origen", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :origin_kind,
+                        Debt.origin_kind_options,
+                        {},
+                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                        data: { debt_origin_kind: true } %>
+      </div>
+      <% loan_account_options = @accounts.map do |account| %>
+        <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency }] %>
+      <% end %>
+      <div class="<%= form.object.loan? ? '' : 'hidden' %>" data-debt-loan-account-wrapper="true">
+        <%= form.label :loan_account_id, "Cuenta del prestamo", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :loan_account_id,
+                        options_for_select(loan_account_options, form.object.loan_account_id),
+                        { include_blank: "Selecciona una cuenta" },
+                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                        data: { debt_loan_account: true } %>
+        <p class="mt-1 text-xs text-slate-500">Solo aplica cuando el origen sea dinero prestado.</p>
+      </div>
+      <div>
+        <%= form.label :reference, "Referencia", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :reference, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "Factura o codigo" %>
+      </div>
+      <div class="md:col-span-2">
+        <%= form.label :description, "Descripcion", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :description, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+    </div>
+  </div>
+  <% debt_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+  <% selected_currency = form.object.currency.presence || "USD" %>
+  <% selected_currency_symbol = debt_currency_symbols[selected_currency] || "$" %>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos y fechas</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div>
+        <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.hidden_field :amount, data: { debt_amount_hidden: true } %>
+        <%= text_field_tag :debt_amount_masked,
+                           format_money(form.object.amount, unit: selected_currency_symbol),
+                           inputmode: "decimal",
+                           autocomplete: "off",
+                           placeholder: "#{selected_currency_symbol} 0,00",
+                           class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                           data: {
+                             money_mask: true,
+                             money_symbol: selected_currency_symbol,
+                             debt_amount_masked: true
+                           } %>
+      </div>
+      <div>
+        <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :currency,
+                        Account.currency_options,
+                        {},
+                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                        data: { debt_currency: true, currency_symbols: debt_currency_symbols.to_json } %>
+      </div>
+      <div>
+        <%= form.label :issued_on, "Fecha de emision", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :issued_on,
+                            value: form.object.issued_on&.strftime("%d-%m-%Y"),
+                            autocomplete: "off",
+                            placeholder: "dd-mm-aaaa",
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :due_on, "Fecha de vencimiento", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :due_on,
+                            value: form.object.due_on&.strftime("%d-%m-%Y"),
+                            autocomplete: "off",
+                            placeholder: "dd-mm-aaaa",
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+    </div>
+  </div>
+  <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" data-debt-client-modal>
+    <div class="absolute inset-0 bg-slate-900/60" data-debt-client-modal-close></div>
+    <div class="relative z-10 w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Cliente no registrado</p>
+          <h3 class="text-base font-bold text-slate-800">Registrar nuevo cliente</h3>
+        </div>
+        <button type="button" class="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50" data-debt-client-modal-close>
+          x
+        </button>
+      </div>
+      <div class="space-y-3 px-5 py-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Nombre</label>
+          <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-name>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Telefono (obligatorio)</label>
+          <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-phone>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Tipo de documento</label>
+            <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-document-type>
+              <option value="V">V</option>
+              <option value="E">E</option>
+              <option value="J">J</option>
+              <option value="G">G</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Documento</label>
+            <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-document-number>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Direccion</label>
+          <textarea rows="2" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-address></textarea>
+        </div>
+        <p class="hidden text-sm" data-debt-client-feedback></p>
+      </div>
+      <div class="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" data-debt-client-modal-close>
+          Cancelar
+        </button>
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800" data-debt-client-save>
+          Guardar cliente
+        </button>
+      </div>
+    </div>
+  </div>
+  <% if @debt.new_record? %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <% selected_payment_account = @accounts.find { |account| account.id.to_s == params[:payment_account_id].to_s } %>
+      <% selected_payment_currency = params[:payment_currency].presence || selected_payment_account&.currency || selected_currency %>
+      <% payment_currency_symbol = debt_currency_symbols[selected_payment_currency] || selected_currency_symbol %>
+      <% show_payment_method = selected_payment_account&.account_type == "bank_account" %>
+      <% payment_account_options = @accounts.map do |account| %>
+        <% ["#{account.name} (#{account.currency})", account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+      <% end %>
+      <% payment_occurred_on_value = begin %>
+      <% raw_payment_occurred_on = params[:payment_occurred_on].presence %>
+      <% if raw_payment_occurred_on.present? %>
+        <% Date.strptime(raw_payment_occurred_on.to_s, "%d-%m-%Y") %>
+      <% end %>
+      <% rescue ArgumentError %>
+      <% begin %>
+        <% Date.iso8601(raw_payment_occurred_on.to_s) %>
+        <% rescue ArgumentError %>
+        <% nil %>
+      <% end %>
+    <% end %>
+    <% payment_date_display = payment_occurred_on_value&.strftime("%d-%m-%Y") %>
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago inicial</p>
+        <p class="mt-1 text-sm text-slate-500">Registra un pago si ya se recibio o se pago parte de la deuda.</p>
+        <p class="mt-1 text-xs text-slate-400">El saldo se controla siempre en la moneda base de la deuda: <%= selected_currency %>.</p>
+      </div>
+      <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+        <%= check_box_tag :register_payment, "1", params[:register_payment] == "1", class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
+        Registrar pago ahora
+      </label>
+    </div>
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Moneda del pago</label>
+        <%= select_tag :payment_currency,
+                       options_for_select(Account.currency_options, selected_payment_currency),
+                       include_blank: "Selecciona moneda",
+                       class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                       data: { debt_payment_currency: true, currency_symbols: debt_currency_symbols.to_json } %>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Cuenta</label>
+        <%= select_tag :payment_account_id,
+                         options_for_select(payment_account_options, params[:payment_account_id]),
+                         include_blank: "Selecciona una cuenta",
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { debt_payment_account: true } %>
+      </div>
+      <div class="<%= show_payment_method ? '' : 'hidden' %>" data-debt-payment-method-wrapper="true">
+        <label class="block text-sm font-medium text-slate-700">Metodo (solo banco)</label>
+        <%= select_tag :payment_method,
+                         options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], params[:payment_method]),
+                         include_blank: "Selecciona",
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { debt_payment_method_select: true } %>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Monto pagado</label>
+        <%= hidden_field_tag :payment_amount, params[:payment_amount], data: { debt_payment_amount_hidden: true } %>
+        <%= text_field_tag :payment_amount_masked,
+                             params[:payment_amount].presence || format_money(0, unit: payment_currency_symbol),
+                             inputmode: "decimal",
+                             autocomplete: "off",
+                             placeholder: "#{payment_currency_symbol} 0,00",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: {
+                               money_mask: true,
+                               money_symbol: payment_currency_symbol,
+                               debt_payment_amount_masked: true
+                             } %>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Referencia</label>
+        <%= text_field_tag :payment_reference, params[:payment_reference], class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "6 digitos" %>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Fecha del pago</label>
+        <%= text_field_tag :payment_occurred_on,
+                             payment_date_display,
+                             autocomplete: "off",
+                             placeholder: "dd-mm-aaaa",
+                             class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: { debt_payment_date_input: true } %>
+      </div>
+    </div>
+  </div>
+<% end %>
+<div class="flex flex-wrap items-center gap-3">
+  <%= form.submit(@debt.persisted? ? "Actualizar deuda" : "Crear deuda", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
+  <%= link_to "Cancelar", debts_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+</div>
+<script>
+  (function () {
+    const form = document.querySelector("[data-debt-form='true']");
+    if (!form || form.dataset.debtBound === "true") return;
+    form.dataset.debtBound = "true";
+
+    const kindSelect = form.querySelector("[data-debt-kind]");
+    const originKindSelect = form.querySelector("[data-debt-origin-kind='true']");
+    const receivableSection = form.querySelector("[data-debt-receivable]");
+    const payableSection = form.querySelector("[data-debt-payable]");
+    const loanAccountWrapper = form.querySelector("[data-debt-loan-account-wrapper='true']");
+    const loanAccountSelect = form.querySelector("[data-debt-loan-account='true']");
+    const amountMaskedInput = form.querySelector("[data-debt-amount-masked='true']");
+    const amountHiddenInput = form.querySelector("[data-debt-amount-hidden='true']");
+    const currencySelect = form.querySelector("[data-debt-currency='true']");
+    const paymentCurrencySelect = form.querySelector("[data-debt-payment-currency='true']");
+    const paymentMaskedInput = form.querySelector("[data-debt-payment-amount-masked='true']");
+    const paymentHiddenInput = form.querySelector("[data-debt-payment-amount-hidden='true']");
+    const paymentAccountSelect = form.querySelector("[data-debt-payment-account='true']");
+    const paymentMethodWrapper = form.querySelector("[data-debt-payment-method-wrapper='true']");
+    const paymentMethodSelect = form.querySelector("[data-debt-payment-method-select='true']");
+    const clienteHiddenInput = form.querySelector("[data-debt-cliente-id='true']");
+    const clientSearchInput = form.querySelector("[data-debt-client-search='true']");
+    const clientResults = form.querySelector("[data-debt-client-results='true']");
+    const clientList = form.querySelector("[data-debt-client-list='true']");
+    const clientAddButton = form.querySelector("[data-debt-client-add='true']");
+    const clientSelected = form.querySelector("[data-debt-client-selected='true']");
+    const clientSelectedName = form.querySelector("[data-debt-client-selected-name='true']");
+    const clientEmpty = form.querySelector("[data-debt-client-empty='true']");
+    const clientClearButton = form.querySelector("[data-debt-client-clear='true']");
+
+    const clientModal = form.querySelector("[data-debt-client-modal]");
+    const clientModalCloseButtons = form.querySelectorAll("[data-debt-client-modal-close]");
+    const clientSaveButton = form.querySelector("[data-debt-client-save]");
+    const clientNameInput = form.querySelector("[data-debt-client-name]");
+    const clientPhoneInput = form.querySelector("[data-debt-client-phone]");
+    const clientDocumentTypeInput = form.querySelector("[data-debt-client-document-type]");
+    const clientDocumentNumberInput = form.querySelector("[data-debt-client-document-number]");
+    const clientAddressInput = form.querySelector("[data-debt-client-address]");
+    const clientFeedback = form.querySelector("[data-debt-client-feedback]");
+    let clientSearchTimeout = null;
+
+    let currencySymbols = {};
+    if (currencySelect?.dataset.currencySymbols) {
+      try {
+        currencySymbols = JSON.parse(currencySelect.dataset.currencySymbols);
+      } catch (error) {
+        currencySymbols = {};
+      }
+    }
+
+    const toggleSections = () => {
+      const kind = kindSelect ? kindSelect.value : "receivable";
+      if (receivableSection) {
+        receivableSection.classList.toggle("hidden", kind !== "receivable");
+      }
+      if (payableSection) {
+        payableSection.classList.toggle("hidden", kind !== "payable");
+      }
+    };
+
+    const setClientFeedback = (message, tone = "error") => {
+      if (!clientFeedback) return;
+
+      if (!message) {
+        clientFeedback.textContent = "";
+        clientFeedback.classList.add("hidden");
+        clientFeedback.classList.remove("text-red-600", "text-emerald-600");
+        return;
+      }
+
+      clientFeedback.textContent = message;
+      clientFeedback.classList.remove("hidden");
+      clientFeedback.classList.remove("text-red-600", "text-emerald-600");
+      clientFeedback.classList.add(tone === "success" ? "text-emerald-600" : "text-red-600");
+    };
+
+    const escapeHtml = (value) => {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    };
+
+    const setSelectedCliente = (client) => {
+      if (clienteHiddenInput) {
+        clienteHiddenInput.value = client?.id ? String(client.id) : "";
+      }
+
+      if (clientSearchInput && client) {
+        clientSearchInput.value = "";
+      }
+
+      if (clientSelected && clientSelectedName && clientEmpty) {
+        if (client) {
+          clientSelectedName.textContent = `${client.name} (${client.document || "N/A"})`;
+          clientSelected.classList.remove("hidden");
+          clientSelected.classList.add("flex");
+          clientEmpty.classList.add("hidden");
+        } else {
+          clientSelectedName.textContent = "";
+          clientSelected.classList.add("hidden");
+          clientSelected.classList.remove("flex");
+          clientEmpty.classList.remove("hidden");
+        }
+      }
+    };
+
+    const hideClientResults = () => {
+      if (clientResults) {
+        clientResults.classList.add("hidden");
+      }
+    };
+
+    const renderClientResults = (clients) => {
+      if (!clientList || !clientResults) return;
+
+      if (!clients || clients.length === 0) {
+        clientList.innerHTML = '<p class="px-3 py-2 text-sm text-slate-500">Sin coincidencias</p>';
+        clientResults.classList.remove("hidden");
+        return;
+      }
+
+      const rows = clients
+        .map((client) => {
+          return `
+            <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${encodeURIComponent(String(client.name || ""))}" data-client-doc="${encodeURIComponent(String(client.document || ""))}">
+              <span>${escapeHtml(client.name)}</span>
+              <span class="text-xs text-slate-400">${escapeHtml(client.document || "")}</span>
+            </button>
+          `;
+        })
+        .join("");
+
+      clientList.innerHTML = rows;
+      clientResults.classList.remove("hidden");
+    };
+
+    const searchClients = async (query) => {
+      if (!query || query.length < 1) {
+        hideClientResults();
+        return;
+      }
+
+      try {
+        const response = await fetch(`/clientes/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json().catch(() => ({}));
+        renderClientResults(data.clients || []);
+      } catch (_error) {
+        renderClientResults([]);
+      }
+    };
+
+    const openClientModal = (presetName = "") => {
+      if (!clientModal) return;
+
+      setClientFeedback("");
+      if (clientNameInput) {
+        clientNameInput.value = String(presetName || "");
+      }
+      clientModal.classList.remove("hidden");
+      clientModal.classList.add("flex");
+      setTimeout(() => {
+        if (clientNameInput) clientNameInput.focus();
+      }, 0);
+    };
+
+    const closeClientModal = () => {
+      if (!clientModal) return;
+
+      clientModal.classList.remove("flex");
+      clientModal.classList.add("hidden");
+    };
+
+    const createClienteFromModal = async () => {
+      if (!clientSaveButton || !clienteHiddenInput) return;
+
+      const name = String(clientNameInput?.value || "").trim();
+      const phone = String(clientPhoneInput?.value || "").trim();
+      const documentType = String(clientDocumentTypeInput?.value || "V").trim() || "V";
+      const documentNumber = String(clientDocumentNumberInput?.value || "").trim();
+      const address = String(clientAddressInput?.value || "").trim();
+
+      if (!name) {
+        setClientFeedback("El nombre es obligatorio.");
+        clientNameInput?.focus();
+        return;
+      }
+
+      if (!phone) {
+        setClientFeedback("El telefono es obligatorio.");
+        clientPhoneInput?.focus();
+        return;
+      }
+
+      const csrfToken = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute("content");
+
+      const payload = {
+        cliente: {
+          name,
+          phone,
+          document_type: documentType,
+          document_number: documentNumber,
+          address,
+        },
+      };
+
+      clientSaveButton.disabled = true;
+      setClientFeedback("");
+
+      try {
+        const response = await fetch("/deudas/crear-cliente", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.error || "No se pudo registrar el cliente.");
+        }
+
+        setSelectedCliente({
+          id: data.id,
+          name: data.name,
+          document: data.document,
+        });
+
+        hideClientResults();
+        closeClientModal();
+
+        if (clientPhoneInput) clientPhoneInput.value = "";
+        if (clientDocumentNumberInput) clientDocumentNumberInput.value = "";
+        if (clientAddressInput) clientAddressInput.value = "";
+
+        if (window.AppToast?.success) {
+          window.AppToast.success("Cliente registrado y seleccionado.");
+        }
+      } catch (error) {
+        setClientFeedback(error.message || "No se pudo registrar el cliente.");
+      } finally {
+        clientSaveButton.disabled = false;
+      }
+    };
+
+    const resolveDebtCurrencySymbol = () => {
+      if (!currencySelect) return "$";
+
+      return currencySymbols[currencySelect.value] || "$";
+    };
+
+    const resolvePaymentCurrencySymbol = () => {
+      if (!paymentCurrencySelect) return resolveDebtCurrencySymbol();
+
+      return currencySymbols[paymentCurrencySelect.value] || "$";
+    };
+
+    const parseMaskedValue = (input) => {
+      if (!input) return 0;
+
+      if (window.MoneyInputMask?.parseValue) {
+        return window.MoneyInputMask.parseValue(input);
+      }
+
+      const compact = String(input.value || "")
+        .replace(/\s/g, "")
+        .replace(/[^\d.,-]/g, "");
+
+      const normalized = compact.includes(",")
+        ? compact.replace(/\./g, "").replace(",", ".")
+        : compact;
+
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const updateAmountHidden = () => {
+      if (!amountMaskedInput || !amountHiddenInput) return;
+
+      const parsed = parseMaskedValue(amountMaskedInput);
+
+      amountHiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const updatePaymentHidden = () => {
+      if (!paymentMaskedInput || !paymentHiddenInput) return;
+
+      const parsed = parseMaskedValue(paymentMaskedInput);
+      paymentHiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const syncMaskedInputCurrency = (input, symbol) => {
+      if (!input) return;
+
+      input.dataset.moneySymbol = symbol;
+      input.placeholder = `${symbol} 0,00`;
+
+      if (window.MoneyInputMask?.setValue && window.MoneyInputMask?.parseValue) {
+        const currentValue = window.MoneyInputMask.parseValue(input);
+        window.MoneyInputMask.setValue(input, currentValue, symbol);
+      }
+    };
+
+    const syncDebtAmountMaskCurrency = () => {
+      const symbol = resolveDebtCurrencySymbol();
+      syncMaskedInputCurrency(amountMaskedInput, symbol);
+      updateAmountHidden();
+    };
+
+    const syncPaymentAmountMaskCurrency = () => {
+      const symbol = resolvePaymentCurrencySymbol();
+      syncMaskedInputCurrency(paymentMaskedInput, symbol);
+      updatePaymentHidden();
+    };
+
+    const filterSelectByCurrency = (selectElement, currency) => {
+      if (!selectElement) return;
+
+      Array.from(selectElement.options).forEach((option) => {
+        if (!option.value) {
+          option.hidden = false;
+          option.disabled = false;
+          return;
+        }
+
+        const optionCurrency = String(option.dataset.accountCurrency || "");
+        const matches = !currency || optionCurrency === currency;
+        option.hidden = !matches;
+        option.disabled = !matches;
+      });
+
+      const selectedOption = selectElement.options[selectElement.selectedIndex];
+      if (selectedOption?.disabled) {
+        selectElement.value = "";
+      }
+    };
+
+    const updateLoanAccountVisibility = () => {
+      if (!loanAccountWrapper || !loanAccountSelect) return;
+
+      const isLoan = originKindSelect?.value === "loan";
+      const isReceivable = (kindSelect?.value || "receivable") === "receivable";
+      const shouldShow = isLoan && isReceivable;
+
+      loanAccountWrapper.classList.toggle("hidden", !shouldShow);
+
+      if (!shouldShow) {
+        loanAccountSelect.value = "";
+        return;
+      }
+
+      filterSelectByCurrency(loanAccountSelect, currencySelect?.value);
+    };
+
+    const updatePaymentAccountsByCurrency = () => {
+      const selectedCurrency = paymentCurrencySelect?.value;
+      filterSelectByCurrency(paymentAccountSelect, selectedCurrency);
+    };
+
+    const updatePaymentMethodVisibility = () => {
+      if (!paymentMethodWrapper || !paymentMethodSelect || !paymentAccountSelect) return;
+
+      const selectedOption = paymentAccountSelect.options[paymentAccountSelect.selectedIndex];
+      const isBankAccount = selectedOption?.dataset.accountType === "bank_account";
+
+      paymentMethodWrapper.classList.toggle("hidden", !isBankAccount);
+
+      if (!isBankAccount) {
+        paymentMethodSelect.value = "";
+      }
+    };
+
+    if (kindSelect) {
+      kindSelect.addEventListener("change", () => {
+        toggleSections();
+        updateLoanAccountVisibility();
+      });
+    }
+
+    if (originKindSelect) {
+      originKindSelect.addEventListener("change", updateLoanAccountVisibility);
+    }
+
+    if (clientSearchInput) {
+      clientSearchInput.addEventListener("input", () => {
+        const query = String(clientSearchInput.value || "").trim();
+        if (clientSearchTimeout) clearTimeout(clientSearchTimeout);
+
+        clientSearchTimeout = setTimeout(() => {
+          searchClients(query);
+        }, 250);
+      });
+
+      clientSearchInput.addEventListener("focus", () => {
+        const query = String(clientSearchInput.value || "").trim();
+        if (query.length > 0) {
+          searchClients(query);
+        }
+      });
+    }
+
+    if (clientAddButton) {
+      clientAddButton.addEventListener("click", () => {
+        const presetName = String(clientSearchInput?.value || "").trim();
+        openClientModal(presetName);
+      });
+    }
+
+    if (clientList) {
+      clientList.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-client-id]");
+        if (!button) return;
+
+        let clientName = "";
+        let clientDocument = "";
+        try {
+          clientName = decodeURIComponent(String(button.dataset.clientName || ""));
+          clientDocument = decodeURIComponent(String(button.dataset.clientDoc || ""));
+        } catch (_error) {
+          clientName = String(button.dataset.clientName || "");
+          clientDocument = String(button.dataset.clientDoc || "");
+        }
+
+        setSelectedCliente({
+          id: button.dataset.clientId,
+          name: clientName,
+          document: clientDocument,
+        });
+
+        hideClientResults();
+      });
+    }
+
+    if (clientClearButton) {
+      clientClearButton.addEventListener("click", () => {
+        setSelectedCliente(null);
+        if (clientSearchInput) clientSearchInput.focus();
+      });
+    }
+
+    document.addEventListener("click", (event) => {
+      if (!clientResults || clientResults.classList.contains("hidden")) return;
+      if (clientResults.contains(event.target)) return;
+      if (clientSearchInput && clientSearchInput.contains(event.target)) return;
+
+      hideClientResults();
+    });
+
+    clientModalCloseButtons.forEach((button) => {
+      button.addEventListener("click", closeClientModal);
+    });
+
+    if (clientSaveButton) {
+      clientSaveButton.addEventListener("click", createClienteFromModal);
+    }
+
+    if (clientModal) {
+      clientModal.addEventListener("click", (event) => {
+        if (event.target !== clientModal) return;
+
+        closeClientModal();
+      });
+
+      clientModal.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter") return;
+        if (event.target instanceof HTMLTextAreaElement) return;
+        if (event.target instanceof HTMLButtonElement) return;
+
+        event.preventDefault();
+      });
+    }
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!clientModal || clientModal.classList.contains("hidden")) return;
+
+      closeClientModal();
+    });
+
+    if (amountMaskedInput) {
+      amountMaskedInput.addEventListener("input", updateAmountHidden);
+    }
+
+    if (paymentMaskedInput) {
+      paymentMaskedInput.addEventListener("input", updatePaymentHidden);
+    }
+
+    if (currencySelect) {
+      currencySelect.addEventListener("change", () => {
+        syncDebtAmountMaskCurrency();
+
+        if (paymentCurrencySelect && !String(paymentCurrencySelect.value || "").trim()) {
+          paymentCurrencySelect.value = currencySelect.value;
+        }
+
+        syncPaymentAmountMaskCurrency();
+        updatePaymentAccountsByCurrency();
+        updateLoanAccountVisibility();
+        updatePaymentMethodVisibility();
+      });
+    }
+
+    if (paymentCurrencySelect) {
+      paymentCurrencySelect.addEventListener("change", () => {
+        syncPaymentAmountMaskCurrency();
+        updatePaymentAccountsByCurrency();
+        updatePaymentMethodVisibility();
+      });
+    }
+
+    if (paymentAccountSelect) {
+      paymentAccountSelect.addEventListener("change", updatePaymentMethodVisibility);
+    }
+
+    form.addEventListener("submit", (event) => {
+      const selectedKind = String(kindSelect?.value || "receivable");
+      const selectedClientId = String(clienteHiddenInput?.value || "").trim();
+
+      if (selectedKind === "receivable" && selectedClientId.length === 0) {
+        event.preventDefault();
+
+        if (window.AppToast?.error) {
+          window.AppToast.error("Selecciona un cliente o registra uno no registrado.");
+        }
+
+        if (clientSearchInput) clientSearchInput.focus();
+        return;
+      }
+
+      updateAmountHidden();
+      updatePaymentHidden();
+    });
+
+    if (clienteHiddenInput) {
+      const initialClienteId = String(clienteHiddenInput.value || "").trim();
+      const initialClienteName = String(clienteHiddenInput.dataset.debtClienteName || "").trim();
+      const initialClienteDocument = String(clienteHiddenInput.dataset.debtClienteDocument || "").trim();
+
+      if (initialClienteId.length > 0 && initialClienteName.length > 0) {
+        setSelectedCliente({
+          id: initialClienteId,
+          name: initialClienteName,
+          document: initialClienteDocument,
+        });
+      } else {
+        setSelectedCliente(null);
+      }
+    }
+
+    if (paymentCurrencySelect && !String(paymentCurrencySelect.value || "").trim() && currencySelect) {
+      paymentCurrencySelect.value = currencySelect.value;
+    }
+
+    toggleSections();
+    updatePaymentAccountsByCurrency();
+    updatePaymentMethodVisibility();
+    updateLoanAccountVisibility();
+    syncDebtAmountMaskCurrency();
+    syncPaymentAmountMaskCurrency();
+  })();
+</script>
+<% end %>

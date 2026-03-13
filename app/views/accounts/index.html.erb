@@ -1,0 +1,199 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Cuentas</h1>
+        <p class="mt-1 text-sm text-slate-500">Administra caja, bancos, billeteras y tarjetas con su moneda asociada.</p>
+      </div>
+      <%= link_to new_account_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+          <path d="M12 4.5a.75.75 0 0 1 .75.75v6h6a.75.75 0 0 1 0 1.5h-6v6a.75.75 0 0 1-1.5 0v-6h-6a.75.75 0 0 1 0-1.5h6v-6a.75.75 0 0 1 .75-.75Z" />
+        </svg>
+        Nueva cuenta
+      <% end %>
+    </div>
+    <div class="mt-4 rounded-2xl border border-white/80 bg-white/70 p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Totales por moneda</p>
+      <% summary_currencies = %w[VES EUR USD USDT BTC BNB] %>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <% summary_currencies.each do |currency| %>
+          <% meta = Account::CURRENCIES[currency] %>
+          <% total_value = (@currency_totals[currency] || 0).to_d %>
+          <% total_class = total_value.negative? ? 'text-red-600' : total_value.positive? ? 'text-emerald-600' : 'text-slate-700' %>
+          <div class="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><%= meta[:label] %></p>
+            <p class="text-sm font-extrabold <%= total_class %>">
+              <%= format_money(total_value, unit: meta[:symbol]) %>
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <style>
+    .special-account-card {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .special-account-watermark {
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      width: 220px;
+      height: 220px;
+      transform: translateY(-50%);
+      opacity: 0.55;
+      mix-blend-mode: multiply;
+      filter: grayscale(0.1) contrast(1.1);
+      pointer-events: none;
+      z-index: 0;
+      object-fit: contain;
+    }
+
+    .special-account-card > *:not(.special-account-watermark) {
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (min-width: 1280px) {
+      .special-account-watermark {
+        width: 260px;
+        height: 260px;
+      }
+    }
+  </style>
+  <% if @accounts.any? %>
+    <% grouped_accounts = [
+      ['Cuentas bancarias', @accounts.select { |account| account.account_type == 'bank_account' }],
+      ['Metodos especiales', @accounts.select { |account| Account::SPECIAL_ACCOUNT_TYPES.include?(account.account_type) }],
+      ['Cajas', @accounts.select { |account| account.account_type == 'cash_box' }],
+      ['Billeteras cripto', @accounts.select { |account| account.account_type == 'crypto_wallet' }],
+      ['Billeteras digitales', @accounts.select { |account| account.account_type == 'digital_wallet' }],
+      ['Tarjetas', @accounts.select { |account| account.account_type == 'card' }]
+    ] %>
+    <div class="space-y-6">
+      <% grouped_accounts.each do |title, accounts| %>
+        <% next if accounts.empty? %>
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-600"><%= title %></h2>
+          <div class="h-px flex-1 bg-slate-200"></div>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <% accounts.each do |account| %>
+            <% theme = account.theme_config %>
+            <% special_type = Account::SPECIAL_ACCOUNT_TYPES.include?(account.account_type) ? account.account_type : nil %>
+            <% special_image = case account.account_type
+                               when 'biopago' then 'biopago.png'
+                               when 'pos' then 'pos.png'
+                               when 'cashea' then 'cashea.png'
+                               end %>
+            <article class="rounded-2xl border p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md <%= theme[:card] %> <%= special_type ? 'special-account-card' : '' %>">
+              <% if special_image %>
+                <img src="<%= asset_path(special_image) %>" alt="" aria-hidden="true" class="special-account-watermark" loading="lazy">
+              <% end %>
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <h3 class="truncate text-base font-bold text-slate-800"><%= account.name %></h3>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold <%= theme[:tag] %>">
+                      <i data-lucide="<%= account.account_type_icon %>" class="h-3.5 w-3.5"></i>
+                      <%= account.account_type_label %>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      <i data-lucide="<%= account.currency_icon %>" class="h-3.5 w-3.5"></i>
+                      <%= account.currency_label %>
+                      <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700"><%= account.currency_symbol %></span>
+                    </span>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                  <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold <%= account.active? ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' %>">
+                    <%= account.active? ? 'Activa' : 'Inactiva' %>
+                  </span>
+                  <% if account.account_type == 'bank_account' && account.is_primary? %>
+                    <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                      <i data-lucide="star" class="h-3.5 w-3.5"></i>
+                      Principal
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+              <div class="mt-4 rounded-xl border border-white/60 bg-white/80 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo actual</p>
+                <% balance_value = account.balance.to_d %>
+                <% balance_class = balance_value.negative? ? 'text-red-600' : balance_value.positive? ? 'text-emerald-600' : 'text-slate-700' %>
+                <p class="mt-1 text-2xl font-extrabold tracking-tight <%= balance_class %>">
+                  <%= format_money(balance_value, unit: account.currency_symbol) %>
+                </p>
+                <% if account.currency == 'VES' && @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+                  <% usd_equivalent = account.balance.to_d / @bcv_rate.to_d %>
+                  <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(usd_equivalent, unit: '$') %> (BCV)</p>
+                <% elsif account.currency == 'USD' && @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+                  <% bs_equivalent = account.balance.to_d * @bcv_rate.to_d %>
+                  <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(bs_equivalent, unit: 'Bs') %></p>
+                <% elsif account.currency == 'USDT' %>
+                  <% if @usdt_rate.present? && @usdt_rate.to_d.positive? %>
+                    <% referencia_bs = account.balance.to_d * @usdt_rate.to_d %>
+                    <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(referencia_bs, unit: 'Bs') %></p>
+                    <% if @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+                      <% usd_equivalent = (account.balance.to_d * @usdt_rate.to_d) / @bcv_rate.to_d %>
+                      <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(usd_equivalent, unit: '$') %> (BCV)</p>
+                    <% end %>
+                  <% else %>
+                    <p class="mt-1 text-xs text-slate-500">No hay tasa de referencia.</p>
+                  <% end %>
+                <% end %>
+              </div>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <%= link_to account_path(account), class: "inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors #{theme[:button]}" do %>
+                  <i data-lucide="history" class="h-3.5 w-3.5"></i>
+                  Ver historial
+                <% end %>
+                <% if account.account_type == 'bank_account' && !account.is_primary? %>
+                  <%= button_to set_primary_account_path(account), method: :patch,
+                                form_class: 'inline-block',
+                                class: 'inline-flex items-center justify-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer',
+                                title: 'Marcar principal',
+                                'aria-label': 'Marcar principal' do %>
+                    <i data-lucide="star" class="h-3.5 w-3.5"></i>
+                    Marcar principal
+                  <% end %>
+                <% end %>
+                <% if account.account_type == 'bank_account' && account.is_primary? %>
+                  <%= button_to unset_primary_account_path(account), method: :patch,
+                                form_class: 'inline-block',
+                                class: 'inline-flex items-center justify-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors cursor-pointer',
+                                title: 'Quitar principal',
+                                'aria-label': 'Quitar principal' do %>
+                    <i data-lucide="x-circle" class="h-3.5 w-3.5"></i>
+                    Quitar principal
+                  <% end %>
+                <% end %>
+                <%= link_to edit_account_path(account), class: 'inline-flex items-center justify-center rounded-lg bg-amber-50 p-2 text-amber-600 hover:bg-amber-100 transition-colors', title: 'Editar', 'aria-label': 'Editar' do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                    <path d="M16.862 3.487a2.625 2.625 0 1 1 3.712 3.713L8.25 19.524l-4.5.75.75-4.5L16.862 3.487Z" />
+                  </svg>
+                <% end %>
+                <%= link_to account_path(account), method: :delete, data: { swal_delete: 'account' }, class: 'inline-flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition-colors', title: 'Eliminar', 'aria-label': 'Eliminar' do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                    <path fill-rule="evenodd" d="M16.5 4.5V6h3a.75.75 0 0 1 0 1.5h-.638l-1.02 11.214A2.25 2.25 0 0 1 15.603 21H8.397a2.25 2.25 0 0 1-2.24-2.286L5.138 7.5H4.5a.75.75 0 0 1 0-1.5h3V4.5A1.5 1.5 0 0 1 9 3h6a1.5 1.5 0 0 1 1.5 1.5Zm-7.5 0V6h6V4.5h-6Z" clip-rule="evenodd" />
+                  </svg>
+                <% end %>
+              </div>
+            </article>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+        <i data-lucide="wallet" class="h-6 w-6"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">No hay cuentas registradas</h3>
+      <p class="mt-1 text-sm text-slate-500">Crea una cuenta para empezar a administrar bancos, cajas y billeteras.</p>
+    </div>
+  <% end %>
+</div>

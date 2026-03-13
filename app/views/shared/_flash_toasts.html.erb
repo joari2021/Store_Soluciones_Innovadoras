@@ -1,0 +1,20 @@
+<% flash.each do |type, raw_message| %>
+  <% normalized_type = case type.to_sym
+                       when :notice, :success
+                         "success"
+                       when :alert, :error
+                         "error"
+                       when :warning
+                         "warning"
+                       else
+                         "info"
+                       end %>
+  <% Array(raw_message).each do |message| %>
+    <% next if message.blank? %>
+    <div
+      class="js-flash-toast hidden"
+      data-toast-type="<%= normalized_type %>"
+      data-toast-message="<%= strip_tags(message.to_s) %>">
+    </div>
+  <% end %>
+<% end %>

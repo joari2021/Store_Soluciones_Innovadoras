@@ -1,0 +1,513 @@
+<h1 class="text-2xl font-bold mb-4"><%= @supplier.nombre %></h1>
+<div class="bg-white rounded-2xl shadow-lg p-6">
+  <% format_decimal_input = lambda do |value, scale = 2|
+       next '' if value.nil?
+
+       number = value.to_d.round(scale)
+       string_value = number.to_s('F')
+       if string_value.include?('.')
+         integer_part, decimal_part = string_value.split('.', 2)
+         decimal_trimmed = decimal_part.to_s.gsub(/0+\z/, '')
+         decimal_trimmed.present? ? "#{integer_part}.#{decimal_trimmed}" : integer_part
+       else
+         string_value
+       end
+     end %>
+  <% moneda_prioritaria_label = @supplier.pricing_currency_priority == 'bs' ? 'Bolívares (Bs)' : 'Dólar ($)' %>
+  <% fiscal_default_label = @supplier.default_exento? ? 'Exento' : 'IVA (No exento)' %>
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div class="min-w-0">
+      <p class="mb-2"><strong>RIF:</strong> <%= @supplier.rif %></p>
+      <p class="mb-2"><strong>Telefono:</strong> <%= @supplier.telefono %></p>
+      <p class="mb-2"><strong>Telefono pago movil:</strong> <%= @supplier.telefono_pago_movil %></p>
+      <p class="mb-2"><strong>Nro cuenta:</strong> <%= @supplier.nro_cuenta %></p>
+      <p class="mb-2"><strong>Email:</strong> <%= @supplier.email %></p>
+      <p class="mb-2"><strong>Direccion:</strong> <%= @supplier.direccion %></p>
+      <p class="mb-2"><strong>Moneda prioritaria de cálculo:</strong> <%= moneda_prioritaria_label %></p>
+      <p class="mb-2"><strong>Fiscal por defecto (Factura):</strong> <%= fiscal_default_label %></p>
+    </div>
+  </div>
+  <hr class="my-5 border-slate-200">
+  <h2 class="text-lg font-semibold text-slate-800">Productos del proveedor</h2>
+  <p class="text-sm text-slate-500">Edita por fila y guarda con el ícono de disco. Variaciones se gestionan en Producto.</p>
+  <%= form_with model: @supplier, url: supplier_path(@supplier), method: :patch, local: true, html: { id: 'supplier-products-form' } do |f| %>
+    <div class="mt-4 relative w-full md:max-w-2xl">
+      <label for="supplier-product-search" class="block text-sm font-medium text-slate-700">Buscar producto</label>
+      <div class="mt-1 relative">
+        <input id="supplier-product-search" type="text" autocomplete="off" placeholder="Buscar producto..." class="block w-full rounded-md border border-slate-300 bg-white px-3 py-2 pr-10 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+        <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
+          <i data-lucide="search" class="h-4 w-4"></i>
+        </span>
+      </div>
+      <div id="supplier-product-results" class="absolute z-20 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg hidden">
+        <div class="px-3 py-2 text-sm text-slate-500">Escribe para buscar</div>
+      </div>
+    </div>
+    <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
+      <table class="min-w-full text-sm text-slate-700" data-tasa-bcv="<%= @tasa_dolar_bcv || 0 %>">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-4 py-3 text-left">Producto</th>
+            <th class="px-4 py-3 text-right">Costo Mayor $</th>
+            <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
+            <th class="px-4 py-3 text-center">Unid x Pack</th>
+            <th class="px-4 py-3 text-right">Costo Menor $</th>
+            <th class="px-4 py-3 text-right">Costo Menor Bs</th>
+            <th class="px-4 py-3 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="supplier-products-body" class="divide-y divide-slate-100 bg-white">
+          <%= f.fields_for :supplier_products, @supplier_products_ordered do |sp| %>
+            <% row_key = sp.object.id || "new_#{sp.object.object_id}" %>
+            <% costo_mayor = sp.object.costo_mayor.to_d %>
+            <% costo_menor = sp.object.costo_menor.to_d %>
+            <% tasa = (@tasa_dolar_bcv || 0).to_d %>
+            <tr class="supplier-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= sp.object.producto_id %>">
+              <td class="px-4 py-3 font-semibold text-slate-800"><%= sp.object.producto&.descripcion || 'Producto' %></td>
+              <td class="px-4 py-3 table-number"><%= format_money(costo_mayor, unit: '$') %></td>
+              <td class="px-4 py-3 table-number"><%= format_money(costo_mayor * tasa, unit: 'Bs') %></td>
+              <td class="px-4 py-3 text-center"><%= format_quantity(sp.object.cantidad) %></td>
+              <td class="px-4 py-3 table-number"><%= format_money(costo_menor, unit: '$') %></td>
+              <td class="px-4 py-3 table-number"><%= format_money(costo_menor * tasa, unit: 'Bs') %></td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-2">
+                  <button type="button" class="edit-supplier-row inline-flex items-center justify-center rounded-lg bg-amber-50 p-2 text-amber-600 hover:bg-amber-100 transition-colors cursor-pointer" data-row-key="<%= row_key %>" title="Editar" aria-label="Editar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                      <path d="M16.862 3.487a2.625 2.625 0 1 1 3.712 3.713L8.25 19.524l-4.5.75.75-4.5L16.862 3.487Z" />
+                    </svg>
+                  </button>
+                  <button type="button" class="delete-supplier-row inline-flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition-colors cursor-pointer" data-row-key="<%= row_key %>" title="Eliminar" aria-label="Eliminar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                      <path fill-rule="evenodd" d="M16.5 4.5V6h3a.75.75 0 0 1 0 1.5h-.638l-1.02 11.214A2.25 2.25 0 0 1 15.603 21H8.397a2.25 2.25 0 0 1-2.24-2.286L5.138 7.5H4.5a.75.75 0 0 1 0-1.5h3V4.5A1.5 1.5 0 0 1 9 3h6a1.5 1.5 0 0 1 1.5 1.5Zm-7.5 0V6h6V4.5h-6Z" clip-rule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr class="supplier-row-edit hidden bg-slate-50/50" data-row-key="<%= row_key %>" data-new-record="false" data-product-id="<%= sp.object.producto_id %>">
+              <%= sp.hidden_field :_destroy, class: 'supplier-product-destroy' %>
+              <%= sp.hidden_field :producto_id %>
+              <%= sp.hidden_field :id if sp.object.persisted? %>
+              <td class="px-4 py-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
+                <input type="text" value="<%= sp.object.producto&.descripcion || 'Producto' %>" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
+              </td>
+              <td class="px-4 py-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
+                <%= sp.hidden_field :costo_mayor, class: 'row-costo-mayor-native' %>
+                <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="<%= format_money(costo_mayor, unit: '$') %>" class="row-costo-mayor block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
+              </td>
+              <td class="px-4 py-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor Bs</label>
+                <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" value="<%= format_money(costo_mayor * tasa, unit: 'Bs') %>" class="row-costo-mayor-bs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm">
+              </td>
+              <td class="px-4 py-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unid x Pack</label>
+                <%= sp.number_field :cantidad, step: 0.01, value: format_decimal_input.call(sp.object.cantidad, 2), class: 'row-cantidad-pack block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+              </td>
+              <td class="px-4 py-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Menor $</label>
+                <%= sp.hidden_field :costo_menor, class: 'row-costo-menor-native' %>
+                <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="<%= format_money(costo_menor, unit: '$') %>" class="row-costo-menor block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" readonly>
+              </td>
+              <td class="px-4 py-3">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Menor Bs</label>
+                <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" value="<%= format_money(costo_menor * tasa, unit: 'Bs') %>" class="row-costo-menor-bs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm" readonly>
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex items-center justify-end gap-2 pt-5">
+                  <button type="button" class="save-supplier-row inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer" data-row-key="<%= row_key %>" title="Guardar" aria-label="Guardar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                      <path d="M5.25 3A2.25 2.25 0 0 0 3 5.25v13.5A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V8.56a2.25 2.25 0 0 0-.66-1.59l-2.31-2.31A2.25 2.25 0 0 0 16.44 4H5.25Zm6 2.25a.75.75 0 0 1 1.5 0V9a.75.75 0 0 1-1.5 0V5.25ZM6.75 14.25A2.25 2.25 0 0 1 9 12h6a2.25 2.25 0 0 1 2.25 2.25V18h-10.5v-3.75Z" />
+                    </svg>
+                  </button>
+                  <button type="button" class="cancel-supplier-row inline-flex items-center justify-center rounded-lg bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer" data-row-key="<%= row_key %>" title="Cancelar" aria-label="Cancelar">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                      <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <div class="mt-5 flex gap-2">
+      <%= link_to 'Volver', suppliers_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
+    </div>
+  <% end %>
+</div>
+<template id="supplier-product-template-row">
+  <tr class="supplier-row-edit bg-slate-50/50" data-row-key="NEW_RECORD" data-new-record="true" data-product-id="PRODUCT_ID">
+    <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][_destroy]" value="0" class="supplier-product-destroy">
+    <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][producto_id]" value="PRODUCT_ID">
+    <td class="px-4 py-3">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
+      <input type="text" value="PRODUCT_NAME" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
+    </td>
+    <td class="px-4 py-3">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
+      <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][costo_mayor]" value="0" class="row-costo-mayor-native">
+      <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="$ 0,00" class="row-costo-mayor block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
+    </td>
+    <td class="px-4 py-3">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor Bs</label>
+      <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" value="Bs 0,00" class="row-costo-mayor-bs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm">
+    </td>
+    <td class="px-4 py-3">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unid x Pack</label>
+      <input class="row-cantidad-pack block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" name="supplier[supplier_products_attributes][NEW_RECORD][cantidad]" step="0.01" type="number">
+    </td>
+    <td class="px-4 py-3">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Menor $</label>
+      <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][costo_menor]" value="0" class="row-costo-menor-native">
+      <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="$ 0,00" class="row-costo-menor block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" readonly>
+    </td>
+    <td class="px-4 py-3">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Menor Bs</label>
+      <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" value="Bs 0,00" class="row-costo-menor-bs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm" readonly>
+    </td>
+    <td class="px-4 py-3">
+      <div class="flex items-center justify-end gap-2 pt-5">
+        <button type="button" class="save-supplier-row inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors cursor-pointer" data-row-key="NEW_RECORD" title="Guardar" aria-label="Guardar">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+            <path d="M5.25 3A2.25 2.25 0 0 0 3 5.25v13.5A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V8.56a2.25 2.25 0 0 0-.66-1.59l-2.31-2.31A2.25 2.25 0 0 0 16.44 4H5.25Zm6 2.25a.75.75 0 0 1 1.5 0V9a.75.75 0 0 1-1.5 0V5.25ZM6.75 14.25A2.25 2.25 0 0 1 9 12h6a2.25 2.25 0 0 1 2.25 2.25V18h-10.5v-3.75Z" />
+          </svg>
+        </button>
+        <button type="button" class="cancel-supplier-row inline-flex items-center justify-center rounded-lg bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer" data-row-key="NEW_RECORD" title="Cancelar" aria-label="Cancelar">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+            <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
+    </td>
+  </tr>
+</template>
+<script>
+  document.addEventListener('turbo:load', () => {
+    const form = document.getElementById('supplier-products-form');
+    const tbody = document.getElementById('supplier-products-body');
+    const searchInput = document.getElementById('supplier-product-search');
+    const resultsBox = document.getElementById('supplier-product-results');
+    const template = document.getElementById('supplier-product-template-row');
+    const table = tbody?.closest('table');
+    const tasa = Number(table?.dataset.tasaBcv || 0);
+
+    if (!form || !tbody || !searchInput || !resultsBox || !template) return;
+    if (tbody.dataset.bound === 'true') return;
+    tbody.dataset.bound = 'true';
+
+    if (!tbody.dataset.index) tbody.dataset.index = String(Date.now());
+
+    const escapeHtml = (value) => {
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return String(value || '').replace(/[&<>"']/g, (m) => map[m]);
+    };
+
+    const parseNumber = (rawValue) => {
+      const compact = String(rawValue || '').replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+      let normalized = compact;
+      if (compact.includes(',')) {
+        normalized = compact.replace(/\./g, '').replace(',', '.');
+      } else if (/^\d{1,3}(\.\d{3})+$/.test(compact)) {
+        normalized = compact.replace(/\./g, '');
+      }
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const formatNumber = (value) => Number(value || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const formatMoney = (value, unit) => `${unit} ${formatNumber(value)}`;
+    const moneyMask = window.MoneyInputMask;
+    const setMaskedMoney = (input, value, symbol) => {
+      if (!input) return;
+      if (moneyMask?.setValue) {
+        moneyMask.setValue(input, value, symbol);
+        return;
+      }
+      input.value = formatMoney(value, symbol);
+    };
+    const formatDecimalInput = (value, scale = 2) => {
+      const rawValue = String(value ?? '').trim();
+      if (rawValue === '') return '';
+      const rounded = Number(parseNumber(rawValue).toFixed(scale));
+      if (!Number.isFinite(rounded)) return '';
+      const hasDecimals = Math.abs(rounded - Math.trunc(rounded)) > 0;
+      return hasDecimals ? rounded.toFixed(scale) : String(Math.trunc(rounded));
+    };
+
+    const recalcRow = (row, source = 'usd') => {
+      if (!row) return;
+      const costoMayorInput = row.querySelector('.row-costo-mayor');
+      const costoMayorNativeInput = row.querySelector('.row-costo-mayor-native');
+      const cantidadPackInput = row.querySelector('.row-cantidad-pack');
+      const costoMenorInput = row.querySelector('.row-costo-menor');
+      const costoMenorNativeInput = row.querySelector('.row-costo-menor-native');
+      const costoMayorBsInput = row.querySelector('.row-costo-mayor-bs');
+      const costoMenorBs = row.querySelector('.row-costo-menor-bs');
+
+      const canConvert = tasa > 0;
+      let costoMayor = 0;
+      if (source === 'bs') {
+        const costoMayorBsValue = moneyMask?.parseValue
+          ? moneyMask.parseValue(costoMayorBsInput)
+          : parseNumber(costoMayorBsInput?.value);
+        if (canConvert) {
+          costoMayor = costoMayorBsValue / tasa;
+        }
+      } else {
+        costoMayor = moneyMask?.parseValue
+          ? moneyMask.parseValue(costoMayorInput)
+          : parseNumber(costoMayorInput?.value);
+      }
+      const cantidadPack = parseNumber(cantidadPackInput?.value);
+      const costoMenor = cantidadPack > 0 ? (costoMayor / cantidadPack) : 0;
+
+      if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(2);
+      if (costoMenorNativeInput) costoMenorNativeInput.value = costoMenor.toFixed(2);
+
+      if (costoMayorInput) setMaskedMoney(costoMayorInput, costoMayor, '$');
+      if (costoMenorInput) setMaskedMoney(costoMenorInput, costoMenor, '$');
+
+      if (costoMayorBsInput && source !== 'bs') {
+        if (canConvert) {
+          setMaskedMoney(costoMayorBsInput, costoMayor * tasa, 'Bs');
+        } else if (String(costoMayorBsInput.value || '').trim() === '') {
+          setMaskedMoney(costoMayorBsInput, 0, 'Bs');
+        }
+      }
+      if (costoMenorBs) {
+        setMaskedMoney(costoMenorBs, canConvert ? costoMenor * tasa : 0, 'Bs');
+      }
+    };
+
+    const editRow = (rowKey) => {
+      const displayRow = tbody.querySelector(`.supplier-row-display[data-row-key="${rowKey}"]`);
+      const row = tbody.querySelector(`.supplier-row-edit[data-row-key="${rowKey}"]`);
+      if (displayRow) displayRow.classList.add('hidden');
+      if (row) {
+        if (displayRow) displayRow.insertAdjacentElement('afterend', row);
+        row.classList.remove('hidden');
+        recalcRow(row);
+      }
+    };
+
+    const cancelRow = (rowKey) => {
+      const displayRow = tbody.querySelector(`.supplier-row-display[data-row-key="${rowKey}"]`);
+      const row = tbody.querySelector(`.supplier-row-edit[data-row-key="${rowKey}"]`);
+      if (!row) return;
+
+      if (row.dataset.newRecord === 'true') {
+        row.remove();
+        return;
+      }
+
+      row.classList.add('hidden');
+      if (displayRow) displayRow.classList.remove('hidden');
+    };
+
+    const markDeleteAndSubmit = (rowKey) => {
+      const row = tbody.querySelector(`.supplier-row-edit[data-row-key="${rowKey}"]`);
+      if (!row) return;
+
+      if (row.dataset.newRecord === 'true') {
+        row.remove();
+        return;
+      }
+
+      const destroyInput = row.querySelector('.supplier-product-destroy');
+      if (destroyInput) destroyInput.value = '1';
+      form.requestSubmit();
+    };
+
+    const addEditableRowAtTop = (productId, productName) => {
+      const currentIndex = Number(tbody.dataset.index || Date.now());
+      let html = template.innerHTML.replace(/NEW_RECORD/g, String(currentIndex));
+      html = html.replace(/PRODUCT_ID/g, String(productId));
+      html = html.replace(/PRODUCT_NAME/g, escapeHtml(productName));
+      tbody.dataset.index = String(currentIndex + 1);
+      tbody.insertAdjacentHTML('afterbegin', html);
+      recalcRow(tbody.querySelector(`.supplier-row-edit[data-row-key="${currentIndex}"]`));
+    };
+
+    const findExistingEditRowByProductId = (productId) => {
+      const normalizedId = String(productId || '');
+      return Array.from(tbody.querySelectorAll('.supplier-row-edit[data-new-record="false"]')).find((row) => {
+        return String(row.dataset.productId || '') === normalizedId;
+      });
+    };
+
+    const findAssociatedProductIdsInDom = () => {
+      return new Set(
+        Array.from(tbody.querySelectorAll('.supplier-row-edit[data-new-record="false"]'))
+          .map((row) => String(row.dataset.productId || ''))
+          .filter((value) => value.length > 0)
+      );
+    };
+
+    const moveExistingEditableRowToTop = (productId) => {
+      const row = findExistingEditRowByProductId(productId);
+      if (!row) return false;
+
+      const rowKey = row.dataset.rowKey;
+      const displayRow = tbody.querySelector(`.supplier-row-display[data-row-key="${rowKey}"]`);
+      if (displayRow) displayRow.classList.add('hidden');
+
+      row.classList.remove('hidden');
+      tbody.prepend(row);
+      recalcRow(row);
+      return true;
+    };
+
+    tbody.querySelectorAll('.supplier-row-edit').forEach(recalcRow);
+
+    tbody.addEventListener('input', (ev) => {
+      const row = ev.target.closest('.supplier-row-edit');
+      if (!row) return;
+
+      if (ev.target.classList.contains('row-costo-mayor')) {
+        recalcRow(row, 'usd');
+        return;
+      }
+
+      if (ev.target.classList.contains('row-costo-mayor-bs')) {
+        recalcRow(row, 'bs');
+        return;
+      }
+
+      if (ev.target.classList.contains('row-cantidad-pack')) {
+        recalcRow(row, 'qty');
+      }
+    });
+
+    tbody.addEventListener('blur', (ev) => {
+      if (!ev.target || !ev.target.classList) return;
+      const row = ev.target.closest('.supplier-row-edit');
+      if (!row) return;
+
+      if (ev.target.classList.contains('row-cantidad-pack')) {
+        const rawValue = String(ev.target.value || '').trim();
+        if (rawValue === '') return;
+        ev.target.value = formatDecimalInput(rawValue, 2);
+        recalcRow(row, 'qty');
+        return;
+      }
+
+      if (ev.target.classList.contains('row-costo-mayor-bs')) {
+        const rawValue = String(ev.target.value || '').trim();
+        if (rawValue === '') return;
+        const parsedValue = parseNumber(rawValue);
+        if (!Number.isFinite(parsedValue)) return;
+        setMaskedMoney(ev.target, parsedValue, 'Bs');
+        recalcRow(row, 'bs');
+      }
+    }, true);
+
+    tbody.addEventListener('click', (ev) => {
+      const editBtn = ev.target.closest('.edit-supplier-row');
+      if (editBtn) {
+        editRow(editBtn.dataset.rowKey);
+        return;
+      }
+
+      const cancelBtn = ev.target.closest('.cancel-supplier-row');
+      if (cancelBtn) {
+        cancelRow(cancelBtn.dataset.rowKey);
+        return;
+      }
+
+      const saveBtn = ev.target.closest('.save-supplier-row');
+      if (saveBtn) {
+        form.requestSubmit();
+        return;
+      }
+
+      const deleteBtn = ev.target.closest('.delete-supplier-row');
+      if (deleteBtn) {
+        if (window.Swal) {
+          Swal.fire({
+            title: '¿Eliminar producto del proveedor?',
+            text: 'Esta acción quitará este producto de la lista del proveedor.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            target: 'body',
+            heightAuto: false
+          }).then((result) => {
+            if (result.isConfirmed) {
+              markDeleteAndSubmit(deleteBtn.dataset.rowKey);
+            }
+          });
+        } else if (window.confirm('¿Seguro que deseas eliminar este producto del proveedor?')) {
+          markDeleteAndSubmit(deleteBtn.dataset.rowKey);
+        }
+      }
+    });
+
+    const renderResults = (items) => {
+      if (!items.length) {
+        resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">Sin resultados</div>';
+        resultsBox.classList.remove('hidden');
+        return;
+      }
+
+      const associatedInDom = findAssociatedProductIdsInDom();
+
+      resultsBox.innerHTML = items.map((item) => (
+        `<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(item.descripcion)}">
+           <div class="flex items-center gap-2">
+             <span class="text-sm font-medium text-slate-700">${escapeHtml(item.descripcion)}</span>
+             ${associatedInDom.has(String(item.id))
+               ? '<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5"><path d="M9 12.75 11.25 15 15 9.75"/><path fill-rule="evenodd" d="M12 3a8.25 8.25 0 1 0 0 16.5A8.25 8.25 0 0 0 12 3Zm0 15a6.75 6.75 0 1 1 0-13.5A6.75 6.75 0 0 1 12 18Z" clip-rule="evenodd"/></svg>Asociado</span>'
+               : ''}
+           </div>
+         </button>`
+      )).join('');
+      resultsBox.classList.remove('hidden');
+    };
+
+    let debounceTimer = null;
+    searchInput.addEventListener('input', () => {
+      const value = searchInput.value.trim();
+      if (debounceTimer) clearTimeout(debounceTimer);
+
+      debounceTimer = setTimeout(() => {
+        if (!value || value.length < 2) {
+          resultsBox.classList.add('hidden');
+          return;
+        }
+
+        fetch(`/productos/search?q=${encodeURIComponent(value)}`)
+          .then((res) => res.json())
+          .then((data) => renderResults(data))
+          .catch(() => {
+            resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">Error buscando productos</div>';
+            resultsBox.classList.remove('hidden');
+          });
+      }, 250);
+    });
+
+    document.addEventListener('click', (ev) => {
+      const resultBtn = ev.target.closest('[data-product-id]');
+      if (resultBtn && resultsBox.contains(resultBtn)) {
+        const productId = resultBtn.getAttribute('data-product-id');
+        const productName = resultBtn.getAttribute('data-product-name');
+        const movedExisting = moveExistingEditableRowToTop(productId);
+        if (!movedExisting) {
+          addEditableRowAtTop(productId, productName);
+        }
+        searchInput.value = '';
+        resultsBox.classList.add('hidden');
+        return;
+      }
+
+      if (resultsBox.classList.contains('hidden')) return;
+      if (resultsBox.contains(ev.target) || searchInput.contains(ev.target)) return;
+      resultsBox.classList.add('hidden');
+    });
+  });
+</script>

@@ -1,0 +1,64 @@
+<%= form_with model: supplier, local: true do |f| %>
+  <% if supplier.errors.any? %>
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar el proveedor</h4>
+        <span class="text-xs font-medium"><%= pluralize(supplier.errors.count, 'error') %></span>
+      </div>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% supplier.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div class="grid grid-cols-2 gap-4">
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :nombre, 'Nombre', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :nombre, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :rif, 'RIF', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :rif, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :telefono, 'Telefono', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :telefono, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :email, 'Email', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.email_field :email, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2">
+      <%= f.label :direccion, 'Direccion', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_area :direccion, rows: 3, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :nro_cuenta, 'Nro cuenta', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :nro_cuenta, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :telefono_pago_movil, 'Telefono pago movil', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :telefono_pago_movil, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :pricing_currency_priority, 'Moneda prioritaria de cálculo', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.select :pricing_currency_priority,
+                   options_for_select([['Dólar ($)', 'usd'], ['Bolívares (Bs)', 'bs']], supplier.pricing_currency_priority.presence || 'usd'),
+                   {},
+                   class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :default_exento, 'Fiscal por defecto (Factura)', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.select :default_exento,
+                   options_for_select([['IVA (No exento)', false], ['Exento', true]], supplier.default_exento? ? true : false),
+                   {},
+                   class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+      <p class="mt-1 text-xs text-slate-500">Se aplica al agregar productos desde el buscador en facturas.</p>
+    </div>
+  </div>
+  <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+    <%= link_to 'Volver', suppliers_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
+    <%= f.submit 'Guardar proveedor', class: 'cursor-pointer bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800' %>
+  </div>
+<% end %>

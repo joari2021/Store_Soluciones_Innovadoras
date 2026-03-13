@@ -10,9 +10,67 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_12_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "account_movements", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "movement_kind", null: false
+    t.decimal "amount", precision: 14, scale: 2, null: false
+    t.text "description"
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "payment_method"
+    t.bigint "account_settlement_id"
+    t.index ["account_id", "occurred_at"], name: "index_account_movements_on_account_id_and_occurred_at"
+    t.index ["account_id"], name: "index_account_movements_on_account_id"
+    t.index ["account_settlement_id"], name: "index_account_movements_on_account_settlement_id"
+    t.index ["movement_kind"], name: "index_account_movements_on_movement_kind"
+    t.index ["payment_method"], name: "index_account_movements_on_payment_method"
+  end
+
+  create_table "account_settlements", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "settlement_account_id"
+    t.decimal "total_amount", precision: 14, scale: 2, null: false
+    t.integer "movements_count", default: 0, null: false
+    t.datetime "closed_at", null: false
+    t.datetime "period_start_at"
+    t.datetime "period_end_at"
+    t.decimal "credited_amount", precision: 14, scale: 2
+    t.decimal "commission_amount", precision: 14, scale: 2
+    t.datetime "processed_at"
+    t.date "settlement_date"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "processed_at"], name: "index_account_settlements_on_account_id_and_processed_at"
+    t.index ["account_id"], name: "index_account_settlements_on_account_id"
+    t.index ["settlement_account_id"], name: "index_account_settlements_on_settlement_account_id"
+  end
+
+  create_table "accounts", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "account_type", null: false
+    t.string "currency", null: false
+    t.boolean "active", default: true, null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "balance", precision: 14, scale: 2, default: "0.0", null: false
+    t.string "theme_color", default: "sky", null: false
+    t.bigint "business_id", null: false
+    t.boolean "is_primary", default: false, null: false
+    t.bigint "settlement_account_id"
+    t.index ["account_type"], name: "index_accounts_on_account_type"
+    t.index ["active"], name: "index_accounts_on_active"
+    t.index ["business_id"], name: "index_accounts_on_business_id"
+    t.index ["business_id"], name: "index_accounts_primary_bank_per_business", unique: true, where: "(((account_type)::text = 'bank_account'::text) AND is_primary)"
+    t.index ["currency"], name: "index_accounts_on_currency"
+    t.index ["settlement_account_id"], name: "index_accounts_on_settlement_account_id"
+    t.index ["theme_color"], name: "index_accounts_on_theme_color"
+  end
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.string "name", null: false
@@ -70,6 +128,141 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.datetime "updated_at", null: false
     t.string "client"
     t.index ["saime_user_id"], name: "index_appointments_on_saime_user_id"
+  end
+
+  create_table "businesses", force: :cascade do |t|
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_businesses_on_name"
+  end
+
+  create_table "clientes", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "document_type", null: false
+    t.string "document_number"
+    t.string "name", null: false
+    t.string "phone"
+    t.text "address"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "document_type", "document_number"], name: "index_clientes_on_business_doc"
+    t.index ["business_id"], name: "index_clientes_on_business_id"
+    t.index ["name"], name: "index_clientes_on_name"
+  end
+
+  create_table "debt_payments", force: :cascade do |t|
+    t.bigint "debt_id", null: false
+    t.bigint "account_id", null: false
+    t.decimal "amount", precision: 14, scale: 2, null: false
+    t.string "currency", null: false
+    t.string "payment_method"
+    t.string "reference"
+    t.date "occurred_at", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "exchange_rate_to_debt_currency", precision: 20, scale: 8, default: "1.0", null: false
+    t.decimal "amount_in_debt_currency", precision: 14, scale: 2, default: "0.0", null: false
+    t.index ["account_id"], name: "index_debt_payments_on_account_id"
+    t.index ["currency"], name: "index_debt_payments_on_currency"
+    t.index ["debt_id"], name: "index_debt_payments_on_debt_id"
+    t.index ["occurred_at"], name: "index_debt_payments_on_occurred_at"
+  end
+
+  create_table "debts", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "debt_kind", default: "receivable", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.string "reference"
+    t.decimal "amount", precision: 14, scale: 2, null: false
+    t.string "currency", default: "USD", null: false
+    t.date "issued_on"
+    t.date "due_on"
+    t.bigint "cliente_id"
+    t.bigint "supplier_id"
+    t.string "counterparty_name"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "origin_kind", default: "general", null: false
+    t.bigint "loan_account_id"
+    t.index ["business_id"], name: "index_debts_on_business_id"
+    t.index ["cliente_id"], name: "index_debts_on_cliente_id"
+    t.index ["debt_kind"], name: "index_debts_on_debt_kind"
+    t.index ["due_on"], name: "index_debts_on_due_on"
+    t.index ["issued_on"], name: "index_debts_on_issued_on"
+    t.index ["loan_account_id"], name: "index_debts_on_loan_account_id"
+    t.index ["origin_kind"], name: "index_debts_on_origin_kind"
+    t.index ["supplier_id"], name: "index_debts_on_supplier_id"
+  end
+
+  create_table "expense_payments", force: :cascade do |t|
+    t.bigint "expense_id", null: false
+    t.bigint "account_id", null: false
+    t.decimal "amount", precision: 14, scale: 2, null: false
+    t.string "currency", null: false
+    t.string "payment_method"
+    t.string "reference"
+    t.datetime "occurred_at", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_expense_payments_on_account_id"
+    t.index ["expense_id"], name: "index_expense_payments_on_expense_id"
+  end
+
+  create_table "expenses", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.string "expense_type", default: "variable", null: false
+    t.string "frequency", default: "once", null: false
+    t.date "start_date"
+    t.date "end_date"
+    t.date "next_due_on"
+    t.date "last_paid_on"
+    t.integer "occurrences_limit"
+    t.integer "payments_count", default: 0, null: false
+    t.decimal "amount", precision: 14, scale: 2
+    t.string "currency", default: "USD"
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_expenses_on_business_id"
+  end
+
+  create_table "factura_items", force: :cascade do |t|
+    t.bigint "factura_id", null: false
+    t.bigint "producto_id"
+    t.decimal "costo_mayor", precision: 12, scale: 2
+    t.decimal "cantidad", precision: 12, scale: 2
+    t.decimal "costo_menor", precision: 12, scale: 2
+    t.string "variacion_nombre"
+    t.decimal "unid_x_pack", precision: 12, scale: 2
+    t.decimal "subtotal", precision: 14, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "product_name"
+    t.boolean "exento", default: false, null: false
+    t.decimal "costo_mayor_bs", precision: 14, scale: 2
+    t.jsonb "variation_breakdown", default: [], null: false
+    t.index ["factura_id"], name: "index_factura_items_on_factura_id"
+    t.index ["producto_id"], name: "index_factura_items_on_producto_id"
+  end
+
+  create_table "facturas", force: :cascade do |t|
+    t.bigint "supplier_id"
+    t.datetime "fecha_emision"
+    t.decimal "tasa_dolar", precision: 12, scale: 2
+    t.decimal "monto_total", precision: 14, scale: 2
+    t.string "numero"
+    t.text "observaciones"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "supplier_name"
+    t.bigint "business_id", null: false
+    t.index ["business_id"], name: "index_facturas_on_business_id"
   end
 
   create_table "generos", force: :cascade do |t|
@@ -155,7 +348,7 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.bigint "user_id", null: false
     t.date "date_estreno"
     t.string "clasification"
-    t.float "promedio_ranking"
+    t.decimal "promedio_ranking", precision: 12, scale: 2
     t.string "backdrop_image"
     t.index ["user_id"], name: "index_peliculas_on_user_id"
   end
@@ -167,25 +360,29 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.datetime "updated_at", null: false
   end
 
-  create_table "productos", force: :cascade do |t|
-    t.text "descripcion"
-    t.decimal "precio_costo"
-    t.decimal "precio_venta_usd"
-    t.integer "cant_unidades"
-    t.string "nivel_ganancia"
+  create_table "product_variations", force: :cascade do |t|
+    t.bigint "producto_id", null: false
+    t.string "description", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "moneda_base_precio"
-    t.decimal "precio_venta_bs"
-    t.integer "min_stock"
-    t.integer "max_stock"
-    t.boolean "available", default: true, null: false
+    t.decimal "safety_stock", precision: 12, scale: 2, default: "0.0", null: false
+    t.index ["producto_id"], name: "index_product_variations_on_producto_id"
+  end
+
+  create_table "productos", force: :cascade do |t|
+    t.text "descripcion"
+    t.decimal "precio_venta_usd", precision: 14, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.decimal "porcentaje_ganancia", precision: 5, scale: 2
+    t.bigint "business_id", null: false
+    t.index ["business_id"], name: "index_productos_on_business_id"
   end
 
   create_table "rankings", force: :cascade do |t|
     t.bigint "pelicula_id", null: false
     t.bigint "plataforma_pelicula_id", null: false
-    t.float "valor", null: false
+    t.decimal "valor", precision: 12, scale: 2, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["pelicula_id"], name: "index_rankings_on_pelicula_id"
@@ -202,6 +399,17 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.datetime "updated_at", null: false
     t.boolean "appointment_registration", default: false, null: false
     t.index ["user_id"], name: "index_saime_users_on_user_id"
+  end
+
+  create_table "scraper_statuses", force: :cascade do |t|
+    t.string "key", null: false
+    t.boolean "healthy", default: true, null: false
+    t.text "last_error_message"
+    t.datetime "last_error_at"
+    t.datetime "last_success_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["key"], name: "index_scraper_statuses_on_key", unique: true
   end
 
   create_table "serie_tvs", force: :cascade do |t|
@@ -225,10 +433,31 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.string "link_trailer"
   end
 
+  create_table "service_expense_structures", force: :cascade do |t|
+    t.bigint "service_id", null: false
+    t.string "description", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_id"], name: "index_service_expense_structures_on_service_id"
+  end
+
+  create_table "service_manager_expenses", force: :cascade do |t|
+    t.bigint "service_expense_structure_id", null: false
+    t.bigint "manager_id", null: false
+    t.decimal "amount_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "amount_bs", precision: 14, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "currency_reference", default: "Dolar BCV", null: false
+    t.decimal "amount_reference", precision: 14, scale: 2, default: "0.0", null: false
+    t.index ["manager_id"], name: "index_service_manager_expenses_on_manager_id"
+    t.index ["service_expense_structure_id"], name: "index_service_manager_expenses_on_service_expense_structure_id"
+  end
+
   create_table "service_managers", force: :cascade do |t|
     t.bigint "service_id", null: false
     t.bigint "manager_id", null: false
-    t.float "cost"
+    t.decimal "cost", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "reference_cost"
@@ -236,11 +465,45 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.index ["service_id"], name: "index_service_managers_on_service_id"
   end
 
+  create_table "service_nested_expenses", force: :cascade do |t|
+    t.bigint "service_expense_structure_id", null: false
+    t.bigint "nested_service_id", null: false
+    t.decimal "quantity", precision: 12, scale: 2, default: "1.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "currency_reference", default: "Bs", null: false
+    t.decimal "amount_reference", precision: 14, scale: 2, default: "0.0", null: false
+    t.index ["nested_service_id"], name: "index_service_nested_expenses_on_nested_service_id"
+    t.index ["service_expense_structure_id"], name: "index_service_nested_expenses_on_service_expense_structure_id"
+  end
+
+  create_table "service_product_expenses", force: :cascade do |t|
+    t.bigint "service_expense_structure_id", null: false
+    t.bigint "producto_id", null: false
+    t.decimal "quantity", precision: 12, scale: 2, default: "1.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["producto_id"], name: "index_service_product_expenses_on_producto_id"
+    t.index ["service_expense_structure_id"], name: "index_service_product_expenses_on_service_expense_structure_id"
+  end
+
+  create_table "service_variable_expenses", force: :cascade do |t|
+    t.bigint "service_expense_structure_id", null: false
+    t.string "description", null: false
+    t.decimal "amount_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "amount_bs", precision: 14, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "currency_reference", default: "Dolar BCV", null: false
+    t.decimal "amount_reference", precision: 14, scale: 2, default: "0.0", null: false
+    t.index ["service_expense_structure_id"], name: "idx_on_service_expense_structure_id_c21a6b36d4"
+  end
+
   create_table "services", force: :cascade do |t|
     t.string "description"
     t.boolean "cost"
-    t.float "value_units"
-    t.float "sale_price"
+    t.decimal "value_units", precision: 12, scale: 2
+    t.decimal "sale_price", precision: 12, scale: 2
     t.string "currency_base_price"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -253,7 +516,69 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.string "delivery_content"
     t.string "delivery_time"
     t.boolean "available", default: true, null: false
+    t.string "pricing_mode", default: "fixed", null: false
+    t.boolean "nested_available", default: false, null: false
+    t.index ["nested_available"], name: "index_services_on_nested_available"
+    t.index ["pricing_mode"], name: "index_services_on_pricing_mode"
     t.index ["system_service_id"], name: "index_services_on_system_service_id"
+  end
+
+  create_table "stock_lot_variations", force: :cascade do |t|
+    t.bigint "stock_lot_id", null: false
+    t.bigint "product_variation_id"
+    t.string "variation_description", null: false
+    t.decimal "quantity_in", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "quantity_remaining", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_variation_id"], name: "index_stock_lot_variations_on_product_variation_id"
+    t.index ["stock_lot_id", "product_variation_id"], name: "index_stock_lot_variations_on_lot_and_variation"
+    t.index ["stock_lot_id"], name: "index_stock_lot_variations_on_stock_lot_id"
+  end
+
+  create_table "stock_lots", force: :cascade do |t|
+    t.bigint "producto_id", null: false
+    t.bigint "factura_item_id", null: false
+    t.bigint "supplier_id"
+    t.decimal "unit_cost_usd", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "quantity_in", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "quantity_remaining", precision: 12, scale: 2, default: "0.0", null: false
+    t.datetime "purchased_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "supplier_name"
+    t.index ["factura_item_id"], name: "index_stock_lots_on_factura_item_id", unique: true
+    t.index ["producto_id", "purchased_at"], name: "index_stock_lots_on_producto_id_and_purchased_at"
+    t.index ["producto_id"], name: "index_stock_lots_on_producto_id"
+    t.index ["supplier_id"], name: "index_stock_lots_on_supplier_id"
+  end
+
+  create_table "supplier_products", force: :cascade do |t|
+    t.bigint "supplier_id", null: false
+    t.bigint "producto_id", null: false
+    t.decimal "costo_mayor", precision: 12, scale: 2
+    t.decimal "cantidad", precision: 12, scale: 2
+    t.decimal "costo_menor", precision: 12, scale: 2
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["producto_id"], name: "index_supplier_products_on_producto_id"
+    t.index ["supplier_id", "producto_id"], name: "index_supplier_products_on_supplier_id_and_producto_id"
+  end
+
+  create_table "suppliers", force: :cascade do |t|
+    t.string "nombre", null: false
+    t.string "rif"
+    t.string "telefono"
+    t.string "email"
+    t.text "direccion"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "nro_cuenta"
+    t.string "telefono_pago_movil"
+    t.string "pricing_currency_priority", default: "usd", null: false
+    t.boolean "default_exento", default: false, null: false
+    t.bigint "business_id", null: false
+    t.index ["business_id"], name: "index_suppliers_on_business_id"
   end
 
   create_table "system_services", force: :cascade do |t|
@@ -263,10 +588,13 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
   end
 
   create_table "tasa_cambios", force: :cascade do |t|
-    t.decimal "valor"
+    t.decimal "valor", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "description"
+    t.date "fecha_referencia", null: false
+    t.string "symbol", null: false
+    t.index ["description", "fecha_referencia"], name: "index_tasa_cambios_unique_desc_fecha_ref", unique: true
   end
 
   create_table "users", force: :cascade do |t|
@@ -282,6 +610,63 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.index ["username"], name: "index_users_on_username", unique: true
   end
 
+  create_table "venta_items", force: :cascade do |t|
+    t.bigint "venta_id", null: false
+    t.bigint "producto_id"
+    t.bigint "product_variation_id"
+    t.string "product_name"
+    t.string "variation_name"
+    t.decimal "quantity", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "unit_price_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "subtotal_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["product_variation_id"], name: "index_venta_items_on_product_variation_id"
+    t.index ["producto_id"], name: "index_venta_items_on_producto_id"
+    t.index ["venta_id"], name: "index_venta_items_on_venta_id"
+  end
+
+  create_table "venta_payments", force: :cascade do |t|
+    t.bigint "venta_id", null: false
+    t.string "payment_method", null: false
+    t.decimal "amount_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "amount_bs", precision: 14, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "account_id"
+    t.string "currency", default: "USD", null: false
+    t.decimal "amount_original", precision: 14, scale: 2, default: "0.0", null: false
+    t.string "reference"
+    t.string "payment_kind", default: "in", null: false
+    t.index ["account_id"], name: "index_venta_payments_on_account_id"
+    t.index ["currency"], name: "index_venta_payments_on_currency"
+    t.index ["payment_kind"], name: "index_venta_payments_on_payment_kind"
+    t.index ["payment_method"], name: "index_venta_payments_on_payment_method"
+    t.index ["venta_id"], name: "index_venta_payments_on_venta_id"
+  end
+
+  create_table "ventas", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "status", default: "draft", null: false
+    t.decimal "total_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "total_bs", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "tasa_dolar", precision: 12, scale: 2
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "vat_mode", default: "none", null: false
+    t.decimal "vat_rate", precision: 5, scale: 2, default: "0.16", null: false
+    t.decimal "subtotal_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "vat_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.bigint "cliente_id"
+    t.string "base_currency", default: "USD", null: false
+    t.index ["base_currency"], name: "index_ventas_on_base_currency"
+    t.index ["business_id"], name: "index_ventas_on_business_id"
+    t.index ["cliente_id"], name: "index_ventas_on_cliente_id"
+    t.index ["status"], name: "index_ventas_on_status"
+    t.index ["vat_mode"], name: "index_ventas_on_vat_mode"
+  end
+
   create_table "video_details", force: :cascade do |t|
     t.string "calidad"
     t.string "audio"
@@ -295,9 +680,29 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
     t.index ["pelicula_id"], name: "index_video_details_on_pelicula_id"
   end
 
+  add_foreign_key "account_movements", "account_settlements"
+  add_foreign_key "account_movements", "accounts"
+  add_foreign_key "account_settlements", "accounts"
+  add_foreign_key "account_settlements", "accounts", column: "settlement_account_id"
+  add_foreign_key "accounts", "accounts", column: "settlement_account_id"
+  add_foreign_key "accounts", "businesses"
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "appointments", "saime_users"
+  add_foreign_key "clientes", "businesses"
+  add_foreign_key "debt_payments", "accounts"
+  add_foreign_key "debt_payments", "debts"
+  add_foreign_key "debts", "accounts", column: "loan_account_id"
+  add_foreign_key "debts", "businesses"
+  add_foreign_key "debts", "clientes"
+  add_foreign_key "debts", "suppliers"
+  add_foreign_key "expense_payments", "accounts"
+  add_foreign_key "expense_payments", "expenses"
+  add_foreign_key "expenses", "businesses"
+  add_foreign_key "factura_items", "facturas"
+  add_foreign_key "factura_items", "productos", on_delete: :nullify
+  add_foreign_key "facturas", "businesses"
+  add_foreign_key "facturas", "suppliers", on_delete: :nullify
   add_foreign_key "generos_animes", "animes"
   add_foreign_key "generos_animes", "generos"
   add_foreign_key "generos_juegos", "generos"
@@ -307,11 +712,36 @@ ActiveRecord::Schema[7.1].define(version: 2025_05_29_201343) do
   add_foreign_key "generos_serie_tvs", "generos"
   add_foreign_key "generos_serie_tvs", "serie_tvs"
   add_foreign_key "peliculas", "users"
+  add_foreign_key "product_variations", "productos"
+  add_foreign_key "productos", "businesses"
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
   add_foreign_key "saime_users", "users"
+  add_foreign_key "service_expense_structures", "services"
+  add_foreign_key "service_manager_expenses", "managers"
+  add_foreign_key "service_manager_expenses", "service_expense_structures"
   add_foreign_key "service_managers", "managers"
   add_foreign_key "service_managers", "services"
+  add_foreign_key "service_nested_expenses", "service_expense_structures"
+  add_foreign_key "service_nested_expenses", "services", column: "nested_service_id"
+  add_foreign_key "service_product_expenses", "productos"
+  add_foreign_key "service_product_expenses", "service_expense_structures"
+  add_foreign_key "service_variable_expenses", "service_expense_structures"
   add_foreign_key "services", "system_services"
+  add_foreign_key "stock_lot_variations", "product_variations"
+  add_foreign_key "stock_lot_variations", "stock_lots"
+  add_foreign_key "stock_lots", "factura_items"
+  add_foreign_key "stock_lots", "productos"
+  add_foreign_key "stock_lots", "suppliers", on_delete: :nullify
+  add_foreign_key "supplier_products", "productos"
+  add_foreign_key "supplier_products", "suppliers"
+  add_foreign_key "suppliers", "businesses"
+  add_foreign_key "venta_items", "product_variations"
+  add_foreign_key "venta_items", "productos"
+  add_foreign_key "venta_items", "ventas"
+  add_foreign_key "venta_payments", "accounts"
+  add_foreign_key "venta_payments", "ventas"
+  add_foreign_key "ventas", "businesses"
+  add_foreign_key "ventas", "clientes"
   add_foreign_key "video_details", "peliculas"
 end

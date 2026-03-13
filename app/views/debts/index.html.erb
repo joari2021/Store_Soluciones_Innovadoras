@@ -1,0 +1,133 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Deudas</h1>
+        <p class="mt-1 text-sm text-slate-500">Controla cuentas por cobrar y por pagar en un solo lugar.</p>
+      </div>
+      <%= link_to new_debt_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium", data: { turbo_frame: "_top" } do %>
+        <i data-lucide="plus" class="h-5 w-5"></i>
+        Nueva deuda
+      <% end %>
+    </div>
+  </div>
+  <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Proximo vencimiento</p>
+      <p class="mt-2 text-lg font-bold text-slate-800"><%= @next_due_on ? @next_due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
+      <p class="mt-1 text-xs text-slate-500">Basado en las deudas activas.</p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Por cobrar</p>
+      <p class="mt-2 text-lg font-bold text-emerald-600"><%= @receivable_count %></p>
+      <p class="mt-1 text-xs text-slate-500">Clientes con saldo pendiente.</p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Por pagar</p>
+      <p class="mt-2 text-lg font-bold text-amber-600"><%= @payable_count %></p>
+      <p class="mt-1 text-xs text-slate-500">Compromisos con proveedores.</p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Vencidas</p>
+      <p class="mt-2 text-lg font-bold text-rose-600"><%= @overdue_count %></p>
+      <p class="mt-1 text-xs text-slate-500">Deudas con fecha vencida.</p>
+    </div>
+  </div>
+  <% receivable_debts = @debts.select(&:receivable?) %>
+  <% payable_debts = @debts.select(&:payable?) %>
+  <% receivable_overdue = receivable_debts.count(&:overdue?) %>
+  <% payable_overdue = payable_debts.count(&:overdue?) %>
+  <% receivable_groups = receivable_debts.group_by(&:cliente).sort_by { |cliente, _items| cliente&.name.to_s.downcase } %>
+  <% if @debts.any? %>
+    <div class="grid gap-6 xl:grid-cols-2">
+      <section class="rounded-3xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white p-4 shadow-sm md:p-5">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-widest text-emerald-600">Cartera Activa</p>
+            <h2 class="text-xl font-extrabold tracking-tight text-slate-800">Deudas por cobrar</h2>
+            <p class="mt-1 text-xs text-slate-500">Montos pendientes de clientes.</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Registros</p>
+            <p class="text-2xl font-extrabold text-emerald-600"><%= receivable_debts.count %></p>
+            <p class="text-xs <%= receivable_overdue.positive? ? 'text-rose-600' : 'text-slate-500' %>">
+              <%= receivable_overdue.positive? ? "#{receivable_overdue} vencidas" : "Sin vencidas" %>
+            </p>
+          </div>
+        </div>
+        <% if receivable_debts.any? %>
+          <div class="grid gap-4">
+            <% receivable_groups.each do |cliente, debts| %>
+              <% grouped_currencies = debts.map(&:currency).uniq %>
+              <article class="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-sm">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Cliente</p>
+                    <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
+                    <p class="text-base font-bold text-emerald-600"><%= debts.count %></p>
+                    <p class="text-[11px] text-slate-500">Monedas: <%= grouped_currencies.join(', ') %></p>
+                  </div>
+                </div>
+                <div class="mt-3 grid gap-3">
+                  <% debts.each do |debt| %>
+                    <%= render "debt_card", debt: debt %>
+                  <% end %>
+                </div>
+              </article>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="rounded-2xl border border-dashed border-emerald-300 bg-white/80 p-8 text-center">
+            <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+              <i data-lucide="hand-coins" class="h-5 w-5"></i>
+            </div>
+            <p class="text-sm font-semibold text-slate-700">No hay deudas por cobrar</p>
+            <p class="mt-1 text-xs text-slate-500">Los cobros pendientes apareceran aqui.</p>
+          </div>
+        <% end %>
+      </section>
+      <section class="rounded-3xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white p-4 shadow-sm md:p-5">
+        <div class="mb-4 flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs font-semibold uppercase tracking-widest text-amber-600">Compromisos</p>
+            <h2 class="text-xl font-extrabold tracking-tight text-slate-800">Deudas por pagar</h2>
+            <p class="mt-1 text-xs text-slate-500">Obligaciones pendientes con proveedores.</p>
+          </div>
+          <div class="text-right">
+            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Registros</p>
+            <p class="text-2xl font-extrabold text-amber-600"><%= payable_debts.count %></p>
+            <p class="text-xs <%= payable_overdue.positive? ? 'text-rose-600' : 'text-slate-500' %>">
+              <%= payable_overdue.positive? ? "#{payable_overdue} vencidas" : "Sin vencidas" %>
+            </p>
+          </div>
+        </div>
+        <% if payable_debts.any? %>
+          <div class="grid gap-4">
+            <% payable_debts.each do |debt| %>
+              <%= render "debt_card", debt: debt %>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="rounded-2xl border border-dashed border-amber-300 bg-white/80 p-8 text-center">
+            <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+              <i data-lucide="credit-card" class="h-5 w-5"></i>
+            </div>
+            <p class="text-sm font-semibold text-slate-700">No hay deudas por pagar</p>
+            <p class="mt-1 text-xs text-slate-500">Los pagos pendientes apareceran aqui.</p>
+          </div>
+        <% end %>
+      </section>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+        <i data-lucide="hand-coins" class="h-6 w-6"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">No hay deudas registradas</h3>
+      <p class="mt-1 text-sm text-slate-500">Crea tu primera deuda para controlar saldos.</p>
+    </div>
+  <% end %>
+</div>

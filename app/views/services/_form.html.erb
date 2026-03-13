@@ -1,111 +1,201 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
-  <%= form_with(model: @service, local: true, data: { controller: "form-services", tasa_bcv: @tasa_dolar_bcv, tasas: @tasas.to_json }, id: "form-services") do |form| %>
-    <% if @service.errors.any? %>
-      <div class="alert alert-danger">
-        <h4>Errores:</h4>
-        <ul>
-          <% @service.errors.full_messages.each do |message| %>
-            <li><%= message %></li>
-          <% end %>
-        </ul>
+<%= form_with(model: @service, local: true, data: { controller: "form-services", bcv_rate: @service_expenses_bcv_rate }, id: "form-services", class: "space-y-6") do |form| %>
+  <% if @service.errors.any? %>
+    <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar el servicio</h4>
+        <span class="text-xs font-medium"><%= pluralize(@service.errors.count, 'error') %></span>
       </div>
-    <% end %>
-    <div class="row">
-      <div class="col-md-3 mb-2">
-        <div class="form-check form-switch mt-4">
-          <%= form.label :available, "Servicio disponible", class: "form-check-label", for: "available" %>
-          <%= form.check_box :available, class: "form-check-input", id: "available" %>
-        </div>
-      </div>
-      <hr>
-      <div class="col-md-3 mb-2">
-        <%= form.label :system_service_id, "System Service", class:"form-label" %>
-        <%= form.collection_select :system_service_id, SystemService.order(:name), :id, :name, { include_blank: "Selecciona Un Sistema" }, class: "form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :description, "Descripcion", class:"form-label" %>
-        <%= form.text_field :description, class: "form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :currency_base_price, "Referencia del Precio", class:"form-label" %>
-        <%= form.select :currency_base_price, [["Bs", "Bs"], ["$", "$"]], { include_blank: "Selecciona una opción" }, class: "form-control", data: { action: "change->form-services#toggleFields" } %>
-      </div>
-      <div class="col-md-3 mb-2" id="value-units-field">
-        <%= form.label :value_units, "Unidades de Valor", class:"form-label" %>
-        <%= form.number_field :value_units, step: 0.01, class: "form-control" %>
-      </div>
-      <div class="col-md-3 mb-2" id="sale-price-field" style="display: none;">
-        <%= form.label :sale_price, "Precio", class:"form-label" %>
-        <%= form.number_field :sale_price, step: 0.01, class: "form-control" %>
-      </div>
-      <hr class="my-2">
-      <div class="col-md-3 mb-2">
-        <%= form.label :physical_requirements, "Requisitos Fisicos", class:"form-label" %>
-        <%= form.text_area :physical_requirements, class: "form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :digital_requirements, "Requisitos Digitales (Fotos o Escaneos)", class:"form-label" %>
-        <%= form.text_area :digital_requirements, class:"form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :required_data, "Datos Requeridos", class:"form-label" %>
-        <%= form.text_area :required_data, class:"form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :personal_steps, "Pasos a Seguir (Solo Personal Autorizado)", class:"form-label" %>
-        <%= form.text_area :personal_steps, class:"form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :note, "Nota", class:"form-label" %>
-        <%= form.text_area :note, class:"form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :delivery_content, "Contenido de Entrega", class:"form-label" %>
-        <%= form.text_area :delivery_content, class:"form-control" %>
-      </div>
-      <div class="col-md-3 mb-2">
-        <%= form.label :delivery_time, "Tiempo de Entrega", class:"form-label" %>
-        <%= form.text_field :delivery_time, class:"form-control" %>
-      </div>
-      <div class="col-md-3 my-4 ms-3 form-check">
-        <%= form.check_box :cost, class: "form-check-input", id: "cost", data: { action: "change->form-services#toggleManagers" } %>
-        <%= form.label :cost, "Tiene Costo", class: "form-check-label", for: "cost" %>
-      </div>
-      <div id="service_managers" style="display: none;">
-        <%= form.fields_for :service_managers do |m| %>
-          <% unless m.object.new_record? %>
-            <%= render "service_manager_fields", m: m %>
-          <% end %>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% @service.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
         <% end %>
-      </div>
-      <div id="add-manager-link" class="mb-3" style="display: none;">
-        <%= link_to_add_service_managers "Añadir Gestor", form, :service_managers %>
-      </div>
-      <hr>
-      <div class="">
-        <%= form.submit "Actualizar", class: "btn btn-primary" %>
-        <%= link_to 'Volver', services_path, class: "btn btn-secondary ms-2" %>
-      </div>
+      </ul>
     </div>
   <% end %>
-</div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Disponibilidad</p>
+        <p class="mt-1 text-sm text-slate-500">Marca si el servicio esta habilitado para ventas.</p>
+      </div>
+      <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+        <%= form.check_box :available, class: "h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500", id: "available" %>
+        Servicio disponible
+      </label>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Datos generales</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div>
+        <%= form.label :system_service_id, "Sistema", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.collection_select :system_service_id, SystemService.order(:name), :id, :name, { include_blank: "Selecciona un sistema" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :description, "Descripcion", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :description, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :pricing_mode, "Tipo de precio", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :pricing_mode,
+                        options_for_select([["Precio fijo", "fixed"], ["Precio a convenir", "to_agree"]], form.object.pricing_mode.presence || "fixed"),
+                        {},
+                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                        data: { pricing_mode_select: true } %>
+      </div>
+      <div class="xl:col-span-3">
+        <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+          <%= form.check_box :nested_available, class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
+          Permitir este servicio como servicio anidado
+        </label>
+      </div>
+    </div>
+    <div id="fixed-price-fields" class="mt-4 grid gap-4 md:grid-cols-2">
+      <% fixed_reference = form.object.currency_base_price.to_s.strip.presence || "Dolar BCV" %>
+      <% fixed_reference = "Dolar BCV" if fixed_reference == "$" %>
+      <% fixed_symbol = currency_symbol_for_reference(fixed_reference, rows: @service_price_currency_rows, fallback: "$") %>
+      <% fixed_plain_input = (fixed_reference == "Unidad VI") %>
+      <% fixed_sale_price_value = if form.object.sale_price.present?
+                                    fixed_plain_input ? plain_decimal_input_value(form.object.sale_price) : format_money(form.object.sale_price, unit: fixed_symbol)
+                                  else
+                                    ""
+                                  end %>
+      <div>
+        <%= form.label :currency_base_price, "Referencia del precio", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :currency_base_price,
+                        currency_reference_options_for_select(rows: @service_price_currency_rows, selected: fixed_reference),
+                        { include_blank: "Selecciona una opcion" },
+                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                        data: { fixed_currency_select: true } %>
+      </div>
+      <div id="sale-price-field">
+        <label class="block text-sm font-medium text-slate-700" data-fixed-amount-label>Monto (<%= fixed_reference %>)</label>
+        <%= form.text_field :sale_price,
+                            value: fixed_sale_price_value,
+                            type: (fixed_plain_input ? "number" : "text"),
+                            step: (fixed_plain_input ? "0.01" : nil),
+                            min: (fixed_plain_input ? "0.01" : nil),
+                            inputmode: (fixed_plain_input ? "decimal" : nil),
+                            autocomplete: "off",
+                            class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                            data: {
+                              money_mask: !fixed_plain_input,
+                              money_symbol: fixed_symbol,
+                              fixed_sale_price: true,
+                              plain_decimal: fixed_plain_input,
+                              disable_number_steppers: fixed_plain_input
+                            } %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Requisitos y datos</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div>
+        <%= form.label :physical_requirements, "Requisitos fisicos", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :physical_requirements, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :digital_requirements, "Requisitos digitales (fotos o escaneos)", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :digital_requirements, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :required_data, "Datos requeridos", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :required_data, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :personal_steps, "Pasos a seguir (solo personal autorizado)", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :personal_steps, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :note, "Nota", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :note, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Entrega</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div>
+        <%= form.label :delivery_content, "Contenido de entrega", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_area :delivery_content, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+      <div>
+        <%= form.label :delivery_time, "Tiempo de entrega", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :delivery_time, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estructuras de gastos</p>
+        <p class="mt-1 text-sm text-slate-500">Activa esta opcion para asociar gestores, gastos variables, servicios anidados e insumos.</p>
+      </div>
+      <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+        <%= form.check_box :cost, class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "cost", data: { expense_toggle: true } %>
+        Conlleva gastos
+      </label>
+    </div>
+    <div id="service-expense-structures-wrapper" class="mt-4 space-y-3">
+      <div id="service-expense-structures" class="grid items-start gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <%= form.fields_for :service_expense_structures do |structure_fields| %>
+          <%= render "service_expense_structure_fields",
+                     f: structure_fields,
+                     managers: @managers,
+                     expense_currency_rows: @expense_currency_rows,
+                     nested_services: @nested_services_for_expenses,
+                     products: @products_for_expenses,
+                     bcv_rate: @service_expenses_bcv_rate %>
+        <% end %>
+      </div>
+      <button type="button" class="inline-flex items-center gap-2 rounded-xl bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-200" data-add-expense-structure>
+        Agregar estructura de gastos
+      </button>
+    </div>
+  </div>
+  <template id="service-expense-structure-template" data-placeholder="NEW_EXPENSE_STRUCTURE">
+    <%= form.fields_for :service_expense_structures, ServiceExpenseStructure.new, child_index: "NEW_EXPENSE_STRUCTURE" do |structure_fields| %>
+      <%= render "service_expense_structure_fields",
+                 f: structure_fields,
+                 managers: @managers,
+                 expense_currency_rows: @expense_currency_rows,
+                 nested_services: @nested_services_for_expenses,
+                 products: @products_for_expenses,
+                 bcv_rate: @service_expenses_bcv_rate %>
+    <% end %>
+  </template>
+  <div class="flex flex-wrap items-center gap-3">
+    <%= form.submit(@service.persisted? ? "Actualizar servicio" : "Crear servicio", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
+    <%= link_to 'Volver', services_path, class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+  </div>
+<% end %>
 <script>
-  // Ajusta todos los textarea automáticamente al escribir
-  document.addEventListener("input", function(e) {
-    if (e.target.tagName.toLowerCase() === "textarea") {
-      e.target.style.height = "auto";
-      e.target.style.height = (e.target.scrollHeight) + "px";
-    }
-  });
+  (() => {
+    if (window.servicesResizeTextareasBound) return;
+    window.servicesResizeTextareasBound = true;
 
-  // Ajusta todos los textarea automáticamente al cargar la página o al navegar con Turbo
-  function autoResizeTextareas() {
-    document.querySelectorAll("textarea").forEach(function(textarea) {
+    const resizeTextareas = (scope) => {
+      scope.querySelectorAll("textarea").forEach((textarea) => {
+        textarea.style.height = "auto";
+        textarea.style.height = `${textarea.scrollHeight}px`;
+      });
+    };
+
+    const handleInput = (event) => {
+      const textarea = event.target.closest("#form-services textarea");
+      if (!textarea) return;
       textarea.style.height = "auto";
-      textarea.style.height = (textarea.scrollHeight) + "px";
-    });
-  }
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
 
-  document.addEventListener("DOMContentLoaded", autoResizeTextareas);
-  document.addEventListener("turbo:load", autoResizeTextareas);
+    const handleLoad = () => {
+      const form = document.getElementById("form-services");
+      if (form) resizeTextareas(form);
+    };
+
+    document.addEventListener("input", handleInput);
+    document.addEventListener("DOMContentLoaded", handleLoad);
+    document.addEventListener("turbo:load", handleLoad);
+  })();
 </script>

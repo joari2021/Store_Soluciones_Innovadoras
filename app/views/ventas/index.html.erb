@@ -1,0 +1,2158 @@
+<% bcv_rate = (@tasa_dolar_bcv || 0).to_d %>
+<div id="ventas-pos-root" class="space-y-6" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Ventas</h1>
+        <p class="mt-1 text-sm text-slate-500">Base del punto de venta para iterar el flujo de cobro.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" class="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer">
+          Nueva orden
+        </button>
+        <button type="button" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800 cursor-pointer">
+          Guardar borrador
+        </button>
+        <%= link_to historial_ventas_path, class: "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer inline-flex items-center gap-2" do %>
+          <i data-lucide="list" class="h-4 w-4"></i>
+          Historial
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <script type="application/json" id="ventas-products-data">
+    <%= raw ERB::Util.json_escape(@products_payload.to_json) %>
+  </script>
+  <script type="application/json" id="ventas-accounts-data">
+    <%= raw ERB::Util.json_escape(@accounts_payload.to_json) %>
+  </script>
+  <script type="application/json" id="ventas-services-data">
+    <%= raw ERB::Util.json_escape(@services_payload.to_json) %>
+  </script>
+  <section id="tab-ventas" class="fade-in">
+    <div class="flex flex-col lg:flex-row gap-6 h-full">
+      <div class="lg:w-2/3 space-y-6">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div class="relative flex-1 max-w-md">
+            <input id="ventas-item-search" type="text" placeholder="Buscar productos o servicios" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 pr-10 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+            <button id="ventas-item-search-clear" type="button" class="hidden absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700" aria-label="Limpiar busqueda">
+              <i data-lucide="x" class="h-3.5 w-3.5"></i>
+            </button>
+          </div>
+          <div class="flex items-center gap-2">
+            <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-slate-900 bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Productos</button>
+            <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Servicios</button>
+          </div>
+        </div>
+        <div id="ventas-product-panel" class="space-y-4">
+          <% if @productos.any? %>
+            <div id="ventas-product-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              <% @productos.each do |producto| %>
+                <% payload = @products_payload_by_id[producto.id] || {} %>
+                <% available_total = payload[:available_total].to_d %>
+                <% price_bs = bcv_rate.positive? ? (producto.precio_venta_usd.to_d * bcv_rate) : nil %>
+                <% variations = producto.product_variations.sort_by(&:id) %>
+                <% variation_names = variations.map(&:description) %>
+                <% visible_variations = variations.first(3) %>
+                <% extra_count = variations.size - visible_variations.size %>
+                <% product_query = ([producto.descripcion] + variation_names).join(' ').downcase %>
+                <article class="ventas-product-card glass-card relative p-3 rounded-2xl hover:border-sky-300 cursor-pointer transition-all hover:shadow-lg group active:scale-95" data-product-id="<%= producto.id %>" data-product-query="<%= product_query %>">
+                  <span class="absolute left-2 top-2 z-10 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-600 backdrop-blur-sm pointer-events-none">
+                    Disp: <span data-product-stock="<%= producto.id %>"><%= format_quantity(available_total, precision: 0) %></span>
+                  </span>
+                  <div class="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center text-slate-300 overflow-hidden group-hover:scale-105 transition-transform relative">
+                    <% if producto.foto.attached? %>
+                      <%= image_tag producto.foto, class: 'h-full w-full object-cover', alt: producto.descripcion.to_s %>
+                    <% else %>
+                      <i data-lucide="package" class="w-12 h-12"></i>
+                    <% end %>
+                    <div class="absolute inset-0 hidden items-center justify-center bg-white/80 text-red-600" data-out-of-stock>
+                      <span class="text-xs font-bold uppercase line-through">Agotado</span>
+                    </div>
+                  </div>
+                  <div class="px-1">
+                    <h3 class="font-bold text-slate-700 text-sm truncate"><%= producto.descripcion.to_s %></h3>
+                    <div class="mt-2 flex flex-wrap gap-1 min-h-[1.5rem]">
+                      <% visible_variations.each do |variation| %>
+                        <span class="max-w-[5.5rem] truncate rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                          <%= variation.description %>
+                        </span>
+                      <% end %>
+                      <% if extra_count.positive? %>
+                        <span class="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">+<%= extra_count %></span>
+                      <% end %>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between">
+                      <div>
+                        <p class="text-sky-600 font-bold"><%= format_money(producto.precio_venta_usd, unit: '$') %></p>
+                        <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                      </div>
+                      <button type="button" class="ventas-add-button w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-sky-500 group-hover:text-white transition-colors" data-product-id="<%= producto.id %>">
+                        <i data-lucide="plus" class="w-3 h-3"></i>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+              <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                <i data-lucide="package" class="h-6 w-6"></i>
+              </div>
+              <h3 class="text-base font-semibold text-slate-700">No hay productos disponibles</h3>
+              <p class="mt-1 text-sm text-slate-500">Agrega productos para comenzar a vender.</p>
+            </div>
+          <% end %>
+        </div>
+        <div id="ventas-service-panel" class="space-y-4 hidden">
+          <% if @services.any? %>
+            <div id="ventas-service-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+              <% @services.each do |service| %>
+                <% payload = @services_payload_by_id[service.id] || {} %>
+                <% price_usd = payload[:price_usd] %>
+                <% price_usd_value = price_usd ? price_usd.to_d : nil %>
+                <% price_on_request = payload[:price_on_request] == true %>
+                <% price_available = price_on_request || price_usd_value&.positive? %>
+                <% price_bs = price_usd_value&.positive? && bcv_rate.positive? ? (price_usd_value * bcv_rate) : nil %>
+                <% system_name = service.system_service&.name.to_s %>
+                <% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
+                <article class="ventas-service-card glass-card relative p-3 rounded-2xl transition-all hover:shadow-lg group active:scale-95 <%= price_available ? 'hover:border-sky-300 cursor-pointer' : 'opacity-60 cursor-not-allowed' %>" data-service-id="<%= service.id %>" data-service-query="<%= service_query %>" data-service-disabled="<%= price_available ? 'false' : 'true' %>" data-service-on-request="<%= price_on_request ? 'true' : 'false' %>">
+                  <span class="absolute left-2 top-2 z-10 rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-semibold text-slate-600 backdrop-blur-sm pointer-events-none">
+                    Servicio
+                  </span>
+                  <div class="aspect-square bg-slate-50 rounded-xl mb-3 flex items-center justify-center text-slate-300 overflow-hidden group-hover:scale-105 transition-transform">
+                    <% if service.system_service&.image&.attached? %>
+                      <%= image_tag service.system_service.image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.system_service.name %>
+                    <% else %>
+                      <i data-lucide="briefcase" class="w-12 h-12"></i>
+                    <% end %>
+                  </div>
+                  <div class="px-1">
+                    <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400"><%= system_name.presence || 'Servicio' %></p>
+                    <h3 class="font-bold text-slate-700 text-sm truncate"><%= service.description.to_s %></h3>
+                    <div class="mt-2 flex items-center justify-between">
+                      <div>
+                        <% if price_on_request %>
+                          <p class="text-amber-600 font-bold">A convenir</p>
+                          <p class="text-xs text-slate-500">Se define al cobrar</p>
+                        <% elsif price_available %>
+                          <p class="text-sky-600 font-bold"><%= format_money(price_usd_value, unit: '$') %></p>
+                          <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                        <% else %>
+                          <p class="text-xs text-amber-600">Precio no disponible</p>
+                        <% end %>
+                      </div>
+                      <button type="button" class="ventas-add-service w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-sky-500 group-hover:text-white transition-colors" data-service-id="<%= service.id %>" <%= price_available ? '' : 'disabled' %>>
+                        <i data-lucide="plus" class="w-3 h-3"></i>
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              <% end %>
+            </div>
+                      <% else %>
+                        <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+                          <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                            <i data-lucide="briefcase" class="h-6 w-6"></i>
+                          </div>
+                          <h3 class="text-base font-semibold text-slate-700">No hay servicios disponibles</h3>
+                          <p class="mt-1 text-sm text-slate-500">Registra servicios para facturarlos desde ventas.</p>
+                        </div>
+                      <% end %>
+                    </div>
+                  </div>
+                  <div class="lg:w-1/3 mt-6 lg:mt-0">
+                    <div class="glass-card p-6 rounded-2xl sticky top-4">
+                      <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                          <i data-lucide="receipt" class="text-sky-500"></i> Orden actual
+                        </h2>
+                        <span class="bg-sky-100 text-sky-700 text-xs font-bold px-2 py-1 rounded">Nueva</span>
+                      </div>
+                      <% bcv_display = @tasa_dolar_bcv.is_a?(Numeric) ? format_money(@tasa_dolar_bcv, unit: 'Bs ') : @tasa_dolar_bcv.to_s %>
+                      <div class="mb-4 rounded-2xl border border-slate-200 bg-white p-3 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Moneda base</p>
+                          <span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                            Tasa BCV: <%= bcv_display %>
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                            <input type="radio" name="ventas-base-currency" value="usd" class="text-sky-600 focus:ring-sky-500">
+                            USD
+                          </label>
+                          <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600">
+                            <input type="radio" name="ventas-base-currency" value="ves" checked class="text-sky-600 focus:ring-sky-500">
+                            Bs
+                          </label>
+                        </div>
+                      </div>
+                      <div class="mb-4 rounded-2xl border border-slate-200 bg-white p-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</p>
+                        <div class="relative mt-2">
+                          <input id="ventas-client-search" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Buscar cliente">
+                          <div id="ventas-client-results" class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                            <button type="button" id="ventas-client-add" class="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-2 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50">
+                              <i data-lucide="user-plus" class="h-4 w-4"></i>
+                              Agregar cliente
+                            </button>
+                            <div id="ventas-client-list" class="max-h-48 overflow-y-auto"></div>
+                          </div>
+                        </div>
+                        <div id="ventas-client-selected" class="mt-2 hidden items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                          <div>
+                            <p class="text-xs text-slate-500">Cliente seleccionado</p>
+                            <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
+                          </div>
+                          <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
+                            <i data-lucide="x" class="h-4 w-4"></i>
+                          </button>
+                        </div>
+                        <p id="ventas-client-empty" class="mt-2 text-xs text-slate-500">Cliente general</p>
+                      </div>
+                      <div class="mb-4 max-h-[40vh] overflow-y-auto pr-2">
+                        <div id="ventas-cart-list" class="space-y-3"></div>
+                        <div id="ventas-cart-empty" class="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-center">
+                          <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+                            <i data-lucide="shopping-bag" class="h-5 w-5"></i>
+                          </div>
+                          <p class="text-sm font-semibold text-slate-700">Orden sin items</p>
+                          <p class="mt-1 text-xs text-slate-500">Selecciona productos o servicios para armar la orden.</p>
+                        </div>
+                      </div>
+                      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">IVA 16%</p>
+                        <div class="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                          <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-600">
+                            <input type="radio" name="ventas-vat-mode" value="none" checked class="text-sky-600 focus:ring-sky-500">
+                            Sin IVA
+                          </label>
+                          <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-600">
+                            <input type="radio" name="ventas-vat-mode" value="add" class="text-sky-600 focus:ring-sky-500">
+                            Agregar
+                          </label>
+                          <label class="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-600">
+                            <input type="radio" name="ventas-vat-mode" value="included" class="text-sky-600 focus:ring-sky-500">
+                            Invertido
+                          </label>
+                        </div>
+                      </div>
+                      <div class="border-t border-dashed border-sky-200 pt-4 mt-4 space-y-3">
+                        <div class="flex justify-between text-sm text-slate-500">
+                          <span>Subtotal</span>
+                          <span class="text-right">
+                            <span id="ventas-subtotal-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
+                            <span id="ventas-subtotal-bs" class="block text-xs text-slate-400">Bs 0,00</span>
+                          </span>
+                        </div>
+                        <div class="flex justify-between text-sm text-slate-500">
+                          <span id="ventas-iva-label">IVA</span>
+                          <span class="text-right">
+                            <span id="ventas-iva-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
+                            <span id="ventas-iva-bs" class="block text-xs text-slate-400">Bs 0,00</span>
+                          </span>
+                        </div>
+                        <div class="flex justify-between text-xl font-bold text-slate-800 pt-2">
+                          <span>Total</span>
+                          <span class="text-right">
+                            <span id="ventas-total-usd" class="block text-sky-600"><%= format_money(0, unit: '$') %></span>
+                            <span id="ventas-total-bs" class="block text-xs font-semibold text-slate-400">Bs 0,00</span>
+                          </span>
+                        </div>
+                      </div>
+                      <button id="ventas-pay-button" type="button" class="w-full bg-slate-900 text-white py-4 rounded-xl mt-6 font-bold hover:bg-slate-800 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer">
+                        <span>Cobrar</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <script>
+              (() => {
+                if (window.ventasPosListenersBound) return;
+                window.ventasPosListenersBound = true;
+
+                const initVentasPOS = () => {
+                  const root = document.getElementById('ventas-pos-root');
+                  if (!root || root.dataset.bound === 'true') return;
+                  root.dataset.bound = 'true';
+
+                  const productsDataEl = document.getElementById('ventas-products-data');
+                  if (!productsDataEl) return;
+
+                  let products = [];
+                  try {
+                    products = JSON.parse(productsDataEl.textContent || '[]');
+                  } catch (error) {
+                    products = [];
+                  }
+
+                  const servicesDataEl = document.getElementById('ventas-services-data');
+                  let services = [];
+                  if (servicesDataEl) {
+                    try {
+                      services = JSON.parse(servicesDataEl.textContent || '[]');
+                    } catch (error) {
+                      services = [];
+                    }
+                  }
+
+                  const accountsDataEl = document.getElementById('ventas-accounts-data');
+                  let accounts = [];
+                  if (accountsDataEl) {
+                    try {
+                      accounts = JSON.parse(accountsDataEl.textContent || '[]');
+                    } catch (error) {
+                      accounts = [];
+                    }
+                  }
+
+                  const productsById = new Map(products.map((product) => [String(product.id), product]));
+                  const servicesById = new Map(services.map((service) => [String(service.id), service]));
+                  const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
+                  const cart = new Map();
+                  const vatRate = 0.16;
+                  const paymentTolerance = 0.01;
+                  let selectedClient = null;
+
+                  const parseRate = (value) => {
+                    if (!value) return 0;
+                    const normalized = String(value).replace(',', '.');
+                    const parsed = Number.parseFloat(normalized);
+                    if (!Number.isFinite(parsed)) return 0;
+                    return Math.round(parsed * 100) / 100;
+                  };
+
+                  const bcvRate = parseRate(root.dataset.bcvRate);
+
+                  let baseCurrency = 'ves';
+                  const baseCurrencyInputs = root.querySelectorAll('input[name="ventas-base-currency"]');
+                  const checkedBase = Array.from(baseCurrencyInputs).find((input) => input.checked);
+                  if (checkedBase) baseCurrency = checkedBase.value;
+
+                  if (bcvRate <= 0) {
+                    baseCurrencyInputs.forEach((input) => {
+                      if (input.value === 'ves') {
+                        input.disabled = true;
+                        input.closest('label')?.classList.add('opacity-50');
+                      }
+                    });
+                  }
+
+                  if (baseCurrency === 'ves' && bcvRate <= 0) {
+                    baseCurrency = 'usd';
+                    baseCurrencyInputs.forEach((input) => {
+                      input.checked = input.value === 'usd';
+                    });
+                  }
+
+                  const roundTo = (value, digits = 2) => {
+                    const factor = 10 ** digits;
+                    return Math.round((Number(value) || 0) * factor) / factor;
+                  };
+
+                  const normalizeSearchValue = (value) =>
+                    String(value || '')
+                      .toLowerCase()
+                      .normalize('NFD')
+                      .replace(/[\u0300-\u036f]/g, '')
+                      .trim();
+
+                  const normalizeVariationId = (value) => {
+                    if (value === null || value === undefined) return null;
+                    if (value === '' || value === 'null') return null;
+                    return String(value);
+                  };
+
+                  const normalizeItemType = (value) => (value === 'service' ? 'service' : 'product');
+
+                  const normalizeCurrencyCode = (value) => String(value || '').trim().toUpperCase();
+                  const isUsdCurrency = (currency) => ['USD', 'USDT'].includes(currency);
+
+                  const convertUsdToBase = (usdValue) => {
+                    if (baseCurrency === 'usd') return roundTo(Number(usdValue) || 0, 2);
+                    if (bcvRate <= 0) return 0;
+                    return roundTo((Number(usdValue) || 0) * bcvRate, 2);
+                  };
+
+                  const convertBaseToUsd = (baseValue) => {
+                    if (baseCurrency === 'usd') return roundTo(Number(baseValue) || 0, 2);
+                    if (bcvRate <= 0) return 0;
+                    return roundTo((Number(baseValue) || 0) / bcvRate, 2);
+                  };
+
+                  const convertAmount = (amount, fromCurrency, toCurrency) => {
+                    const fromCode = normalizeCurrencyCode(fromCurrency);
+                    const toCode = normalizeCurrencyCode(toCurrency);
+                    const numeric = Number(amount) || 0;
+
+                    if (fromCode === toCode) return roundTo(numeric, 2);
+                    if (isUsdCurrency(fromCode) && toCode === 'VES') return bcvRate > 0 ? roundTo(numeric * bcvRate, 2) : null;
+                    if (fromCode === 'VES' && isUsdCurrency(toCode)) return bcvRate > 0 ? roundTo(numeric / bcvRate, 2) : null;
+                    if (isUsdCurrency(fromCode) && isUsdCurrency(toCode)) return roundTo(numeric, 2);
+                    return null;
+                  };
+
+                  const formatNumber = (value, digits = 2) => {
+                    const amount = Number.isFinite(value) ? value : 0;
+                    return amount.toLocaleString('es-VE', {
+                      minimumFractionDigits: digits,
+                      maximumFractionDigits: digits,
+                    });
+                  };
+
+                  const formatMoney = (value, unit = '$') => `${unit}${formatNumber(value)}`;
+                  const formatMoneyBs = (value) => (bcvRate > 0 ? formatMoney(value * bcvRate, 'Bs ') : 'Bs --');
+                  const formatBaseMoney = (value) => (baseCurrency === 'usd' ? formatMoney(value, '$') : formatMoney(value, 'Bs '));
+                  const formatAltFromBase = (value) => {
+                    if (baseCurrency === 'usd') return formatMoneyBs(value);
+                    return bcvRate > 0 ? formatMoney(convertBaseToUsd(value), '$') : '$--';
+                  };
+                  const formatCurrencyValue = (value, currencyCode) => {
+                    if (currencyCode === 'VES') return formatMoney(value, 'Bs ');
+                    return formatMoney(value, '$');
+                  };
+
+                  const parseMoneyInput = (input) => {
+                    if (!input) return 0;
+                    if (window.MoneyInputMask?.parseValue) return window.MoneyInputMask.parseValue(input);
+                      const raw = String(input.value || '').replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+                    const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+                    const parsed = Number.parseFloat(normalized);
+                    return Number.isFinite(parsed) ? parsed : 0;
+                  };
+
+                  const setMoneyInputValue = (input, value, symbol) => {
+                    if (!input) return;
+                    if (window.MoneyInputMask?.setValue) {
+                      window.MoneyInputMask.setValue(input, value, symbol);
+                      return;
+                    }
+                    input.value = formatMoney(value, symbol || '$');
+                    if (symbol) input.dataset.moneySymbol = symbol;
+                  };
+
+                  const initMoneyMasks = (rootEl) => {
+                    if (window.MoneyInputMask?.init) {
+                      window.MoneyInputMask.init(rootEl || document);
+                    }
+                  };
+
+                  const buildKey = (itemType, itemId, variationId) => `${normalizeItemType(itemType)}:${itemId}::${normalizeVariationId(variationId) || 'none'}`;
+
+                  const getVatMode = () => {
+                    const selected = root.querySelector('input[name="ventas-vat-mode"]:checked');
+                    return selected ? selected.value : 'none';
+                  };
+
+                  const computePricing = (baseUnitUsd, quantity) => {
+                    const vatMode = getVatMode();
+                    const unitUsd = Number(baseUnitUsd) || 0;
+                    const unitBaseRaw = baseCurrency === 'usd' ? unitUsd : convertUsdToBase(unitUsd);
+                    const unitBase = roundTo(unitBaseRaw, 2);
+                    const safeQty = Number(quantity) || 0;
+                    let unitNet = unitBase;
+
+                    if (vatMode === 'included' && vatRate > 0) {
+                      unitNet = roundTo(unitBase / (1 + vatRate), 2);
+                    }
+
+                    const lineNet = roundTo(unitNet * safeQty, 2);
+                    return {
+                      unitDisplay: unitNet,
+                      lineNet: lineNet,
+                      lineTotal: lineNet,
+                    };
+                  };
+
+                  const resolveServiceUnitPriceUsd = (service, item = {}) => {
+                    const itemPrice = Number(item.unit_price_usd);
+                    if (Number.isFinite(itemPrice) && itemPrice > 0) return itemPrice;
+
+                    const defaultPrice = Number(service?.price_usd);
+                    if (Number.isFinite(defaultPrice) && defaultPrice > 0) return defaultPrice;
+
+                    return 0;
+                  };
+
+                  const escapeHtml = (value) =>
+                    String(value)
+                      .replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#39;');
+
+                  const getCartQuantityForVariation = (productId, variationId) => {
+                    let total = 0;
+                    const normalizedVariation = normalizeVariationId(variationId);
+                    cart.forEach((item) => {
+                      if ((item.itemType || 'product') !== 'product') return;
+                      if (String(item.productId) === String(productId) && normalizeVariationId(item.variationId) === normalizedVariation) {
+                        total += Number(item.quantity) || 0;
+                      }
+                    });
+                    return total;
+                  };
+
+                  const getCartQuantityForProduct = (productId) => {
+                    let total = 0;
+                    cart.forEach((item) => {
+                      if ((item.itemType || 'product') !== 'product') return;
+                      if (String(item.productId) === String(productId)) {
+                        total += Number(item.quantity) || 0;
+                      }
+                    });
+                    return total;
+                  };
+
+                  const getAvailableForVariation = (product, variationId) => {
+                    const normalizedVariation = normalizeVariationId(variationId);
+                    const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizedVariation);
+                    const baseAvailable = variation ? Number(variation.available) || 0 : 0;
+                    const inCart = getCartQuantityForVariation(product.id, normalizedVariation);
+                    return Math.max(0, baseAvailable - inCart);
+                  };
+
+                  const getAvailableTotal = (product) => {
+                    const baseTotal = Number(product.available_total) || 0;
+                    const inCart = getCartQuantityForProduct(product.id);
+                    return Math.max(0, baseTotal - inCart);
+                  };
+
+                  const updateAvailabilityUI = () => {
+                    document.querySelectorAll('[data-product-stock]').forEach((el) => {
+                      const productId = el.dataset.productStock;
+                      const product = productsById.get(String(productId));
+                      if (!product) return;
+                      el.textContent = formatNumber(getAvailableTotal(product), 0);
+                    });
+
+                    updateProductCardStates();
+                  };
+
+                  const updateProductCardStates = () => {
+                    document.querySelectorAll('.ventas-product-card').forEach((card) => {
+                      const productId = card.dataset.productId;
+                      const product = productsById.get(String(productId));
+                      if (!product) return;
+
+                      const inCart = getCartQuantityForProduct(productId) > 0;
+                      const available = getAvailableTotal(product);
+                      const outOfStock = available <= 0;
+
+                      card.classList.toggle('ring-2', inCart);
+                      card.classList.toggle('ring-sky-400', inCart);
+                      card.classList.toggle('border-sky-300', inCart);
+                      card.classList.toggle('border-red-300', outOfStock);
+                      card.classList.toggle('ring-1', outOfStock);
+                      card.classList.toggle('ring-red-200', outOfStock);
+                      card.classList.toggle('opacity-70', outOfStock);
+                      card.classList.toggle('cursor-not-allowed', outOfStock);
+
+                      const overlay = card.querySelector('[data-out-of-stock]');
+                      if (overlay) {
+                        overlay.classList.toggle('hidden', !outOfStock);
+                        overlay.classList.toggle('flex', outOfStock);
+                      }
+                    });
+                  };
+
+                  const initSearchTabs = () => {
+                    const searchInput = document.getElementById('ventas-item-search');
+                    const clearButton = document.getElementById('ventas-item-search-clear');
+                    const productPanel = document.getElementById('ventas-product-panel');
+                    const servicePanel = document.getElementById('ventas-service-panel');
+                    const tabButtons = Array.from(root.querySelectorAll('[data-ventas-tab]'));
+                    if (!searchInput || !clearButton || !productPanel || !servicePanel) return;
+
+                    let activeTab = 'products';
+
+                    const applySearch = () => {
+                      const query = normalizeSearchValue(searchInput.value);
+                      clearButton.classList.toggle('hidden', query.length === 0);
+
+                      document.querySelectorAll('[data-product-query]').forEach((card) => {
+                        const cardValue = normalizeSearchValue(card.dataset.productQuery);
+                        card.classList.toggle('hidden', query.length > 0 && !cardValue.includes(query));
+                      });
+
+                      document.querySelectorAll('[data-service-query]').forEach((card) => {
+                        const cardValue = normalizeSearchValue(card.dataset.serviceQuery);
+                        card.classList.toggle('hidden', query.length > 0 && !cardValue.includes(query));
+                      });
+                    };
+
+                    const updateTabStyles = () => {
+                      tabButtons.forEach((button) => {
+                        const isActive = button.dataset.ventasTab === activeTab;
+                        button.classList.toggle('bg-slate-900', isActive);
+                        button.classList.toggle('text-white', isActive);
+                        button.classList.toggle('border-slate-900', isActive);
+                        button.classList.toggle('bg-white', !isActive);
+                        button.classList.toggle('text-slate-600', !isActive);
+                        button.classList.toggle('border-slate-200', !isActive);
+                      });
+                    };
+
+                    const setActiveTab = (tab) => {
+                      activeTab = tab === 'services' ? 'services' : 'products';
+                      productPanel.classList.toggle('hidden', activeTab !== 'products');
+                      servicePanel.classList.toggle('hidden', activeTab !== 'services');
+                      updateTabStyles();
+                      applySearch();
+                    };
+
+                    searchInput.addEventListener('input', applySearch);
+                    clearButton.addEventListener('click', () => {
+                      searchInput.value = '';
+                      applySearch();
+                      searchInput.focus();
+                    });
+
+                    tabButtons.forEach((button) => {
+                      button.addEventListener('click', () => {
+                        setActiveTab(button.dataset.ventasTab);
+                      });
+                    });
+
+                    setActiveTab(activeTab);
+                  };
+
+                  initSearchTabs();
+
+                  const renderTotals = () => {
+                    let subtotalBase = 0;
+                    const vatMode = getVatMode();
+
+                    cart.forEach((item) => {
+                      const itemType = item.itemType || 'product';
+                      if (itemType === 'service') {
+                        const service = servicesById.get(String(item.serviceId));
+                        if (!service) return;
+                        const unitPriceUsd = resolveServiceUnitPriceUsd(service, item);
+                        if (!(unitPriceUsd > 0)) return;
+                        const pricing = computePricing(unitPriceUsd, item.quantity);
+                        subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
+                        return;
+                      }
+
+                      const product = productsById.get(String(item.productId));
+                      if (!product) return;
+                      const pricing = computePricing(product.price_usd, item.quantity);
+                      subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
+                    });
+
+                    const vatBase = vatMode === 'none' ? 0 : roundTo(subtotalBase * vatRate, 2);
+                    const totalBase = roundTo(subtotalBase + vatBase, 2);
+
+                    const setText = (id, value) => {
+                      const el = document.getElementById(id);
+                      if (el) el.textContent = value;
+                    };
+
+                    setText('ventas-subtotal-usd', formatBaseMoney(subtotalBase));
+                    setText('ventas-subtotal-bs', formatAltFromBase(subtotalBase));
+                    setText('ventas-iva-usd', formatBaseMoney(vatBase));
+                    setText('ventas-iva-bs', formatAltFromBase(vatBase));
+                    setText('ventas-total-usd', formatBaseMoney(totalBase));
+                    setText('ventas-total-bs', formatAltFromBase(totalBase));
+
+                    const ivaLabel = document.getElementById('ventas-iva-label');
+                    if (ivaLabel) {
+                      ivaLabel.textContent = vatMode === 'none' ? 'IVA' : 'IVA 16%';
+                    }
+                  };
+
+                  const renderCart = () => {
+                    const cartList = document.getElementById('ventas-cart-list');
+                    const emptyState = document.getElementById('ventas-cart-empty');
+                    const payButton = document.getElementById('ventas-pay-button');
+                    if (!cartList || !emptyState) return;
+
+                    if (cart.size === 0) {
+                      cartList.innerHTML = '';
+                      emptyState.classList.remove('hidden');
+                      if (payButton) {
+                        payButton.classList.add('opacity-60', 'cursor-not-allowed');
+                        payButton.disabled = true;
+                      }
+                      renderTotals();
+                      updateAvailabilityUI();
+                      return;
+                    }
+
+                    emptyState.classList.add('hidden');
+                    if (payButton) {
+                      payButton.classList.remove('opacity-60', 'cursor-not-allowed');
+                      payButton.disabled = false;
+                    }
+
+                    const itemsHtml = Array.from(cart.entries()).map(([key, item]) => {
+                      const itemType = item.itemType || 'product';
+                      if (itemType === 'service') {
+                        const service = servicesById.get(String(item.serviceId));
+                        if (!service) return '';
+                        const unitPriceUsd = resolveServiceUnitPriceUsd(service, item);
+                        if (!(unitPriceUsd > 0)) return '';
+                        const pricing = computePricing(unitPriceUsd, item.quantity);
+                        const displayName = service.system_name
+                          ? `${service.name} · ${service.system_name}`.trim()
+                          : service.name;
+
+                        return `
+                          <div class="rounded-xl border border-slate-200 bg-white px-3 py-3" data-cart-key="${key}">
+                            <div class="flex items-start justify-between gap-2">
+                              <div class="min-w-0 flex-1">
+                                <p class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(displayName)}</p>
+                                <p class="mt-1 text-[11px] text-slate-400">Servicio${service.price_on_request ? ' (a convenir)' : ''} · Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}</p>
+                              </div>
+                              <button type="button" class="text-slate-300 hover:text-red-500" data-cart-action="remove" data-cart-key="${key}">
+                                <i data-lucide="x" class="w-4 h-4"></i>
+                              </button>
+                            </div>
+                            <div class="mt-3 flex items-center justify-between">
+                              <div class="flex items-center gap-2">
+                                <button type="button" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" data-cart-action="decrease" data-cart-key="${key}">-</button>
+                                <span class="text-sm font-semibold text-slate-700">${formatNumber(item.quantity, 0)}</span>
+                                <button type="button" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" data-cart-action="increase" data-cart-key="${key}">+</button>
+                              </div>
+                              <div class="text-right">
+                                <p class="text-sm font-bold text-slate-700">${formatBaseMoney(pricing.lineTotal)}</p>
+                                <p class="text-[11px] text-slate-400">${formatAltFromBase(pricing.lineTotal)}</p>
+                              </div>
+                            </div>
+                          </div>
+                        `;
+                      }
+
+                      const product = productsById.get(String(item.productId));
+                      if (!product) return '';
+
+                      const pricing = computePricing(product.price_usd, item.quantity);
+                      const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizeVariationId(item.variationId));
+                      const variationName = variation ? variation.name : 'Unica';
+                      const displayName = `${product.name} ${variationName}`.trim();
+
+                      return `
+                        <div class="rounded-xl border border-slate-200 bg-white px-3 py-3" data-cart-key="${key}">
+                          <div class="flex items-start justify-between gap-2">
+                            <div class="min-w-0 flex-1">
+                              <p class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(displayName)}</p>
+                              <p class="mt-1 text-[11px] text-slate-400">Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}</p>
+                            </div>
+                            <button type="button" class="text-slate-300 hover:text-red-500" data-cart-action="remove" data-cart-key="${key}">
+                              <i data-lucide="x" class="w-4 h-4"></i>
+                            </button>
+                          </div>
+                          <div class="mt-3 flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                              <button type="button" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" data-cart-action="decrease" data-cart-key="${key}">-</button>
+                              <span class="text-sm font-semibold text-slate-700">${formatNumber(item.quantity, 0)}</span>
+                              <button type="button" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" data-cart-action="increase" data-cart-key="${key}">+</button>
+                            </div>
+                            <div class="text-right">
+                              <p class="text-sm font-bold text-slate-700">${formatBaseMoney(pricing.lineTotal)}</p>
+                              <p class="text-[11px] text-slate-400">${formatAltFromBase(pricing.lineTotal)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('');
+
+                    cartList.innerHTML = itemsHtml;
+                    renderTotals();
+                    updateAvailabilityUI();
+
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                      window.lucide.createIcons();
+                    }
+                  };
+
+                  const addToCart = (productId, variationId, quantity) => {
+                    const product = productsById.get(String(productId));
+                    if (!product) return;
+
+                    const normalizedVariation = normalizeVariationId(variationId);
+
+                    const available = getAvailableForVariation(product, normalizedVariation);
+                    if (quantity > available) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Stock insuficiente',
+                          text: `Disponible: ${formatNumber(available, 0)}`,
+                          heightAuto: false,
+                        });
+                      }
+                      return;
+                    }
+
+                    const key = buildKey('product', productId, normalizedVariation);
+                    const existing = cart.get(key) || {
+                      itemType: 'product',
+                      productId: String(productId),
+                      variationId: normalizedVariation,
+                      quantity: 0,
+                    };
+
+                    existing.quantity += quantity;
+                    cart.set(key, existing);
+                    renderCart();
+                  };
+
+                  const addServiceToCart = (serviceId, quantity) => {
+                    const service = servicesById.get(String(serviceId));
+                    if (!service) return;
+
+                    const resolvedUnitPriceUsd = resolveServiceUnitPriceUsd(service, {
+                      unit_price_usd: service.price_usd,
+                    });
+
+                    if (!(resolvedUnitPriceUsd > 0)) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Precio no disponible',
+                          text: service.price_on_request
+                            ? 'Debes indicar un precio acordado para este servicio.'
+                            : 'Este servicio no tiene tasa disponible para facturar.',
+                          heightAuto: false,
+                        });
+                      }
+                      return;
+                    }
+
+                    const key = buildKey('service', serviceId, null);
+                    const existing = cart.get(key) || {
+                      itemType: 'service',
+                      serviceId: String(serviceId),
+                      quantity: 0,
+                      unit_price_usd: resolvedUnitPriceUsd,
+                    };
+
+                    existing.unit_price_usd = resolvedUnitPriceUsd;
+                    existing.quantity += quantity;
+                    cart.set(key, existing);
+                    renderCart();
+                  };
+
+                  const promptServicePriceOnRequest = async (service) => {
+                    if (!window.Swal) return null;
+
+                    const baseLabel = baseCurrency === 'ves' ? 'Bs' : 'USD';
+                    const result = await window.Swal.fire({
+                      title: 'Precio a convenir',
+                      html: `<p class="text-sm text-slate-500">${escapeHtml(service.name || 'Servicio')}</p>`,
+                      input: 'number',
+                      inputAttributes: {
+                        min: '0.01',
+                        step: '0.01',
+                        autocapitalize: 'off',
+                      },
+                      inputPlaceholder: `Precio en ${baseLabel}`,
+                      showCancelButton: true,
+                      confirmButtonText: 'Agregar',
+                      cancelButtonText: 'Cancelar',
+                      heightAuto: false,
+                      preConfirm: (value) => {
+                        const numeric = Number.parseFloat(String(value || '').replace(',', '.'));
+                        if (!Number.isFinite(numeric) || numeric <= 0) {
+                          window.Swal.showValidationMessage('Indica un precio valido mayor a 0.');
+                          return null;
+                        }
+
+                        if (baseCurrency === 'ves') {
+                          if (!(bcvRate > 0)) {
+                            window.Swal.showValidationMessage('No hay tasa BCV disponible para convertir desde Bs.');
+                            return null;
+                          }
+
+                          return roundTo(numeric / bcvRate, 2);
+                        }
+
+                        return roundTo(numeric, 2);
+                      },
+                    });
+
+                    if (!result.isConfirmed) return null;
+                    return Number(result.value) || null;
+                  };
+
+                  const updateQuantity = (key, delta) => {
+                    const item = cart.get(key);
+                    if (!item) return;
+
+                    const itemType = item.itemType || 'product';
+                    if (itemType === 'product') {
+                      const product = productsById.get(String(item.productId));
+                      if (!product) return;
+
+                      if (delta > 0) {
+                        const available = getAvailableForVariation(product, item.variationId);
+                        if (available <= 0) {
+                          if (window.Swal) {
+                            window.Swal.fire({
+                              icon: 'warning',
+                              title: 'Stock insuficiente',
+                              text: 'No hay unidades disponibles para esta variacion.',
+                              heightAuto: false,
+                            });
+                          }
+                          return;
+                        }
+                      }
+                    }
+
+                    item.quantity = Math.max(0, Number(item.quantity) + delta);
+                    if (item.quantity <= 0) {
+                      cart.delete(key);
+                    } else {
+                      cart.set(key, item);
+                    }
+                    renderCart();
+                  };
+
+                  const promptAddProduct = (productId) => {
+                    const product = productsById.get(String(productId));
+                    if (!product) return;
+
+                    const variations = product.variations && product.variations.length > 0
+                      ? product.variations
+                      : [{ id: null, name: 'Unica', available: Number(product.available_total) || 0 }];
+
+                    const availableEntries = variations.map((variation) => {
+                      const available = getAvailableForVariation(product, variation.id);
+                      return {
+                        id: variation.id,
+                        name: variation.name,
+                        available: available,
+                      };
+                    });
+
+                    const hasStock = availableEntries.some((entry) => entry.available > 0);
+                    if (!hasStock) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Sin stock',
+                          text: 'No hay unidades disponibles para este producto.',
+                          heightAuto: false,
+                        });
+                      }
+                      return;
+                    }
+
+                    const optionsHtml = availableEntries
+                      .map((entry) => {
+                        const disabled = entry.available <= 0;
+                        const valueAttr = entry.id === null ? '' : entry.id;
+                        return `
+                          <div class="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2 ${disabled ? 'opacity-50' : 'hover:bg-slate-50'}" data-variation-row data-variation-id="${valueAttr}" data-variation-name="${escapeHtml(entry.name)}" data-variation-available="${entry.available}">
+                            <div class="min-w-0">
+                              <p class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(entry.name)}</p>
+                              <p class="text-xs text-slate-500">Disp: ${formatNumber(entry.available, 0)}</p>
+                            </div>
+                            <div class="flex items-center gap-2">
+                              <button type="button" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" data-qty-action="decrease" ${disabled ? 'disabled' : ''}>-</button>
+                              <input type="text" inputmode="numeric" pattern="[0-9]*" value="0" ${disabled ? 'disabled' : ''}
+                                class="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm text-right" data-variation-qty>
+                              <button type="button" class="h-7 w-7 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" data-qty-action="increase" ${disabled ? 'disabled' : ''}>+</button>
+                            </div>
+                          </div>
+                        `;
+                      })
+                      .join('');
+
+                    const modalHtml = `
+                      <div class="space-y-3 text-left">
+                        <p class="text-sm text-slate-500">${escapeHtml(product.name)}</p>
+                        <p class="text-xs text-slate-400">Agrega cantidades por variacion para incluir varias en una sola vez.</p>
+                        <div class="space-y-2">${optionsHtml}</div>
+                      </div>
+                    `;
+
+                    window.Swal.fire({
+                      title: 'Selecciona variacion',
+                      html: modalHtml,
+                      showCancelButton: true,
+                      confirmButtonText: 'Agregar',
+                      cancelButtonText: 'Cancelar',
+                      heightAuto: false,
+                      didOpen: () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        if (!dialog) return;
+
+                        const normalizeQty = (input, available) => {
+                          const raw = String(input.value || '').replace(/\D/g, '');
+                          const parsed = Number.parseInt(raw || '0', 10) || 0;
+                          const safe = Math.min(Math.max(parsed, 0), available);
+                          input.value = safe > 0 ? String(safe) : '0';
+                          return safe;
+                        };
+
+                        dialog.querySelectorAll('[data-variation-row]').forEach((row) => {
+                          const available = Number.parseInt(row.dataset.variationAvailable || '0', 10) || 0;
+                          const qtyInput = row.querySelector('[data-variation-qty]');
+                          if (!qtyInput) return;
+
+                          row.querySelectorAll('[data-qty-action]').forEach((button) => {
+                            button.addEventListener('click', () => {
+                              if (button.hasAttribute('disabled')) return;
+                              const current = normalizeQty(qtyInput, available);
+                              const delta = button.dataset.qtyAction === 'increase' ? 1 : -1;
+                              const next = Math.min(Math.max(current + delta, 0), available);
+                              qtyInput.value = String(next);
+                            });
+                          });
+
+                          qtyInput.addEventListener('input', () => {
+                            normalizeQty(qtyInput, available);
+                          });
+
+                          qtyInput.addEventListener('blur', () => {
+                            normalizeQty(qtyInput, available);
+                          });
+                        });
+                      },
+                      preConfirm: () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        if (!dialog) return null;
+
+                        const selections = [];
+                        let invalid = false;
+                        dialog.querySelectorAll('[data-variation-row]').forEach((row) => {
+                          const variationId = row.dataset.variationId || null;
+                          const variationName = row.dataset.variationName || 'Unica';
+                          const qtyInput = row.querySelector('[data-variation-qty]');
+                          const quantity = Number.parseInt(qtyInput?.value || '0', 10) || 0;
+                          if (quantity <= 0) return;
+
+                          const available = getAvailableForVariation(product, variationId);
+                          if (quantity > available) {
+                            window.Swal.showValidationMessage(`Disponible para ${variationName}: ${formatNumber(available, 0)}`);
+                            invalid = true;
+                            return;
+                          }
+
+                          selections.push({ variationId: normalizeVariationId(variationId), quantity });
+                        });
+
+                        if (invalid) return null;
+
+                        if (selections.length === 0) {
+                          window.Swal.showValidationMessage('Agrega al menos una variacion con cantidad.');
+                          return null;
+                        }
+
+                        return selections;
+                      },
+                    }).then((result) => {
+                      if (!result.isConfirmed) return;
+                      const payload = result.value || [];
+                      payload.forEach((entry) => {
+                        addToCart(productId, entry.variationId, entry.quantity);
+                      });
+                    });
+                  };
+
+                  const buildVentaPayload = (payments, change) => {
+                    const items = Array.from(cart.values()).map((item) => {
+                      if (item.itemType === 'service') {
+                        return {
+                          item_type: 'service',
+                          service_id: item.serviceId,
+                          quantity: item.quantity,
+                          unit_price_usd: item.unit_price_usd,
+                        };
+                      }
+
+                      return {
+                        item_type: 'product',
+                        product_id: item.productId,
+                        variation_id: item.variationId,
+                        quantity: item.quantity,
+                      };
+                    });
+
+                    const payload = {
+                      vat_mode: getVatMode(),
+                      vat_rate: vatRate,
+                      tasa_dolar: bcvRate,
+                      base_currency: baseCurrency === 'ves' ? 'VES' : 'USD',
+                      cliente_id: selectedClient ? selectedClient.id : null,
+                      items: items,
+                      payments: payments || [],
+                    };
+
+                    const changeEntries = Array.isArray(change) ? change : (change ? [change] : []);
+                    if (changeEntries.length > 0) payload.change = changeEntries;
+
+                    return payload;
+                  };
+
+                  const submitVenta = async (payments, change) => {
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                    if (!csrfToken) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'error',
+                          title: 'Token CSRF no disponible',
+                          text: 'Recarga la pagina e intenta de nuevo.',
+                          heightAuto: false,
+                        });
+                      }
+                      return;
+                    }
+
+                    const payload = buildVentaPayload(payments, change);
+
+                    if (window.Swal) {
+                      window.Swal.fire({
+                        title: 'Procesando venta',
+                        text: 'Guardando la venta, espera...',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false,
+                        didOpen: () => window.Swal.showLoading(),
+                        heightAuto: false,
+                      });
+                    }
+
+                    try {
+                      const response = await fetch('/ventas', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'X-CSRF-Token': csrfToken,
+                        },
+                        body: JSON.stringify({ venta: payload }),
+                      });
+
+                      let data = {};
+                      try {
+                        data = await response.json();
+                      } catch (error) {
+                        data = {};
+                      }
+
+                      if (!response.ok) {
+                        throw new Error(data.error || 'No se pudo registrar la venta.');
+                      }
+
+                      cart.clear();
+                      renderCart();
+                      setSelectedClient(null);
+
+                      if (window.Swal) {
+                        const successTotal = baseCurrency === 'ves'
+                          ? formatMoney(data.total_bs, 'Bs ')
+                          : formatMoney(data.total_usd, '$');
+                        window.Swal.fire({
+                          icon: 'success',
+                          title: 'Venta registrada',
+                          text: `Total ${successTotal}`,
+                          heightAuto: false,
+                        });
+                      }
+                    } catch (error) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'error',
+                          title: 'Error al registrar',
+                          text: error.message,
+                          heightAuto: false,
+                        });
+                      }
+                    }
+                  };
+
+                  const productGrid = document.getElementById('ventas-product-grid');
+                  if (productGrid) {
+                    productGrid.addEventListener('click', (event) => {
+                      const addButton = event.target.closest('.ventas-add-button');
+                      const card = event.target.closest('.ventas-product-card');
+                      const productId = addButton?.dataset.productId || card?.dataset.productId;
+                      if (!productId) return;
+                      if (!window.Swal) {
+                        addToCart(productId, null, 1);
+                        return;
+                      }
+                      promptAddProduct(productId);
+                    });
+                  }
+
+                  const serviceGrid = document.getElementById('ventas-service-grid');
+                  if (serviceGrid) {
+                    serviceGrid.addEventListener('click', async (event) => {
+                      const addButton = event.target.closest('.ventas-add-service');
+                      const card = event.target.closest('.ventas-service-card');
+                      const serviceId = addButton?.dataset.serviceId || card?.dataset.serviceId;
+                      if (!serviceId) return;
+
+                      const service = servicesById.get(String(serviceId));
+                      if (!service) return;
+
+                      if (card?.dataset.serviceDisabled === 'true') {
+                        if (window.Swal) {
+                          window.Swal.fire({
+                            icon: 'warning',
+                            title: 'Precio no disponible',
+                            text: 'Este servicio no tiene tasa disponible para facturar.',
+                            heightAuto: false,
+                          });
+                        }
+                        return;
+                      }
+
+                      if (service.price_on_request) {
+                        const agreedPriceUsd = await promptServicePriceOnRequest(service);
+                        if (!(agreedPriceUsd > 0)) return;
+
+                        const key = buildKey('service', serviceId, null);
+                        const existing = cart.get(key) || {
+                          itemType: 'service',
+                          serviceId: String(serviceId),
+                          quantity: 0,
+                          unit_price_usd: agreedPriceUsd,
+                        };
+
+                        existing.unit_price_usd = agreedPriceUsd;
+                        existing.quantity += 1;
+                        cart.set(key, existing);
+                        renderCart();
+                        return;
+                      }
+
+                      addServiceToCart(serviceId, 1);
+                    });
+                  }
+
+                  const cartList = document.getElementById('ventas-cart-list');
+                  if (cartList) {
+                    cartList.addEventListener('click', (event) => {
+                      const button = event.target.closest('button[data-cart-action]');
+                      if (!button) return;
+
+                      const action = button.dataset.cartAction;
+                      const key = button.dataset.cartKey;
+                      if (!key) return;
+
+                      if (action === 'increase') updateQuantity(key, 1);
+                      if (action === 'decrease') updateQuantity(key, -1);
+                      if (action === 'remove') {
+                        cart.delete(key);
+                        renderCart();
+                      }
+                    });
+                  }
+
+                  root.querySelectorAll('input[name="ventas-vat-mode"]').forEach((radio) => {
+                    radio.addEventListener('change', () => {
+                      renderCart();
+                    });
+                  });
+
+                  baseCurrencyInputs.forEach((input) => {
+                    input.addEventListener('change', () => {
+                      if (input.disabled) return;
+                      baseCurrency = input.value;
+                      renderCart();
+                    });
+                  });
+
+                  const payButton = document.getElementById('ventas-pay-button');
+                  if (payButton) {
+                    payButton.addEventListener('click', () => {
+                      if (cart.size === 0) {
+                        if (window.Swal) {
+                          window.Swal.fire({
+                            icon: 'info',
+                            title: 'Orden vacia',
+                            text: 'Agrega productos o servicios antes de cobrar.',
+                            heightAuto: false,
+                          });
+                        }
+                        return;
+                      }
+
+                      let subtotalBase = 0;
+                      cart.forEach((item) => {
+                        const itemType = item.itemType || 'product';
+                        if (itemType === 'service') {
+                          const service = servicesById.get(String(item.serviceId));
+                          if (!service) return;
+                          const unitPriceUsd = resolveServiceUnitPriceUsd(service, item);
+                          if (!(unitPriceUsd > 0)) return;
+                          const pricing = computePricing(unitPriceUsd, item.quantity);
+                          subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
+                          return;
+                        }
+
+                        const product = productsById.get(String(item.productId));
+                        if (!product) return;
+                        const pricing = computePricing(product.price_usd, item.quantity);
+                        subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
+                      });
+
+                      const vatMode = getVatMode();
+                      const vatBase = vatMode === 'none' ? 0 : roundTo(subtotalBase * vatRate, 2);
+                      const totalBase = roundTo(subtotalBase + vatBase, 2);
+
+                      if (!window.Swal) {
+                        return;
+                      }
+
+                      if (accounts.length === 0) {
+                        window.Swal.fire({
+                          icon: 'info',
+                          title: 'Sin cuentas disponibles',
+                          text: 'Registra al menos una cuenta para cobrar.',
+                          heightAuto: false,
+                        });
+                        return;
+                      }
+
+                      const bankAccounts = accounts.filter((account) => account.is_bank);
+                      const primaryBankAccount = bankAccounts.find((account) => account.is_primary);
+                      if (bankAccounts.length > 0 && !primaryBankAccount) {
+                        window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Cuenta bancaria principal requerida',
+                          text: 'No hay cuentas bancarias establecidas como principal para este negocio, por favor establezca una.',
+                          heightAuto: false,
+                        });
+                        return;
+                      }
+
+                      const baseCurrencyCode = baseCurrency === 'ves' ? 'VES' : 'USD';
+                      const buildPaymentRow = (account, options = {}) => {
+                        const symbol = account.currency_symbol || account.currency;
+                        const isBank = account.is_bank;
+                        const bankFieldsClass = isBank ? '' : 'hidden';
+                        const extraClass = options.extra ? ' hidden' : '';
+                        const extraAttr = options.extra ? ' data-bank-extra="true"' : '';
+                        return `
+                          <div class="rounded-xl border border-slate-200 bg-white p-3 space-y-2${extraClass}" data-pay-row="${account.id}"${extraAttr}>
+                            <div class="flex items-center justify-between">
+                              <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                <input type="checkbox" class="h-4 w-4 text-sky-600" data-pay-check="${account.id}">
+                                <span>${escapeHtml(account.name)}</span>
+                              </label>
+                              <span class="text-[11px] font-semibold text-slate-400">${escapeHtml(account.currency)}</span>
+                            </div>
+                            <div class="grid gap-2 md:grid-cols-2">
+                              <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm" data-pay-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
+                              <div class="space-y-2 ${bankFieldsClass}" data-pay-bank-fields="${account.id}">
+                                <select class="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm" data-pay-bank-method="${account.id}" disabled>
+                                  <option value="">Metodo</option>
+                                  <option value="transfer">Transferencia</option>
+                                  <option value="mobile">Pago movil</option>
+                                </select>
+                                <input type="text" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" class="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm" placeholder="Ultimos 6 digitos" data-pay-reference="${account.id}" disabled>
+                              </div>
+                            </div>
+                            <p class="text-xs text-slate-500" data-pay-equivalent="${account.id}"></p>
+                          </div>
+                        `;
+                      };
+
+                      const buildChangeRow = (account) => {
+                        const symbol = account.currency_symbol || account.currency;
+                        const isBank = account.is_bank;
+                        const bankFieldsClass = isBank ? '' : 'hidden';
+                        return `
+                          <div class="rounded-xl border border-amber-200 bg-white p-3 space-y-2" data-change-row="${account.id}">
+                            <div class="flex items-center justify-between">
+                              <label class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                                <input type="checkbox" class="h-4 w-4 text-amber-600" data-change-check="${account.id}">
+                                <span>${escapeHtml(account.name)}</span>
+                              </label>
+                              <span class="text-[11px] font-semibold text-slate-400">${escapeHtml(account.currency)}</span>
+                            </div>
+                            <div class="grid gap-2 md:grid-cols-2">
+                              <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="w-full rounded-lg border border-amber-200 px-2 py-1 text-sm" data-change-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
+                              <div class="space-y-2 ${bankFieldsClass}" data-change-bank-fields="${account.id}">
+                                <select class="w-full rounded-lg border border-amber-200 px-2 py-1 text-sm" data-change-bank-method="${account.id}" disabled>
+                                  <option value="">Metodo</option>
+                                  <option value="transfer">Transferencia</option>
+                                  <option value="mobile">Pago movil</option>
+                                </select>
+                                <input type="text" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" class="w-full rounded-lg border border-amber-200 px-2 py-1 text-sm" placeholder="Ultimos 6 digitos" data-change-reference="${account.id}" disabled>
+                              </div>
+                            </div>
+                            <p class="text-xs text-slate-500" data-change-equivalent="${account.id}"></p>
+                          </div>
+                        `;
+                      };
+
+                      const extraBankAccounts = primaryBankAccount
+                        ? bankAccounts.filter((account) => !account.is_primary)
+                        : [];
+                      const otherAccounts = accounts.filter((account) => !account.is_bank);
+
+                      const bankRowsHtml = primaryBankAccount
+                        ? buildPaymentRow(primaryBankAccount)
+                        : bankAccounts.map((account) => buildPaymentRow(account)).join('');
+                      const toggleBankHtml = primaryBankAccount && extraBankAccounts.length > 0
+                        ? '<button type="button" class="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100" data-toggle-bank-accounts>Ver mas cuentas</button>'
+                        : '';
+                      const extraBankRowsHtml = primaryBankAccount
+                        ? extraBankAccounts.map((account) => buildPaymentRow(account, { extra: true })).join('')
+                        : '';
+                      const otherRowsHtml = otherAccounts.map((account) => buildPaymentRow(account)).join('');
+                      const paymentRowsHtml = `${bankRowsHtml}${toggleBankHtml}${extraBankRowsHtml}${otherRowsHtml}`;
+
+                      const changeRowsHtml = accounts.map((account) => buildChangeRow(account)).join('');
+
+                      const paymentHtml = `
+                        <div class="space-y-3 text-left">
+                          <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <div class="flex items-center justify-between">
+                              <span>Total a cobrar</span>
+                              <span class="text-right">
+                                <span class="block font-semibold">${formatBaseMoney(totalBase)}</span>
+                                <span class="block text-xs text-slate-500">${formatAltFromBase(totalBase)}</span>
+                              </span>
+                            </div>
+                          </div>
+                          <div class="space-y-2">${paymentRowsHtml}</div>
+                          <div id="ventas-change-section" class="hidden rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+                            <div class="flex items-center justify-between">
+                              <span class="text-sm font-semibold text-amber-700">Vuelto (opcional)</span>
+                              <label class="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
+                                <input type="checkbox" class="h-4 w-4 text-amber-600" data-change-toggle>
+                                Registrar vuelto
+                              </label>
+                            </div>
+                            <p class="text-xs text-amber-700" data-change-hint></p>
+                            <div class="space-y-2 hidden" data-change-rows>
+                              ${changeRowsHtml}
+                            </div>
+                          </div>
+                          <div class="flex items-center justify-between text-sm">
+                            <span>Falta por cancelar</span>
+                            <span class="text-right">
+                              <span id="ventas-pay-remaining" class="block font-semibold text-slate-700"></span>
+                              <span id="ventas-pay-remaining-alt" class="block text-xs text-slate-400"></span>
+                            </span>
+                          </div>
+                        </div>
+                      `;
+
+                      window.Swal.fire({
+                        title: 'Metodos de pago',
+                        html: paymentHtml,
+                        confirmButtonText: 'Confirmar',
+                        cancelButtonText: 'Cancelar',
+                        showCancelButton: true,
+                        focusConfirm: false,
+                        heightAuto: false,
+                        didOpen: () => {
+                          const dialog = window.Swal.getHtmlContainer();
+                          if (!dialog) return;
+
+                          initMoneyMasks(dialog);
+
+                          const changeSection = dialog.querySelector('#ventas-change-section');
+                          const changeToggle = dialog.querySelector('[data-change-toggle]');
+                          const changeRowsContainer = dialog.querySelector('[data-change-rows]');
+                          const changeHintEl = dialog.querySelector('[data-change-hint]');
+
+                          const toggleChangeSection = (visible) => {
+                            if (!changeSection) return;
+                            changeSection.classList.toggle('hidden', !visible);
+                          };
+
+                          const resetChangeRow = (row) => {
+                            const accountId = row.dataset.changeRow;
+                            const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                            const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                            const bankFields = row.querySelector(`[data-change-bank-fields="${accountId}"]`);
+                            const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
+
+                            if (checkbox) checkbox.checked = false;
+                            if (input) {
+                              input.disabled = true;
+                              input.value = '';
+                            }
+                            if (bankFields) {
+                              bankFields.querySelectorAll('select, input').forEach((field) => {
+                                field.value = '';
+                                field.disabled = true;
+                              });
+                            }
+                            if (equivalentEl) equivalentEl.textContent = '';
+                          };
+
+                          const setChangeRowsEnabled = (enabled) => {
+                            if (!changeRowsContainer) return;
+                            changeRowsContainer.classList.toggle('hidden', !enabled);
+                            if (!enabled) {
+                              changeRowsContainer.querySelectorAll('[data-change-row]').forEach((row) => {
+                                resetChangeRow(row);
+                              });
+                            }
+                          };
+
+                          const updateRemaining = () => {
+                            let paidBase = 0;
+                            let paidAlt = 0;
+                            const altCurrencyCode = baseCurrencyCode === 'USD' ? 'VES' : 'USD';
+                            const altAvailable = bcvRate > 0;
+                            dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                              const accountId = row.dataset.payRow;
+                              const account = accountsById.get(String(accountId));
+                              if (!account) return;
+
+                              const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                              const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                              const equivalentEl = row.querySelector(`[data-pay-equivalent="${accountId}"]`);
+                              const amount = parseMoneyInput(input);
+
+                              if (!checkbox?.checked || amount <= 0) {
+                                if (equivalentEl) equivalentEl.textContent = '';
+                                return;
+                              }
+
+                              const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                              if (baseAmount === null) {
+                                if (equivalentEl) {
+                                  equivalentEl.textContent = 'Sin tasa de conversion';
+                                  equivalentEl.classList.add('text-red-500');
+                                }
+                                return;
+                              }
+
+                              if (equivalentEl) {
+                                equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
+                                equivalentEl.classList.remove('text-red-500');
+                              }
+                              paidBase += baseAmount;
+
+                              if (altAvailable) {
+                                const altAmount = convertAmount(amount, account.currency, altCurrencyCode);
+                                if (altAmount !== null) {
+                                  paidAlt += altAmount;
+                                }
+                              }
+                            });
+
+                            let remaining = roundTo(totalBase - paidBase, 2);
+                            if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
+
+                            let remainingAlt = null;
+                            if (altAvailable) {
+                              const totalAlt = convertAmount(totalBase, baseCurrencyCode, altCurrencyCode);
+                              if (totalAlt !== null) {
+                                remainingAlt = roundTo(totalAlt - paidAlt, 2);
+                              }
+                            }
+
+                            const remainingEl = dialog.querySelector('#ventas-pay-remaining');
+                            const remainingAltEl = dialog.querySelector('#ventas-pay-remaining-alt');
+                            if (!remainingEl) return;
+
+                            const remainingAbs = Math.abs(remaining);
+                            const remainingAltAbs = remainingAlt !== null ? Math.abs(remainingAlt) : 0;
+                            const altTolerance = 0.02;
+
+                            const changeDueBase = remaining < -paymentTolerance ? remainingAbs : 0;
+                            const changeDueAlt = remainingAlt !== null && remainingAlt < -altTolerance ? remainingAltAbs : 0;
+                            const shouldShowChange = changeDueBase > 0 || changeDueAlt > 0;
+
+                            if (changeSection) {
+                              toggleChangeSection(shouldShowChange);
+                              if (!shouldShowChange) {
+                                if (changeToggle) changeToggle.checked = false;
+                                setChangeRowsEnabled(false);
+                              }
+                            }
+
+                            if (changeHintEl) {
+                              if (shouldShowChange) {
+                                const hints = [];
+                                if (changeDueBase > 0) hints.push(formatBaseMoney(changeDueBase));
+                                if (changeDueAlt > 0 && altAvailable) hints.push(formatCurrencyValue(changeDueAlt, altCurrencyCode));
+                                changeHintEl.textContent = hints.length ? `Sugerido: ${hints.join(' · ')}` : '';
+                              } else {
+                                changeHintEl.textContent = '';
+                              }
+                            }
+
+                            if (remaining > paymentTolerance) {
+                              remainingEl.textContent = `Faltan ${formatBaseMoney(remaining)}`;
+                              remainingEl.classList.remove('text-emerald-600');
+                              remainingEl.classList.add('text-amber-600');
+                            } else if (remaining < -paymentTolerance) {
+                              remainingEl.textContent = `Vuelto ${formatBaseMoney(remainingAbs)}`;
+                              remainingEl.classList.remove('text-amber-600');
+                              remainingEl.classList.add('text-emerald-600');
+                            } else {
+                              remainingEl.textContent = 'Completo';
+                              remainingEl.classList.remove('text-amber-600');
+                              remainingEl.classList.add('text-emerald-600');
+                            }
+
+                            if (remainingAltEl) {
+                              if (!altAvailable || remainingAlt === null) {
+                                remainingAltEl.textContent = '--';
+                              } else if (remainingAlt > altTolerance) {
+                                remainingAltEl.textContent = `Faltan ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
+                              } else if (remainingAlt < -altTolerance) {
+                                remainingAltEl.textContent = `Vuelto ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
+                              } else {
+                                remainingAltEl.textContent = formatCurrencyValue(0, altCurrencyCode);
+                              }
+                            }
+
+                            if (changeToggle?.checked) {
+                              dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                                const accountId = row.dataset.changeRow;
+                                const account = accountsById.get(String(accountId));
+                                if (!account) return;
+                                const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                                const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
+                                const amount = parseMoneyInput(input);
+                                if (amount <= 0) {
+                                  if (equivalentEl) equivalentEl.textContent = '';
+                                  return;
+                                }
+
+                                const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                                if (baseAmount === null) {
+                                  if (equivalentEl) {
+                                    equivalentEl.textContent = 'Sin tasa de conversion';
+                                    equivalentEl.classList.add('text-red-500');
+                                  }
+                                  return;
+                                }
+
+                                if (equivalentEl) {
+                                  equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
+                                  equivalentEl.classList.remove('text-red-500');
+                                }
+                              });
+                            }
+                          };
+
+                          const toggleBankButton = dialog.querySelector('[data-toggle-bank-accounts]');
+                          const extraBankRows = Array.from(dialog.querySelectorAll('[data-bank-extra="true"]'));
+
+                          const resetExtraBankRow = (row) => {
+                            const accountId = row.dataset.payRow;
+                            const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                            const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                            const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
+                            const equivalentEl = row.querySelector(`[data-pay-equivalent="${accountId}"]`);
+
+                            if (checkbox) checkbox.checked = false;
+                            if (input) {
+                              input.disabled = true;
+                              input.value = '';
+                            }
+                            if (bankFields) {
+                              bankFields.querySelectorAll('select, input').forEach((field) => {
+                                field.value = '';
+                                field.disabled = true;
+                              });
+                            }
+                            if (equivalentEl) equivalentEl.textContent = '';
+                          };
+
+                          if (toggleBankButton && extraBankRows.length > 0) {
+                            let expanded = false;
+
+                            const syncExtraBankRows = () => {
+                              extraBankRows.forEach((row) => {
+                                row.classList.toggle('hidden', !expanded);
+                                if (!expanded) resetExtraBankRow(row);
+                              });
+                              toggleBankButton.textContent = expanded ? 'Ocultar cuentas' : 'Ver mas cuentas';
+                            };
+
+                            toggleBankButton.addEventListener('click', () => {
+                              expanded = !expanded;
+                              syncExtraBankRows();
+                              updateRemaining();
+                            });
+
+                            syncExtraBankRows();
+                          }
+
+                          if (changeToggle) {
+                            changeToggle.addEventListener('change', () => {
+                              setChangeRowsEnabled(changeToggle.checked);
+                              updateRemaining();
+                            });
+                          }
+
+                          dialog.querySelectorAll('[data-change-check]').forEach((checkbox) => {
+                            checkbox.addEventListener('change', () => {
+                              const accountId = checkbox.dataset.changeCheck;
+                              const row = dialog.querySelector(`[data-change-row="${accountId}"]`);
+                              const input = dialog.querySelector(`[data-change-input="${accountId}"]`);
+                              const bankFields = dialog.querySelector(`[data-change-bank-fields="${accountId}"]`);
+                              if (!input) return;
+
+                              input.disabled = !checkbox.checked;
+                              if (!checkbox.checked) input.value = '';
+                              if (bankFields) {
+                                bankFields.querySelectorAll('select, input').forEach((field) => {
+                                  field.disabled = !checkbox.checked;
+                                  if (!checkbox.checked && field.tagName === 'INPUT') field.value = '';
+                                  if (!checkbox.checked && field.tagName === 'SELECT') field.value = '';
+                                });
+                              }
+
+                              if (row) row.classList.toggle('border-amber-300', checkbox.checked);
+                              updateRemaining();
+                            });
+                          });
+
+                          dialog.querySelectorAll('[data-change-input]').forEach((input) => {
+                            input.addEventListener('input', updateRemaining);
+                          });
+
+                          dialog.querySelectorAll('[data-change-bank-method]').forEach((select) => {
+                            select.addEventListener('change', updateRemaining);
+                          });
+
+                          dialog.querySelectorAll('[data-change-reference]').forEach((input) => {
+                            input.addEventListener('input', updateRemaining);
+                          });
+
+                          dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
+                            checkbox.addEventListener('change', () => {
+                              const accountId = checkbox.dataset.payCheck;
+                              const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                              const input = dialog.querySelector(`[data-pay-input="${accountId}"]`);
+                              const bankFields = dialog.querySelector(`[data-pay-bank-fields="${accountId}"]`);
+                              if (!input) return;
+
+                              input.disabled = !checkbox.checked;
+                              if (!checkbox.checked) input.value = '';
+                              if (bankFields) {
+                                bankFields.querySelectorAll('select, input').forEach((field) => {
+                                  field.disabled = !checkbox.checked;
+                                  if (!checkbox.checked && field.tagName === 'INPUT') field.value = '';
+                                  if (!checkbox.checked && field.tagName === 'SELECT') field.value = '';
+                                });
+                              }
+
+                              if (row) row.classList.toggle('border-sky-300', checkbox.checked);
+                              updateRemaining();
+                            });
+                          });
+
+                          dialog.querySelectorAll('[data-pay-input]').forEach((input) => {
+                            input.addEventListener('input', updateRemaining);
+                          });
+
+                          updateRemaining();
+                        },
+                        preConfirm: () => {
+                          const dialog = window.Swal.getHtmlContainer();
+                          if (!dialog) return null;
+
+                          let paidBase = 0;
+                          const payments = [];
+                          let missingMethod = false;
+                          let missingConversion = false;
+                          let missingReference = false;
+
+                          dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                            const accountId = row.dataset.payRow;
+                            const account = accountsById.get(String(accountId));
+                            if (!account) return;
+
+                            const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                            if (!checkbox?.checked) return;
+
+                            const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                            const amount = parseMoneyInput(input);
+                            if (amount <= 0) return;
+
+                            let method = 'cash';
+                            if (account.account_type === 'bank_account') {
+                              const methodSelect = row.querySelector(`[data-pay-bank-method="${accountId}"]`);
+                              method = methodSelect?.value || '';
+                              if (!method) missingMethod = true;
+                              const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
+                              const referenceValue = referenceInput?.value || '';
+                              if (!/^\d{6}$/.test(referenceValue)) missingReference = true;
+                            } else if (account.account_type === 'cash_box') {
+                              method = 'cash';
+                            } else if (account.account_type === 'card') {
+                              method = 'card';
+                            } else if (account.account_type === 'pos') {
+                              method = 'pos';
+                            } else if (account.account_type === 'biopago') {
+                              method = 'biopago';
+                            } else if (account.account_type === 'cashea') {
+                              method = 'cashea';
+                            } else if (account.account_type === 'digital_wallet') {
+                              method = 'wallet';
+                            } else if (account.account_type === 'crypto_wallet') {
+                              method = 'crypto';
+                            }
+
+                            const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                            if (baseAmount === null) {
+                              missingConversion = true;
+                              return;
+                            }
+
+                            const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
+                            const reference = referenceInput?.value || '';
+
+                            payments.push({
+                              account_id: accountId,
+                              method: method,
+                              amount: amount,
+                              currency: account.currency,
+                              reference: reference.trim(),
+                            });
+
+                            paidBase += baseAmount;
+                          });
+
+                          if (missingMethod) {
+                            window.Swal.showValidationMessage('Selecciona el metodo de pago para cuentas bancarias.');
+                            return null;
+                          }
+
+                          if (missingReference) {
+                            window.Swal.showValidationMessage('La referencia debe tener 6 digitos.');
+                            return null;
+                          }
+
+                          if (missingConversion) {
+                            window.Swal.showValidationMessage('Hay pagos sin tasa de conversion disponible.');
+                            return null;
+                          }
+
+                          if (payments.length === 0) {
+                            window.Swal.showValidationMessage('Registra al menos un pago.');
+                            return null;
+                          }
+
+                          let remaining = roundTo(totalBase - paidBase, 2);
+                          if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
+                          if (remaining > paymentTolerance) {
+                            window.Swal.showValidationMessage(`Falta por cancelar ${formatBaseMoney(remaining)}`);
+                            return null;
+                          }
+
+                          const changeToggle = dialog.querySelector('[data-change-toggle]');
+                          const changeEntries = [];
+                          let missingChangeMethod = false;
+                          let missingChangeReference = false;
+                          let missingChangeConversion = false;
+
+                          if (changeToggle?.checked) {
+                            dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                              const accountId = row.dataset.changeRow;
+                              const account = accountsById.get(String(accountId));
+                              if (!account) return;
+
+                              const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                              if (!checkbox?.checked) return;
+
+                              const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                              const amount = parseMoneyInput(input);
+                              if (amount <= 0) return;
+
+                              let method = 'cash';
+                              if (account.account_type === 'bank_account') {
+                                const methodSelect = row.querySelector(`[data-change-bank-method="${accountId}"]`);
+                                method = methodSelect?.value || '';
+                                if (!method) missingChangeMethod = true;
+                                const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
+                                const referenceValue = referenceInput?.value || '';
+                                if (!/^\d{6}$/.test(referenceValue)) missingChangeReference = true;
+                              } else if (account.account_type === 'cash_box') {
+                                method = 'cash';
+                              } else if (account.account_type === 'card') {
+                                method = 'card';
+                              } else if (account.account_type === 'pos') {
+                                method = 'pos';
+                              } else if (account.account_type === 'biopago') {
+                                method = 'biopago';
+                              } else if (account.account_type === 'cashea') {
+                                method = 'cashea';
+                              } else if (account.account_type === 'digital_wallet') {
+                                method = 'wallet';
+                              } else if (account.account_type === 'crypto_wallet') {
+                                method = 'crypto';
+                              }
+
+                              const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                              if (baseAmount === null) {
+                                missingChangeConversion = true;
+                                return;
+                              }
+
+                              const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
+                              const reference = referenceInput?.value || '';
+
+                              changeEntries.push({
+                                account_id: accountId,
+                                method: method,
+                                amount: amount,
+                                currency: account.currency,
+                                reference: reference.trim(),
+                              });
+                            });
+
+                            if (missingChangeMethod) {
+                              window.Swal.showValidationMessage('Selecciona el metodo del vuelto para cuentas bancarias.');
+                              return null;
+                            }
+
+                            if (missingChangeReference) {
+                              window.Swal.showValidationMessage('La referencia del vuelto debe tener 6 digitos.');
+                              return null;
+                            }
+
+                            if (missingChangeConversion) {
+                              window.Swal.showValidationMessage('Hay vueltos sin tasa de conversion disponible.');
+                              return null;
+                            }
+
+                            if (changeEntries.length === 0) {
+                              window.Swal.showValidationMessage('Registra al menos un monto de vuelto o desactiva la opcion.');
+                              return null;
+                            }
+                          }
+
+                          return { payments, change: changeEntries, totalBase };
+                        },
+                      }).then((result) => {
+                        if (!result.isConfirmed) return;
+                        submitVenta(result.value?.payments || [], result.value?.change || []);
+                      });
+                    });
+                  }
+
+                  const clientSearchInput = document.getElementById('ventas-client-search');
+                  const clientResults = document.getElementById('ventas-client-results');
+                  const clientList = document.getElementById('ventas-client-list');
+                  const clientAddButton = document.getElementById('ventas-client-add');
+                  const clientSelected = document.getElementById('ventas-client-selected');
+                  const clientName = document.getElementById('ventas-client-name');
+                  const clientEmpty = document.getElementById('ventas-client-empty');
+                  const clientClear = document.getElementById('ventas-client-clear');
+                  let clientSearchTimeout = null;
+
+                  const setSelectedClient = (client) => {
+                    selectedClient = client;
+                    if (client && clientSearchInput) {
+                      clientSearchInput.value = '';
+                    }
+                    if (clientSelected && clientName && clientEmpty) {
+                      if (client) {
+                        clientName.textContent = `${client.name} (${client.document || 'N/A'})`;
+                        clientSelected.classList.remove('hidden');
+                        clientSelected.classList.add('flex');
+                        clientEmpty.classList.add('hidden');
+                      } else {
+                        clientName.textContent = '';
+                        clientSelected.classList.add('hidden');
+                        clientSelected.classList.remove('flex');
+                        clientEmpty.classList.remove('hidden');
+                      }
+                    }
+                  };
+
+                  const hideClientResults = () => {
+                    if (clientResults) {
+                      clientResults.classList.add('hidden');
+                    }
+                  };
+
+                  const renderClientResults = (clients) => {
+                    if (!clientList || !clientResults) return;
+                    if (!clients || clients.length === 0) {
+                      clientList.innerHTML = '<p class="px-3 py-2 text-sm text-slate-500">Sin coincidencias</p>';
+                      clientResults.classList.remove('hidden');
+                      return;
+                    }
+
+                    const rows = clients
+                      .map((client) => {
+                        return `
+                          <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${escapeHtml(client.name)}" data-client-doc="${escapeHtml(client.document || '')}">
+                            <span>${escapeHtml(client.name)}</span>
+                            <span class="text-xs text-slate-400">${escapeHtml(client.document || '')}</span>
+                          </button>
+                        `;
+                      })
+                      .join('');
+
+                    clientList.innerHTML = rows;
+                    clientResults.classList.remove('hidden');
+                  };
+
+                  const searchClients = async (query) => {
+                    if (!query || query.length < 1) {
+                      hideClientResults();
+                      return;
+                    }
+
+                    try {
+                      const response = await fetch(`/clientes/search?q=${encodeURIComponent(query)}`);
+                      const data = await response.json();
+                      renderClientResults(data.clients || []);
+                    } catch (error) {
+                      renderClientResults([]);
+                    }
+                  };
+
+                  const openClientModal = (presetName) => {
+                    if (!window.Swal) return;
+
+                    const modalHtml = `
+                      <div class="space-y-3 text-left">
+                        <div class="grid grid-cols-3 gap-2">
+                          <select id="cliente-document-type" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500">
+                            <option value="">Tipo</option>
+                            <option value="V">V</option>
+                            <option value="E">E</option>
+                            <option value="J">J</option>
+                            <option value="G">G</option>
+                          </select>
+                          <input id="cliente-document-number" type="text" class="col-span-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Numero">
+                        </div>
+                        <input id="cliente-name" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Nombre o razon social" value="${escapeHtml(presetName || '')}">
+                        <input id="cliente-phone" type="text" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Telefono">
+                        <textarea id="cliente-address" rows="2" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-sky-500 focus:ring-sky-500" placeholder="Direccion"></textarea>
+                      </div>
+                    `;
+
+                    window.Swal.fire({
+                      title: 'Nuevo cliente',
+                      html: modalHtml,
+                      showCancelButton: true,
+                      confirmButtonText: 'Guardar',
+                      cancelButtonText: 'Cancelar',
+                      focusConfirm: false,
+                      heightAuto: false,
+                      preConfirm: async () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        if (!dialog) return null;
+
+                        const documentType = dialog.querySelector('#cliente-document-type')?.value || '';
+                        const documentNumber = dialog.querySelector('#cliente-document-number')?.value || '';
+                        const name = dialog.querySelector('#cliente-name')?.value || '';
+                        const phone = dialog.querySelector('#cliente-phone')?.value || '';
+                        const address = dialog.querySelector('#cliente-address')?.value || '';
+
+                        if (!documentType) {
+                          window.Swal.showValidationMessage('Selecciona el prefijo de identidad.');
+                          return null;
+                        }
+
+                        if (!name.trim()) {
+                          window.Swal.showValidationMessage('El nombre es obligatorio.');
+                          return null;
+                        }
+
+                        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+                        if (!csrfToken) {
+                          window.Swal.showValidationMessage('Token CSRF no disponible.');
+                          return null;
+                        }
+
+                        const response = await fetch('/clientes', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrfToken,
+                          },
+                          body: JSON.stringify({
+                            cliente: {
+                              document_type: documentType,
+                              document_number: documentNumber,
+                              name: name.trim(),
+                              phone: phone.trim(),
+                              address: address.trim(),
+                            },
+                          }),
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) {
+                          window.Swal.showValidationMessage(data.error || 'No se pudo guardar el cliente.');
+                          return null;
+                        }
+
+                        return data;
+                      },
+                    }).then((result) => {
+                      if (!result.isConfirmed) return;
+                      const client = result.value;
+                      if (!client) return;
+                      setSelectedClient(client);
+                      hideClientResults();
+                    });
+                  };
+
+                  if (clientSearchInput) {
+                    clientSearchInput.addEventListener('input', () => {
+                      const query = clientSearchInput.value.trim();
+                      if (clientSearchTimeout) clearTimeout(clientSearchTimeout);
+                      clientSearchTimeout = setTimeout(() => searchClients(query), 250);
+                    });
+
+                    clientSearchInput.addEventListener('focus', () => {
+                      const query = clientSearchInput.value.trim();
+                      if (query.length > 0) searchClients(query);
+                    });
+                  }
+
+                  if (clientAddButton) {
+                    clientAddButton.addEventListener('click', () => {
+                      const presetName = clientSearchInput ? clientSearchInput.value.trim() : '';
+                      openClientModal(presetName);
+                    });
+                  }
+
+                  if (clientList) {
+                    clientList.addEventListener('click', (event) => {
+                      const button = event.target.closest('button[data-client-id]');
+                      if (!button) return;
+                      setSelectedClient({
+                        id: button.dataset.clientId,
+                        name: button.dataset.clientName,
+                        document: button.dataset.clientDoc,
+                      });
+                      hideClientResults();
+                    });
+                  }
+
+                  if (clientClear) {
+                    clientClear.addEventListener('click', () => {
+                      setSelectedClient(null);
+                    });
+                  }
+
+                  document.addEventListener('click', (event) => {
+                    if (!clientResults || clientResults.classList.contains('hidden')) return;
+                    if (clientResults.contains(event.target)) return;
+                    if (clientSearchInput && clientSearchInput.contains(event.target)) return;
+                    hideClientResults();
+                  });
+
+                  renderCart();
+                  updateAvailabilityUI();
+                  setSelectedClient(null);
+                };
+
+                document.addEventListener('DOMContentLoaded', initVentasPOS);
+                document.addEventListener('turbo:load', initVentasPOS);
+              })();
+            </script>

@@ -1,0 +1,63 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Registrar pago</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @expense.name %></h1>
+        <p class="mt-1 text-sm text-slate-500">Selecciona la cuenta y el metodo de pago.</p>
+      </div>
+      <%= link_to expense_path(@expense), class: "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+        Volver
+      <% end %>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <%= form_with model: [@expense, @expense_payment], local: true, class: "space-y-6" do |form| %>
+      <% if @expense_payment.errors.any? %>
+        <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold">No se pudo registrar el pago</h4>
+            <span class="text-xs font-medium"><%= pluralize(@expense_payment.errors.count, 'error') %></span>
+          </div>
+          <ul class="mt-2 list-disc pl-5 text-sm">
+            <% @expense_payment.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div>
+          <%= form.label :account_id, "Cuenta", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :account_id, options_for_select(@accounts.map { |account| ["#{account.name} (#{account.currency})", account.id] }, form.object.account_id), { include_blank: "Selecciona una cuenta" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.number_field :amount, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <%= form.label :payment_method, "Metodo (solo banco)", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :payment_method, options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], form.object.payment_method), { include_blank: "Selecciona" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <%= form.label :reference, "Referencia", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :reference, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "6 digitos" %>
+        </div>
+        <div>
+          <%= form.label :occurred_at, "Fecha del pago", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.datetime_local_field :occurred_at, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div class="md:col-span-2">
+          <%= form.label :notes, "Notas", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_area :notes, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <%= form.submit "Registrar pago", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800" %>
+        <%= link_to expense_path(@expense), class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+          Cancelar
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>

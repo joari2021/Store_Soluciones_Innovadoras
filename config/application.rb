@@ -24,6 +24,7 @@ module SolucionesInnovadoras
     # config.time_zone = "Central Time (CARACAS)"
     config.time_zone = "Caracas"
     config.active_record.default_timezone = :local
+    config.i18n.default_locale = :es
     # config.eager_load_paths << Rails.root.join("extras")
     # 
     

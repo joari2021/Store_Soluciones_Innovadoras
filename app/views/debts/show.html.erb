@@ -1,0 +1,127 @@
+<% currency_symbol = Account::CURRENCIES.dig(@debt.currency, :symbol) || @debt.currency %>
+<% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @debt.name %></h1>
+        <p class="mt-1 text-sm text-slate-500"><%= @debt.description.presence || "Sin descripcion" %></p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= link_to new_debt_debt_payment_path(@debt), class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
+          <i data-lucide="credit-card" class="h-4 w-4"></i>
+          <%= action_label %>
+        <% end %>
+        <%= link_to edit_debt_path(@debt), class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
+          <i data-lucide="pencil" class="h-4 w-4"></i>
+          Editar
+        <% end %>
+        <%= link_to debts_path, class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" do %>
+          Volver
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Informacion</p>
+      <dl class="mt-4 grid gap-3 text-sm text-slate-600">
+        <div class="flex items-center justify-between">
+          <dt>Tipo</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.debt_kind_label %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Origen</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.origin_kind_label %></dd>
+        </div>
+        <% if @debt.loan? && @debt.loan_account.present? %>
+          <div class="flex items-center justify-between">
+            <dt>Cuenta prestamo</dt>
+            <dd class="font-semibold text-slate-800"><%= @debt.loan_account.name %> (<%= @debt.loan_account.currency %>)</dd>
+          </div>
+        <% end %>
+        <div class="flex items-center justify-between">
+          <dt><%= @debt.counterparty_label %></dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.counterparty_display_name %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Referencia</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.reference.presence || "-" %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Emision</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.issued_on ? @debt.issued_on.strftime("%d/%m/%Y") : "-" %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Vencimiento</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.due_on ? @debt.due_on.strftime("%d/%m/%Y") : "Sin fecha" %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Estado</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.status_label %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Ultimo pago</dt>
+          <dd class="font-semibold text-slate-800"><%= @debt.last_payment_at ? @debt.last_payment_at.strftime("%d/%m/%Y") : "Sin pagos" %></dd>
+        </div>
+      </dl>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos</p>
+      <dl class="mt-4 grid gap-3 text-sm text-slate-600">
+        <div class="flex items-center justify-between">
+          <dt>Monto total</dt>
+          <dd class="font-semibold text-slate-800"><%= number_to_currency(@debt.amount, unit: "#{currency_symbol} ") %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Pagado</dt>
+          <dd class="font-semibold text-slate-800"><%= number_to_currency(@debt.paid_amount, unit: "#{currency_symbol} ") %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Saldo</dt>
+          <dd class="font-semibold text-slate-800"><%= number_to_currency(@debt.balance, unit: "#{currency_symbol} ") %></dd>
+        </div>
+      </dl>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex items-center justify-between">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pagos registrados</p>
+      <span class="text-xs font-semibold text-slate-500"><%= @payments.count %> pagos</span>
+    </div>
+    <% if @payments.any? %>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <table class="min-w-full text-sm text-slate-700">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-4 py-3 text-left">Fecha</th>
+              <th class="px-4 py-3 text-left">Cuenta</th>
+              <th class="px-4 py-3 text-left">Moneda pago</th>
+              <th class="px-4 py-3 text-left">Metodo</th>
+              <th class="px-4 py-3 text-left">Referencia</th>
+              <th class="px-4 py-3 text-right">Monto pago</th>
+              <th class="px-4 py-3 text-right">Equivalente <%= @debt.currency %></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @payments.each do |payment| %>
+              <% payment_symbol = Account::CURRENCIES.dig(payment.currency, :symbol) || payment.currency %>
+              <tr>
+                <td class="px-4 py-3"><%= payment.occurred_at.strftime("%d/%m/%Y") %></td>
+                <td class="px-4 py-3"><%= payment.account.name %></td>
+                <td class="px-4 py-3"><%= payment.currency %></td>
+                <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>
+                <td class="px-4 py-3"><%= payment.reference.presence || '-' %></td>
+                <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount, unit: "#{payment_symbol} ") %></td>
+                <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount_in_debt_currency, unit: "#{currency_symbol} ") %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p class="mt-4 text-sm text-slate-500">Aun no hay pagos registrados.</p>
+    <% end %>
+  </div>
+</div>

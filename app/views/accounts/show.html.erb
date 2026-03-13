@@ -1,0 +1,196 @@
+<div class="space-y-6">
+  <% theme = @account.theme_config %>
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800"><%= @account.name %></h1>
+        <p class="mt-1 text-sm text-slate-500">Historial de movimientos de la cuenta.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <%= link_to 'Editar', edit_account_path(@account), class: 'inline-flex items-center justify-center rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300' %>
+        <%= link_to 'Volver', accounts_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300' %>
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div class="rounded-2xl border p-4 shadow-sm <%= theme[:card] %>">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de cuenta</p>
+      <div class="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 <%= theme[:tag] %>">
+        <i data-lucide="<%= @account.account_type_icon %>" class="h-4 w-4"></i>
+        <span class="text-sm font-semibold"><%= @account.account_type_label %></span>
+      </div>
+    </div>
+    <div class="rounded-2xl border p-4 shadow-sm <%= theme[:card] %>">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Moneda</p>
+      <div class="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 <%= theme[:tag] %>">
+        <i data-lucide="<%= @account.currency_icon %>" class="h-4 w-4"></i>
+        <span class="text-sm font-semibold"><%= @account.currency_label %></span>
+        <span class="rounded bg-white/70 px-2 py-0.5 text-xs font-bold"><%= @account.currency_symbol %></span>
+      </div>
+    </div>
+    <% if @account.settlement_enabled? %>
+      <div class="rounded-2xl border p-4 shadow-sm <%= theme[:card] %>">
+        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Cuenta asignada</p>
+        <p class="mt-2 text-sm font-semibold text-slate-800">
+          <%= @account.settlement_account&.name || 'Sin asignar' %>
+        </p>
+        <p class="mt-1 text-xs text-slate-500">Solo cuentas bancarias en Bs.</p>
+      </div>
+    <% end %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:col-span-2">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Saldo</p>
+      <p class="mt-2 text-2xl font-extrabold tracking-tight text-slate-800"><%= format_money(@account.balance, unit: @account.currency_symbol) %></p>
+      <% if @account.currency == 'VES' && @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+        <% usd_equivalent = @account.balance.to_d / @bcv_rate.to_d %>
+        <p class="mt-1 text-xs text-slate-500">Aprox. <%= format_money(usd_equivalent, unit: '$') %> (BCV)</p>
+      <% end %>
+      <p class="mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Estado</p>
+      <span class="mt-2 inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold <%= @account.active? ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600' %>">
+        <%= @account.active? ? 'Activa' : 'Inactiva' %>
+      </span>
+      <p class="mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Notas</p>
+      <p class="mt-2 text-sm text-slate-700"><%= @account.notes.presence || '-' %></p>
+    </div>
+  </div>
+  <% if @account.settlement_enabled? %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Cierres y liquidaciones</h2>
+          <p class="mt-1 text-sm text-slate-500">Agrupa movimientos pendientes para registrar el cierre.</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <% if @processed_settlements_count.to_i.positive? %>
+            <%= link_to 'Cierres procesados', account_account_settlements_path(@account),
+                        class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer' %>
+          <% end %>
+          <% can_close = @pending_movements_total.to_d.positive? && (!@account.settlement_account_required? || @account.settlement_account.present?) %>
+          <%= button_to 'Crear cierre', account_account_settlements_path(@account), method: :post,
+                        disabled: !can_close,
+                        class: "inline-flex items-center justify-center rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors #{can_close ? 'bg-slate-900 hover:bg-slate-800 cursor-pointer' : 'bg-slate-300 cursor-not-allowed'}" %>
+        </div>
+      </div>
+      <div class="mt-4 grid gap-3 md:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Movimientos pendientes</p>
+          <p class="mt-1 text-lg font-bold text-slate-800"><%= @pending_movements_count || 0 %></p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total pendiente</p>
+          <p class="mt-1 text-lg font-bold text-slate-800"><%= format_money(@pending_movements_total || 0, unit: @account.currency_symbol) %></p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Periodo</p>
+          <p class="mt-1 text-sm font-semibold text-slate-700">
+            <% if @pending_period_start && @pending_period_end %>
+              <%= l(@pending_period_start.in_time_zone('Caracas'), format: :short) rescue @pending_period_start.strftime('%d/%m/%Y %H:%M') %>
+              -
+              <%= l(@pending_period_end.in_time_zone('Caracas'), format: :short) rescue @pending_period_end.strftime('%d/%m/%Y %H:%M') %>
+            <% else %>
+              Sin movimientos
+            <% end %>
+          </p>
+        </div>
+      </div>
+      <% if @account.settlement_account_required? && @account.settlement_account.blank? %>
+        <p class="mt-3 text-sm text-amber-600">Asigna una cuenta bancaria en Bs para habilitar los cierres.</p>
+      <% end %>
+      <% if @account_settlements.present? %>
+        <div class="mt-5 space-y-3">
+          <% @account_settlements.each do |settlement| %>
+            <div class="rounded-xl border border-slate-200 bg-white p-4">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-slate-800">Cierre #<%= settlement.id %></p>
+                  <p class="text-xs text-slate-500">
+                    <% if settlement.period_start_at && settlement.period_end_at %>
+                      <%= l(settlement.period_start_at.in_time_zone('Caracas'), format: :short) rescue settlement.period_start_at.strftime('%d/%m/%Y %H:%M') %>
+                      -
+                      <%= l(settlement.period_end_at.in_time_zone('Caracas'), format: :short) rescue settlement.period_end_at.strftime('%d/%m/%Y %H:%M') %>
+                    <% else %>
+                      Cerrado: <%= l(settlement.closed_at.in_time_zone('Caracas'), format: :short) rescue settlement.closed_at.strftime('%d/%m/%Y %H:%M') %>
+                    <% end %>
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-slate-500">Total del cierre</p>
+                  <p class="text-sm font-bold text-slate-800"><%= format_money(settlement.total_amount, unit: @account.currency_symbol) %></p>
+                </div>
+              </div>
+              <%= form_with model: settlement,
+                            url: account_account_settlement_path(@account, settlement),
+                            method: :patch,
+                            local: true,
+                            class: 'mt-3 grid gap-3 md:grid-cols-3 items-end' do |f| %>
+                <div>
+                  <%= f.label :credited_amount, 'Monto acreditado', class: 'block text-xs font-semibold uppercase tracking-wider text-slate-500' %>
+                  <%= f.text_field :credited_amount,
+                                   value: format_money(settlement.credited_amount || 0, unit: 'Bs'),
+                                   inputmode: 'decimal',
+                                   autocomplete: 'off',
+                                   data: { money_mask: 'true', money_symbol: 'Bs' },
+                                   class: 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+                </div>
+                <div>
+                  <%= f.label :commission_amount, 'Comision', class: 'block text-xs font-semibold uppercase tracking-wider text-slate-500' %>
+                  <%= f.text_field :commission_amount,
+                                   value: format_money(settlement.commission_amount || 0, unit: 'Bs'),
+                                   inputmode: 'decimal',
+                                   autocomplete: 'off',
+                                   data: { money_mask: 'true', money_symbol: 'Bs' },
+                                   class: 'mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+                </div>
+                <div>
+                  <%= f.submit 'Procesar cierre', class: 'w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 transition-colors cursor-pointer' %>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="mt-4 text-sm text-slate-500">No hay cierres pendientes por procesar.</p>
+      <% end %>
+    </div>
+  <% end %>
+  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-100 px-5 py-4">
+      <h2 class="text-lg font-semibold text-slate-800">
+        <%= @account.settlement_enabled? ? 'Movimientos pendientes' : 'Historial de movimientos' %>
+      </h2>
+      <p class="mt-1 text-sm text-slate-500">
+        <%= @account.settlement_enabled? ? 'Solo movimientos sin cierre asociado.' : 'Ordenado desde el más reciente al más antiguo.' %>
+      </p>
+    </div>
+    <% if @account_movements.any? %>
+      <ul class="divide-y divide-slate-100">
+        <% @account_movements.each do |movement| %>
+          <% signed_amount = movement.signed_amount %>
+          <% amount_positive = signed_amount >= 0 %>
+          <li class="px-5 py-4">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></p>
+                <p class="text-xs text-slate-500">
+                  <%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %>
+                </p>
+                <% if movement.payment_method.present? %>
+                  <p class="mt-1 text-xs text-slate-500">Metodo: <span class="font-semibold text-slate-700"><%= movement.payment_method_label %></span></p>
+                <% end %>
+                <p class="mt-1 text-sm text-slate-600"><%= movement.description.presence || 'Sin descripción' %></p>
+              </div>
+              <div class="text-right">
+                <span class="text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>">
+                  <%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %>
+                </span>
+              </div>
+            </div>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <div class="px-5 py-8 text-center text-sm text-slate-500">
+        <%= @account.settlement_enabled? ? 'No hay movimientos pendientes para esta cuenta.' : 'No hay movimientos registrados para esta cuenta.' %>
+      </div>
+    <% end %>
+  </div>
+</div>

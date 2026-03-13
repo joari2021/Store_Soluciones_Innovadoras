@@ -1,0 +1,24 @@
+<%= form_with model: business, local: true do |f| %>
+  <% if business.errors.any? %>
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar el negocio</h4>
+        <span class="text-xs font-medium"><%= pluralize(business.errors.count, 'error') %></span>
+      </div>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% business.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div class="grid grid-cols-2 gap-4">
+    <div class="col-span-2">
+      <%= f.label :name, 'Nombre del negocio', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :name, class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Ej: Sistema Central, Sucursal Valencia' %>
+    </div>
+  </div>
+  <div class="mt-6">
+    <%= f.submit business.persisted? ? 'Actualizar negocio' : 'Guardar negocio', class: 'rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-800' %>
+  </div>
+<% end %>

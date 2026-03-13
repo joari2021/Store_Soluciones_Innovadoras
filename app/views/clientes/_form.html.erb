@@ -1,0 +1,43 @@
+<%= form_with model: cliente, local: true do |f| %>
+  <% if cliente.errors.any? %>
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar el cliente</h4>
+        <span class="text-xs font-medium"><%= pluralize(cliente.errors.count, 'error') %></span>
+      </div>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% cliente.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div class="grid grid-cols-2 gap-4">
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :document_type, 'Tipo de documento', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.select :document_type,
+                   options_for_select(Cliente::DOCUMENT_TYPES.map { |t| [t, t] }, cliente.document_type),
+                   {},
+                   class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :document_number, 'Numero de documento', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :document_number, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2">
+      <%= f.label :name, 'Nombre o razon social', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :name, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :phone, 'Telefono', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_field :phone, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :address, 'Direccion', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_area :address, rows: 2, class: 'mt-1 block w-full border border-slate-300 rounded-md shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+  </div>
+  <div class="mt-6">
+    <%= f.submit 'Guardar cliente', class: 'bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800' %>
+  </div>
+<% end %>

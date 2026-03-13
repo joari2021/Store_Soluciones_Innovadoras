@@ -7,21 +7,146 @@
     <%= csp_meta_tag %>
     <!--=============== REMIXICONS ===============-->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/remixicon/4.2.0/remixicon.min.css">
-    <!-- Importar CSS de Bootstrap -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
     <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js" defer></script>
     <%= javascript_importmap_tags %>
+    <%= javascript_include_tag "delete_confirmation_dialog" %>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   </head>
-  <body>
-    <%= image_tag 'FondoPagina.png', alt: "image", class: "bg__image" %>
-    <div class="bg__blur"></div>
-    <%= render "shared/flash" %>
-    <%= render "shared/header" %>
-    <%= render "shared/nav" %>
-    <main class="main">
-      <%= yield %>
-    </main>
+  <body class="text-slate-600 bg-gradient-to-br from-sky-50 via-white to-blue-50 h-screen overflow-hidden selection:bg-sky-200 selection:text-sky-900">
+    <div class="flex h-full">
+      <!-- Desktop Sidebar -->
+      <%= render "shared/sidebar" %>
+      <!-- Main Content -->
+      <main class="flex-1 flex flex-col h-full overflow-hidden relative w-full">
+        <!-- Header Mobile/Desktop -->
+        <%= render "shared/header" %>
+        <!-- Scrollable Area -->
+        <div id="content-container" class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+          <%= render "shared/flash_toasts" %>
+          <%= yield %>
+        </div>
+      </main>
+      <!-- Mobile Bottom Navigation -->
+      <nav class="md:hidden fixed bottom-0 w-full glass border-t border-sky-100 z-50 px-6 py-3 flex justify-between items-center pb-safe">
+        <button onclick="switchTab('dashboard')" class="mobile-nav-btn mobile-nav-active flex flex-col items-center gap-1 text-slate-400 transition-colors">
+          <i data-lucide="layout-grid" class="w-6 h-6"></i>
+        </button>
+        <%= link_to ventas_path, onclick: "switchTab('ventas')", class: 'mobile-nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors' do %>
+          <i data-lucide="shopping-cart" class="w-6 h-6"></i>
+        <% end %>
+        <div class="w-12 h-12 -mt-8 bg-sky-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-sky-200 border-4 border-white cursor-pointer hover:scale-105 transition-transform" onclick="openModal('productModal')">
+          <i data-lucide="plus" class="w-6 h-6"></i>
+        </div>
+        <button onclick="switchTab('productos')" class="mobile-nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors">
+          <i data-lucide="package" class="w-6 h-6"></i>
+        </button>
+        <button onclick="switchTab('clientes')" class="mobile-nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors">
+          <i data-lucide="users" class="w-6 h-6"></i>
+        </button>
+      </nav>
+    </div>
+    <div id="materialize-datepicker-portal" class="materialize-datepicker-scope"></div>
+    <script>
+      lucide.createIcons();
+
+      if (!window.getTabIdFromPath) {
+        window.getTabIdFromPath = function(path) {
+          if (!path) return null;
+          if (path.includes('/productos')) return 'productos';
+          if (path.includes('/facturas')) return 'facturas';
+          if (path.includes('/suppliers')) return 'proveedores';
+          if (path.includes('/cuentas')) return 'cuentas';
+          if (path.includes('/tasa_cambios')) return 'tasas';
+          if (path.includes('/ventas')) return 'ventas';
+          if (path.includes('/clientes')) return 'clientes';
+          if (path.includes('/services')) return 'servicios';
+          if (path.includes('/expenses')) return 'gastos';
+          if (path.includes('/deudas')) return 'deudas';
+          return null;
+        };
+      }
+
+      if (!window.switchTab) {
+        window.switchTab = function(tabId, options = {}) {
+          const currentTabId = window.getTabIdFromPath(window.location.pathname);
+          const isSameView = currentTabId === tabId;
+          const shouldAnimate = options.animate !== false && !isSameView;
+
+          // Hide only tab sections to avoid affecting nested form sections.
+          document.querySelectorAll('section[id^="tab-"]').forEach(section => {
+            section.classList.add('hidden');
+            if (shouldAnimate) {
+              section.classList.remove('fade-in');
+            }
+          });
+
+          // Show selected if exists
+          const activeSection = document.getElementById('tab-' + tabId);
+          if (activeSection) {
+            activeSection.classList.remove('hidden');
+            if (shouldAnimate) {
+              // Trigger reflow for animation
+              void activeSection.offsetWidth;
+              activeSection.classList.add('fade-in');
+            }
+          }
+
+          // Update Desktop Sidebar (buscar tanto buttons como links con onclick)
+          document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-item-active'));
+          const desktopEls = document.querySelectorAll(`aside [onclick*="${tabId}"]`);
+          if (desktopEls.length > 0) desktopEls[0].classList.add('nav-item-active');
+
+          // Update Mobile Nav
+          document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('mobile-nav-active', 'text-sky-500'));
+          document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.add('text-slate-400'));
+
+          const mobileEls = document.querySelectorAll(`nav.md\\:hidden [onclick*="${tabId}"]`);
+          if (mobileEls.length > 0) {
+            mobileEls[0].classList.add('mobile-nav-active', 'text-sky-500');
+            mobileEls[0].classList.remove('text-slate-400');
+          }
+
+          window.__activeTabId = tabId;
+        };
+      }
+
+      if (!window.setActiveFromPath) {
+        window.setActiveFromPath = function() {
+          const tabId = window.getTabIdFromPath(window.location.pathname);
+          if (tabId) {
+            window.switchTab(tabId, { animate: false });
+          }
+        };
+      }
+
+      if (!window.__navListenersBound) {
+        window.__navListenersBound = true;
+        document.addEventListener('turbo:load', window.setActiveFromPath);
+      }
+
+        function openModal(id) {
+          const modal = document.getElementById(id);
+          if (!modal) return; // evita errores si el modal aún no está en el DOM
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+        }
+
+        function closeModal(id) {
+          const modal = document.getElementById(id);
+          if (!modal) return;
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+        }
+
+      window.onclick = function(event) {
+          const modal = document.getElementById('productModal');
+          if (event.target == modal) {
+              closeModal('productModal');
+          }
+      }
+    </script>
   </body>
 </html>

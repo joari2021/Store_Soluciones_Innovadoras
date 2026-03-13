@@ -1,0 +1,157 @@
+<!-- Modal Example (Responsive) -->
+<div id="productModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 fade-in">
+  <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden relative max-h-[90vh]">
+    <div class="p-6 border-b border-sky-50 flex justify-between items-center bg-sky-50/30">
+      <h3 class="text-lg font-bold text-slate-700">Nuevo Item</h3>
+      <button onclick="closeModal('productModal')" class="w-8 h-8 rounded-full bg-white text-slate-400 hover:text-red-500 flex items-center justify-center transition-colors"><i data-lucide="x" class="w-4 h-4"></i></button>
+    </div>
+    <!-- Contenido scrollable -->
+    <div class="max-h-[70vh] overflow-auto p-6 space-y-5">
+      <!--
+      <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Tipo de Registro</label>
+      <div class="flex gap-4">
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="type" class="text-sky-500 focus:ring-sky-500" checked>
+          <span class="text-sm font-medium text-slate-700">Producto Físico</span>
+        </label>
+        <label class="flex items-center gap-2 cursor-pointer">
+          <input type="radio" name="type" class="text-sky-500 focus:ring-sky-500">
+          <span class="text-sm font-medium text-slate-700">Servicio</span>
+        </label>
+      </div>-->
+      <div class="space-y-4">
+        <%= turbo_frame_tag "modal-productos"%>
+      </div>
+    </div>
+    <!-- Footer fijo fuera del area scrollable -->
+    <div class="p-6 pt-2 flex gap-3 border-t border-slate-100 bg-white">
+      <button type="button" onclick="closeModal('productModal')" class="flex-1 py-3.5 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors">Cancelar</button>
+      <button type="button" class="flex-1 py-3.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all" id="saveModal">Guardar</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function() {
+    const saveBtn = document.getElementById("saveModal");
+    let modalSubmitting = false;
+    if (saveBtn) {
+      saveBtn.addEventListener("click", function() {
+        const submitBtn = document.querySelector(".modal-submit");
+        modalSubmitting = true;
+        setTimeout(() => { modalSubmitting = false; }, 5000);
+        if (submitBtn) submitBtn.click();
+      });
+    }
+
+    const modalFrame = document.querySelector("turbo-frame#modal-productos");
+
+    function openProductModal() {
+      if (typeof openModal === 'function') { openModal('productModal'); return; }
+      const modal = document.getElementById('productModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeProductModal() {
+      if (typeof closeModal === 'function') { closeModal('productModal'); return; }
+      const modal = document.getElementById('productModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function handleModalFrameLoad(e) {
+      const frame = e && e.target ? e.target : modalFrame;
+
+      const errorSelectors = ['#error_explanation', '.field_with_errors', '.errors', '.alert-danger', '.invalid-feedback'];
+      const hasErrors = frame && errorSelectors.some(sel => frame.querySelector(sel));
+
+      if (hasErrors) {
+        openProductModal();
+        if (window.Swal) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error en el formulario',
+            html: 'Corrige los errores indicados en la parte superior formulario.',
+            confirmButtonText: 'OK',
+            heightAuto: false,
+          }).then(() => {
+            const firstInput = frame.querySelector('input.is-invalid, input.invalid, .field_with_errors input, textarea, select, input');
+            if (firstInput) firstInput.focus();
+          });
+        }
+        return;
+      }
+
+      const hasForm = frame && !!frame.querySelector('form');
+      const successMarker = frame && (frame.querySelector('[data-success="true"]') || frame.querySelector('.success, .alert-success'));
+      const frameEmptyish = frame && (!frame.innerHTML || frame.innerHTML.trim().length === 0);
+
+      if (!hasForm && (successMarker || frameEmptyish)) {
+        const newRow = frame.querySelector('tr');
+        if (newRow) {
+          try {
+            const tbody = document.querySelector('#tab-productos table tbody');
+            if (tbody) {
+              const newDesc = (newRow.querySelector('td span.font-medium')?.textContent || '').trim().toLowerCase();
+              const rows = Array.from(tbody.querySelectorAll('tr'));
+              let inserted = false;
+              for (const row of rows) {
+                const desc = (row.querySelector('td span.font-medium')?.textContent || '').trim().toLowerCase();
+                if (newDesc <= desc) {
+                  row.insertAdjacentElement('beforebegin', newRow.cloneNode(true));
+                  inserted = true;
+                  break;
+                }
+              }
+              if (!inserted) tbody.appendChild(newRow.cloneNode(true));
+
+              try { closeProductModal(); } catch (err) { const mod = document.getElementById('productModal'); if (mod) mod.classList.add('hidden'); }
+
+              if (window.Swal) {
+                setTimeout(() => {
+                  Swal.fire({ icon: 'success', title: 'Producto guardado con éxito', showConfirmButton: false, timer: 1500, heightAuto: false });
+                }, 80);
+              }
+            }
+          } catch (err) { /* ignore insertion errors */ }
+        }
+        return;
+      }
+    }
+
+    if (modalFrame) {
+      modalFrame.addEventListener('turbo:frame-load', handleModalFrameLoad);
+    }
+
+    document.addEventListener('turbo:frame-load', (e) => {
+      if (e && e.target && e.target.id === 'modal-productos') {
+        handleModalFrameLoad(e);
+      }
+    });
+
+    (function() {
+      const tbody = document.querySelector('#tab-productos table tbody');
+      if (!tbody) return;
+      let observer = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (!modalSubmitting) continue;
+            try {
+              const el = node.nodeType === 1 ? node : null;
+              if (!el) continue;
+              const isRow = el.tagName === 'TR' || (el.querySelector && el.querySelector('td span.font-medium'));
+              if (isRow) {
+                try { closeProductModal(); } catch (err) { const mod = document.getElementById('productModal'); if (mod) mod.classList.add('hidden'); }
+                if (window.Swal) {
+                  setTimeout(() => { Swal.fire({ icon: 'success', title: 'Producto guardado con éxito', showConfirmButton: false, timer: 1500, heightAuto: false }); }, 120);
+                }
+                modalSubmitting = false;
+                observer.disconnect();
+                return;
+              }
+            } catch (err) { /* ignore observer errors */ }
+          }
+        }
+      });
+      observer.observe(tbody, { childList: true, subtree: false });
+    })();
+  })();
+</script>

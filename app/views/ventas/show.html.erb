@@ -1,0 +1,130 @@
+<% base_is_ves = @venta.base_currency == 'VES' %>
+<% tasa = @venta.tasa_dolar.to_d %>
+<% base_symbol = base_is_ves ? 'Bs ' : '$' %>
+<% alt_symbol = base_is_ves ? '$' : 'Bs ' %>
+<% base_total = base_is_ves ? @venta.base_total : @venta.total_usd %>
+<% alt_total = base_is_ves ? @venta.total_usd : @venta.total_bs %>
+<% base_subtotal = base_is_ves ? @venta.base_subtotal : @venta.subtotal_usd %>
+<% base_vat = base_is_ves ? @venta.base_vat : @venta.vat_usd %>
+<% currency_symbols = { 'USD' => '$', 'USDT' => 'USDT', 'VES' => 'Bs', 'EUR' => 'EUR' } %>
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Venta #<%= @venta.id %></h1>
+        <p class="mt-1 text-sm text-slate-500">Registrada el <%= @venta.created_at.strftime('%d/%m/%Y %H:%M') %></p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to historial_ventas_path, class: "rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+          Volver al historial
+        <% end %>
+        <%= link_to ventas_path, class: "rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800" do %>
+          Ir al POS
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="glass-card rounded-2xl p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</p>
+      <p class="mt-2 text-lg font-bold text-slate-800"><%= @venta.cliente_display_name %></p>
+      <p class="mt-2 text-xs text-slate-500">Estado: <span class="font-semibold text-slate-700"><%= @venta.status_label %></span></p>
+    </div>
+    <div class="glass-card rounded-2xl p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Totales</p>
+      <p class="mt-2 text-xl font-extrabold text-slate-800"><%= format_money(base_total, unit: base_symbol) %></p>
+      <p class="text-xs text-slate-500"><%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: alt_symbol) : '--' %></p>
+      <p class="mt-2 text-xs text-slate-500">Subtotal: <span class="font-semibold text-slate-700"><%= format_money(base_subtotal, unit: base_symbol) %></span></p>
+      <p class="text-xs text-slate-500">IVA: <span class="font-semibold text-slate-700"><%= format_money(base_vat, unit: base_symbol) %></span></p>
+    </div>
+    <div class="glass-card rounded-2xl p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Base e IVA</p>
+      <p class="mt-2 text-sm text-slate-600">Moneda base: <span class="font-semibold text-slate-800"><%= @venta.base_currency %></span></p>
+      <p class="text-sm text-slate-600">IVA: <span class="font-semibold text-slate-800"><%= @venta.vat_mode_label %> (<%= (@venta.vat_rate.to_d * 100).round(2) %>%)</span></p>
+      <p class="text-sm text-slate-600">Tasa BCV: <span class="font-semibold text-slate-800"><%= tasa.positive? ? format_money(tasa, unit: 'Bs ') : 'No disponible' %></span></p>
+    </div>
+  </div>
+  <div class="glass-card rounded-2xl overflow-hidden">
+    <div class="border-b border-slate-100 bg-slate-50 px-6 py-4">
+      <h2 class="text-base font-bold text-slate-800">Items vendidos</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm text-slate-700">
+        <thead class="bg-white text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-6 py-4 text-left font-bold">Producto</th>
+            <th class="px-6 py-4 text-left font-bold">Variacion</th>
+            <th class="px-6 py-4 text-center font-bold">Cantidad</th>
+            <th class="px-6 py-4 text-right font-bold">Precio unitario</th>
+            <th class="px-6 py-4 text-right font-bold">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% @venta.venta_items.each_with_index do |item, index| %>
+            <% unit_usd = item.unit_price_usd.to_d.round(2) %>
+            <% subtotal_usd = item.subtotal_usd.to_d.round(2) %>
+            <% unit_base = base_is_ves ? @venta.base_unit_price(item) : unit_usd %>
+            <% subtotal_base = base_is_ves ? @venta.base_line_subtotal(item) : subtotal_usd %>
+            <% unit_alt = base_is_ves ? unit_usd : (tasa.positive? ? (unit_usd * tasa).round(2) : 0) %>
+            <% subtotal_alt = base_is_ves ? subtotal_usd : (tasa.positive? ? (subtotal_usd * tasa).round(2) : 0) %>
+            <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
+              <td class="px-6 py-4 font-semibold text-slate-800"><%= item.product_name.presence || item.producto&.descripcion || 'Producto' %></td>
+              <td class="px-6 py-4"><%= item.variation_name.presence || item.product_variation&.description || 'Unica' %></td>
+              <td class="px-6 py-4 text-center"><%= format_quantity(item.quantity, precision: 2) %></td>
+              <td class="px-6 py-4 text-right">
+                <span class="font-semibold text-slate-800"><%= format_money(unit_base, unit: base_symbol) %></span>
+                <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(unit_alt, unit: alt_symbol) : '--' %></div>
+              </td>
+              <td class="px-6 py-4 text-right">
+                <span class="font-semibold text-slate-800"><%= format_money(subtotal_base, unit: base_symbol) %></span>
+                <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(subtotal_alt, unit: alt_symbol) : '--' %></div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="glass-card rounded-2xl overflow-hidden">
+    <div class="border-b border-slate-100 bg-slate-50 px-6 py-4">
+      <h2 class="text-base font-bold text-slate-800">Pagos registrados</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm text-slate-700">
+        <thead class="bg-white text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-6 py-4 text-left font-bold">Cuenta</th>
+            <th class="px-6 py-4 text-left font-bold">Tipo</th>
+            <th class="px-6 py-4 text-left font-bold">Metodo</th>
+            <th class="px-6 py-4 text-center font-bold">Moneda</th>
+            <th class="px-6 py-4 text-right font-bold">Monto</th>
+            <th class="px-6 py-4 text-right font-bold">Equivalente base</th>
+            <th class="px-6 py-4 text-left font-bold">Referencia</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% @venta.venta_payments.each_with_index do |payment, index| %>
+            <% account_name = payment.account&.name || 'Sin cuenta' %>
+            <% currency_symbol = payment.account&.currency_symbol || currency_symbols[payment.currency] || payment.currency %>
+            <% sign = payment.payment_kind == 'out' ? -1 : 1 %>
+            <% base_amount = (base_is_ves ? payment.amount_bs : payment.amount_usd) * sign %>
+            <% alt_amount = (base_is_ves ? payment.amount_usd : payment.amount_bs) * sign %>
+            <% original_amount = payment.amount_original.to_d * sign %>
+            <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
+              <td class="px-6 py-4 font-semibold text-slate-800"><%= account_name %></td>
+              <td class="px-6 py-4"><%= payment.payment_kind_label %></td>
+              <td class="px-6 py-4"><%= payment.payment_method_label %></td>
+              <td class="px-6 py-4 text-center"><%= payment.currency %></td>
+              <td class="px-6 py-4 text-right"><%= format_money(original_amount, unit: currency_symbol) %></td>
+              <td class="px-6 py-4 text-right">
+                <span class="font-semibold text-slate-800"><%= format_money(base_amount, unit: base_symbol) %></span>
+                <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(alt_amount, unit: alt_symbol) : '--' %></div>
+              </td>
+              <td class="px-6 py-4"><%= payment.reference.presence || '-' %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

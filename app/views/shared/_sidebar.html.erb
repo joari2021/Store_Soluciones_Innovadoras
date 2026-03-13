@@ -1,0 +1,99 @@
+ <!--==================== NAV ====================-->
+<aside class="w-72 bg-white/80 border-r border-sky-100 hidden md:flex flex-col backdrop-blur-md z-20">
+  <div class="p-8">
+    <div class="flex items-center gap-3 text-sky-600 font-bold text-3xl tracking-tight">
+      <div class="w-10 h-10 bg-gradient-to-tr from-sky-500 to-cyan-400 rounded-xl flex items-center justify-center text-white shadow-lg shadow-sky-200">
+        <i data-lucide="hexagon" class="w-6 h-6"></i>
+      </div>
+      <span>BizFlow</span>
+    </div>
+  </div>
+  <nav class="flex-1 px-6 space-y-2 mt-2">
+    <!--
+    <button onclick="switchTab('dashboard')" class="nav-btn nav-item-active w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
+      <i data-lucide="layout-grid" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Dashboard</span>
+    </button>
+    <button onclick="switchTab('ventas')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
+      <i data-lucide="shopping-cart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Ventas & POS</span>
+    </button>-->
+    <%= link_to productos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('productos')" do %>
+      <i data-lucide="package" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Productos</span>
+    <% end %>
+    <%= link_to ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('ventas')" do %>
+      <i data-lucide="shopping-cart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Ventas</span>
+    <% end %>
+    <%= link_to historial_ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('ventas')" do %>
+      <i data-lucide="list" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Historial ventas</span>
+    <% end %>
+    <%= link_to purchase_invoices_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('facturas')" do %>
+      <i data-lucide="file-text" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Facturas de Compra</span>
+    <% end %>
+    <%= link_to expenses_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('gastos')" do %>
+      <i data-lucide="receipt" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Gastos</span>
+    <% end %>
+    <%= link_to debts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('deudas')" do %>
+      <i data-lucide="hand-coins" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Deudas</span>
+    <% end %>
+    <%= link_to services_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('servicios')" do %>
+      <i data-lucide="zap" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Servicios</span>
+    <% end %>
+    <%= link_to suppliers_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('proveedores')" do %>
+      <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Proveedores</span>
+    <% end %>
+    <%= link_to accounts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('cuentas')" do %>
+      <i data-lucide="wallet" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Cuentas</span>
+    <% end %>
+    <%= link_to tasa_cambios_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('tasas')" do %>
+      <i data-lucide="arrow-left-right" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Tasas de Divisas</span>
+    <% end %>
+    <!--
+    <button onclick="switchTab('servicios')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
+      <i data-lucide="zap" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Servicios</span>
+    </button>
+    <div class="pt-6 pb-2">
+      <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Directorio</p>
+    </div>
+    <button onclick="switchTab('clientes')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
+      <i data-lucide="users" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Clientes</span>
+    </button>
+    <button onclick="switchTab('distribuidores')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
+      <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Distribuidores</span>
+    </button>
+    <div class="pt-6 pb-2">
+      <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Enlaces Sistema Anterior</p>
+    </div>-->
+    <%= link_to clientes_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", onclick: "switchTab('clientes')" do %>
+      <i data-lucide="users" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Clientes</span>
+    <% end %>
+    <!--
+    <button onclick="switchTab('distribuidores')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
+      <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+      <span>Distribuidores</span>
+    </button>-->
+  </nav>
+  <div class="p-6 border-t border-sky-100/50">
+    <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-sky-50 to-white rounded-2xl border border-sky-100">
+      <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" class="w-10 h-10 rounded-full bg-sky-100" alt="Profile">
+      <div class="text-sm overflow-hidden">
+        <p class="font-bold text-slate-700 truncate">Juan Delgado</p>
+        <p class="text-xs text-sky-500 truncate">Administrador</p>
+      </div>
+    </div>
+  </div>
+</aside>

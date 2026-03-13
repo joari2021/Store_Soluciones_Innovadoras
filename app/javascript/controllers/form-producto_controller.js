@@ -1,106 +1,168 @@
 import { Controller } from "@hotwired/stimulus";
 
 export default class extends Controller {
+  static values = { tasaDolar: Number };
+
   connect() {
-    const precioCostoPackUSD = document.getElementById("producto_precio_costo");
-    const precioCostoPackBs = document.getElementById("precio_c_bs");
-    const cantidadPack = document.getElementById("producto_cant_unidades");
-    const precioCostoUnidadUSD = document.getElementById("costo_u_usd");
-    const precioCostoUnidadBs = document.getElementById("costo_u_bs");
+    const tasaDolar =
+      Number(this.hasTasaDolarValue ? this.tasaDolarValue : 0) || 0;
+
     const precioVentaUSD = document.getElementById("producto_precio_venta_usd");
-    const precioVentaBs = document.getElementById("producto_precio_venta_bs");
-    const productoNivelGanancia = document.getElementById(
-      "producto_nivel_ganancia"
+    const precioVentaBs = document.getElementById("precio_venta_bs_visual");
+    const costoUnidVisual = document.getElementById("costo_unid_visual");
+    const porcentajeGanancia = document.getElementById(
+      "producto_porcentaje_ganancia",
     );
-    const monedaPrecio = document.getElementById("moneda_precio");
+    let isSyncing = false;
 
-    function editPrecioSugerido() {
-      const nivelGanancia = document.querySelector(".form-select").value;
-      const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
-      const precioCostoUnidadUSD = valorPackUSD / cantidadPackNumber;
+    const parseLocalizedNumber = (rawValue) => {
+      const compact = String(rawValue || "").replace(/\s/g, "");
+      let normalized = compact;
 
-      var precioSugeridoUSD = 0;
-
-      switch (nivelGanancia) {
-        case "Baja":
-          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.15);
-          break;
-        case "Justa":
-          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.23);
-          break;
-        case "Media":
-          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.3);
-          break;
-        case "Alta":
-          precioSugeridoUSD = precioCostoUnidadUSD / (1 - 0.5);
-          break;
+      if (compact.includes(",")) {
+        normalized = compact.replace(/\./g, "").replace(",", ".");
+      } else if (/^\d{1,3}(\.\d{3})+$/.test(compact)) {
+        normalized = compact.replace(/\./g, "");
       }
-      // Actualiza el valor del input de precio sugerido
-      document.getElementById("precio_sugerido_usd").value =
-        precioSugeridoUSD.toFixed(2);
-      document.getElementById("precio_sugerido_bs").value = (
-        precioSugeridoUSD * tasaDolar
-      ).toFixed(2);
-    }
-    function calcularPrecioCosto() {
-      // Convertir el valor del input a un número y calcular
-      const valorPackUSD = parseFloat(precioCostoPackUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const valorPackEnBs = (valorPackUSD * tasaDolar).toFixed(2);
-      const cantidadPackNumber = parseFloat(cantidadPack.value) || 0; // Convierte o usa 0 si está vacío
-      const valorUnidadUSD = valorPackUSD / cantidadPackNumber;
 
-      // Asignar el valor calculado al input
-      precioCostoPackBs.value = valorPackEnBs;
-      precioCostoUnidadUSD.value = valorUnidadUSD.toFixed(2);
-      precioCostoUnidadBs.value = (valorUnidadUSD * tasaDolar).toFixed(2);
-    }
-    function calcularPrecioVentaBs() {
-      const valorVentaUSD = parseFloat(precioVentaUSD.value) || 0; // Convierte o usa 0 si está vacío
-      const valorVentaBs = (valorVentaUSD * tasaDolar).toFixed(2);
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
 
-      // Asignar el valor calculado al input
-      precioVentaBs.value = valorVentaBs;
-    }
-    function calcularPrecioVentaUSD() {
-      const valorVentaBs = parseFloat(precioVentaBs.value) || 0; // Convierte o usa 0 si está vacío
-      const valorVentaUSD = (valorVentaBs / tasaDolar).toFixed(2);
+    const formatLocalizedNumber = (value) => {
+      if (!Number.isFinite(value)) return "0,00";
 
-      // Asignar el valor calculado al input
-      precioVentaUSD.value = valorVentaUSD;
-    }
-    function rellenarCamposVistaEdit() {
-      calcularPrecioCosto();
-      editPrecioSugerido();
-      if (monedaPrecio.value == "Bolivar") {
-        calcularPrecioVentaUSD();
-      } else {
-        calcularPrecioVentaBs();
+      return value.toLocaleString("es-VE", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    const getNumericValue = (input) => parseLocalizedNumber(input?.value || "");
+
+    const setLocalizedValue = (input, value) => {
+      if (!input) return;
+      input.value = formatLocalizedNumber(value);
+    };
+
+    const bindLocalizedInput = (input) => {
+      if (!input) return;
+
+      input.addEventListener("blur", () => {
+        input.value = formatLocalizedNumber(parseLocalizedNumber(input.value));
+      });
+
+      if (input.value) {
+        input.value = formatLocalizedNumber(parseLocalizedNumber(input.value));
       }
+    };
+
+    const bindLotCostSelectors = () => {
+      const selectors = document.querySelectorAll(".lot-cost-selector");
+      if (!selectors.length || !costoUnidVisual) return;
+
+      const applyLotCost = (selector) => {
+        if (!selector) return;
+        const unitCost = parseLocalizedNumber(selector.dataset.unitCost);
+        costoUnidVisual.value = formatLocalizedNumber(unitCost);
+
+        if (getNumericValue(precioVentaUSD) > 0) return syncBySource("usd");
+        if (getNumericValue(precioVentaBs) > 0) return syncBySource("bs");
+        syncBySource("ganancia");
+      };
+
+      selectors.forEach((selector) => {
+        selector.addEventListener("change", () => {
+          if (!selector.checked || selector.disabled) return;
+          applyLotCost(selector);
+        });
+      });
+
+      const selectedByDefault = Array.from(selectors).find(
+        (selector) => !selector.disabled,
+      );
+
+      if (selectedByDefault) {
+        selectedByDefault.checked = true;
+        applyLotCost(selectedByDefault);
+      }
+    };
+
+    const calcularGananciaPorcentaje = (ventaUsd, costoUnid) => {
+      if (costoUnid <= 0) return 0;
+      return ((ventaUsd - costoUnid) / costoUnid) * 100;
+    };
+
+    const syncFromUsd = () => {
+      const ventaUsd = getNumericValue(precioVentaUSD);
+      const costoUnid = getNumericValue(costoUnidVisual);
+      const ventaBs = tasaDolar > 0 ? ventaUsd * tasaDolar : 0;
+      const ganancia = calcularGananciaPorcentaje(ventaUsd, costoUnid);
+
+      setLocalizedValue(precioVentaBs, ventaBs);
+      setLocalizedValue(porcentajeGanancia, ganancia);
+    };
+
+    const syncFromBs = () => {
+      const ventaBs = getNumericValue(precioVentaBs);
+      const costoUnid = getNumericValue(costoUnidVisual);
+      const ventaUsd = tasaDolar > 0 ? ventaBs / tasaDolar : 0;
+      const ganancia = calcularGananciaPorcentaje(ventaUsd, costoUnid);
+
+      setLocalizedValue(precioVentaUSD, ventaUsd);
+      setLocalizedValue(porcentajeGanancia, ganancia);
+    };
+
+    const syncFromGanancia = () => {
+      const costoUnid = getNumericValue(costoUnidVisual);
+      const ganancia = getNumericValue(porcentajeGanancia);
+      const ventaUsd = costoUnid > 0 ? costoUnid * (1 + ganancia / 100) : 0;
+      const ventaBs = tasaDolar > 0 ? ventaUsd * tasaDolar : 0;
+
+      setLocalizedValue(precioVentaUSD, ventaUsd);
+      setLocalizedValue(precioVentaBs, ventaBs);
+    };
+
+    const withSyncLock = (callback) => {
+      if (isSyncing) return;
+      isSyncing = true;
+      callback();
+      isSyncing = false;
+    };
+
+    const syncBySource = (source) => {
+      withSyncLock(() => {
+        if (source === "usd") syncFromUsd();
+        if (source === "bs") syncFromBs();
+        if (source === "ganancia") syncFromGanancia();
+      });
+    };
+
+    bindLocalizedInput(precioVentaUSD);
+    bindLocalizedInput(precioVentaBs);
+    bindLocalizedInput(costoUnidVisual);
+    bindLocalizedInput(porcentajeGanancia);
+    bindLotCostSelectors();
+
+    syncBySource("usd");
+
+    if (precioVentaUSD) {
+      precioVentaUSD.addEventListener("input", () => syncBySource("usd"));
+      precioVentaUSD.addEventListener("blur", () => syncBySource("usd"));
     }
-    rellenarCamposVistaEdit();
 
-    // Evento que se ejecuta al escribir en el input de USD
-    precioCostoPackUSD.addEventListener("input", function () {
-      calcularPrecioCosto();
-      editPrecioSugerido();
-    });
+    if (precioVentaBs) {
+      precioVentaBs.addEventListener("input", () => syncBySource("bs"));
+      precioVentaBs.addEventListener("blur", () => syncBySource("bs"));
+    }
 
-    cantidadPack.addEventListener("input", function () {
-      calcularPrecioCosto();
-      editPrecioSugerido();
-    });
-
-    precioVentaUSD.addEventListener("input", function () {
-      calcularPrecioVentaBs();
-    });
-
-    precioVentaBs.addEventListener("input", function () {
-      calcularPrecioVentaUSD();
-    });
-
-    productoNivelGanancia.addEventListener("change", function () {
-      editPrecioSugerido();
-    });
+    if (porcentajeGanancia) {
+      porcentajeGanancia.addEventListener("input", () =>
+        syncBySource("ganancia"),
+      );
+      porcentajeGanancia.addEventListener("blur", () =>
+        syncBySource("ganancia"),
+      );
+    }
   }
 }

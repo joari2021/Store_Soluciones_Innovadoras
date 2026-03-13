@@ -1,145 +1,250 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
-  <% if Current.user&.admin? %>
-    <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success mb-3" %>
-    <%if @total_alertas > 0%>
-      <%= link_to(
-      "#{params[:filter] == 'alerta' ? 'Mostrar todos los productos' : 'Alerta Precio'} <span class='badge bg-danger'>#{@total_alertas}</span>".html_safe,
-      params[:filter] == "alerta" ? productos_path : productos_path(filter: "alerta"),
-      class: "btn #{params[:filter] == 'alerta' ? 'btn-primary' : 'btn-warning'} mb-3"
-    ) %>
-    <%end%>
-  <% end %>
-  <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span><br>
-    <span>Tasa Euro BCV: <strong><%= number_to_currency(@tasa_euro_bcv, unit: "Bs ") %></strong></span>
+ <!-- Productos Content -->
+<section id="tab-productos" class="hidden space-y-6 fade-in">
+  <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+    <div class="relative w-full md:w-80">
+      <i data-lucide="search" class="absolute left-4 top-3.5 w-5 h-5 text-slate-400"></i>
+      <input type="text" placeholder="Buscar productos..." class="w-full pl-12 pr-4 py-3 bg-white border border-sky-100 rounded-2xl focus:ring-2 focus:ring-sky-200 focus:border-sky-300 focus:outline-none shadow-sm transition-all">
+    </div>
+    <%= link_to new_producto_path, remote: true, method: :get, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium", data: { turbo_frame: "modal-productos" }, onclick: "openModal('productModal')" do %>
+      <i data-lucide="plus"></i> Agregar Producto
+    <% end %>
   </div>
-  <h1 class="my-4 text-center">Listado de Productos</h1>
-  <%= render "shared/campo_buscar", url: productos_path, busqueda: "Productos" %>
-  <%= turbo_frame_tag "productos-#{@pagy.page}" do%>
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-4 mt-2" id="productos-container">
-      <% @cont_alertas = 0 %>
-      <% @productos.each do |producto| %>
-        <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
-        <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
-        <div class="col">
-          <div class="card h-100 shadow-sm text-black">
-            <% if Current.user&.admin? %>
-              <div class="card-header d-flex justify-content-end">
-                <%= link_to edit_producto_path(producto), class: "btn btn-primary btn-sm", data: { turbo_frame: "_top" } do %>
-                  <i class="fas fa-edit"></i>
+  <!-- Responsive Table Wrapper -->
+  <div class="glass-card rounded-2xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left whitespace-nowrap">
+        <thead class="bg-sky-50/50 text-slate-500 text-xs font-bold uppercase tracking-wider border-b border-sky-100">
+          <tr>
+            <th class="px-6 py-4">Producto</th>
+            <th class="px-6 py-4">Categoría</th>
+            <th class="px-6 py-4 text-right">Costo Init $</th>
+            <th class="px-6 py-4 text-right">Existencia</th>
+            <th class="px-6 py-4 text-right">Valor Inventario $</th>
+            <th class="px-6 py-4 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="productos_tbody" class="divide-y divide-sky-50">
+          <% @productos.each do |producto| %>
+            <% variations = producto.product_variations.to_a.sort_by { |variation| variation.description.to_s.downcase } %>
+            <% sorted_lots = producto.stock_lots.sort_by { |lot| [lot.purchased_at || lot.created_at, lot.created_at] }.reverse %>
+            <% variation_groups = variations.index_with { { lots: [], total: 0.to_d, total_value: 0.to_d } } %>
+            <% variation_lookup_by_id = variations.index_by(&:id) %>
+            <% variation_lookup_by_description = variations.index_by { |variation| variation.description.to_s.strip.downcase } %>
+            <% sorted_lots.each do |lot| %>
+              <% item = lot.purchase_invoice_item %>
+              <% invoice = item&.purchase_invoice %>
+              <% invoice_ref = invoice.present? ? "Factura ##{invoice.id}" : "Lote ##{lot.id}" %>
+              <% lot_date = (invoice&.fecha_emision || lot.purchased_at || lot.created_at)&.to_date %>
+              <% lot_date_label = lot_date.present? ? lot_date.strftime('%d/%m/%Y') : '-' %>
+              <% units_per_pack = item&.unid_x_pack.to_d %>
+              <% lot_variation_rows = lot.stock_lot_variations.to_a %>
+              <% if lot_variation_rows.any? %>
+                <% lot_variation_rows.each do |entry| %>
+                  <% linked_variation = if entry.product_variation_id.present?
+                                          variation_lookup_by_id[entry.product_variation_id]
+                                        else
+                                          variation_lookup_by_description[entry.variation_description.to_s.strip.downcase]
+                                        end %>
+                  <% next unless linked_variation %>
+                  <% quantity_remaining = entry.quantity_remaining.to_d %>
+                  <% next unless quantity_remaining.positive? %>
+                  <% quantity_in = entry.quantity_in.to_d %>
+                  <% lot_total_value = (lot.unit_cost_usd.to_d * quantity_remaining).round(2) %>
+                  <% variation_groups[linked_variation][:total] += quantity_remaining %>
+                  <% variation_groups[linked_variation][:total_value] += lot_total_value %>
+                  <% variation_groups[linked_variation][:lots] << {
+                       lot_id: lot.id,
+                       invoice_ref: invoice_ref,
+                       invoice_id: invoice&.id,
+                       factura_item_id: item&.id,
+                       lot_date_label: lot_date_label,
+                       unit_cost_usd: lot.unit_cost_usd,
+                       supplier_display_name: lot.supplier_display_name,
+                       quantity_remaining: quantity_remaining,
+                       quantity_in: quantity_in,
+                       total_value_usd: lot_total_value
+                     } %>
+                <% end %>
+              <% else %>
+                <% legacy_rows = item&.variation_breakdown.is_a?(Array) ? item.variation_breakdown : [] %>
+                <% if legacy_rows.any? %>
+                  <% legacy_rows.each do |entry| %>
+                    <% legacy_variation_id = (entry['variation_id'] || entry[:variation_id]).presence %>
+                    <% legacy_description = (entry['description'] || entry[:description]).to_s.strip.downcase %>
+                    <% linked_variation = if legacy_variation_id.present?
+                                            variation_lookup_by_id[legacy_variation_id.to_i]
+                                          else
+                                            variation_lookup_by_description[legacy_description]
+                                          end %>
+                    <% next unless linked_variation %>
+                    <% quantity = (entry['quantity'] || entry[:quantity]).to_d %>
+                    <% next unless quantity.positive? %>
+                    <% lot_total_value = (lot.unit_cost_usd.to_d * quantity).round(2) %>
+                    <% variation_groups[linked_variation][:total] += quantity %>
+                    <% variation_groups[linked_variation][:total_value] += lot_total_value %>
+                    <% variation_groups[linked_variation][:lots] << {
+                         lot_id: lot.id,
+                         invoice_ref: invoice_ref,
+                      invoice_id: invoice&.id,
+                      factura_item_id: item&.id,
+                         lot_date_label: lot_date_label,
+                         unit_cost_usd: lot.unit_cost_usd,
+                         supplier_display_name: lot.supplier_display_name,
+                         quantity_remaining: quantity,
+                         quantity_in: quantity,
+                         total_value_usd: lot_total_value
+                       } %>
+                  <% end %>
+                <% elsif variations.one? %>
+                  <% lot_quantity_remaining_units = lot.quantity_remaining.to_d * (units_per_pack.positive? ? units_per_pack : 1) %>
+                  <% next unless lot_quantity_remaining_units.positive? %>
+                  <% lot_quantity_in_units = lot.quantity_in.to_d * (units_per_pack.positive? ? units_per_pack : 1) %>
+                  <% lot_total_value = (lot.unit_cost_usd.to_d * lot_quantity_remaining_units).round(2) %>
+                  <% linked_variation = variations.first %>
+                  <% variation_groups[linked_variation][:total] += lot_quantity_remaining_units %>
+                  <% variation_groups[linked_variation][:total_value] += lot_total_value %>
+                  <% variation_groups[linked_variation][:lots] << {
+                       lot_id: lot.id,
+                       invoice_ref: invoice_ref,
+                       invoice_id: invoice&.id,
+                       factura_item_id: item&.id,
+                       lot_date_label: lot_date_label,
+                       unit_cost_usd: lot.unit_cost_usd,
+                       supplier_display_name: lot.supplier_display_name,
+                       quantity_remaining: lot_quantity_remaining_units,
+                       quantity_in: lot_quantity_in_units,
+                       total_value_usd: lot_total_value
+                     } %>
+                <% end %>
+              <% end %>
+            <% end %>
+            <% detail_rows_count = variation_groups.sum { |_variation, group| 1 + group[:lots].size } %>
+            <% initial_cost_usd = sorted_lots.last&.unit_cost_usd %>
+            <% product_total_inventory_value = variation_groups.sum { |_variation, group| group[:total_value].to_d } %>
+            <tr class="hover:bg-sky-50/30 transition-colors group">
+              <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    class="js-product-toggle-row inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+                    data-product-id="<%= producto.id %>"
+                    <%= detail_rows_count.positive? ? '' : 'disabled' %>>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="js-product-toggle-icon h-4 w-4 transition-transform <%= detail_rows_count.positive? ? '' : 'opacity-40' %>">
+                    <path fill-rule="evenodd" d="M9.47 5.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L14.94 12 9.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                  </svg>
+                </button>
+                <% if producto.foto.present? %>
+                  <img src="<%= url_for(producto.foto) %>" alt="Imagen de <%= producto.descripcion %>" class="w-10 h-10 rounded-lg object-cover bg-slate-100" />
+                <% else %>
+                  <%= image_tag "default_image.jpeg", class: "w-10 h-10 rounded-lg object-cover bg-slate-100", alt: "Imagen por defecto" %>
+                <% end %>
+                <span class="font-medium text-slate-700"><%= producto.descripcion %></span>
+              </div>
+            </td>
+            <td class="px-6 py-4"><span class="px-2 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-500">Alimentos</span></td>
+            <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-700">
+              <%= initial_cost_usd.present? ? format_money(initial_cost_usd, unit: '$') : '—' %>
+            </td>
+            <td class="px-6 py-4 text-right">
+              <span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold"><%= format_quantity(producto.total_quantity) %> disp.</span>
+            </td>
+            <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-700"><%= format_money(product_total_inventory_value, unit: '$') %></td>
+            <td class="px-6 py-4">
+              <div class="flex justify-end gap-2 transition-opacity">
+                <%= link_to edit_producto_path(producto), remote: true, method: :get, class: "p-2 hover:bg-sky-100 rounded-lg text-sky-600 transition-colors bg-white", data: { turbo_frame: "modal-productos" }, onclick: "openModal('productModal')" do %>
+                  <i data-lucide="edit-3" class="w-4 h-4"></i>
+                <% end %>
+                <!--
+                  <button class="p-2 hover:bg-red-100 rounded-lg text-red-500 transition-colors bg-white">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </button>-->
+                <%= button_to producto_path(producto), method: :delete, form_class: 'delete-alertbox', class: "p-2 hover:bg-red-100 rounded-lg text-red-500 transition-colors bg-white" do %>
+                  <i data-lucide="trash-2" class="w-4 h-4"></i>
                 <% end %>
               </div>
+            </td>
+          </tr>
+          <% variations.each do |variation| %>
+            <% group = variation_groups[variation] || { lots: [], total: 0.to_d, total_value: 0.to_d } %>
+            <% total_variation_quantity = group[:total].to_d %>
+            <% total_variation_inventory_value = group[:total_value].to_d %>
+            <tr class="js-product-detail-row hidden bg-slate-50/40" data-product-detail-for="<%= producto.id %>">
+              <td class="px-6 py-3 pl-16">
+                <span class="inline-flex items-center gap-2 text-xs font-semibold text-emerald-700">
+                  <span class="text-emerald-500">↳</span>
+                  <%= variation.description.presence || 'Unica' %>
+                </span>
+              </td>
+              <td class="px-6 py-3 text-xs text-slate-500">Total por variación</td>
+              <td class="px-6 py-3 text-right text-xs text-slate-500">—</td>
+              <td class="px-6 py-3 text-right whitespace-nowrap text-xs font-semibold text-slate-700"><%= format_quantity(total_variation_quantity) %></td>
+              <td class="px-6 py-3 text-right whitespace-nowrap text-xs font-semibold text-slate-700"><%= format_money(total_variation_inventory_value, unit: '$') %></td>
+              <td class="px-6 py-3 text-right text-xs text-slate-400">—</td>
+            </tr>
+            <% group[:lots].each do |lot_entry| %>
+              <tr class="js-product-detail-row hidden bg-slate-50/80" data-product-detail-for="<%= producto.id %>">
+                <td class="px-6 py-3 pl-24">
+                  <span class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <span class="text-slate-400">↳</span>
+                    Lote #<%= lot_entry[:lot_id] %>
+                  </span>
+                </td>
+                <td class="px-6 py-3 text-xs text-slate-500"><%= lot_entry[:invoice_ref] %> · <%= lot_entry[:lot_date_label] %> · <%= lot_entry[:supplier_display_name] %></td>
+                <td class="px-6 py-3 text-right whitespace-nowrap text-xs font-semibold text-slate-700"><%= format_money(lot_entry[:unit_cost_usd], unit: '$', precision: 4) %></td>
+                <td class="px-6 py-3 text-right whitespace-nowrap text-xs font-semibold text-slate-700"><%= format_quantity(lot_entry[:quantity_remaining]) %> / <%= format_quantity(lot_entry[:quantity_in]) %></td>
+                <td class="px-6 py-3 text-right whitespace-nowrap text-xs font-semibold text-slate-700"><%= format_money(lot_entry[:total_value_usd], unit: '$') %></td>
+                <td class="px-6 py-3 text-right text-xs text-slate-400">
+                  <% if lot_entry[:invoice_id].present? && lot_entry[:factura_item_id].present? %>
+                    <%= link_to purchase_invoice_path(lot_entry[:invoice_id], source: 'lot', highlighted_item_id: lot_entry[:factura_item_id]),
+                                class: 'inline-flex items-center justify-center rounded-lg bg-sky-50 p-2 text-sky-600 hover:bg-sky-100 transition-colors',
+                                title: 'Ver factura',
+                                aria: { label: 'Ver factura' } do %>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                        <path d="M1.5 12s3.75-7.5 10.5-7.5S22.5 12 22.5 12s-3.75 7.5-10.5 7.5S1.5 12 1.5 12Z" />
+                        <path d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" />
+                      </svg>
+                    <% end %>
+                  <% else %>
+                    —
+                  <% end %>
+                </td>
+              </tr>
             <% end %>
-            <div class="image-container">
-              <% if producto.foto.attached? %>
-                <%= image_tag producto.foto, class: "card-img-top", alt: producto.descripcion %>
-              <% else %>
-                <%= image_tag "default_image.jpeg", class: "card-img-top", alt: "Imagen por defecto" %>
-              <% end %>
-              <% unless producto.available? %>
-                <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
-              <% end %>
-            </div>
-            <div class="card-body">
-              <!--
-              <% if Current.user&.admin? %>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Pack ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_costo, unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Pack (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Cantidad:</span>
-                  <strong class="d-block text-end"><%= producto.cant_unidades %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Unidad ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_costo / producto.cant_unidades), unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Unidad (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo / producto.cant_unidades), unit: "Bs ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Nivel Ganancia:</span>
-                  <strong class="d-block text-end"><%= producto.nivel_ganancia.upcase %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">PV Sugerido ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(precio_sugerido_usd, unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">PV Sugerido (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(precio_sugerido_usd), unit: "Bs ") %></strong>
-                </p>
-                <hr>
-              <% end %>
-              -->
-              <% if producto.moneda_base_precio === "Dolar" %>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta ($):</span>
-                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></strong>
-                </p>
-              <% else %>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta (Bs):</span>
-                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
-                </p>
-              <% end %>
-              <hr class="text-info" style="height: 3px;">
-              <h6 class="card-title text-primary fw-bold"><%= producto.descripcion %></h6>
-            </div>
-          </div>
-        </div>
-      <% end %>
-    </div>
-    <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
-  <%end%>
+          <% end %>
+          <% if detail_rows_count.zero? %>
+            <tr class="js-product-detail-row hidden bg-slate-50/60" data-product-detail-for="<%= producto.id %>">
+              <td class="px-6 py-3 pl-16 text-xs text-slate-500" colspan="6">Sin lotes asociados todavía.</td>
+            </tr>
+          <% end %>
+        <%end%>
+      </tbody>
+    </table>
+  </div>
 </div>
-<style>
-  .image-container {
-    position: relative;
-    width: 100%;
-    padding-top: 130%; /* Relación de aspecto 130% */
-    overflow: hidden;
-  }
+<%= render partial: "modal-productos"%>
+</section>
+<script>
+  document.addEventListener('turbo:load', () => {
+    if (document.documentElement.dataset.productToggleBound === 'true') return;
+    document.documentElement.dataset.productToggleBound = 'true';
 
-  .image-container img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
-  }
-  .image-container img.overlay-no-disponible {
-    position: absolute;
-    top: -100px;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Permite hacer clic en la imagen de abajo */
-    object-fit: contain;
-    z-index: 2;
-  }
-</style>
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('.js-product-toggle-row');
+      if (!button) return;
+
+      const productId = button.dataset.productId;
+      if (!productId) return;
+
+      const rows = document.querySelectorAll(`.js-product-detail-row[data-product-detail-for="${productId}"]`);
+      if (!rows.length) return;
+
+      const willOpen = Array.from(rows).every((row) => row.classList.contains('hidden'));
+      rows.forEach((row) => row.classList.toggle('hidden', !willOpen));
+
+      const icon = button.querySelector('.js-product-toggle-icon');
+      if (icon) {
+        icon.classList.toggle('rotate-90', willOpen);
+      }
+    });
+  });
+</script>
