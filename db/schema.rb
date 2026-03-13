@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_12_000300) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -175,26 +175,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000300) do
     t.string "debt_kind", default: "receivable", null: false
     t.string "name", null: false
     t.text "description"
-    t.string "reference"
     t.decimal "amount", precision: 14, scale: 2, null: false
     t.string "currency", default: "USD", null: false
     t.date "issued_on"
     t.date "due_on"
     t.bigint "cliente_id"
-    t.bigint "supplier_id"
-    t.string "counterparty_name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.string "origin_kind", default: "general", null: false
-    t.bigint "loan_account_id"
     t.index ["business_id"], name: "index_debts_on_business_id"
     t.index ["cliente_id"], name: "index_debts_on_cliente_id"
     t.index ["debt_kind"], name: "index_debts_on_debt_kind"
     t.index ["due_on"], name: "index_debts_on_due_on"
     t.index ["issued_on"], name: "index_debts_on_issued_on"
-    t.index ["loan_account_id"], name: "index_debts_on_loan_account_id"
-    t.index ["origin_kind"], name: "index_debts_on_origin_kind"
-    t.index ["supplier_id"], name: "index_debts_on_supplier_id"
   end
 
   create_table "expense_payments", force: :cascade do |t|
@@ -692,10 +684,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000300) do
   add_foreign_key "clientes", "businesses"
   add_foreign_key "debt_payments", "accounts"
   add_foreign_key "debt_payments", "debts"
-  add_foreign_key "debts", "accounts", column: "loan_account_id"
   add_foreign_key "debts", "businesses"
   add_foreign_key "debts", "clientes"
-  add_foreign_key "debts", "suppliers"
   add_foreign_key "expense_payments", "accounts"
   add_foreign_key "expense_payments", "expenses"
   add_foreign_key "expenses", "businesses"

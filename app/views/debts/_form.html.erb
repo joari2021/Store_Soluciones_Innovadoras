@@ -16,7 +16,7 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle de la deuda</p>
     <div class="mt-4 grid gap-4 md:grid-cols-2">
-      <div data-debt-receivable>
+      <div>
         <%= form.label :cliente_id, "Cliente", class: "block text-sm font-medium text-slate-700" %>
         <%= form.hidden_field :cliente_id,
                               data: {
@@ -48,95 +48,191 @@
         </div>
         <p class="mt-2 text-xs text-slate-500 <%= initial_cliente.present? ? 'hidden' : '' %>" data-debt-client-empty="true">Selecciona un cliente para esta deuda.</p>
       </div>
-      <div data-debt-payable>
-        <%= form.label :supplier_id, "Proveedor", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.collection_select :supplier_id, @suppliers, :id, :nombre, { include_blank: "Selecciona un proveedor" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-      </div>
-      <div>
-        <%= form.label :name, "Concepto", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.text_field :name, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-      </div>
       <div>
         <%= form.label :debt_kind, "Tipo", class: "block text-sm font-medium text-slate-700" %>
         <%= form.select :debt_kind, Debt.debt_kind_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", data: { debt_kind: true } %>
       </div>
-      <div>
-        <%= form.label :origin_kind, "Origen", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.select :origin_kind,
-                        Debt.origin_kind_options,
-                        {},
-                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
-                        data: { debt_origin_kind: true } %>
-      </div>
-      <% loan_account_options = @accounts.map do |account| %>
-        <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency }] %>
-      <% end %>
-      <div class="<%= form.object.loan? ? '' : 'hidden' %>" data-debt-loan-account-wrapper="true">
-        <%= form.label :loan_account_id, "Cuenta del prestamo", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.select :loan_account_id,
-                        options_for_select(loan_account_options, form.object.loan_account_id),
-                        { include_blank: "Selecciona una cuenta" },
-                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
-                        data: { debt_loan_account: true } %>
-        <p class="mt-1 text-xs text-slate-500">Solo aplica cuando el origen sea dinero prestado.</p>
-      </div>
-      <div>
-        <%= form.label :reference, "Referencia", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.text_field :reference, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "Factura o codigo" %>
-      </div>
-      <div class="md:col-span-2">
-        <%= form.label :description, "Descripcion", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.text_area :description, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-      </div>
     </div>
   </div>
   <% debt_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
-  <% selected_currency = form.object.currency.presence || "USD" %>
-  <% selected_currency_symbol = debt_currency_symbols[selected_currency] || "$" %>
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos y fechas</p>
-    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <div>
-        <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.hidden_field :amount, data: { debt_amount_hidden: true } %>
-        <%= text_field_tag :debt_amount_masked,
-                           format_money(form.object.amount, unit: selected_currency_symbol),
-                           inputmode: "decimal",
-                           autocomplete: "off",
-                           placeholder: "#{selected_currency_symbol} 0,00",
-                           class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
-                           data: {
-                             money_mask: true,
-                             money_symbol: selected_currency_symbol,
-                             debt_amount_masked: true
-                           } %>
+  <% debt_entry_rows = Array(@debt_entries_form).presence || [] %>
+  <% if debt_entry_rows.empty? %>
+    <% debt_entry_rows = [{
+      amount: form.object.amount.presence || 0,
+      currency: form.object.currency.presence || "USD",
+      issued_on: (form.object.issued_on || Date.current).strftime("%d-%m-%Y"),
+      due_on: form.object.due_on&.strftime("%d-%m-%Y"),
+      description: form.object.description
+    }] %>
+  <% end %>
+  <% entry_currencies = debt_entry_rows.map { |row| row[:currency].presence || row["currency"].presence }.compact %>
+  <% primary_currency = entry_currencies.first.presence || form.object.currency.presence || "USD" %>
+  <% selected_currency_symbol = debt_currency_symbols[primary_currency] || "$" %>
+  <% if @debt.new_record? %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-debt-entries-wrapper="true" data-debt-rates-to-ves="<%= @currency_rates_to_ves.to_json %>" data-currency-symbols="<%= debt_currency_symbols.to_json %>" data-default-issued-on="<%= Date.current.strftime('%d-%m-%Y') %>">
+      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos y fechas</p>
+          <p class="mt-1 text-sm text-slate-500">Agrega una o varias deudas. El monto, la moneda y la fecha de emision son obligatorios por cada deuda.</p>
+        </div>
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" data-debt-entry-add="true">
+          Anadir otra deuda
+        </button>
       </div>
-      <div>
-        <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.select :currency,
-                        Account.currency_options,
-                        {},
-                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
-                        data: { debt_currency: true, currency_symbols: debt_currency_symbols.to_json } %>
+      <div class="mt-4 space-y-3" data-debt-entries-container="true">
+        <% debt_entry_rows.each_with_index do |row, index| %>
+          <% row_amount = row[:amount].presence || row["amount"].presence || 0 %>
+          <% row_currency = row[:currency].presence || row["currency"].presence || "USD" %>
+          <% row_symbol = debt_currency_symbols[row_currency] || "$" %>
+          <% row_issued_on = row[:issued_on].presence || row["issued_on"].presence || Date.current.strftime("%d-%m-%Y") %>
+          <% row_due_on = row[:due_on].presence || row["due_on"].presence %>
+          <% row_description = row[:description].presence || row["description"].presence %>
+          <% row_issued_display = row_issued_on.respond_to?(:strftime) ? row_issued_on.strftime("%d-%m-%Y") : row_issued_on.to_s %>
+          <% row_due_display = row_due_on.respond_to?(:strftime) ? row_due_on.strftime("%d-%m-%Y") : row_due_on.to_s %>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" data-debt-entry-row="true">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold text-slate-700">Deuda <span data-debt-entry-index-label="true"><%= index + 1 %></span></p>
+              <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-debt-entry-remove="true">
+                Eliminar
+              </button>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Monto</label>
+                <%= hidden_field_tag "debt_entries[#{index}][amount]", row_amount, data: { debt_entry_amount_hidden: true } %>
+                <%= text_field_tag "debt_entries[#{index}][amount_masked]",
+                                   format_money(row_amount, unit: row_symbol),
+                                   inputmode: "decimal",
+                                   autocomplete: "off",
+                                   placeholder: "#{row_symbol} 0,00",
+                                   class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                   data: {
+                                     money_mask: true,
+                                     money_symbol: row_symbol,
+                                     debt_entry_amount_masked: true
+                                   } %>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Moneda</label>
+                <%= select_tag "debt_entries[#{index}][currency]",
+                               options_for_select(Account.currency_options, row_currency),
+                               include_blank: "Selecciona moneda",
+                               class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                               data: { debt_entry_currency: true } %>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Fecha de emision</label>
+                <%= text_field_tag "debt_entries[#{index}][issued_on]",
+                                   row_issued_display,
+                                   autocomplete: "off",
+                                   placeholder: "dd-mm-aaaa",
+                                   required: true,
+                                   class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                   data: { debt_entry_issued_on: true } %>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Fecha de vencimiento (opcional)</label>
+                <%= text_field_tag "debt_entries[#{index}][due_on]",
+                                   row_due_display,
+                                   autocomplete: "off",
+                                   placeholder: "dd-mm-aaaa",
+                                   class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                   data: { debt_entry_due_on: true } %>
+              </div>
+              <div class="md:col-span-2 xl:col-span-4">
+                <label class="block text-sm font-medium text-slate-700">Descripcion de la deuda (opcional)</label>
+                <%= text_area_tag "debt_entries[#{index}][description]",
+                                  row_description,
+                                  rows: 2,
+                                  class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                  data: { debt_entry_description: true } %>
+              </div>
+            </div>
+          </div>
+        <% end %>
       </div>
-      <div>
-        <%= form.label :issued_on, "Fecha de emision", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.text_field :issued_on,
-                            value: form.object.issued_on&.strftime("%d-%m-%Y"),
-                            autocomplete: "off",
-                            placeholder: "dd-mm-aaaa",
-                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-      </div>
-      <div>
-        <%= form.label :due_on, "Fecha de vencimiento", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.text_field :due_on,
-                            value: form.object.due_on&.strftime("%d-%m-%Y"),
-                            autocomplete: "off",
-                            placeholder: "dd-mm-aaaa",
-                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      <template data-debt-entry-template="true">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" data-debt-entry-row="true">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <p class="text-sm font-semibold text-slate-700">Deuda <span data-debt-entry-index-label="true">1</span></p>
+            <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-debt-entry-remove="true">
+              Eliminar
+            </button>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Monto</label>
+              <input type="hidden" name="debt_entries[__INDEX__][amount]" value="0" data-debt-entry-amount-hidden="true">
+              <input type="text" name="debt_entries[__INDEX__][amount_masked]" value="$ 0,00" inputmode="decimal" autocomplete="off" placeholder="$ 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="$" data-debt-entry-amount-masked="true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Moneda</label>
+              <select name="debt_entries[__INDEX__][currency]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-currency="true">
+                <%= options_for_select(Account.currency_options) %>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Fecha de emision</label>
+              <input type="text" name="debt_entries[__INDEX__][issued_on]" value="__DEFAULT_DATE__" autocomplete="off" placeholder="dd-mm-aaaa" required="required" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-issued-on="true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Fecha de vencimiento (opcional)</label>
+              <input type="text" name="debt_entries[__INDEX__][due_on]" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-due-on="true">
+            </div>
+            <div class="md:col-span-2 xl:col-span-4">
+              <label class="block text-sm font-medium text-slate-700">Descripcion de la deuda (opcional)</label>
+              <textarea name="debt_entries[__INDEX__][description]" rows="2" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-description="true"></textarea>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos y fechas</p>
+      <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.hidden_field :amount, data: { debt_amount_hidden: true } %>
+          <%= text_field_tag :debt_amount_masked,
+                             format_money(form.object.amount, unit: selected_currency_symbol),
+                             inputmode: "decimal",
+                             autocomplete: "off",
+                             placeholder: "#{selected_currency_symbol} 0,00",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: {
+                               money_mask: true,
+                               money_symbol: selected_currency_symbol,
+                               debt_amount_masked: true
+                             } %>
+        </div>
+        <div>
+          <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :currency,
+                          Account.currency_options,
+                          {},
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_currency: true, currency_symbols: debt_currency_symbols.to_json } %>
+        </div>
+        <div>
+          <%= form.label :issued_on, "Fecha de emision", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :issued_on,
+                              value: form.object.issued_on&.strftime("%d-%m-%Y"),
+                              autocomplete: "off",
+                              placeholder: "dd-mm-aaaa",
+                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <%= form.label :due_on, "Fecha de vencimiento", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :due_on,
+                              value: form.object.due_on&.strftime("%d-%m-%Y"),
+                              autocomplete: "off",
+                              placeholder: "dd-mm-aaaa",
+                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
       </div>
     </div>
-  </div>
+  <% end %>
   <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" data-debt-client-modal>
     <div class="absolute inset-0 bg-slate-900/60" data-debt-client-modal-close></div>
     <div class="relative z-10 w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
@@ -192,7 +288,7 @@
   <% if @debt.new_record? %>
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <% selected_payment_account = @accounts.find { |account| account.id.to_s == params[:payment_account_id].to_s } %>
-      <% selected_payment_currency = params[:payment_currency].presence || selected_payment_account&.currency || selected_currency %>
+      <% selected_payment_currency = params[:payment_currency].presence || selected_payment_account&.currency || primary_currency %>
       <% payment_currency_symbol = debt_currency_symbols[selected_payment_currency] || selected_currency_symbol %>
       <% show_payment_method = selected_payment_account&.account_type == "bank_account" %>
       <% payment_account_options = @accounts.map do |account| %>
@@ -214,15 +310,19 @@
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago inicial</p>
-        <p class="mt-1 text-sm text-slate-500">Registra un pago si ya se recibio o se pago parte de la deuda.</p>
-        <p class="mt-1 text-xs text-slate-400">El saldo se controla siempre en la moneda base de la deuda: <%= selected_currency %>.</p>
+        <p class="mt-1 text-sm text-slate-500">Opcional: registra un pago inicial al crear una o varias deudas.</p>
+        <p class="mt-1 text-xs text-slate-400">El monto se distribuye automaticamente entre las deudas segun su saldo pendiente.</p>
       </div>
       <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-        <%= check_box_tag :register_payment, "1", params[:register_payment] == "1", class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
+        <%= check_box_tag :register_payment,
+                          "1",
+                          params[:register_payment] == "1",
+                          class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500",
+                          data: { debt_register_payment: true } %>
         Registrar pago ahora
       </label>
     </div>
-    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-debt-payment-fields="true">
       <div>
         <label class="block text-sm font-medium text-slate-700">Moneda del pago</label>
         <%= select_tag :payment_currency,
@@ -277,6 +377,29 @@
       </div>
     </div>
   </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-debt-summary-wrapper="true">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Totales y resumen</p>
+    <div class="mt-4 grid gap-3 lg:grid-cols-2">
+      <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-widest text-emerald-700">Total en $ (BCV)</p>
+        <p class="mt-1 text-lg font-extrabold text-emerald-700" data-debt-total-usd="true">$ 0,00</p>
+      </div>
+      <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-widest text-sky-700">Total en Bs</p>
+        <p class="mt-1 text-lg font-extrabold text-sky-700" data-debt-total-bs="true">Bs 0,00</p>
+      </div>
+      <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-widest text-amber-700">Abonando en $ (BCV)</p>
+        <p class="mt-1 text-lg font-extrabold text-amber-700" data-debt-paying-usd="true">$ 0,00</p>
+        <p class="mt-1 text-xs font-semibold text-amber-700" data-debt-paying-bs="true">Bs 0,00</p>
+      </div>
+      <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3" data-debt-delta-card="true">
+        <p class="text-xs font-semibold uppercase tracking-widest text-rose-700" data-debt-delta-label="true">Falta por pagar</p>
+        <p class="mt-1 text-lg font-extrabold text-rose-700" data-debt-delta-usd="true">$ 0,00</p>
+        <p class="mt-1 text-xs font-semibold text-rose-700" data-debt-delta-bs="true">Bs 0,00</p>
+      </div>
+    </div>
+  </div>
 <% end %>
 <div class="flex flex-wrap items-center gap-3">
   <%= form.submit(@debt.persisted? ? "Actualizar deuda" : "Crear deuda", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
@@ -288,21 +411,31 @@
     if (!form || form.dataset.debtBound === "true") return;
     form.dataset.debtBound = "true";
 
-    const kindSelect = form.querySelector("[data-debt-kind]");
-    const originKindSelect = form.querySelector("[data-debt-origin-kind='true']");
-    const receivableSection = form.querySelector("[data-debt-receivable]");
-    const payableSection = form.querySelector("[data-debt-payable]");
-    const loanAccountWrapper = form.querySelector("[data-debt-loan-account-wrapper='true']");
-    const loanAccountSelect = form.querySelector("[data-debt-loan-account='true']");
     const amountMaskedInput = form.querySelector("[data-debt-amount-masked='true']");
     const amountHiddenInput = form.querySelector("[data-debt-amount-hidden='true']");
     const currencySelect = form.querySelector("[data-debt-currency='true']");
+
+    const debtEntriesWrapper = form.querySelector("[data-debt-entries-wrapper='true']");
+    const debtEntriesContainer = form.querySelector("[data-debt-entries-container='true']");
+    const debtEntryTemplate = form.querySelector("[data-debt-entry-template='true']");
+    const addDebtEntryButton = form.querySelector("[data-debt-entry-add='true']");
+    const debtTotalUsdValue = form.querySelector("[data-debt-total-usd='true']");
+    const debtTotalBsValue = form.querySelector("[data-debt-total-bs='true']");
+    const debtPayingUsdValue = form.querySelector("[data-debt-paying-usd='true']");
+    const debtPayingBsValue = form.querySelector("[data-debt-paying-bs='true']");
+    const debtDeltaCard = form.querySelector("[data-debt-delta-card='true']");
+    const debtDeltaLabel = form.querySelector("[data-debt-delta-label='true']");
+    const debtDeltaUsd = form.querySelector("[data-debt-delta-usd='true']");
+    const debtDeltaBs = form.querySelector("[data-debt-delta-bs='true']");
+
     const paymentCurrencySelect = form.querySelector("[data-debt-payment-currency='true']");
     const paymentMaskedInput = form.querySelector("[data-debt-payment-amount-masked='true']");
     const paymentHiddenInput = form.querySelector("[data-debt-payment-amount-hidden='true']");
     const paymentAccountSelect = form.querySelector("[data-debt-payment-account='true']");
     const paymentMethodWrapper = form.querySelector("[data-debt-payment-method-wrapper='true']");
     const paymentMethodSelect = form.querySelector("[data-debt-payment-method-select='true']");
+    const registerPaymentCheckbox = form.querySelector("[data-debt-register-payment='true']");
+
     const clienteHiddenInput = form.querySelector("[data-debt-cliente-id='true']");
     const clientSearchInput = form.querySelector("[data-debt-client-search='true']");
     const clientResults = form.querySelector("[data-debt-client-results='true']");
@@ -324,24 +457,47 @@
     const clientFeedback = form.querySelector("[data-debt-client-feedback]");
     let clientSearchTimeout = null;
 
-    let currencySymbols = {};
-    if (currencySelect?.dataset.currencySymbols) {
-      try {
-        currencySymbols = JSON.parse(currencySelect.dataset.currencySymbols);
-      } catch (error) {
-        currencySymbols = {};
-      }
-    }
+    const safeParseJSON = (value, fallback = {}) => {
+      if (!value) return fallback;
 
-    const toggleSections = () => {
-      const kind = kindSelect ? kindSelect.value : "receivable";
-      if (receivableSection) {
-        receivableSection.classList.toggle("hidden", kind !== "receivable");
-      }
-      if (payableSection) {
-        payableSection.classList.toggle("hidden", kind !== "payable");
+      try {
+        return JSON.parse(value);
+      } catch (_error) {
+        return fallback;
       }
     };
+
+    const currencySymbolsSource =
+      debtEntriesWrapper?.dataset.currencySymbols ||
+      currencySelect?.dataset.currencySymbols ||
+      paymentCurrencySelect?.dataset.currencySymbols;
+    const currencySymbols = safeParseJSON(currencySymbolsSource, {});
+    const ratesToVes = safeParseJSON(debtEntriesWrapper?.dataset.debtRatesToVes, {});
+
+    const debtEntryRows = () => {
+      if (!debtEntriesContainer) return [];
+      return Array.from(debtEntriesContainer.querySelectorAll("[data-debt-entry-row='true']"));
+    };
+
+    const formatNumber = (value, precision = 2) => {
+      const number = Number(value || 0);
+      return number.toLocaleString("es-VE", {
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+      });
+    };
+
+    const getPrimaryDebtCurrency = () => {
+      if (currencySelect && String(currencySelect.value || "").trim().length > 0) {
+        return String(currencySelect.value).trim().toUpperCase();
+      }
+
+      const firstEntryCurrency = debtEntriesContainer?.querySelector("[data-debt-entry-currency='true']");
+      return String(firstEntryCurrency?.value || "").trim().toUpperCase();
+    };
+
+    let totalDebtUsd = 0;
+    let totalDebtBs = 0;
 
     const setClientFeedback = (message, tone = "error") => {
       if (!clientFeedback) return;
@@ -537,9 +693,10 @@
     };
 
     const resolveDebtCurrencySymbol = () => {
-      if (!currencySelect) return "$";
+      const currency = getPrimaryDebtCurrency();
+      if (!currency) return "$";
 
-      return currencySymbols[currencySelect.value] || "$";
+      return currencySymbols[currency] || "$";
     };
 
     const resolvePaymentCurrencySymbol = () => {
@@ -580,6 +737,7 @@
 
       const parsed = parseMaskedValue(paymentMaskedInput);
       paymentHiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+      updateDebtPaymentSummary();
     };
 
     const syncMaskedInputCurrency = (input, symbol) => {
@@ -606,6 +764,287 @@
       updatePaymentHidden();
     };
 
+    const updateDebtEntryAmountHidden = (row) => {
+      if (!row) return;
+
+      const maskedInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+      const hiddenInput = row.querySelector("[data-debt-entry-amount-hidden='true']");
+      if (!maskedInput || !hiddenInput) return;
+
+      const parsed = parseMaskedValue(maskedInput);
+      hiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const syncDebtEntryMaskCurrency = (row) => {
+      if (!row) return;
+
+      const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+      const maskedInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+      if (!currencyField || !maskedInput) return;
+
+      const currency = String(currencyField.value || "").trim().toUpperCase();
+      const symbol = currencySymbols[currency] || "$";
+      syncMaskedInputCurrency(maskedInput, symbol);
+    };
+
+    const updateDebtEntryLabels = () => {
+      const rows = debtEntryRows();
+
+      rows.forEach((row, index) => {
+        const label = row.querySelector("[data-debt-entry-index-label='true']");
+        if (label) label.textContent = String(index + 1);
+
+        const removeButton = row.querySelector("[data-debt-entry-remove='true']");
+        if (removeButton) {
+          removeButton.classList.toggle("hidden", rows.length <= 1);
+        }
+      });
+    };
+
+    const updateDebtPaymentSummary = () => {
+      const shouldRegisterPayment = registerPaymentCheckbox ? registerPaymentCheckbox.checked : true;
+      const paymentCurrency = String(paymentCurrencySelect?.value || "").trim().toUpperCase();
+      const paymentAmount = shouldRegisterPayment ? parseMaskedValue(paymentMaskedInput) : 0;
+
+      const paymentRateToBs = Number(ratesToVes[paymentCurrency]);
+      const usdRateToBs = Number(ratesToVes.USD);
+
+      const paymentInBs = Number.isFinite(paymentRateToBs) && paymentRateToBs > 0 && paymentAmount > 0
+        ? paymentAmount * paymentRateToBs
+        : 0;
+      const paymentInUsd = Number.isFinite(usdRateToBs) && usdRateToBs > 0
+        ? paymentInBs / usdRateToBs
+        : 0;
+
+      if (debtPayingUsdValue) {
+        debtPayingUsdValue.textContent = `$ ${formatNumber(paymentInUsd)}`;
+      }
+
+      if (debtPayingBsValue) {
+        debtPayingBsValue.textContent = `Bs ${formatNumber(paymentInBs)}`;
+      }
+
+      const deltaUsd = paymentInUsd - totalDebtUsd;
+      const deltaBs = paymentInBs - totalDebtBs;
+      const surplus = deltaUsd >= 0;
+
+      if (debtDeltaLabel) {
+        debtDeltaLabel.textContent = surplus ? "Sobra por aplicar" : "Falta por pagar";
+      }
+
+      if (debtDeltaUsd) {
+        debtDeltaUsd.textContent = `$ ${formatNumber(Math.abs(deltaUsd))}`;
+      }
+
+      if (debtDeltaBs) {
+        debtDeltaBs.textContent = `Bs ${formatNumber(Math.abs(deltaBs))}`;
+      }
+
+      if (debtDeltaCard) {
+        debtDeltaCard.classList.remove("border-rose-200", "bg-rose-50", "border-emerald-200", "bg-emerald-50");
+        debtDeltaCard.classList.add(surplus ? "border-emerald-200" : "border-rose-200");
+        debtDeltaCard.classList.add(surplus ? "bg-emerald-50" : "bg-rose-50");
+      }
+
+      [debtDeltaLabel, debtDeltaUsd, debtDeltaBs].forEach((element) => {
+        if (!element) return;
+
+        element.classList.remove("text-rose-700", "text-emerald-700");
+        element.classList.add(surplus ? "text-emerald-700" : "text-rose-700");
+      });
+    };
+
+    const updateDebtTotals = () => {
+      if (!debtEntriesContainer) return;
+
+      let totalInBs = 0;
+
+      debtEntryRows().forEach((row) => {
+        updateDebtEntryAmountHidden(row);
+
+        const hiddenInput = row.querySelector("[data-debt-entry-amount-hidden='true']");
+        const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+        const amount = Number.parseFloat(String(hiddenInput?.value || "0"));
+        const currency = String(currencyField?.value || "").trim().toUpperCase();
+
+        if (!currency || !Number.isFinite(amount) || amount <= 0) return;
+
+        const rate = Number(ratesToVes[currency]);
+        if (Number.isFinite(rate) && rate > 0) {
+          totalInBs += amount * rate;
+        }
+      });
+
+      const usdRateToBs = Number(ratesToVes.USD);
+      const totalInUsd = Number.isFinite(usdRateToBs) && usdRateToBs > 0 ? totalInBs / usdRateToBs : 0;
+      totalDebtBs = totalInBs;
+      totalDebtUsd = totalInUsd;
+
+      if (debtTotalUsdValue) {
+        debtTotalUsdValue.textContent = `$ ${formatNumber(totalInUsd)}`;
+      }
+
+      if (debtTotalBsValue) {
+        debtTotalBsValue.textContent = `Bs ${formatNumber(totalInBs)}`;
+      }
+
+      updateDebtPaymentSummary();
+    };
+
+    const syncPaymentCurrencyFromDebt = () => {
+      if (!paymentCurrencySelect) return;
+      if (String(paymentCurrencySelect.value || "").trim().length > 0) return;
+
+      const primaryCurrency = getPrimaryDebtCurrency();
+      if (primaryCurrency) {
+        paymentCurrencySelect.value = primaryCurrency;
+      }
+    };
+
+    const initializeDatepickersInRow = (row) => {
+      if (!row || !window.M?.Datepicker) return;
+
+      const container = document.getElementById("materialize-datepicker-portal");
+      row.querySelectorAll(".js-materialize-datepicker").forEach((input) => {
+        if (window.M.Datepicker.getInstance(input)) return;
+
+        window.M.Datepicker.init(input, {
+          autoClose: true,
+          format: "dd-mm-yyyy",
+          container,
+          showClearBtn: false,
+        });
+      });
+    };
+
+    const attachDebtEntryRowEvents = (row) => {
+      if (!row) return;
+
+      const amountInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+      const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+      const removeButton = row.querySelector("[data-debt-entry-remove='true']");
+
+      if (amountInput) {
+        amountInput.addEventListener("input", () => {
+          updateDebtEntryAmountHidden(row);
+          updateDebtTotals();
+        });
+      }
+
+      if (currencyField) {
+        currencyField.addEventListener("change", () => {
+          syncDebtEntryMaskCurrency(row);
+          updateDebtEntryAmountHidden(row);
+          syncPaymentCurrencyFromDebt();
+          updateDebtTotals();
+        });
+      }
+
+      if (removeButton) {
+        removeButton.addEventListener("click", () => {
+          row.remove();
+
+          if (debtEntryRows().length === 0) {
+            addDebtEntryRow();
+          }
+
+          updateDebtEntryLabels();
+          syncPaymentCurrencyFromDebt();
+          syncPaymentAmountMaskCurrency();
+          updateDebtTotals();
+        });
+      }
+
+      initializeDatepickersInRow(row);
+    };
+
+    const addDebtEntryRow = () => {
+      if (!debtEntriesWrapper || !debtEntriesContainer || !debtEntryTemplate) return;
+
+      const nextIndex =
+        Number.parseInt(debtEntriesWrapper.dataset.nextIndex || String(debtEntryRows().length), 10) ||
+        debtEntryRows().length;
+      const defaultDate = debtEntriesWrapper.dataset.defaultIssuedOn || "";
+
+      let rowHtml = debtEntryTemplate.innerHTML;
+      rowHtml = rowHtml.replace(/__INDEX__/g, String(nextIndex));
+      rowHtml = rowHtml.replace(/__DEFAULT_DATE__/g, defaultDate);
+
+      const buffer = document.createElement("div");
+      buffer.innerHTML = rowHtml.trim();
+      const newRow = buffer.firstElementChild;
+      if (!newRow) return;
+
+      debtEntriesContainer.appendChild(newRow);
+      debtEntriesWrapper.dataset.nextIndex = String(nextIndex + 1);
+
+      const preferredCurrency = getPrimaryDebtCurrency();
+      const currencyField = newRow.querySelector("[data-debt-entry-currency='true']");
+      if (currencyField && preferredCurrency) {
+        currencyField.value = preferredCurrency;
+      }
+
+      window.MoneyInputMask?.init(newRow);
+      attachDebtEntryRowEvents(newRow);
+      syncDebtEntryMaskCurrency(newRow);
+      updateDebtEntryAmountHidden(newRow);
+      updateDebtEntryLabels();
+      syncPaymentCurrencyFromDebt();
+      syncPaymentAmountMaskCurrency();
+      updateDebtTotals();
+    };
+
+    const validateDebtEntries = () => {
+      if (!debtEntriesContainer) return true;
+
+      const rows = debtEntryRows();
+      if (rows.length === 0) {
+        if (window.AppToast?.error) {
+          window.AppToast.error("Debes agregar al menos una deuda.");
+        }
+        return false;
+      }
+
+      for (let index = 0; index < rows.length; index += 1) {
+        const row = rows[index];
+        const amountInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+        const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+        const issuedOnInput = row.querySelector("[data-debt-entry-issued-on='true']");
+
+        const amount = parseMaskedValue(amountInput);
+        const currency = String(currencyField?.value || "").trim();
+        const issuedOn = String(issuedOnInput?.value || "").trim();
+
+        if (!(amount > 0)) {
+          if (window.AppToast?.error) {
+            window.AppToast.error(`La deuda ${index + 1} debe tener un monto mayor a cero.`);
+          }
+          amountInput?.focus();
+          return false;
+        }
+
+        if (!currency) {
+          if (window.AppToast?.error) {
+            window.AppToast.error(`Selecciona la moneda de la deuda ${index + 1}.`);
+          }
+          currencyField?.focus();
+          return false;
+        }
+
+        if (!issuedOn) {
+          if (window.AppToast?.error) {
+            window.AppToast.error(`La deuda ${index + 1} requiere fecha de emision.`);
+          }
+          issuedOnInput?.focus();
+          return false;
+        }
+
+        updateDebtEntryAmountHidden(row);
+      }
+
+      return true;
+    };
+
     const filterSelectByCurrency = (selectElement, currency) => {
       if (!selectElement) return;
 
@@ -628,23 +1067,6 @@
       }
     };
 
-    const updateLoanAccountVisibility = () => {
-      if (!loanAccountWrapper || !loanAccountSelect) return;
-
-      const isLoan = originKindSelect?.value === "loan";
-      const isReceivable = (kindSelect?.value || "receivable") === "receivable";
-      const shouldShow = isLoan && isReceivable;
-
-      loanAccountWrapper.classList.toggle("hidden", !shouldShow);
-
-      if (!shouldShow) {
-        loanAccountSelect.value = "";
-        return;
-      }
-
-      filterSelectByCurrency(loanAccountSelect, currencySelect?.value);
-    };
-
     const updatePaymentAccountsByCurrency = () => {
       const selectedCurrency = paymentCurrencySelect?.value;
       filterSelectByCurrency(paymentAccountSelect, selectedCurrency);
@@ -663,15 +1085,23 @@
       }
     };
 
-    if (kindSelect) {
-      kindSelect.addEventListener("change", () => {
-        toggleSections();
-        updateLoanAccountVisibility();
+    if (debtEntriesContainer && debtEntriesWrapper) {
+      const initialRows = debtEntryRows();
+      debtEntriesWrapper.dataset.nextIndex = String(initialRows.length);
+
+      initialRows.forEach((row) => {
+        window.MoneyInputMask?.init(row);
+        attachDebtEntryRowEvents(row);
+        syncDebtEntryMaskCurrency(row);
+        updateDebtEntryAmountHidden(row);
       });
+
+      updateDebtEntryLabels();
+      updateDebtTotals();
     }
 
-    if (originKindSelect) {
-      originKindSelect.addEventListener("change", updateLoanAccountVisibility);
+    if (addDebtEntryButton) {
+      addDebtEntryButton.addEventListener("click", addDebtEntryRow);
     }
 
     if (clientSearchInput) {
@@ -788,7 +1218,6 @@
 
         syncPaymentAmountMaskCurrency();
         updatePaymentAccountsByCurrency();
-        updateLoanAccountVisibility();
         updatePaymentMethodVisibility();
       });
     }
@@ -798,7 +1227,12 @@
         syncPaymentAmountMaskCurrency();
         updatePaymentAccountsByCurrency();
         updatePaymentMethodVisibility();
+        updateDebtPaymentSummary();
       });
+    }
+
+    if (registerPaymentCheckbox) {
+      registerPaymentCheckbox.addEventListener("change", updateDebtPaymentSummary);
     }
 
     if (paymentAccountSelect) {
@@ -806,10 +1240,9 @@
     }
 
     form.addEventListener("submit", (event) => {
-      const selectedKind = String(kindSelect?.value || "receivable");
       const selectedClientId = String(clienteHiddenInput?.value || "").trim();
 
-      if (selectedKind === "receivable" && selectedClientId.length === 0) {
+      if (selectedClientId.length === 0) {
         event.preventDefault();
 
         if (window.AppToast?.error) {
@@ -817,6 +1250,11 @@
         }
 
         if (clientSearchInput) clientSearchInput.focus();
+        return;
+      }
+
+      if (!validateDebtEntries()) {
+        event.preventDefault();
         return;
       }
 
@@ -840,16 +1278,12 @@
       }
     }
 
-    if (paymentCurrencySelect && !String(paymentCurrencySelect.value || "").trim() && currencySelect) {
-      paymentCurrencySelect.value = currencySelect.value;
-    }
-
-    toggleSections();
+    syncPaymentCurrencyFromDebt();
     updatePaymentAccountsByCurrency();
     updatePaymentMethodVisibility();
-    updateLoanAccountVisibility();
     syncDebtAmountMaskCurrency();
     syncPaymentAmountMaskCurrency();
+    updateDebtTotals();
   })();
 </script>
 <% end %>

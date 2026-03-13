@@ -13,12 +13,8 @@ end %>
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400"><%= debt.debt_kind_label %></p>
       <h3 class="mt-1 truncate text-base font-bold text-slate-800"><%= debt.name %></h3>
       <p class="mt-1 text-xs text-slate-500"><%= debt.counterparty_label %>: <%= debt.counterparty_display_name %></p>
-      <p class="mt-1 text-xs text-slate-500">Origen: <%= debt.origin_kind_label %></p>
-      <% if debt.loan? && debt.loan_account.present? %>
-        <p class="mt-1 text-xs text-slate-500">Cuenta prestamo: <%= debt.loan_account.name %> (<%= debt.loan_account.currency %>)</p>
-      <% end %>
-      <% if debt.reference.present? %>
-        <p class="mt-1 text-xs text-slate-500">Ref: <%= debt.reference %></p>
+      <% if debt.description.present? %>
+        <p class="mt-1 line-clamp-2 text-xs text-slate-500"><%= debt.description %></p>
       <% end %>
     </div>
     <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <%= badge_class %>">

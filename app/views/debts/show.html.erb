@@ -32,22 +32,8 @@
           <dd class="font-semibold text-slate-800"><%= @debt.debt_kind_label %></dd>
         </div>
         <div class="flex items-center justify-between">
-          <dt>Origen</dt>
-          <dd class="font-semibold text-slate-800"><%= @debt.origin_kind_label %></dd>
-        </div>
-        <% if @debt.loan? && @debt.loan_account.present? %>
-          <div class="flex items-center justify-between">
-            <dt>Cuenta prestamo</dt>
-            <dd class="font-semibold text-slate-800"><%= @debt.loan_account.name %> (<%= @debt.loan_account.currency %>)</dd>
-          </div>
-        <% end %>
-        <div class="flex items-center justify-between">
           <dt><%= @debt.counterparty_label %></dt>
           <dd class="font-semibold text-slate-800"><%= @debt.counterparty_display_name %></dd>
-        </div>
-        <div class="flex items-center justify-between">
-          <dt>Referencia</dt>
-          <dd class="font-semibold text-slate-800"><%= @debt.reference.presence || "-" %></dd>
         </div>
         <div class="flex items-center justify-between">
           <dt>Emision</dt>

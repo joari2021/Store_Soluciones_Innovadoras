@@ -4,16 +4,16 @@ class AddSymbolToTasaCambios < ActiveRecord::Migration[7.1]
 
     execute <<~SQL
       UPDATE tasa_cambios
-      SET symbol = CASE description
+      SET symbol = CASE COALESCE(NULLIF(TRIM(description), ''), '')
         WHEN 'Dolar BCV' THEN '$'
         WHEN 'Euro BCV' THEN '€'
         WHEN 'Unidad VI' THEN 'Bs'
-        ELSE description
+        ELSE COALESCE(NULLIF(TRIM(description), ''), 'N/A')
       END
       WHERE symbol IS NULL OR symbol = '';
     SQL
 
-    change_column_null :tasa_cambios, :symbol, false
+    change_column_null :tasa_cambios, :symbol, false, 'N/A'
   end
 
   def down

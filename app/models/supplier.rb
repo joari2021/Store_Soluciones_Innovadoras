@@ -5,8 +5,7 @@ class Supplier < ApplicationRecord
   has_many :supplier_products, dependent: :destroy
   has_many :productos, through: :supplier_products
 
-  has_many :purchase_invoices, class_name: 'PurchaseInvoice', foreign_key: :supplier_id, dependent: :nullify
-  has_many :debts, foreign_key: :supplier_id, dependent: :nullify
+  has_many :purchase_invoices, class_name: "PurchaseInvoice", foreign_key: :supplier_id, dependent: :nullify
 
   accepts_nested_attributes_for :supplier_products, allow_destroy: true
 
