@@ -1,7 +1,7 @@
 <% reference = expense_reference_for_form(f.object, rows: expense_currency_rows) %>
 <% reference_symbol = currency_symbol_for_reference(reference, rows: expense_currency_rows, fallback: "$") %>
 <% reference_amount = expense_reference_amount_for_form(f.object, reference: reference) %>
-<div class="rounded-xl border border-slate-200 bg-white p-3" data-nested-row data-money-pair>
+<div class="rounded-xl border border-slate-200 bg-white p-3" data-nested-row data-money-pair data-nested-persisted="<%= f.object.persisted? %>">
   <%= f.hidden_field :_destroy, data: { destroy_input: true } %>
   <%= f.hidden_field :amount_usd,
                      value: f.object.amount_usd.to_d,

@@ -3,7 +3,7 @@
 <% nested_reference = f.object.currency_reference.to_s.strip.presence || 'Bs' %>
 <% nested_reference_symbol = currency_symbol_for_reference(nested_reference, rows: expense_currency_rows, fallback: 'Bs') %>
 <% nested_reference_amount = f.object.amount_reference.to_d %>
-<div class="rounded-xl border border-slate-200 bg-white p-3" data-nested-row>
+<div class="rounded-xl border border-slate-200 bg-white p-3" data-nested-row data-nested-persisted="<%= f.object.persisted? %>">
   <%= f.hidden_field :_destroy, data: { destroy_input: true } %>
   <div class="grid gap-3 md:grid-cols-6">
     <div class="md:col-span-2">

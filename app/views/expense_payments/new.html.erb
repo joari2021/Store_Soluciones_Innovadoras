@@ -1,4 +1,12 @@
 <div class="space-y-6">
+  <% payment_account_options = @accounts.map do |account| %>
+    <% ["#{account.name} (#{account.currency})", account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+  <% end %>
+  <% currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+  <% selected_payment_account = @accounts.find { |account| account.id == @expense_payment.account_id } %>
+  <% selected_payment_currency = selected_payment_account&.currency || @expense_payment.currency || 'USD' %>
+  <% selected_payment_symbol = currency_symbols[selected_payment_currency] || selected_payment_currency %>
+  <% show_payment_method = selected_payment_account&.account_type == 'bank_account' && selected_payment_account&.currency == 'VES' %>
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
@@ -12,8 +20,16 @@
     </div>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <%= form_with model: [@expense, @expense_payment], local: true, class: "space-y-6" do |form| %>
+    <%= form_with model: [@expense, @expense_payment], local: true, class: "space-y-6", data: { expense_payment_form: true, expense_payment_currency_symbols: currency_symbols.to_json, expense_payment_convert_url: convert_amount_expense_path(@expense) } do |form| %>
       <% if @expense_payment.errors.any? %>
+        <% balance_error_message = @expense_payment.errors.full_messages.find { |message| message.to_s.downcase.include?('saldo insuficiente') } %>
+        <% if balance_error_message.present? %>
+          <div
+            class="hidden"
+            data-balance-insufficient-alert="true"
+            data-balance-insufficient-message="<%= balance_error_message %>"
+          ></div>
+        <% end %>
         <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
           <div class="flex items-center justify-between">
             <h4 class="text-sm font-bold">No se pudo registrar el pago</h4>
@@ -29,23 +45,54 @@
       <div class="grid gap-4 md:grid-cols-2">
         <div>
           <%= form.label :account_id, "Cuenta", class: "block text-sm font-medium text-slate-700" %>
-          <%= form.select :account_id, options_for_select(@accounts.map { |account| ["#{account.name} (#{account.currency})", account.id] }, form.object.account_id), { include_blank: "Selecciona una cuenta" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+          <%= form.select :account_id,
+                          options_for_select(payment_account_options, form.object.account_id),
+                          { include_blank: "Selecciona una cuenta" },
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { expense_payment_account: true } %>
+        </div>
+        <div class="<%= show_payment_method ? '' : 'hidden' %>" data-expense-payment-method-wrapper="true">
+          <%= form.label :payment_method, "Metodo (solo banco en Bs)", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :payment_method,
+                          options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], form.object.payment_method),
+                          { include_blank: "Selecciona" },
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { expense_payment_method: true } %>
         </div>
         <div>
           <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
-          <%= form.number_field :amount, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-        </div>
-        <div>
-          <%= form.label :payment_method, "Metodo (solo banco)", class: "block text-sm font-medium text-slate-700" %>
-          <%= form.select :payment_method, options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], form.object.payment_method), { include_blank: "Selecciona" }, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+          <%= form.text_field :amount,
+                              inputmode: 'decimal',
+                              autocomplete: 'off',
+                              placeholder: "#{selected_payment_symbol} 0,00",
+                              value: form.object.amount.present? ? form.object.amount : "#{selected_payment_symbol} 0,00",
+                              class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                              data: {
+                                money_mask: true,
+                                money_symbol: selected_payment_symbol,
+                                expense_payment_amount: true
+                              } %>
         </div>
         <div>
           <%= form.label :reference, "Referencia", class: "block text-sm font-medium text-slate-700" %>
-          <%= form.text_field :reference, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "6 digitos" %>
+          <%= form.text_field :reference,
+                              inputmode: "numeric",
+                              maxlength: 6,
+                              minlength: 6,
+                              pattern: "\\d{6}",
+                              autocomplete: "off",
+                              title: "La referencia debe tener exactamente 6 digitos",
+                              class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                              placeholder: "6 digitos",
+                              data: { expense_payment_reference: true } %>
         </div>
         <div>
           <%= form.label :occurred_at, "Fecha del pago", class: "block text-sm font-medium text-slate-700" %>
-          <%= form.datetime_local_field :occurred_at, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+          <%= form.text_field :occurred_at,
+                              value: form.object.occurred_at&.to_date&.strftime('%d-%m-%Y'),
+                              autocomplete: 'off',
+                              placeholder: 'dd-mm-aaaa',
+                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
         <div class="md:col-span-2">
           <%= form.label :notes, "Notas", class: "block text-sm font-medium text-slate-700" %>
@@ -53,7 +100,7 @@
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <%= form.submit "Registrar pago", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800" %>
+        <%= form.submit "Registrar pago", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 cursor-pointer" %>
         <%= link_to expense_path(@expense), class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
           Cancelar
         <% end %>
@@ -61,3 +108,384 @@
     <% end %>
   </div>
 </div>
+<script>
+  (function () {
+    const form = document.querySelector("[data-expense-payment-form='true']");
+    if (!form || form.dataset.bound === "true") return;
+    form.dataset.bound = "true";
+
+    const accountSelect = form.querySelector("[data-expense-payment-account='true']");
+    const methodWrapper = form.querySelector("[data-expense-payment-method-wrapper='true']");
+    const methodSelect = form.querySelector("[data-expense-payment-method='true']");
+    const referenceInput = form.querySelector("[data-expense-payment-reference='true']");
+    const amountInput = form.querySelector("[data-expense-payment-amount='true']");
+    const dateInput = form.querySelector("[name='expense_payment[occurred_at]']");
+    const currencySymbols = (() => {
+      try {
+        return JSON.parse(form.dataset.expensePaymentCurrencySymbols || "{}");
+      } catch (_error) {
+        return {};
+      }
+    })();
+
+    const expenseCurrency = String("<%= @expense.currency %>" || "").toUpperCase();
+    const expenseAmount = Number(<%= (@expense.amount || 0).to_f %>);
+    const convertUrl = form.dataset.expensePaymentConvertUrl || "";
+    let conversionRequestToken = 0;
+    let lastRateAlertKey = "";
+    const conversionCache = new Map();
+    const pendingConversions = new Map();
+
+    const padDatePart = (value) => String(value).padStart(2, "0");
+
+    function parseInputDate(rawValue) {
+      const trimmed = String(rawValue || "").trim();
+      if (!trimmed) return null;
+
+      const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (isoMatch) {
+        const year = Number(isoMatch[1]);
+        const month = Number(isoMatch[2]);
+        const day = Number(isoMatch[3]);
+        const parsed = new Date(year, month - 1, day);
+
+        if (
+          parsed.getFullYear() !== year ||
+          parsed.getMonth() !== month - 1 ||
+          parsed.getDate() !== day
+        ) {
+          return null;
+        }
+
+        return parsed;
+      }
+
+      const match = trimmed.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+      if (!match) return null;
+
+      const day = Number(match[1]);
+      const month = Number(match[2]);
+      const year = Number(match[3]);
+      const parsed = new Date(year, month - 1, day);
+
+      if (
+        parsed.getFullYear() !== year ||
+        parsed.getMonth() !== month - 1 ||
+        parsed.getDate() !== day
+      ) {
+        return null;
+      }
+
+      return parsed;
+    }
+
+    function formatIsoDate(date) {
+      if (!(date instanceof Date)) return "";
+      return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+    }
+
+    function formatDisplayDate(date) {
+      if (!(date instanceof Date)) return "";
+      return `${padDatePart(date.getDate())}-${padDatePart(date.getMonth() + 1)}-${date.getFullYear()}`;
+    }
+
+    function normalizedDateFromInput() {
+      const parsedDate = parseInputDate(dateInput?.value);
+      if (!parsedDate) return "";
+
+      const normalized = formatIsoDate(parsedDate);
+      const displayValue = formatDisplayDate(parsedDate);
+
+      if (dateInput && dateInput.value !== displayValue) {
+        dateInput.value = displayValue;
+      }
+
+      return normalized;
+    }
+
+    function shouldConvert() {
+      const option = accountSelect?.options?.[accountSelect.selectedIndex];
+      const accountCurrency = String(option?.dataset.accountCurrency || "").toUpperCase();
+      return (expenseCurrency === "USD" || expenseCurrency === "EUR") && accountCurrency === "VES";
+    }
+
+    function paymentDateValue() {
+      return normalizedDateFromInput();
+    }
+
+    function setPaymentDateToToday() {
+      if (!dateInput) return false;
+
+      const today = new Date();
+      const todayFormatted = formatDisplayDate(today);
+      const todayIso = formatIsoDate(today);
+      const currentDate = paymentDateValue();
+      if (!todayFormatted || currentDate === todayIso) return false;
+
+      dateInput.value = todayFormatted;
+      return true;
+    }
+
+    function showMissingRateAlert(message) {
+      const date = paymentDateValue();
+      const displayDate = date ? date.split("-").reverse().join("-") : "";
+      const baseMessage = String(message || "").trim();
+      const alertMessage = displayDate
+        ? `${baseMessage}${baseMessage.endsWith(".") ? "" : "."} Fecha consultada: ${displayDate}`
+        : baseMessage;
+
+      const key = `${expenseCurrency}|${date}|${alertMessage}`;
+      if (key === lastRateAlertKey) return;
+
+      lastRateAlertKey = key;
+
+      if (window.Swal?.fire) {
+        window.Swal.fire({
+          icon: "warning",
+          title: "Tasa no encontrada",
+          text: alertMessage,
+          confirmButtonText: "Entendido"
+        });
+        return;
+      }
+
+      window.AppToast?.warning?.(alertMessage, { title: "Tasa no encontrada" });
+    }
+
+    async function requestBsConversion(date) {
+      if (!convertUrl) return null;
+
+      const cacheKey = `${expenseCurrency}|VES|${date}|${expenseAmount}`;
+      const cached = conversionCache.get(cacheKey);
+      if (cached?.ok) {
+        return cached.payload;
+      }
+      if (cached && cached.ok === false) {
+        const error = new Error(cached.message || "No se pudo convertir el monto");
+        error.status = cached.status;
+        throw error;
+      }
+
+      const pending = pendingConversions.get(cacheKey);
+      if (pending) {
+        return pending;
+      }
+
+      const csrfToken = document.querySelector("meta[name='csrf-token']")?.content;
+      const requestPromise = fetch(convertUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {})
+        },
+        body: JSON.stringify({
+          amount: expenseAmount,
+          from_currency: expenseCurrency,
+          to_currency: "VES",
+          date: date
+        })
+      })
+        .then(async (response) => {
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const error = new Error(payload.error || "No se pudo convertir el monto");
+            error.status = response.status;
+            throw error;
+          }
+
+          conversionCache.set(cacheKey, { ok: true, payload });
+          return payload;
+        })
+        .catch((error) => {
+          if (error?.status === 404) {
+            conversionCache.set(cacheKey, {
+              ok: false,
+              status: error.status,
+              message: error.message
+            });
+          }
+          throw error;
+        })
+        .finally(() => {
+          pendingConversions.delete(cacheKey);
+        });
+
+      pendingConversions.set(cacheKey, requestPromise);
+      return requestPromise;
+    }
+
+    async function updateAmountByConversion() {
+      if (!shouldConvert()) {
+        lastRateAlertKey = "";
+        return;
+      }
+
+      const date = paymentDateValue();
+      if (!date || !Number.isFinite(expenseAmount) || expenseAmount <= 0) return;
+
+      const requestToken = ++conversionRequestToken;
+
+      try {
+        const conversion = await requestBsConversion(date);
+        if (requestToken !== conversionRequestToken) return;
+
+        const montoBs = Number(conversion?.amount);
+        if (!Number.isFinite(montoBs)) return;
+
+        const symbol = currencySymbols.VES || "Bs";
+        if (window.MoneyInputMask?.setValue) {
+          window.MoneyInputMask.setValue(amountInput, montoBs, symbol);
+        } else if (amountInput) {
+          amountInput.value = `${symbol} ${montoBs.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        lastRateAlertKey = "";
+      } catch (error) {
+        if (requestToken !== conversionRequestToken) return;
+
+        const backendMessage = String(error?.message || "").trim();
+        const fallbackReference = expenseCurrency === "EUR" ? "Euro BCV" : "Dolar BCV";
+        const fallbackMessage = `No hay tasa ${fallbackReference} registrada para esa fecha`;
+        const shouldShowRateAlert = error?.status === 404 || /no\s+hay\s+tasa/i.test(backendMessage);
+
+        if (shouldShowRateAlert) {
+          showMissingRateAlert(backendMessage || fallbackMessage);
+
+          if (setPaymentDateToToday()) {
+            lastRateAlertKey = "";
+            updateAmountByConversion();
+          }
+        } else {
+          window.AppToast?.error?.(backendMessage || "No se pudo convertir el monto a Bs");
+        }
+      }
+    }
+
+    const parseMaskedValue = (input) => {
+      if (!input) return 0;
+      if (window.MoneyInputMask?.parseValue) return window.MoneyInputMask.parseValue(input);
+
+      const compact = String(input.value || "")
+        .replace(/\s/g, "")
+        .replace(/[^\d.,-]/g, "");
+
+      const normalized = compact.includes(",")
+        ? compact.replace(/\./g, "").replace(",", ".")
+        : compact;
+
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+    };
+
+    const selectedOption = () => accountSelect?.options?.[accountSelect.selectedIndex];
+
+    const isBsBankAccountSelected = () => {
+      const option = selectedOption();
+      const isBank = option?.dataset.accountType === "bank_account";
+      const isVes = String(option?.dataset.accountCurrency || "").toUpperCase() === "VES";
+      return isBank && isVes;
+    };
+
+    const updateMethodVisibility = () => {
+      if (!methodWrapper || !methodSelect) return;
+
+      const visible = isBsBankAccountSelected();
+      methodWrapper.classList.toggle("hidden", !visible);
+
+      if (!visible) {
+        methodSelect.value = "";
+        if (referenceInput) referenceInput.value = "";
+      }
+    };
+
+    const updateAmountMaskByAccount = () => {
+      if (!amountInput) return;
+
+      const option = selectedOption();
+      const currency = String(option?.dataset.accountCurrency || "USD").toUpperCase();
+      const symbol = currencySymbols[currency] || currency || "$";
+      const currentValue = parseMaskedValue(amountInput);
+
+      amountInput.dataset.moneySymbol = symbol;
+      amountInput.placeholder = `${symbol} 0,00`;
+
+      if (window.MoneyInputMask?.setValue) {
+        window.MoneyInputMask.setValue(amountInput, currentValue, symbol);
+      }
+    };
+
+    const sanitizeReference = () => {
+      if (!referenceInput) return "";
+
+      const digits = String(referenceInput.value || "")
+        .replace(/\D/g, "")
+        .slice(0, 6);
+
+      if (referenceInput.value !== digits) {
+        referenceInput.value = digits;
+      }
+
+      return digits;
+    };
+
+    const referenceRequired = () => {
+      return isBsBankAccountSelected() && String(methodSelect?.value || "").trim().length > 0;
+    };
+
+    const updateReferenceRules = () => {
+      if (!referenceInput) return;
+
+      const digits = sanitizeReference();
+      const requiresReference = referenceRequired();
+      const shouldValidate = requiresReference || digits.length > 0;
+
+      referenceInput.required = requiresReference;
+      referenceInput.setCustomValidity(
+        shouldValidate && digits.length !== 6 ? "La referencia debe tener exactamente 6 digitos." : ""
+      );
+    };
+
+
+    if (accountSelect) {
+      accountSelect.addEventListener("change", () => {
+        updateMethodVisibility();
+        updateAmountMaskByAccount();
+        updateReferenceRules();
+        updateAmountByConversion();
+      });
+    }
+
+    if (dateInput) {
+      dateInput.addEventListener("change", () => {
+        normalizedDateFromInput();
+        updateAmountByConversion();
+      });
+    }
+
+    if (methodSelect) {
+      methodSelect.addEventListener("change", updateReferenceRules);
+    }
+
+    if (referenceInput) {
+      referenceInput.addEventListener("input", updateReferenceRules);
+    }
+
+    form.addEventListener("submit", (event) => {
+      updateReferenceRules();
+
+      const digits = sanitizeReference();
+      const shouldValidate = referenceRequired() || digits.length > 0;
+      if (shouldValidate && digits.length !== 6) {
+        event.preventDefault();
+        referenceInput?.focus();
+      }
+    });
+
+    updateMethodVisibility();
+    updateAmountMaskByAccount();
+    updateReferenceRules();
+    normalizedDateFromInput();
+    updateAmountByConversion();
+  })();
+</script>

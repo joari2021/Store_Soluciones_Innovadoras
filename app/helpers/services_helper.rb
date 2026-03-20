@@ -40,6 +40,15 @@ module ServicesHelper
       products.map do |product|
         price_usd = product.precio_venta_usd.to_d
         price_bs = rate.positive? ? (price_usd * rate).round(2) : 0.to_d
+        variations_payload = product
+                             .product_variations
+                             .sort_by(&:id)
+                             .map do |variation|
+                               {
+                                 id: variation.id,
+                                 description: variation.description.to_s
+                               }
+        end
 
         [
           "#{product.descripcion} ($#{format_quantity(price_usd)})",
@@ -47,13 +56,24 @@ module ServicesHelper
           {
             data: {
               price_usd: price_usd.to_f,
-              price_bs: price_bs.to_f
+              price_bs: price_bs.to_f,
+              variations: variations_payload.to_json
             }
           }
         ]
       end,
       selected_id
     )
+  end
+
+  def product_variation_options_for_select(product:, selected_id: nil)
+    return options_for_select([], selected_id) unless product
+
+    variations = product.product_variations.order(:id).map do |variation|
+      [variation.description.to_s, variation.id]
+    end
+
+    options_for_select(variations, selected_id)
   end
 
   def currency_reference_options_for_select(rows:, selected: nil)

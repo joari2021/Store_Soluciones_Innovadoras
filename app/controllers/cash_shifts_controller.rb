@@ -1,0 +1,811 @@
+class CashShiftsController < ApplicationController
+  CLOSING_VERIFICATION_ACCOUNT_TYPES = %w[biopago pos cash_box].freeze
+  AUTO_SETTLEMENT_ACCOUNT_TYPES = %w[biopago pos].freeze
+
+  before_action :require_business
+  before_action -> { require_module_access!(:cash_shifts) }
+  before_action :ensure_can_manage_cash_shifts!, only: %i[create]
+  before_action :set_open_cash_shift, only: %i[create]
+  before_action :set_cash_shift, only: %i[show close]
+  before_action :ensure_can_close_shift!, only: %i[close]
+
+  def index
+    @open_cash_shift = current_business.current_open_cash_shift
+    @selected_fecha_desde = parse_filter_date(params[:fecha_desde])
+    @selected_fecha_hasta = parse_filter_date(params[:fecha_hasta])
+
+    if @selected_fecha_desde.present? && @selected_fecha_hasta.present? && @selected_fecha_desde > @selected_fecha_hasta
+      @selected_fecha_desde, @selected_fecha_hasta = @selected_fecha_hasta, @selected_fecha_desde
+    end
+
+    @selected_fecha_desde_value = normalized_filter_date_value(params[:fecha_desde], @selected_fecha_desde)
+    @selected_fecha_hasta_value = normalized_filter_date_value(params[:fecha_hasta], @selected_fecha_hasta)
+    @filters_applied = [
+      params[:fecha_desde].to_s.strip,
+      params[:fecha_hasta].to_s.strip
+    ].any?(&:present?)
+
+    @cash_shifts = current_business.cash_shifts.includes(:opened_by, :closed_by)
+
+    if @selected_fecha_desde.present?
+      @cash_shifts = @cash_shifts.where('opened_at >= ?',
+                                        @selected_fecha_desde.in_time_zone('America/Caracas').beginning_of_day)
+    end
+
+    if @selected_fecha_hasta.present?
+      @cash_shifts = @cash_shifts.where('opened_at <= ?',
+                                        @selected_fecha_hasta.in_time_zone('America/Caracas').end_of_day)
+    end
+
+    @cash_shifts = @cash_shifts.order(opened_at: :desc)
+
+    shift_ids = @cash_shifts.map(&:id)
+    @cash_shift_totals_by_id = Hash.new { |hash, key| hash[key] = { usd_total: 0.to_d, ves_total: 0.to_d } }
+    return if shift_ids.empty?
+
+    sales = current_business
+            .ventas
+            .where(cash_shift_id: shift_ids)
+            .select(:id, :cash_shift_id, :created_at, :base_currency, :total_usd, :total_bs, :tasa_dolar)
+            .to_a
+
+    reference_by_sale_id = SaleCurrencyReferenceService.new(sales).totals_by_sale_id
+
+    sales.each do |sale|
+      reference = reference_by_sale_id[sale.id] || {}
+      totals = @cash_shift_totals_by_id[sale.cash_shift_id]
+      totals[:usd_total] += reference.fetch(:usd_total, sale.total_usd.to_d)
+      totals[:ves_total] += reference.fetch(:ves_total, sale.total_bs.to_d)
+    end
+
+    @cash_shift_totals_by_id.each_value do |totals|
+      totals[:usd_total] = totals[:usd_total].round(2)
+      totals[:ves_total] = totals[:ves_total].round(2)
+    end
+  end
+
+  def create
+    if @open_cash_shift.present?
+      message = 'Ya existe un turno abierto para este negocio.'
+      return respond_to do |format|
+        format.html { redirect_to ventas_path, alert: message }
+        format.json do
+          render json: {
+            error: message,
+            redirect_url: ventas_path,
+            cash_shift_url: cash_shift_path(@open_cash_shift)
+          }, status: :unprocessable_entity
+        end
+      end
+    end
+
+    scraper_result = BcvScraperService.call
+    unless bcv_scrape_successful?(scraper_result)
+      error_message = 'No se pudo actualizar correctamente alguna tasa BCV. Intente de nuevo o comuniquese con el administrador.'
+      return respond_to do |format|
+        format.html { redirect_to cash_shifts_path, alert: error_message }
+        format.json { render json: { error: error_message }, status: :unprocessable_entity }
+      end
+    end
+
+    @cash_shift = current_business.cash_shifts.new(
+      opening_balance_ves: 0,
+      opening_balance_usd: 0,
+      opened_by: Current.user,
+      status: 'open',
+      opened_at: Time.current
+    )
+
+    if @cash_shift.save
+      rates_message = if scraper_result[:status].to_sym == :up_to_date
+                        'Las tasas ya estan actualizadas.'
+                      else
+                        'Las tasas han sido actualizadas.'
+                      end
+
+      success_message = "#{rates_message} El turno se abrio correctamente."
+      rates_snapshot = open_shift_rates_snapshot
+
+      respond_to do |format|
+        format.html { redirect_to ventas_path, notice: success_message }
+        format.json do
+          render json: {
+            success: true,
+            message: success_message,
+            scraper_status: scraper_result[:status].to_s,
+            rates_snapshot: rates_snapshot,
+            redirect_url: ventas_path,
+            cash_shift_id: @cash_shift.id,
+            cash_shift_url: cash_shift_path(@cash_shift)
+          }, status: :ok
+        end
+      end
+    else
+      error_message = @cash_shift.errors.full_messages.to_sentence.presence || 'No se pudo abrir el turno.'
+
+      respond_to do |format|
+        format.html { redirect_to cash_shifts_path, alert: error_message }
+        format.json { render json: { error: error_message }, status: :unprocessable_entity }
+      end
+    end
+  end
+
+  def show
+    load_shift_details
+  end
+
+  def close
+    if @cash_shift.closed?
+      return respond_to do |format|
+        format.html { redirect_to cash_shift_path(@cash_shift), alert: 'Este turno ya fue cerrado.' }
+        format.json { render json: { error: 'Este turno ya fue cerrado.' }, status: :unprocessable_entity }
+      end
+    end
+
+    verification_rows = parse_close_verification_rows(close_shift_params[:close_verification_rows])
+    expected_rows = build_close_verification_rows(
+      build_payments_summary(@cash_shift),
+      carryover_by_account_id: cash_box_carryover_for_shift(@cash_shift)
+    )
+
+    ensure_close_verification_rows!(verification_rows: verification_rows, expected_rows: expected_rows)
+    close_summary = build_close_differences_summary(verification_rows)
+
+    settlement_rows = []
+    declared_totals = declared_totals_from_verification_rows(verification_rows)
+
+    CashShift.transaction do
+      settlement_rows = process_turn_settlements_for_shift!(verification_rows: verification_rows)
+
+      @cash_shift.close!(
+        user: Current.user,
+        declared_closing_ves: declared_totals[:ves_total],
+        declared_closing_usd: declared_totals[:usd_total],
+        notes: build_shift_closing_notes_payload(
+          raw_notes: close_shift_params[:closing_notes],
+          verification_rows: verification_rows,
+          settlement_rows: settlement_rows
+        )
+      )
+    end
+
+    notice_message = if close_summary[:has_differences]
+                       'Turno cerrado con diferencias registradas.'
+                     else
+                       'Turno cerrado correctamente sin diferencias.'
+                     end
+
+    respond_to do |format|
+      format.html { redirect_to cash_shift_path(@cash_shift), notice: notice_message }
+      format.json do
+        render json: {
+          success: true,
+          redirect_url: cash_shift_path(@cash_shift),
+          message: notice_message,
+          close_summary: close_summary
+        }, status: :ok
+      end
+    end
+  rescue ActiveRecord::RecordInvalid
+    error_message = @cash_shift.errors.full_messages.to_sentence.presence || 'No se pudo cerrar el turno.'
+
+    respond_to do |format|
+      format.html { redirect_to cash_shift_path(@cash_shift), alert: error_message }
+      format.json { render json: { error: error_message }, status: :unprocessable_entity }
+    end
+  end
+
+  private
+
+  def set_open_cash_shift
+    @open_cash_shift = current_business.current_open_cash_shift
+  end
+
+  def set_cash_shift
+    @cash_shift = current_business.cash_shifts.includes(:opened_by, :closed_by).find(params[:id])
+  end
+
+  def close_shift_params
+    params.require(:cash_shift).permit(
+      :declared_closing_ves,
+      :declared_closing_usd,
+      :closing_notes,
+      close_verification_rows: %i[
+        account_id
+        account_name
+        account_type
+        currency
+        expected_amount
+        declared_amount
+        withdrawn_amount
+        carryover_amount
+      ]
+    )
+  end
+
+  def parse_decimal(raw_value)
+    return nil if raw_value.nil?
+
+    string_value = raw_value.to_s.strip
+    return nil if string_value.blank?
+
+    normalized = string_value.delete(' ').tr(',', '.')
+    BigDecimal(normalized)
+  rescue ArgumentError
+    nil
+  end
+
+  def parse_filter_date(raw_value)
+    return nil if raw_value.blank?
+
+    normalized = raw_value.to_s.strip
+    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+
+    Date.parse(normalized)
+  rescue ArgumentError
+    nil
+  end
+
+  def normalized_filter_date_value(raw_value, parsed_value)
+    return parsed_value.strftime('%d-%m-%Y') if parsed_value.present?
+
+    raw_value.to_s.strip
+  end
+
+  def caracas_date_for(timestamp)
+    return nil if timestamp.blank?
+
+    timestamp.in_time_zone('America/Caracas').to_date
+  rescue StandardError
+    timestamp.to_date
+  end
+
+  def ensure_can_close_shift!
+    return unless @cash_shift.open?
+    return if @cash_shift.opened_by_id.present? && @cash_shift.opened_by_id == Current.user&.id
+
+    opened_by_name = @cash_shift.opened_by&.display_name.presence || 'el usuario que abrio este turno'
+
+    redirect_to cash_shift_path(@cash_shift), alert: "Este turno solo puede ser cerrado por #{opened_by_name}."
+  end
+
+  def ensure_can_manage_cash_shifts!
+    return if can_manage_action?(:manage_cash_shifts)
+
+    deny_access('Solo un encargado o administrador puede abrir y cerrar turnos.')
+  end
+
+  def load_shift_details
+    @sales = @cash_shift.ventas.includes(:cliente, :user, :venta_payments).order(created_at: :asc)
+    reference_service = SaleCurrencyReferenceService.new(@sales)
+    @sales_reference_by_id = reference_service.totals_by_sale_id
+    @sales_reference_rates_by_date = reference_service.rates_by_date
+
+    @sales_count = @sales.size
+    @sales_total_usd = @sales_reference_by_id.values.sum { |row| row[:usd_total].to_d }.round(2)
+    @sales_total_ves = @sales_reference_by_id.values.sum { |row| row[:ves_total].to_d }.round(2)
+
+    @payments_summary = build_payments_summary(@cash_shift)
+    @payments_in_total = @payments_summary.sum { |row| row[:incoming] }
+    @payments_out_total = @payments_summary.sum { |row| row[:outgoing] }
+    @payments_net_total = @payments_summary.sum { |row| row[:net] }
+    @cash_box_carryover_by_account_id = cash_box_carryover_for_shift(@cash_shift)
+    @close_verification_rows = build_close_verification_rows(
+      @payments_summary,
+      carryover_by_account_id: @cash_box_carryover_by_account_id
+    )
+    @closing_verification_report_rows = close_summary_rows_from_notes(@cash_shift)
+    @closing_notes_text = closing_notes_text_from_notes(@cash_shift)
+
+    grouped_sales = @sales.group_by(&:user)
+    @seller_summary = grouped_sales.map do |user, sales|
+      {
+        user_name: user&.display_name.presence || 'Sin usuario',
+        sales_count: sales.size,
+        total_usd: sales.sum { |sale| @sales_reference_by_id.dig(sale.id, :usd_total).to_d }.round(2),
+        total_ves: sales.sum { |sale| @sales_reference_by_id.dig(sale.id, :ves_total).to_d }.round(2)
+      }
+    end.sort_by { |row| row[:user_name].to_s.downcase }
+
+    @sales_count_by_rate_date = @sales.each_with_object(Hash.new(0)) do |sale, hash|
+      rate_date = @sales_reference_by_id.dig(sale.id, :rate_date) || caracas_date_for(sale.created_at)
+      hash[rate_date] += 1 if rate_date.present?
+    end
+
+    shift_rate_dates = @sales_count_by_rate_date.keys
+    opened_date = caracas_date_for(@cash_shift.opened_at)
+    closed_date = caracas_date_for(@cash_shift.closed_at)
+    shift_rate_dates << opened_date if opened_date.present?
+    shift_rate_dates << closed_date if closed_date.present?
+
+    @shift_exchange_rates_by_date = SaleCurrencyReferenceService.exchange_rates_for_dates(shift_rate_dates)
+
+    @shift_exchange_rate_rows = shift_rate_dates.compact.uniq.sort.reverse.map do |date|
+      day_rates = @shift_exchange_rates_by_date.fetch(date, { usd_rate: 0.to_d, eur_rate: 0.to_d })
+      {
+        date: date,
+        usd_rate: day_rates[:usd_rate].to_d.round(4),
+        eur_rate: day_rates[:eur_rate].to_d.round(4),
+        sales_count: @sales_count_by_rate_date[date].to_i
+      }
+    end
+  end
+
+  def build_payments_summary(cash_shift)
+    grouped_rows = cash_shift.venta_payments.includes(:account).group_by do |payment|
+      [payment.account_id, payment.currency]
+    end
+
+    grouped_rows.map do |(account_id, currency), payments|
+      account = payments.first&.account
+      incoming = payments.select do |payment|
+        payment.payment_kind == 'in'
+      end.sum { |payment| payment.amount_original.to_d }
+      outgoing = payments.select do |payment|
+        payment.payment_kind == 'out'
+      end.sum { |payment| payment.amount_original.to_d }
+
+      {
+        account_id: account_id,
+        account_name: account&.name.to_s.presence || 'Cuenta eliminada',
+        account_type: account&.account_type.to_s.presence || 'unknown',
+        currency: currency,
+        currency_symbol: Account::CURRENCIES.dig(currency.to_s.upcase, :symbol) || currency.to_s,
+        incoming: incoming,
+        outgoing: outgoing,
+        net: incoming - outgoing
+      }
+    end.sort_by { |row| [row[:account_name].to_s.downcase, row[:currency].to_s] }
+  end
+
+  def build_close_verification_rows(payments_summary, carryover_by_account_id: {})
+    carryover_map = Hash(carryover_by_account_id).transform_keys(&:to_i)
+
+    rows = Array(payments_summary).filter_map do |row|
+      account_id = row[:account_id]
+      account_type = row[:account_type].to_s
+      carryover_amount = carryover_map.fetch(account_id.to_i, 0.to_d).to_d
+      expected_amount = row[:net].to_d + carryover_amount
+
+      next if account_id.blank?
+      next unless CLOSING_VERIFICATION_ACCOUNT_TYPES.include?(account_type)
+      next unless expected_amount.positive?
+
+      {
+        account_id: account_id.to_i,
+        account_name: row[:account_name].to_s,
+        account_type: account_type,
+        currency: row[:currency].to_s.upcase,
+        currency_symbol: row[:currency_symbol].to_s,
+        expected_amount: expected_amount.round(2),
+        carryover_from_previous: carryover_amount.round(2)
+      }
+    end
+
+    listed_account_ids = rows.map { |row| row[:account_id].to_i }
+    carryover_map.each do |account_id, carryover_amount|
+      normalized_carryover = carryover_amount.to_d.round(2)
+      next unless normalized_carryover.positive?
+      next if listed_account_ids.include?(account_id)
+
+      account = current_business.accounts.find_by(id: account_id)
+      next if account.blank?
+      next unless account.account_type == 'cash_box'
+
+      rows << {
+        account_id: account.id,
+        account_name: account.name.to_s,
+        account_type: account.account_type,
+        currency: account.currency.to_s.upcase,
+        currency_symbol: account.currency_symbol,
+        expected_amount: normalized_carryover,
+        carryover_from_previous: normalized_carryover
+      }
+    end
+
+    account_type_order = {
+      'biopago' => 0,
+      'pos' => 1,
+      'cash_box' => 2
+    }
+
+    rows.sort_by do |row|
+      [account_type_order.fetch(row[:account_type], 99), row[:account_name].downcase, row[:account_id]]
+    end
+  end
+
+  def parse_close_verification_rows(raw_rows)
+    Array(raw_rows).filter_map do |raw_row|
+      row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
+      account_id = row['account_id'] || row[:account_id]
+      next if account_id.blank?
+
+      {
+        account_id: account_id.to_i,
+        account_name: (row['account_name'] || row[:account_name]).to_s,
+        account_type: (row['account_type'] || row[:account_type]).to_s,
+        currency: (row['currency'] || row[:currency]).to_s.upcase,
+        expected_amount: parse_decimal(row['expected_amount'] || row[:expected_amount]).to_d,
+        declared_amount: parse_decimal(row['declared_amount'] || row[:declared_amount]),
+        withdrawn_amount: parse_decimal(row['withdrawn_amount'] || row[:withdrawn_amount]),
+        carryover_amount: parse_decimal(row['carryover_amount'] || row[:carryover_amount])
+      }
+    end
+  end
+
+  def ensure_close_verification_rows!(verification_rows:, expected_rows:)
+    expected_by_account_id = Array(expected_rows).index_by { |row| row[:account_id].to_i }
+    provided_by_account_id = Array(verification_rows).index_by { |row| row[:account_id].to_i }
+
+    expected_by_account_id.each do |account_id, expected_row|
+      provided_row = provided_by_account_id[account_id]
+      if provided_row.blank?
+        @cash_shift.errors.add(:base, "Falta registrar el monto total de #{expected_row[:account_name]}.")
+        next
+      end
+
+      declared_amount = provided_row[:declared_amount]
+      if declared_amount.nil?
+        @cash_shift.errors.add(:base, "El monto total de #{expected_row[:account_name]} es obligatorio.")
+        next
+      end
+
+      if declared_amount.to_d.negative?
+        @cash_shift.errors.add(:base, "El monto total de #{expected_row[:account_name]} no puede ser negativo.")
+      end
+
+      if expected_row[:account_type].to_s == 'cash_box'
+        withdrawn_amount = provided_row[:withdrawn_amount]
+
+        if withdrawn_amount.nil?
+          @cash_shift.errors.add(:base, "El retiro de efectivo de #{expected_row[:account_name]} es obligatorio.")
+          next
+        end
+
+        if withdrawn_amount.to_d.negative?
+          @cash_shift.errors.add(:base,
+                                 "El retiro de efectivo de #{expected_row[:account_name]} no puede ser negativo.")
+          next
+        end
+
+        if withdrawn_amount.to_d > declared_amount.to_d
+          @cash_shift.errors.add(:base,
+                                 "El retiro de efectivo de #{expected_row[:account_name]} no puede exceder el monto declarado.")
+          next
+        end
+
+        provided_row[:carryover_amount] = (declared_amount.to_d - withdrawn_amount.to_d).round(2)
+      else
+        provided_row[:withdrawn_amount] = 0.to_d
+        provided_row[:carryover_amount] = 0.to_d
+      end
+    end
+
+    raise ActiveRecord::RecordInvalid, @cash_shift if @cash_shift.errors.any?
+  end
+
+  def declared_totals_from_verification_rows(verification_rows)
+    totals = {
+      ves_total: 0.to_d,
+      usd_total: 0.to_d
+    }
+
+    Array(verification_rows).each do |row|
+      amount = row[:declared_amount].to_d
+      currency = row[:currency].to_s.upcase
+
+      if currency == 'VES'
+        totals[:ves_total] += amount
+      elsif %w[USD USDT].include?(currency)
+        totals[:usd_total] += amount
+      end
+    end
+
+    {
+      ves_total: totals[:ves_total].round(2),
+      usd_total: totals[:usd_total].round(2)
+    }
+  end
+
+  def process_turn_settlements_for_shift!(verification_rows:)
+    sale_ids = @cash_shift.ventas.pluck(:id)
+    return [] if sale_ids.empty?
+
+    declared_by_account_id = Array(verification_rows).index_by { |row| row[:account_id].to_i }
+    settlement_rows = []
+
+    current_business.accounts.where(account_type: AUTO_SETTLEMENT_ACCOUNT_TYPES).find_each do |account|
+      pending_scope = pending_shift_movements_scope(account: account, sale_ids: sale_ids)
+      pending_total = pending_scope.sum(
+        Arel.sql("CASE WHEN movement_kind = 'expense' THEN -amount ELSE amount END")
+      ).to_d
+      next unless pending_total.positive?
+
+      settlement_account = account.settlement_account
+      if settlement_account.blank?
+        @cash_shift.errors.add(:base,
+                               "La cuenta #{account.name} no tiene cuenta bancaria en Bs asignada para liquidacion.")
+        raise ActiveRecord::RecordInvalid, @cash_shift
+      end
+
+      pending_count = pending_scope.count
+      period_start = pending_scope.minimum(:occurred_at)
+      period_end = pending_scope.maximum(:occurred_at)
+
+      declared_amount = declared_by_account_id.dig(account.id, :declared_amount)
+      declared_amount = pending_total if declared_amount.nil?
+      declared_amount = declared_amount.to_d.round(2)
+
+      if declared_amount.negative?
+        @cash_shift.errors.add(:base, "El monto total de #{account.name} no puede ser negativo.")
+        raise ActiveRecord::RecordInvalid, @cash_shift
+      end
+
+      commission_amount = (pending_total - declared_amount).positive? ? (pending_total - declared_amount) : 0.to_d
+
+      settlement = account.account_settlements.create!(
+        total_amount: pending_total,
+        movements_count: pending_count,
+        closed_at: Time.current,
+        period_start_at: period_start,
+        period_end_at: period_end,
+        settlement_account: settlement_account
+      )
+
+      pending_scope.update_all(account_settlement_id: settlement.id, updated_at: Time.current)
+      account.recalculate_balance!
+
+      base_date = settlement.period_end_at || settlement.closed_at
+      settlement_date = base_date.in_time_zone('Caracas').to_date + 1.day
+      occurred_at = Time.zone.parse(settlement_date.to_s)
+
+      settlement.update!(
+        credited_amount: declared_amount,
+        commission_amount: commission_amount.round(2),
+        processed_at: Time.current,
+        settlement_account: settlement_account,
+        settlement_date: settlement_date
+      )
+
+      settlement_account.account_movements.create!(
+        movement_kind: 'income',
+        amount: declared_amount,
+        description: "Liquidacion #{account.account_type_label} (cierre ##{settlement.id})",
+        occurred_at: occurred_at,
+        payment_method: 'settlement'
+      )
+
+      # Actualiza el balance dentro de la transaccion para validar correctamente un posible egreso por comision.
+      settlement_account.recalculate_balance!
+
+      if commission_amount.positive?
+        settlement_account.account_movements.create!(
+          movement_kind: 'expense',
+          amount: commission_amount.round(2),
+          description: "Comision #{account.account_type_label} (cierre ##{settlement.id})",
+          occurred_at: occurred_at,
+          payment_method: 'settlement'
+        )
+
+        settlement_account.recalculate_balance!
+      end
+
+      settlement_rows << {
+        account_id: account.id,
+        account_name: account.name,
+        account_type: account.account_type,
+        settlement_id: settlement.id,
+        expected_amount: pending_total.round(2),
+        declared_amount: declared_amount,
+        commission_amount: commission_amount.round(2)
+      }
+    end
+
+    settlement_rows
+  end
+
+  def pending_shift_movements_scope(account:, sale_ids:)
+    return account.account_movements.none if sale_ids.blank?
+
+    sale_ids_pattern = sale_ids.map(&:to_i).uniq.join('|')
+    regex_pattern = "\\[VENTA:(#{sale_ids_pattern})\\]"
+
+    account
+      .account_movements
+      .where(account_settlement_id: nil)
+      .where('account_movements.description ~ ?', regex_pattern)
+  end
+
+  def build_shift_closing_notes_payload(raw_notes:, verification_rows:, settlement_rows:)
+    payload = {
+      notes: raw_notes.to_s.strip.presence,
+      close_verification_rows: Array(verification_rows).map do |row|
+        {
+          account_id: row[:account_id],
+          account_name: row[:account_name],
+          account_type: row[:account_type],
+          currency: row[:currency],
+          expected_amount: row[:expected_amount].to_d.round(2).to_s('F'),
+          declared_amount: row[:declared_amount].to_d.round(2).to_s('F'),
+          withdrawn_amount: row[:withdrawn_amount].to_d.round(2).to_s('F'),
+          carryover_amount: row[:carryover_amount].to_d.round(2).to_s('F')
+        }
+      end,
+      auto_settlements: Array(settlement_rows).map do |row|
+        {
+          account_id: row[:account_id],
+          account_name: row[:account_name],
+          account_type: row[:account_type],
+          settlement_id: row[:settlement_id],
+          expected_amount: row[:expected_amount].to_d.round(2).to_s('F'),
+          declared_amount: row[:declared_amount].to_d.round(2).to_s('F'),
+          commission_amount: row[:commission_amount].to_d.round(2).to_s('F')
+        }
+      end
+    }
+
+    compact_payload = payload.compact
+    compact_payload.to_json
+  end
+
+  def parse_shift_notes_payload(raw_notes)
+    return {} if raw_notes.blank?
+
+    parsed = JSON.parse(raw_notes)
+    parsed.is_a?(Hash) ? parsed : {}
+  rescue JSON::ParserError
+    {}
+  end
+
+  def cash_box_carryover_for_shift(cash_shift)
+    return {} if cash_shift.blank?
+
+    opened_at = cash_shift.opened_at || Time.current
+    previous_shift = current_business
+                     .cash_shifts
+                     .closed
+                     .where('closed_at < ?', opened_at)
+                     .order(closed_at: :desc)
+                     .first
+    return {} if previous_shift.blank?
+
+    notes_payload = parse_shift_notes_payload(previous_shift.closing_notes)
+    rows = Array(notes_payload['close_verification_rows'])
+
+    rows.each_with_object(Hash.new(0.to_d)) do |raw_row, hash|
+      row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
+      account_type = (row['account_type'] || row[:account_type]).to_s
+      next unless account_type == 'cash_box'
+
+      account_id = (row['account_id'] || row[:account_id]).to_i
+      next if account_id <= 0
+
+      carryover_raw = row['carryover_amount'] || row[:carryover_amount]
+      carryover_amount = if carryover_raw.nil?
+                           parse_decimal(row['declared_amount'] || row[:declared_amount]).to_d
+                         else
+                           parse_decimal(carryover_raw).to_d
+                         end
+
+      next unless carryover_amount.positive?
+
+      hash[account_id] += carryover_amount
+    end.transform_values { |value| value.round(2) }
+  end
+
+  def close_summary_rows_from_notes(cash_shift)
+    notes_payload = parse_shift_notes_payload(cash_shift&.closing_notes)
+    rows = Array(notes_payload['close_verification_rows'])
+
+    rows.filter_map do |raw_row|
+      row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
+      expected_amount = parse_decimal(row['expected_amount'] || row[:expected_amount]).to_d.round(2)
+      declared_amount = parse_decimal(row['declared_amount'] || row[:declared_amount]).to_d.round(2)
+      withdrawn_amount = parse_decimal(row['withdrawn_amount'] || row[:withdrawn_amount]).to_d.round(2)
+      carryover_amount = parse_decimal(row['carryover_amount'] || row[:carryover_amount]).to_d.round(2)
+
+      difference_amount = (declared_amount - expected_amount).round(2)
+      difference_kind = if difference_amount.zero?
+                          'match'
+                        elsif difference_amount.positive?
+                          'surplus'
+                        else
+                          'shortage'
+                        end
+
+      currency = (row['currency'] || row[:currency]).to_s.upcase
+      currency_symbol = Account::CURRENCIES.dig(currency, :symbol) || currency
+
+      {
+        account_id: (row['account_id'] || row[:account_id]).to_i,
+        account_name: (row['account_name'] || row[:account_name]).to_s,
+        account_type: (row['account_type'] || row[:account_type]).to_s,
+        currency: currency,
+        currency_symbol: currency_symbol,
+        expected_amount: expected_amount,
+        declared_amount: declared_amount,
+        difference_amount: difference_amount,
+        difference_kind: difference_kind,
+        withdrawn_amount: withdrawn_amount,
+        carryover_amount: carryover_amount
+      }
+    end
+  end
+
+  def closing_notes_text_from_notes(cash_shift)
+    notes_payload = parse_shift_notes_payload(cash_shift&.closing_notes)
+    notes_payload['notes'].to_s.strip.presence
+  end
+
+  def build_close_differences_summary(verification_rows)
+    rows = Array(verification_rows).map do |row|
+      expected_amount = row[:expected_amount].to_d.round(2)
+      declared_amount = row[:declared_amount].to_d.round(2)
+      difference_amount = (declared_amount - expected_amount).round(2)
+
+      {
+        account_id: row[:account_id].to_i,
+        account_name: row[:account_name].to_s,
+        account_type: row[:account_type].to_s,
+        currency: row[:currency].to_s.upcase,
+        expected_amount: expected_amount.to_s('F'),
+        declared_amount: declared_amount.to_s('F'),
+        difference_amount: difference_amount.to_s('F'),
+        withdrawn_amount: row[:withdrawn_amount].to_d.round(2).to_s('F'),
+        carryover_amount: row[:carryover_amount].to_d.round(2).to_s('F')
+      }
+    end
+
+    {
+      has_differences: rows.any? { |row| row[:difference_amount].to_d.nonzero? },
+      rows: rows
+    }
+  end
+
+  def open_shift_rates_snapshot
+    bcv_descriptions = ['Dolar BCV', 'Euro BCV']
+
+    bcv_rates = bcv_descriptions.filter_map do |description|
+      rate = TasaCambio.latest_for(description)
+      formatted_rate_snapshot(rate)
+    end
+
+    other_rates = TasaCambio.latest_by_description(excluding: bcv_descriptions).map do |rate|
+      formatted_rate_snapshot(rate)
+    end
+
+    {
+      bcv_rates: bcv_rates,
+      other_rates: other_rates
+    }
+  end
+
+  def formatted_rate_snapshot(rate)
+    return nil if rate.blank?
+
+    {
+      description: rate.description.to_s,
+      value: rate.valor.to_d.to_f,
+      symbol: rate.symbol.to_s,
+      fecha_referencia: rate.fecha_referencia,
+      updated_at: rate.updated_at&.in_time_zone('America/Caracas')&.iso8601
+    }
+  end
+
+  def bcv_scrape_successful?(scraper_result)
+    return false unless scraper_result.is_a?(Hash)
+
+    status = scraper_result[:status].to_s
+    return false unless %w[updated up_to_date].include?(status)
+
+    reference_date = scraper_result[:fecha_referencia]
+    latest_dolar = TasaCambio.where(description: 'Dolar BCV').maximum(:fecha_referencia)
+    latest_euro = TasaCambio.where(description: 'Euro BCV').maximum(:fecha_referencia)
+
+    return false if latest_dolar.blank? || latest_euro.blank?
+    return true if reference_date.blank?
+
+    latest_dolar >= reference_date && latest_euro >= reference_date
+  end
+end

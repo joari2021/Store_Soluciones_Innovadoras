@@ -1,4 +1,5 @@
 class BusinessesController < ApplicationController
+  before_action :require_admin
   before_action :set_business, only: %i[edit update destroy select]
 
   def index
@@ -13,9 +14,7 @@ class BusinessesController < ApplicationController
     @business = Business.new(business_params)
     if @business.save
       session[:business_id] = @business.id
-      if Current.is_a?(Class) && Current.respond_to?(:business=)
-        Current.business = @business
-      end
+      Current.business = @business if Current.is_a?(Class) && Current.respond_to?(:business=)
       redirect_to businesses_path, notice: 'Negocio creado correctamente.'
     else
       render :new
@@ -49,9 +48,7 @@ class BusinessesController < ApplicationController
 
   def select
     session[:business_id] = @business.id
-    if Current.is_a?(Class) && Current.respond_to?(:business=)
-      Current.business = @business
-    end
+    Current.business = @business if Current.is_a?(Class) && Current.respond_to?(:business=)
     redirect_back fallback_location: root_path, notice: "Negocio seleccionado: #{@business.name}."
   end
 
@@ -62,6 +59,6 @@ class BusinessesController < ApplicationController
   end
 
   def business_params
-    params.require(:business).permit(:name)
+    params.require(:business).permit(:name, :theme_profile, :logo, :banner)
   end
 end

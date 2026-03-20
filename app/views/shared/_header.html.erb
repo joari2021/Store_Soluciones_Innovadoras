@@ -9,7 +9,7 @@
     <% if @businesses.present? %>
       <div id="business-switcher" class="relative">
         <button id="business-switcher-button" type="button" class="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm hover:border-sky-200 hover:bg-sky-50 transition-colors cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Cambiar negocio">
-          <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-100 text-sm font-bold text-sky-700">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold" style="<%= current_business ? current_business.theme_preview_style : Business.theme_preview_style %>">
             <%= current_business&.name.to_s.first&.upcase || 'N' %>
           </span>
           <span class="hidden md:block text-left">
@@ -27,38 +27,58 @@
             <% @businesses.each do |business| %>
               <% is_current = current_business&.id == business.id %>
               <% item_classes = is_current ? 'bg-sky-50 text-sky-700' : 'text-slate-700 hover:bg-slate-50' %>
-              <%= button_to select_business_path(business), method: :post, form: { class: 'w-full' }, class: "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors cursor-pointer #{item_classes}" do %>
-                <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold text-slate-600">
-                  <%= business.name.to_s.first&.upcase || 'N' %>
-                </span>
-                <span class="flex-1 truncate font-medium"><%= business.name %></span>
-                <% if is_current %>
-                  <i data-lucide="check" class="h-4 w-4"></i>
+              <% if current_user_admin? %>
+                <%= button_to select_business_path(business), method: :post, form: { class: 'w-full' }, class: "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors cursor-pointer #{item_classes}" do %>
+                  <span class="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold" style="<%= business.theme_preview_style %>">
+                    <%= business.name.to_s.first&.upcase || 'N' %>
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium"><%= business.name %></span>
+                  </span>
+                  <% if is_current %>
+                    <i data-lucide="check" class="h-4 w-4"></i>
+                  <% end %>
                 <% end %>
+              <% else %>
+                <div class="flex w-full items-center gap-3 px-4 py-2 text-sm <%= item_classes %>">
+                  <span class="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold" style="<%= business.theme_preview_style %>">
+                    <%= business.name.to_s.first&.upcase || 'N' %>
+                  </span>
+                  <span class="min-w-0 flex-1 truncate font-medium"><%= business.name %></span>
+                  <% if is_current %>
+                    <i data-lucide="check" class="h-4 w-4"></i>
+                  <% end %>
+                </div>
               <% end %>
             <% end %>
           </div>
-          <div class="border-t border-slate-100 bg-slate-50 px-4 py-3 flex items-center justify-between">
-            <%= link_to businesses_path, class: 'text-sm font-semibold text-slate-600 hover:text-slate-800' do %>
-              Administrar
-            <% end %>
-            <%= link_to new_business_path, class: 'inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800' do %>
-              <i data-lucide="plus" class="h-3.5 w-3.5"></i>
-              Nuevo
-            <% end %>
-          </div>
+          <% if current_user_admin? %>
+            <div class="border-t border-slate-100 bg-slate-50 px-4 py-3 flex items-center justify-between">
+              <%= link_to businesses_path, class: 'text-sm font-semibold text-slate-600 hover:text-slate-800' do %>
+                Administrar
+              <% end %>
+              <%= link_to new_business_path, class: 'inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800' do %>
+                <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                Nuevo
+              <% end %>
+            </div>
+          <% end %>
         </div>
       </div>
     <% else %>
-      <%= link_to new_business_path, class: 'inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800' do %>
-        <i data-lucide="plus" class="h-4 w-4"></i>
-        <span class="hidden md:inline">Crear negocio</span>
+      <% if current_user_admin? %>
+        <%= link_to new_business_path, class: 'inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800' do %>
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          <span class="hidden md:inline">Crear negocio</span>
+        <% end %>
+      <% else %>
+        <span class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500">Sin negocio asignado</span>
       <% end %>
     <% end %>
   </div>
   <div class="flex items-center gap-3 md:gap-5">
     <div id="rates-tooltip" class="relative">
-      <button id="rates-toggle" type="button" class="p-2 text-slate-400 hover:text-sky-500 transition-colors rounded-full hover:bg-sky-50 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver tasas">
+      <button id="rates-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-200/85 text-slate-700 shadow-sm ring-1 ring-slate-300 transition-colors hover:bg-slate-300 hover:text-slate-900 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver tasas">
         <i data-lucide="line-chart" class="w-5 h-5"></i>
       </button>
       <div id="rates-panel" class="absolute right-0 mt-3 hidden w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
@@ -84,7 +104,7 @@
         </div>
       </div>
     </div>
-    <button class="relative p-2 text-slate-400 hover:text-sky-500 transition-colors rounded-full hover:bg-sky-50">
+    <button class="relative inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-200/85 text-slate-700 shadow-sm ring-1 ring-slate-300 transition-colors hover:bg-slate-300 hover:text-slate-900">
       <i data-lucide="bell" class="w-5 h-5"></i>
       <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white"></span>
     </button>
@@ -92,8 +112,12 @@
       <i data-lucide="plus" class="w-4 h-4"></i> Nueva Venta
     <% end %>
     <!-- Mobile Profile Icon -->
-    <div class="md:hidden w-8 h-8 rounded-full bg-sky-100 border border-sky-200 overflow-hidden">
-      <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Profile">
+    <div class="md:hidden h-8 w-8 overflow-hidden rounded-full border border-sky-200 bg-sky-100">
+      <% if Current.user&.avatar&.attached? %>
+        <%= image_tag Current.user.avatar, class: 'h-full w-full object-cover', alt: Current.user.display_name %>
+      <% else %>
+        <div class="flex h-full w-full items-center justify-center text-xs font-bold text-sky-700"><%= Current.user&.display_name.to_s.first&.upcase || 'U' %></div>
+      <% end %>
     </div>
   </div>
 </header>

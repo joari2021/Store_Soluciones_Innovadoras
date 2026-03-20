@@ -7,8 +7,11 @@ class DebtPayment < ApplicationRecord
   belongs_to :debt
   belongs_to :account
 
+  attr_accessor :skip_account_movement, :movement_amount_override
+
   before_validation :sync_currency_from_account
   before_validation :sync_conversion_values
+  after_create :create_account_movement
 
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :currency, presence: true
@@ -22,6 +25,24 @@ class DebtPayment < ApplicationRecord
 
   def payment_method_label
     PAYMENT_METHODS[payment_method] || payment_method.to_s.humanize
+  end
+
+  def excess_payment?
+    excess_amount_usd_bcv > 0.01.to_d
+  end
+
+  def excess_amount_usd_bcv
+    @excess_amount_usd_bcv ||= begin
+      payment_usd = payment_amount_usd_bcv(self)
+      if payment_usd.positive?
+        remaining_before = remaining_usd_bcv_before_payment
+        available_before = [remaining_before, 0.to_d].max
+        excess = payment_usd - available_before
+        excess.positive? ? excess.round(2) : 0.to_d
+      else
+        0.to_d
+      end
+    end
   end
 
   private
@@ -71,7 +92,8 @@ class DebtPayment < ApplicationRecord
     conversion = CurrencyConverter.convert(
       amount: amount,
       from_currency: currency,
-      to_currency: debt.currency
+      to_currency: debt.currency,
+      on_date: occurred_at
     )
 
     if conversion.blank?
@@ -81,5 +103,94 @@ class DebtPayment < ApplicationRecord
 
     self.exchange_rate_to_debt_currency = conversion[:rate]
     self.amount_in_debt_currency = conversion[:amount]
+  end
+
+  def create_account_movement
+    return if skip_account_movement
+
+    override_amount = movement_amount_override.to_d
+    movement_amount = override_amount.positive? ? override_amount : amount
+
+    movement_attrs = {
+      movement_kind: debt.receivable? ? 'income' : 'expense',
+      amount: movement_amount,
+      description: build_movement_description,
+      occurred_at: occurred_at
+    }
+
+    if account.account_type == 'bank_account' && payment_method.present?
+      movement_attrs[:payment_method] = normalize_account_movement_method(payment_method)
+    end
+
+    account.account_movements.create!(movement_attrs)
+  end
+
+  def build_movement_description
+    action = debt.receivable? ? 'Cobro de deuda' : 'Pago de deuda'
+    debt_description = excess_payment? ? 'Excedente' : (debt.description.to_s.strip.presence || 'Deuda sin descripcion')
+    cliente_name = debt.counterparty_display_name
+    base = "#{action}: #{cliente_name} (#{debt_description}) [DEBT:#{debt.id}] [DP:#{id}]"
+    return base if reference.blank?
+
+    "#{base} - Ref #{reference}"
+  end
+
+  def normalize_account_movement_method(method)
+    return 'mobile_payment' if method.to_s == 'mobile'
+
+    method.to_s
+  end
+
+  def remaining_usd_bcv_before_payment
+    (debt_amount_usd_bcv - paid_usd_bcv_before_payment).round(2)
+  end
+
+  def paid_usd_bcv_before_payment
+    other_payments = if debt.debt_payments.loaded?
+                       debt.debt_payments.reject { |payment| payment.id == id }
+                     else
+                       debt.debt_payments.where.not(id: id).to_a
+                     end
+
+    current_key = payment_sort_key(self)
+
+    other_payments.sum do |payment|
+      (payment_sort_key(payment) <=> current_key) == -1 ? payment_amount_usd_bcv(payment) : 0.to_d
+    end.round(2)
+  end
+
+  def debt_amount_usd_bcv
+    convert_to_usd_bcv(
+      amount: debt.amount.to_d,
+      from_currency: debt.currency,
+      on_date: debt.issued_on
+    )
+  end
+
+  def payment_amount_usd_bcv(payment)
+    convert_to_usd_bcv(
+      amount: payment.amount.to_d,
+      from_currency: payment.currency,
+      on_date: payment.occurred_at
+    )
+  end
+
+  def payment_sort_key(payment)
+    [
+      payment.occurred_at || Date.new(1970, 1, 1),
+      payment.created_at || Time.zone.at(0),
+      payment.id.to_i
+    ]
+  end
+
+  def convert_to_usd_bcv(amount:, from_currency:, on_date:)
+    conversion = CurrencyConverter.convert(
+      amount: amount,
+      from_currency: from_currency,
+      to_currency: 'USD',
+      on_date: on_date
+    )
+
+    conversion&.dig(:amount).to_d
   end
 end

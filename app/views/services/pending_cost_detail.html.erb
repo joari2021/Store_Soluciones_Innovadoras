@@ -1,0 +1,418 @@
+<div class="services-scope space-y-6">
+  <% row = @pending_cost_row %>
+  <% debt = row[:debt] %>
+  <% service_name = debt.service&.description.to_s.strip.presence || debt.display_name %>
+  <% sale_id = debt.venta_id %>
+  <% status_key = row[:status].to_s %>
+  <% status_label = status_key == 'paid' ? 'Pagado' : (status_key == 'partial' ? 'Parcial' : 'Pendiente') %>
+  <% status_class = status_key == 'paid' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' : (status_key == 'partial' ? 'bg-amber-100 text-amber-700 ring-amber-200' : 'bg-rose-100 text-rose-700 ring-rose-200') %>
+  <% account_options = @pending_cost_accounts.map do |account| %>
+    <% [
+         "#{account.name} (#{account.currency})",
+         account.id,
+         {
+           data: {
+             account_type: account.account_type,
+             account_currency: account.currency,
+             account_symbol: account.currency_symbol
+           }
+         }
+       ] %>
+  <% end %>
+  <div class="services-hero relative overflow-hidden rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+    <div class="services-hero-glow services-hero-glow--one"></div>
+    <div class="services-hero-glow services-hero-glow--two"></div>
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="services-kicker">Detalle de costos</p>
+        <h1 class="services-title text-3xl font-extrabold text-slate-900 md:text-4xl"><%= service_name %></h1>
+        <p class="mt-1 text-sm text-slate-500">Registro #<%= debt.id %> con clasificaciones, base monetaria y pagos por linea.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to pending_costs_services_path, class: 'inline-flex cursor-pointer items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+          <i data-lucide="arrow-left" class="h-4 w-4"></i>
+          Volver a resumen
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <script type="application/json" id="pending-cost-currency-rates">
+    <%= raw ERB::Util.json_escape((@pending_cost_currency_rates || {}).to_json) %>
+  </script>
+  <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Servicio</p>
+        <h2 class="mt-1 text-base font-bold text-slate-800"><%= service_name %></h2>
+        <div class="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
+          <% if sale_id.present? %>
+            <p>
+              Venta:
+              <%= link_to "##{sale_id}", venta_path(sale_id), class: 'font-semibold text-cyan-700 hover:text-cyan-800', data: { turbo_frame: '_top' } %>
+            </p>
+          <% end %>
+          <p>Emision: <span class="font-semibold text-slate-700"><%= debt.issued_on.present? ? l(debt.issued_on) : 'N/A' %></span></p>
+        </div>
+      </div>
+      <div class="text-right">
+        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 <%= status_class %>">
+          <%= status_label %>
+        </span>
+        <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-600">
+          <p>Total: <span class="font-semibold text-slate-700"><%= format_money(row[:total_usd], unit: '$ ') %></span></p>
+          <p class="mt-0.5">Pagado: <span class="font-semibold text-emerald-700"><%= format_money(row[:paid_usd], unit: '$ ') %></span></p>
+          <p class="mt-0.5">Pendiente: <span class="font-semibold text-rose-700"><%= format_money(row[:pending_usd], unit: '$ ') %></span></p>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4 space-y-3">
+      <% row[:lines].each do |line| %>
+        <% line_status = line['status'].to_s %>
+        <% line_label = line_status == 'paid' ? 'Pagado' : (line_status == 'partial' ? 'Parcial' : 'Pendiente') %>
+        <% line_status_class = line_status == 'paid' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' : (line_status == 'partial' ? 'bg-amber-100 text-amber-700 ring-amber-200' : 'bg-rose-100 text-rose-700 ring-rose-200') %>
+        <% pending_usd = line['pending_usd'].to_d %>
+        <% debt_currency = debt.currency.to_s.upcase.presence || 'USD' %>
+        <% debt_symbol = Account::CURRENCIES.dig(debt_currency, :symbol) || debt_currency %>
+        <% display_reference = line['display_currency_reference'].to_s.strip.presence %>
+        <% display_symbol = line['display_currency_symbol'].to_s.strip.presence || display_reference %>
+        <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p class="text-sm font-semibold text-slate-800"><%= line['structure_description'] %></p>
+              <p class="text-xs text-slate-500">
+                <span class="font-semibold"><%= line['classification_label'] %></span>
+                · <%= line['source_name'] %>
+              </p>
+            </div>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 <%= line_status_class %>"><%= line_label %></span>
+          </div>
+          <% if display_reference.present? %>
+            <div class="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+              <p>Total base (<%= display_reference %>): <span class="font-semibold text-slate-700"><%= format_money(line['display_amount_reference_total'], unit: "#{display_symbol} ") %></span></p>
+              <p>Pagado base (<%= display_reference %>): <span class="font-semibold text-emerald-700"><%= format_money(line['display_paid_reference_total'], unit: "#{display_symbol} ") %></span></p>
+              <p>Pendiente base (<%= display_reference %>): <span class="font-semibold text-rose-700"><%= format_money(line['display_pending_reference_total'], unit: "#{display_symbol} ") %></span></p>
+            </div>
+          <% end %>
+          <div class="mt-2 grid gap-2 text-xs text-slate-600 md:grid-cols-3">
+            <p>Total <%= debt_currency %>: <span class="font-semibold text-slate-700"><%= format_money(line['amount_usd'], unit: "#{debt_symbol} ") %></span></p>
+            <p>Pagado <%= debt_currency %>: <span class="font-semibold text-emerald-700"><%= format_money(line['paid_usd'], unit: "#{debt_symbol} ") %></span></p>
+            <p>Pendiente <%= debt_currency %>: <span class="font-semibold text-rose-700"><%= format_money(line['pending_usd'], unit: "#{debt_symbol} ") %></span></p>
+          </div>
+          <% if pending_usd.positive? %>
+            <%= form_with url: pay_pending_cost_line_services_path,
+                          method: :post,
+                          local: true,
+                          class: 'mt-3 rounded-xl border border-cyan-200 bg-white p-3',
+                          data: {
+                            pending_cost_payment_form: true,
+                            pending_debt_amount: pending_usd.to_s('F'),
+                            pending_debt_currency: debt_currency,
+                            pending_debt_symbol: debt_symbol
+                          } do |f| %>
+              <%= hidden_field_tag :debt_id, debt.id %>
+              <%= hidden_field_tag :line_id, line['line_id'] %>
+              <%= hidden_field_tag :redirect_to_detail, '1' %>
+              <div class="grid gap-2 md:grid-cols-5">
+                <div>
+                  <%= label_tag nil, 'Fecha', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
+                  <%= text_field_tag :payment_date,
+                                     Date.current.strftime('%d-%m-%Y'),
+                                     placeholder: 'dd-mm-aaaa',
+                                     class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700' %>
+                </div>
+                <div>
+                  <%= label_tag nil, 'Cuenta', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
+                  <%= select_tag :account_id,
+                                 options_for_select(account_options),
+                                 include_blank: 'Selecciona cuenta',
+                                 class: 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700',
+                                 data: { pending_cost_account: true } %>
+                </div>
+                <div>
+                  <%= label_tag nil, 'Monto a pagar', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
+                  <%= text_field_tag :amount, '',
+                                     placeholder: "#{debt_symbol} 0,00",
+                                     class: 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700',
+                                     data: { money_mask: true, money_symbol: debt_symbol, pending_cost_amount_input: true } %>
+                </div>
+                <div class="hidden" data-pending-cost-bank-fields>
+                  <%= label_tag nil, 'Metodo', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
+                  <%= select_tag :payment_method,
+                                 options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']]),
+                                 include_blank: 'Metodo',
+                                 class: 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700' %>
+                </div>
+                <div class="hidden" data-pending-cost-bank-fields>
+                  <%= label_tag nil, 'Referencia', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
+                  <%= text_field_tag :reference, '',
+                                     maxlength: 6,
+                                     minlength: 6,
+                                     pattern: '\\d{6}',
+                                     placeholder: '6 digitos',
+                                     class: 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700' %>
+                </div>
+              </div>
+              <p class="mt-2 text-[11px] text-slate-500" data-pending-cost-conversion-hint>
+                Selecciona la cuenta para ver el monto pendiente equivalente en su moneda.
+              </p>
+              <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-cyan-700">
+                  <%= check_box_tag :update_source_cost, '1', false, class: 'h-4 w-4 rounded border-cyan-300 text-cyan-600' %>
+                  <span class="inline-flex items-center gap-1">
+                    <i data-lucide="shield-check" class="h-3.5 w-3.5"></i>
+                    Actualizar costo fuente de esta clasificacion
+                  </span>
+                </label>
+                <%= f.submit 'Registrar pago de linea', class: 'inline-flex cursor-pointer items-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800' %>
+              </div>
+            <% end %>
+          <% else %>
+            <p class="mt-3 text-xs font-semibold text-emerald-700">Linea saldada.</p>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </article>
+</div>
+<script>
+  (() => {
+    if (window.pendingServiceCostFormsBound) return;
+    window.pendingServiceCostFormsBound = true;
+
+    const ratesEndpoint = '<%= pending_cost_rates_services_path %>';
+
+    const ratesDataElement = document.getElementById('pending-cost-currency-rates');
+    let currencyRates = { VES: 1 };
+    const formRatesMap = new WeakMap();
+
+    if (ratesDataElement) {
+      try {
+        const parsedRates = JSON.parse(ratesDataElement.textContent || '{}');
+        if (parsedRates && typeof parsedRates === 'object') {
+          currencyRates = Object.assign({ VES: 1 }, parsedRates);
+        }
+      } catch (error) {
+        currencyRates = { VES: 1 };
+      }
+    }
+
+    const getFormRates = (form) => {
+      if (!form) return currencyRates;
+      return formRatesMap.get(form) || currencyRates;
+    };
+
+    const setFormRates = (form, rates) => {
+      if (!form) return;
+      const normalized = rates && typeof rates === 'object' ? Object.assign({ VES: 1 }, rates) : { VES: 1 };
+      formRatesMap.set(form, normalized);
+    };
+
+    const normalizeDisplayDateToIso = (rawValue) => {
+      const value = String(rawValue || '').trim();
+      if (!value) return '';
+
+      const ddmmyyyy = value.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+      if (ddmmyyyy) {
+        const day = ddmmyyyy[1].padStart(2, '0');
+        const month = ddmmyyyy[2].padStart(2, '0');
+        const year = ddmmyyyy[3];
+        return `${year}-${month}-${day}`;
+      }
+
+      const yyyymmdd = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (yyyymmdd) return value;
+
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return '';
+      const day = String(parsed.getDate()).padStart(2, '0');
+      const month = String(parsed.getMonth() + 1).padStart(2, '0');
+      const year = String(parsed.getFullYear());
+      return `${year}-${month}-${day}`;
+    };
+
+    const refreshRatesForForm = async (form) => {
+      const paymentDateInput = form.querySelector('input[name="payment_date"]');
+      const isoDate = normalizeDisplayDateToIso(paymentDateInput?.value);
+
+      if (!isoDate) {
+        setFormRates(form, currencyRates);
+        return true;
+      }
+
+      try {
+        const response = await fetch(`${ratesEndpoint}?fecha=${encodeURIComponent(isoDate)}`, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) {
+          setFormRates(form, currencyRates);
+          return false;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        if (data.rates && typeof data.rates === 'object') {
+          setFormRates(form, data.rates);
+          return true;
+        }
+      } catch (_error) {
+        setFormRates(form, currencyRates);
+        return false;
+      }
+
+      setFormRates(form, currencyRates);
+      return false;
+    };
+
+    const parseRawAmount = (value) => {
+      const compact = String(value || '').trim().replace(/\s/g, '');
+      if (!compact.length) return 0;
+
+      let normalized = compact;
+      if (compact.includes(',') && compact.includes('.')) {
+        normalized = compact.replace(/\./g, '').replace(',', '.');
+      } else if (compact.includes(',')) {
+        normalized = compact.replace(',', '.');
+      }
+
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const formatMoney = (amount, symbol) => {
+      const numericAmount = Number(amount || 0);
+      const safeAmount = Number.isFinite(numericAmount) ? numericAmount : 0;
+      return `${symbol} ${safeAmount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    };
+
+    const convertByRate = (amount, fromCurrency, toCurrency, rates) => {
+      const from = String(fromCurrency || '').toUpperCase();
+      const to = String(toCurrency || '').toUpperCase();
+      const numericAmount = Number(amount || 0);
+
+      if (!Number.isFinite(numericAmount)) return null;
+      if (!from.length || !to.length) return null;
+      if (from === to) return numericAmount;
+
+      const fromRate = Number((rates || {})[from] || 0);
+      const toRate = Number((rates || {})[to] || 0);
+      if (!Number.isFinite(fromRate) || !Number.isFinite(toRate) || fromRate <= 0 || toRate <= 0) return null;
+
+      return (numericAmount * fromRate) / toRate;
+    };
+
+    const currentMaskedValue = (input) => {
+      if (!input) return 0;
+      if (window.MoneyInputMask?.parseValue) {
+        const parsed = Number(window.MoneyInputMask.parseValue(input));
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      return parseRawAmount(input.value);
+    };
+
+    const applyMoneySymbolToInput = (input, symbol, forcedValue = null) => {
+      if (!input) return;
+
+      const currentValue = Number.isFinite(Number(forcedValue)) ? Number(forcedValue) : currentMaskedValue(input);
+
+      if (window.MoneyInputMask?.setValue) {
+        window.MoneyInputMask.setValue(input, currentValue, symbol);
+      } else {
+        input.dataset.moneySymbol = symbol;
+        input.value = formatMoney(currentValue, symbol);
+      }
+
+      input.placeholder = `${symbol} 0,00`;
+    };
+
+    const syncPaymentPreview = (form, { setAmount = true } = {}) => {
+      const accountSelect = form.querySelector('[data-pending-cost-account]');
+      const amountInput = form.querySelector('[data-pending-cost-amount-input]');
+      const hint = form.querySelector('[data-pending-cost-conversion-hint]');
+      if (!accountSelect || !amountInput || !hint) return;
+
+      const selectedOption = accountSelect.options?.[accountSelect.selectedIndex];
+      const accountCurrency = String(selectedOption?.dataset?.accountCurrency || '').toUpperCase();
+      const accountSymbol = String(selectedOption?.dataset?.accountSymbol || '').trim() || '$';
+      const debtCurrency = String(form.dataset.pendingDebtCurrency || '').toUpperCase();
+      const debtSymbol = String(form.dataset.pendingDebtSymbol || '').trim() || '$';
+      const pendingDebtAmount = parseRawAmount(form.dataset.pendingDebtAmount || '0');
+      const activeRates = getFormRates(form);
+
+      applyMoneySymbolToInput(amountInput, accountSymbol);
+
+      if (!accountCurrency.length) {
+        hint.textContent = 'Selecciona la cuenta para ver el monto pendiente equivalente en su moneda.';
+        return;
+      }
+
+      const convertedPending = convertByRate(pendingDebtAmount, debtCurrency, accountCurrency, activeRates);
+      if (convertedPending == null) {
+        hint.textContent = `No se pudo calcular conversion ${debtCurrency} -> ${accountCurrency} con las tasas disponibles.`;
+        return;
+      }
+
+      if (setAmount) {
+        applyMoneySymbolToInput(amountInput, accountSymbol, convertedPending);
+      }
+
+      const fromRate = Number(activeRates[debtCurrency] || 0);
+      const toRate = Number(activeRates[accountCurrency] || 0);
+      const paymentDateInput = form.querySelector('input[name="payment_date"]');
+      const dateLabel = String(paymentDateInput?.value || '').trim() || 'hoy';
+
+      hint.textContent = `Pendiente en ${accountCurrency}: ${formatMoney(convertedPending, accountSymbol)} (fecha ${dateLabel}, deuda: ${formatMoney(pendingDebtAmount, debtSymbol)} ${debtCurrency}, tasa ref ${debtCurrency}/VES: ${fromRate.toFixed(4)}, ${accountCurrency}/VES: ${toRate.toFixed(4)}).`;
+    };
+
+    const syncFormBankFields = (form) => {
+      const accountSelect = form.querySelector('[data-pending-cost-account]');
+      if (!accountSelect) return;
+
+      const selectedOption = accountSelect.options?.[accountSelect.selectedIndex];
+      const isBank = String(selectedOption?.dataset?.accountType || '') === 'bank_account';
+
+      form.querySelectorAll('[data-pending-cost-bank-fields]').forEach((field) => {
+        field.classList.toggle('hidden', !isBank);
+      });
+    };
+
+    const bindForm = (form) => {
+      const accountSelect = form.querySelector('[data-pending-cost-account]');
+      const paymentDateInput = form.querySelector('input[name="payment_date"]');
+      if (!accountSelect) return;
+
+      setFormRates(form, currencyRates);
+
+      accountSelect.addEventListener('change', async () => {
+        syncFormBankFields(form);
+        await refreshRatesForForm(form);
+        syncPaymentPreview(form, { setAmount: true });
+      });
+
+      if (paymentDateInput) {
+        const refreshByDate = async () => {
+          await refreshRatesForForm(form);
+          syncPaymentPreview(form, { setAmount: true });
+        };
+
+        paymentDateInput.addEventListener('change', refreshByDate);
+        paymentDateInput.addEventListener('blur', refreshByDate);
+      }
+
+      syncFormBankFields(form);
+      syncPaymentPreview(form, { setAmount: true });
+    };
+
+    const bindAll = () => {
+      document.querySelectorAll('form[action*="pay_pending_cost_line"]').forEach((form) => {
+        if (form.dataset.pendingCostBound === 'true') return;
+        form.dataset.pendingCostBound = 'true';
+        bindForm(form);
+      });
+    };
+
+    document.addEventListener('turbo:load', bindAll);
+    document.addEventListener('DOMContentLoaded', bindAll);
+  })();
+</script>
+<%= render 'services/styles' %>

@@ -12,10 +12,41 @@
       </ul>
     </div>
   <% end %>
-  <div class="grid grid-cols-2 gap-4">
-    <div class="col-span-2">
+  <div class="space-y-4">
+    <div>
       <%= f.label :name, 'Nombre del negocio', class: 'block text-sm font-medium text-slate-700' %>
       <%= f.text_field :name, class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Ej: Sistema Central, Sucursal Valencia' %>
+    </div>
+    <div>
+      <%= f.label :theme_profile, 'Perfil de color', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.select :theme_profile,
+                   options_for_select(Business.theme_profile_options, business.theme_profile || Business::DEFAULT_THEME_PROFILE),
+                   {},
+                   class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+      <p class="mt-1 text-xs text-slate-500">Selecciona entre perfiles con azules claros, cyan y cyan electrico.</p>
+    </div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :logo, 'Logo del negocio', class: 'block text-sm font-medium text-slate-700' %>
+        <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+        <p class="mt-1 text-xs text-slate-500">Se muestra en el sidebar en formato circular.</p>
+        <% if business.logo.attached? %>
+          <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+            <%= image_tag business.logo, class: 'h-12 w-12 rounded-full border border-slate-200 object-cover', alt: "Logo de #{business.name}" %>
+            <span class="text-xs font-medium text-slate-600">Logo actual</span>
+          </div>
+        <% end %>
+      </div>
+      <div>
+        <%= f.label :banner, 'Banner del negocio', class: 'block text-sm font-medium text-slate-700' %>
+        <%= f.file_field :banner, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+        <p class="mt-1 text-xs text-slate-500">Se usa como fondo del bloque superior del sidebar.</p>
+        <% if business.banner.attached? %>
+          <div class="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+            <%= image_tag business.banner, class: 'h-16 w-full object-cover', alt: "Banner de #{business.name}" %>
+          </div>
+        <% end %>
+      </div>
     </div>
   </div>
   <div class="mt-6">

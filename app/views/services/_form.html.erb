@@ -13,14 +13,53 @@
     </div>
   <% end %>
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Disponibilidad</p>
-        <p class="mt-1 text-sm text-slate-500">Marca si el servicio esta habilitado para ventas.</p>
-      </div>
-      <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-        <%= form.check_box :available, class: "h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500", id: "available" %>
-        Servicio disponible
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estatus del servicio</p>
+      <p class="mt-1 text-sm text-slate-500">Configura disponibilidad, uso anidado y visibilidad segun el nivel de acceso.</p>
+    </div>
+    <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <label class="inline-flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <%= form.check_box :available, class: "mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500", id: "service-available" %>
+        <span>
+          <span class="block font-semibold">Servicio disponible</span>
+          <span class="mt-0.5 block text-xs text-slate-500">Si esta desactivado, solo el administrador podra ver detalles.</span>
+        </span>
+      </label>
+      <label class="inline-flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <%= form.check_box :nested_available, class: "mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "service-nested-available" %>
+        <span>
+          <span class="block font-semibold">Servicio anidado</span>
+          <span class="mt-0.5 block text-xs text-slate-500">Permite usar este servicio como parte de estructuras de costos.</span>
+        </span>
+      </label>
+      <label class="inline-flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <%= form.check_box :caution_service,
+                           class: "mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500",
+                           id: "service-caution-service",
+                           data: { caution_flag: true } %>
+        <span>
+          <span class="block font-semibold">Servicio con precaucion</span>
+          <span class="mt-0.5 block text-xs text-amber-700">El personal estandar y encargado pueden verlo, pero al abrir detalles veran una advertencia.</span>
+        </span>
+      </label>
+      <label class="inline-flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+        <%= form.check_box :restricted_service,
+                           class: "mt-0.5 h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500",
+                           id: "service-restricted-service",
+                           data: { restricted_flag: true } %>
+        <span>
+          <span class="block font-semibold">Servicio restringido</span>
+          <span class="mt-0.5 block text-xs text-rose-700">Solo el administrador puede verlo y acceder a su detalle.</span>
+        </span>
+      </label>
+      <label class="inline-flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
+        <%= form.check_box :auto_cost_stock_discount,
+                           class: "mt-0.5 h-4 w-4 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500",
+                           id: "service-auto-cost-stock-discount" %>
+        <span>
+          <span class="block font-semibold">Descuento automatico de costo/stock</span>
+          <span class="mt-0.5 block text-xs text-cyan-700">Al facturar, descuenta insumos de la estructura de gastos y registra costo pagado o pendiente.</span>
+        </span>
       </label>
     </div>
   </div>
@@ -43,14 +82,8 @@
                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
                         data: { pricing_mode_select: true } %>
       </div>
-      <div class="xl:col-span-3">
-        <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-          <%= form.check_box :nested_available, class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
-          Permitir este servicio como servicio anidado
-        </label>
-      </div>
     </div>
-    <div id="fixed-price-fields" class="mt-4 grid gap-4 md:grid-cols-2">
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
       <% fixed_reference = form.object.currency_base_price.to_s.strip.presence || "Dolar BCV" %>
       <% fixed_reference = "Dolar BCV" if fixed_reference == "$" %>
       <% fixed_symbol = currency_symbol_for_reference(fixed_reference, rows: @service_price_currency_rows, fallback: "$") %>
@@ -60,15 +93,18 @@
                                   else
                                     ""
                                   end %>
-      <div>
-        <%= form.label :currency_base_price, "Referencia del precio", class: "block text-sm font-medium text-slate-700" %>
+      <div id="service-currency-base-field">
+        <%= form.label :currency_base_price, "Moneda base de calculo", class: "block text-sm font-medium text-slate-700" %>
         <%= form.select :currency_base_price,
                         currency_reference_options_for_select(rows: @service_price_currency_rows, selected: fixed_reference),
                         { include_blank: "Selecciona una opcion" },
                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
                         data: { fixed_currency_select: true } %>
+        <p class="mt-1 text-xs text-slate-500" data-fixed-currency-help>
+          <%= form.object.fixed? ? "Define la moneda de referencia del precio fijo." : "Esta moneda se usara para pedir el precio a convenir en ventas." %>
+        </p>
       </div>
-      <div id="sale-price-field">
+      <div id="service-sale-price-field" class="<%= form.object.fixed? ? '' : 'hidden' %>">
         <label class="block text-sm font-medium text-slate-700" data-fixed-amount-label>Monto (<%= fixed_reference %>)</label>
         <%= form.text_field :sale_price,
                             value: fixed_sale_price_value,
@@ -191,7 +227,26 @@
 
     const handleLoad = () => {
       const form = document.getElementById("form-services");
-      if (form) resizeTextareas(form);
+      if (!form) return;
+
+      resizeTextareas(form);
+
+      const cautionFlag = form.querySelector('[data-caution-flag="true"]');
+      const restrictedFlag = form.querySelector('[data-restricted-flag="true"]');
+      if (!cautionFlag || !restrictedFlag) return;
+
+      if (form.dataset.statusBound === "true") return;
+      form.dataset.statusBound = "true";
+
+      cautionFlag.addEventListener("change", () => {
+        if (!cautionFlag.checked) return;
+        restrictedFlag.checked = false;
+      });
+
+      restrictedFlag.addEventListener("change", () => {
+        if (!restrictedFlag.checked) return;
+        cautionFlag.checked = false;
+      });
     };
 
     document.addEventListener("input", handleInput);

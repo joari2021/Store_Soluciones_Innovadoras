@@ -1,4 +1,5 @@
 <% currency_symbol = Account::CURRENCIES.dig(@expense.currency, :symbol) || @expense.currency %>
+<% expense_base_currency = @expense.currency.to_s.upcase %>
 <div class="space-y-6">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -98,7 +99,17 @@
                 <td class="px-4 py-3"><%= payment.account.name %></td>
                 <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>
                 <td class="px-4 py-3"><%= payment.reference.presence || '-' %></td>
-                <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount, unit: "#{payment.currency} ") %></td>
+                <td class="px-4 py-3 text-right">
+                  <% equivalent_amount = @payment_equivalents[payment.id] %>
+                  <span class="font-semibold text-slate-800"><%= number_to_currency(payment.amount, unit: "#{payment.currency} ") %></span>
+                  <span class="ml-2 text-xs text-slate-500">
+                    <% if equivalent_amount.present? %>
+                      (Equivalente: <%= number_to_currency(equivalent_amount, unit: "#{expense_base_currency} ") %>)
+                    <% else %>
+                      (Equivalente: no disponible)
+                    <% end %>
+                  </span>
+                </td>
               </tr>
             <% end %>
           </tbody>

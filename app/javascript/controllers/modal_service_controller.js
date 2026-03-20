@@ -20,6 +20,18 @@ export default class extends Controller {
     if (viewButton) {
       const serviceId = viewButton.dataset.serviceId;
       const serviceDescription = viewButton.dataset.serviceDescription;
+      const cautionService = viewButton.dataset.serviceCaution === "true";
+      const userIsAdmin = viewButton.dataset.userAdmin === "true";
+
+      if (cautionService && !userIsAdmin) {
+        this.confirmCautionWarning().then((confirmed) => {
+          if (!confirmed) return;
+
+          this.loadService(serviceId, serviceDescription);
+        });
+        return;
+      }
+
       this.loadService(serviceId, serviceDescription);
       return;
     }
@@ -126,6 +138,26 @@ export default class extends Controller {
 
   loadingTemplate() {
     return '<div class="animate-pulse space-y-3"><div class="h-4 w-40 rounded-full bg-slate-200"></div><div class="h-3 w-full rounded-full bg-slate-100"></div><div class="h-3 w-3/4 rounded-full bg-slate-100"></div></div>';
+  }
+
+  confirmCautionWarning() {
+    const title = "Servicio con precaucion";
+    const text =
+      "Este servicio debe ofrecerse con prudencia y cuidando el entorno antes de continuar.";
+
+    if (window.Swal && typeof window.Swal.fire === "function") {
+      return window.Swal.fire({
+        icon: "warning",
+        title,
+        text,
+        confirmButtonText: "Continuar",
+        cancelButtonText: "Cancelar",
+        showCancelButton: true,
+        reverseButtons: true,
+      }).then((result) => result.isConfirmed);
+    }
+
+    return Promise.resolve(window.confirm(`${title}\n\n${text}`));
   }
 
   copyServiceInfo(button) {

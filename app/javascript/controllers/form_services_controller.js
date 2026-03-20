@@ -165,7 +165,12 @@ export default class extends Controller {
     }
 
     if (target.matches("[data-product-select]")) {
-      this.syncProductSearchRow(target.closest("[data-nested-row]"));
+      const row = target.closest("[data-nested-row]");
+      this.syncProductSearchRow(row);
+    }
+
+    if (target.matches("[data-product-variation-select]")) {
+      this.syncProductVariationRow(target.closest("[data-nested-row]"));
     }
 
     if (target.matches("[data-nested-service-select]")) {
@@ -280,10 +285,39 @@ export default class extends Controller {
     if (!row) return;
 
     const destroyInput = row.querySelector('input[data-destroy-input="true"]');
-    const persisted = String(row.dataset.structurePersisted || "") === "true";
+    const destroyInputName = String(destroyInput?.name || "");
+    const persistedByDataset =
+      String(row.dataset.structurePersisted || "") === "true";
+    const persistedByNestedDataset =
+      String(row.dataset.nestedPersisted || "") === "true";
+    const persistedIdInput = row.querySelector(
+      'input[type="hidden"][name$="[id]"]',
+    );
+    const persistedById =
+      persistedIdInput &&
+      String(persistedIdInput.value || "").trim().length > 0;
+
+    let persistedByPairedId = false;
+    if (destroyInputName.endsWith("[_destroy]")) {
+      const idInputName = destroyInputName.replace(/\[_destroy\]$/, "[id]");
+      const pairedIdInput = Array.from(
+        this.element.querySelectorAll('input[type="hidden"][name$="[id]"]'),
+      ).find((input) => String(input.name || "") === idInputName);
+
+      persistedByPairedId =
+        !!pairedIdInput && String(pairedIdInput.value || "").trim().length > 0;
+    }
+
+    const persisted =
+      persistedByDataset ||
+      persistedByNestedDataset ||
+      persistedById ||
+      persistedByPairedId;
 
     if (persisted && destroyInput) {
       destroyInput.value = "1";
+      this.closeStructureModal(row);
+      this.closeProductResults(row);
       row.style.display = "none";
       return;
     }
@@ -295,14 +329,30 @@ export default class extends Controller {
     const pricingModeSelect = this.element.querySelector(
       "[data-pricing-mode-select]",
     );
-    const fixedFields = this.element.querySelector("#fixed-price-fields");
-    if (!pricingModeSelect || !fixedFields) return;
+    const salePriceField = this.element.querySelector(
+      "#service-sale-price-field",
+    );
+    const salePriceInput = this.element.querySelector(
+      "[data-fixed-sale-price]",
+    );
+    const currencyHelp = this.element.querySelector(
+      "[data-fixed-currency-help]",
+    );
+    if (!pricingModeSelect || !salePriceField) return;
 
     const isFixed = pricingModeSelect.value === "fixed";
-    fixedFields.style.display = isFixed ? "grid" : "none";
-    fixedFields.querySelectorAll("input, select").forEach((field) => {
-      field.disabled = !isFixed;
-    });
+    salePriceField.classList.toggle("hidden", !isFixed);
+    salePriceField.style.display = isFixed ? "block" : "none";
+
+    if (salePriceInput) {
+      salePriceInput.disabled = !isFixed;
+    }
+
+    if (currencyHelp) {
+      currencyHelp.textContent = isFixed
+        ? "Define la moneda de referencia del precio fijo."
+        : "Esta moneda se usara para pedir el precio a convenir en ventas.";
+    }
   }
 
   updateFixedCurrencyVisibility() {
@@ -513,7 +563,8 @@ export default class extends Controller {
     if (!scope) return;
 
     scope.querySelectorAll("[data-product-select]").forEach((select) => {
-      this.syncProductSearchRow(select.closest("[data-nested-row]"));
+      const row = select.closest("[data-nested-row]");
+      this.syncProductSearchRow(row);
     });
   }
 
@@ -650,7 +701,10 @@ export default class extends Controller {
     const select = row.querySelector("[data-product-select]");
     const searchInput = row.querySelector("[data-product-search]");
     const label = row.querySelector("[data-product-selected-label]");
-    if (!select || !searchInput || !label) return;
+    if (!select || !searchInput || !label) {
+      this.syncProductVariationRow(row);
+      return;
+    }
 
     const selectedOption = select.options?.[select.selectedIndex];
     const selectedText =
@@ -661,11 +715,98 @@ export default class extends Controller {
     if (selectedText.length > 0) {
       searchInput.value = selectedText;
       label.textContent = `Seleccionado: ${selectedText}`;
+      this.syncProductVariationRow(row);
       return;
     }
 
     searchInput.value = "";
     label.textContent = "Sin producto seleccionado";
+    this.syncProductVariationRow(row);
+  }
+
+  syncProductVariationRow(row) {
+    if (!row) return;
+
+    const productSelect = row.querySelector("[data-product-select]");
+    const variationSelect = row.querySelector(
+      "[data-product-variation-select]",
+    );
+    const hint = row.querySelector("[data-product-variation-hint]");
+    if (!productSelect || !variationSelect) return;
+
+    const selectedProductOption =
+      productSelect.options?.[productSelect.selectedIndex];
+    const selectedProductId = String(selectedProductOption?.value || "").trim();
+    const variations = this.parseProductVariationsFromOption(
+      selectedProductOption,
+    );
+
+    const currentValue = String(variationSelect.value || "").trim();
+    const currentStillValid = variations.some(
+      (variation) => String(variation.id) === currentValue,
+    );
+
+    let selectedVariation = currentStillValid ? currentValue : "";
+    if (!selectedVariation && variations.length === 1) {
+      selectedVariation = String(variations[0].id);
+    }
+
+    const variationOptionsHtml = [
+      '<option value="">Selecciona variacion</option>',
+      ...variations.map(
+        (variation) =>
+          `<option value="${this.escapeHtml(String(variation.id))}">${this.escapeHtml(variation.description)}</option>`,
+      ),
+    ].join("");
+
+    variationSelect.innerHTML = variationOptionsHtml;
+    variationSelect.value = selectedVariation;
+    variationSelect.disabled =
+      selectedProductId.length === 0 || variations.length === 0;
+
+    if (!hint) return;
+
+    if (selectedProductId.length === 0) {
+      hint.textContent = "Selecciona un producto para ver variaciones.";
+      return;
+    }
+
+    if (variations.length === 0) {
+      hint.textContent = "El producto no tiene variaciones disponibles.";
+      return;
+    }
+
+    const selectedVariationText = variations.find(
+      (variation) =>
+        String(variation.id) === String(variationSelect.value || ""),
+    )?.description;
+
+    hint.textContent = selectedVariationText
+      ? `Variacion seleccionada: ${selectedVariationText}`
+      : "Selecciona una variacion para el insumo.";
+  }
+
+  parseProductVariationsFromOption(option) {
+    const raw = String(option?.dataset?.variations || "").trim();
+    if (!raw.length) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed
+        .map((row) => ({
+          id: row?.id,
+          description: String(row?.description || "").trim(),
+        }))
+        .filter(
+          (row) =>
+            String(row.id || "").trim().length > 0 &&
+            row.description.length > 0,
+        );
+    } catch (_error) {
+      return [];
+    }
   }
 
   openProductResults(searchInput) {

@@ -1,13 +1,13 @@
 #materialize-datepicker-portal {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 20000;
   pointer-events: none;
 }
 
 #materialize-datepicker-portal .modal-overlay {
   position: fixed;
-  z-index: 999;
+  z-index: 20000;
   top: -25%;
   left: 0;
   bottom: 0;
@@ -40,7 +40,7 @@
     0 9px 46px 8px rgba(0, 0, 0, 0.12),
     0 11px 15px -7px rgba(0, 0, 0, 0.2);
   pointer-events: auto;
-  z-index: 1003;
+  z-index: 20001;
 }
 
 #materialize-datepicker-portal .datepicker-container.modal-content {
@@ -73,7 +73,8 @@
   position: relative;
   cursor: pointer;
   background-color: transparent;
-  border: none;
+  border: none !important;
+  box-shadow: none !important;
   text-align: center;
   margin: 0;
   height: 3rem;
@@ -87,7 +88,18 @@
   .datepicker-controls
   .select-wrapper
   input:focus {
-  border-bottom: none;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+#materialize-datepicker-portal
+  .datepicker-controls
+  .select-wrapper
+  .select-dropdown:focus {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
 }
 
 #materialize-datepicker-portal .datepicker-controls .select-wrapper .caret {
@@ -258,7 +270,7 @@ body > .dropdown-content.select-dropdown {
   position: absolute;
   left: 0;
   top: 0;
-  z-index: 1005;
+  z-index: 20002;
   transform-origin: 0 0;
 }
 

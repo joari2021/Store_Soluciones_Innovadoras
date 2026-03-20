@@ -1,6 +1,8 @@
 class Account < ApplicationRecord
   belongs_to :business
   has_many :account_movements, -> { order(occurred_at: :desc, created_at: :desc) }, dependent: :destroy
+  has_one_attached :logo
+  has_one_attached :payment_method_image
 
   ACCOUNT_TYPES = {
     'cash_box' => { label: 'Caja', icon: 'wallet' },
@@ -91,6 +93,8 @@ class Account < ApplicationRecord
   validate :primary_requires_bank_account
   validate :settlement_account_rules
   validate :settlement_currency_rules
+  validate :validate_logo_attachment
+  validate :validate_payment_method_image_attachment
 
   before_validation :set_default_theme_color
   before_validation :clear_primary_for_non_bank
@@ -151,6 +155,17 @@ class Account < ApplicationRecord
 
   def settlement_enabled?
     SPECIAL_ACCOUNT_TYPES.include?(account_type)
+  end
+
+  def insufficient_balance_message(required_amount, available_balance: balance)
+    required = required_amount.to_d.round(2)
+    available = available_balance.to_d.round(2)
+    missing = [required - available, 0.to_d].max.round(2)
+
+    "Saldo insuficiente en la cuenta #{name}. " \
+      "Saldo actual: #{format_currency_amount(available)}. " \
+      "Monto a debitar: #{format_currency_amount(required)}. " \
+      "Faltan: #{format_currency_amount(missing)}."
   end
 
   def settlement_account_required?
@@ -228,5 +243,30 @@ class Account < ApplicationRecord
     return if currency == 'VES'
 
     errors.add(:currency, 'debe ser Bs para esta cuenta')
+  end
+
+  def validate_logo_attachment
+    validate_image_attachment(:logo)
+  end
+
+  def validate_payment_method_image_attachment
+    validate_image_attachment(:payment_method_image)
+  end
+
+  def validate_image_attachment(attribute)
+    attachment = public_send(attribute)
+    return unless attachment.attached?
+
+    unless attachment.blob.content_type.in?(%w[image/png image/jpeg image/jpg image/webp image/svg+xml image/gif])
+      errors.add(attribute, 'debe ser una imagen valida (PNG, JPG, WEBP, SVG o GIF).')
+    end
+
+    return unless attachment.blob.byte_size > 5.megabytes
+
+    errors.add(attribute, 'debe pesar menos de 5MB.')
+  end
+
+  def format_currency_amount(value)
+    ApplicationController.helpers.number_to_currency(value.to_d.round(2), unit: "#{currency_symbol} ")
   end
 end

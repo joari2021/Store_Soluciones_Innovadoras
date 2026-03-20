@@ -15,7 +15,8 @@
     <%= javascript_include_tag "delete_confirmation_dialog" %>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   </head>
-  <body class="text-slate-600 bg-gradient-to-br from-sky-50 via-white to-blue-50 h-screen overflow-hidden selection:bg-sky-200 selection:text-sky-900">
+  <% active_theme_profile = current_business&.theme_profile || Business::DEFAULT_THEME_PROFILE %>
+  <body data-business-theme-profile="<%= active_theme_profile %>" style="<%= Business.theme_css_variables(active_theme_profile) %>" class="app-shell text-slate-600 h-screen overflow-hidden">
     <div class="flex h-full">
       <!-- Desktop Sidebar -->
       <%= render "shared/sidebar" %>
@@ -55,15 +56,19 @@
       if (!window.getTabIdFromPath) {
         window.getTabIdFromPath = function(path) {
           if (!path) return null;
+          if (path.includes('/ventas/historial')) return 'historial_ventas';
           if (path.includes('/productos')) return 'productos';
-          if (path.includes('/facturas')) return 'facturas';
+          if (path.includes('/porcentajes-ganancia')) return 'productos';
+          if (path.includes('/facturas') || path.includes('/facturas-compra')) return 'facturas';
           if (path.includes('/suppliers')) return 'proveedores';
           if (path.includes('/cuentas')) return 'cuentas';
           if (path.includes('/tasa_cambios')) return 'tasas';
+          if (path.includes('/cierres-turno')) return 'cash_shifts';
+          if (path.includes('/negocios')) return 'businesses';
           if (path.includes('/ventas')) return 'ventas';
           if (path.includes('/clientes')) return 'clientes';
           if (path.includes('/services')) return 'servicios';
-          if (path.includes('/expenses')) return 'gastos';
+          if (path.includes('/expenses') || path.includes('/gastos')) return 'gastos';
           if (path.includes('/deudas')) return 'deudas';
           return null;
         };
@@ -74,30 +79,39 @@
           const currentTabId = window.getTabIdFromPath(window.location.pathname);
           const isSameView = currentTabId === tabId;
           const shouldAnimate = options.animate !== false && !isSameView;
-
-          // Hide only tab sections to avoid affecting nested form sections.
-          document.querySelectorAll('section[id^="tab-"]').forEach(section => {
-            section.classList.add('hidden');
-            if (shouldAnimate) {
-              section.classList.remove('fade-in');
-            }
-          });
-
-          // Show selected if exists
+          const tabSections = Array.from(document.querySelectorAll('section[id^="tab-"]'));
           const activeSection = document.getElementById('tab-' + tabId);
-          if (activeSection) {
+
+          // Switch tab sections only when there is a real tab container on the page.
+          if (activeSection && tabSections.length > 1) {
+            tabSections.forEach(section => {
+              if (section === activeSection) return;
+              section.classList.add('hidden');
+              if (shouldAnimate) {
+                section.classList.remove('fade-in');
+              }
+            });
+
+            const wasHidden = activeSection.classList.contains('hidden');
             activeSection.classList.remove('hidden');
-            if (shouldAnimate) {
+            if (shouldAnimate && wasHidden) {
               // Trigger reflow for animation
               void activeSection.offsetWidth;
               activeSection.classList.add('fade-in');
             }
+          } else if (activeSection) {
+            // Single-section pages should never be hidden and shown again.
+            activeSection.classList.remove('hidden');
           }
 
-          // Update Desktop Sidebar (buscar tanto buttons como links con onclick)
-          document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('nav-item-active'));
-          const desktopEls = document.querySelectorAll(`aside [onclick*="${tabId}"]`);
-          if (desktopEls.length > 0) desktopEls[0].classList.add('nav-item-active');
+          // Update Desktop Sidebar based on link route instead of inline onclick.
+          const desktopNavButtons = Array.from(document.querySelectorAll('aside .nav-btn'));
+          desktopNavButtons.forEach(btn => btn.classList.remove('nav-item-active'));
+          const desktopMatch = desktopNavButtons.find((link) => {
+            const href = link.getAttribute('href');
+            return href && window.getTabIdFromPath(href) === tabId;
+          });
+          if (desktopMatch) desktopMatch.classList.add('nav-item-active');
 
           // Update Mobile Nav
           document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('mobile-nav-active', 'text-sky-500'));

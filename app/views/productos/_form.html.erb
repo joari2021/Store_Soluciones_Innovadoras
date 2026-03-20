@@ -1,4 +1,4 @@
-<%= form_with(model: producto, data: { controller: "form-producto", 'form-producto-tasa-dolar-value' => (@tasa_dolar_bcv || 0) }, html: { class: "space-y-4" }) do |form| %>
+<%= form_with(model: producto, data: { controller: "form-producto", 'form-producto-tasa-dolar-value' => (@tasa_dolar_bcv || 0), 'form-producto-persisted-value' => producto.persisted? }, html: { class: "space-y-4" }) do |form| %>
   <% if producto.errors.any? %>
     <div id="form-errors" class="alert alert-danger rounded-xl p-4 mb-3 shadow-sm border border-danger" style="background: #fee2e2; color: #b91c1c;">
       <h4 class="text-base font-bold mb-2"><%= pluralize(producto.errors.count, "error") %> impidieron guardar el producto:</h4>
@@ -53,24 +53,83 @@
     <%= form.label :descripcion, class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
     <%= form.text_field :descripcion, class:"w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all"%>
   </div>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-1">
+  <% profit_margin_presets = Array(@profit_margin_presets_for_select) %>
+  <% selected_profit_margin_preset_id = if producto.respond_to?(:profit_margin_preset_id) && producto.profit_margin_preset_id.present?
+                                          producto.profit_margin_preset_id
+                                        elsif producto.respond_to?(:porcentaje_ganancia) && producto.porcentaje_ganancia.present?
+                                          profit_margin_presets.find { |preset| preset.percentage.to_d == producto.porcentaje_ganancia.to_d }&.id
+                                        end %>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
+      <%= form.label :categoria_id, 'Categoria', class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
+      <% if @categorias_for_select.present? %>
+        <%= form.collection_select :categoria_id,
+                                   @categorias_for_select,
+                                   :id,
+                                   :nombre,
+                                   { prompt: 'Selecciona una categoria' },
+                                   class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
+      <% else %>
+        <div class="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          No hay categorias registradas. Crea una categoria primero desde la seccion de categorias.
+        </div>
+      <% end %>
+    </div>
     <div>
       <label for="costo_unid_visual" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Costo Unid</label>
-      <input type="text" name="costo_unid_visual" id="costo_unid_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Selecciona lote" readonly>
+      <input type="text" name="costo_unid_visual" id="costo_unid_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="$ 0,00" data-money-mask="true" data-money-symbol="$" readonly>
     </div>
   </div>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+  <div id="ganancia-real-status" class="hidden rounded-xl border px-3 py-3">
+    <p id="ganancia-real-message" class="text-sm font-medium"></p>
+    <button type="button" id="ganancia-real-toggle-btn" class="mt-2 inline-flex cursor-pointer items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"></button>
+  </div>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
-      <%= form.label :porcentaje_ganancia, "Ganancia (%)", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
-      <%= form.text_field :porcentaje_ganancia, class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none transition-all", id: "producto_porcentaje_ganancia", inputmode: "decimal" %>
+      <label for="producto_profit_margin_preset_id" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ganancia fija (%)</label>
+      <% if profit_margin_presets.any? %>
+        <%= form.select :profit_margin_preset_id,
+                        options_for_select(
+                          profit_margin_presets.map do |preset|
+                            ["#{format_quantity(preset.percentage)}%", preset.id, { 'data-fixed-percentage' => preset.percentage.to_d.to_s('F') }]
+                          end,
+                          selected_profit_margin_preset_id
+                        ),
+                        { include_blank: 'Selecciona % fijo' },
+                        class: 'w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all',
+                        id: 'producto_profit_margin_preset_id',
+                        data: { fixed_profit_select: true } %>
+      <% else %>
+        <div class="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+          No hay porcentajes de ganancia fijos registrados.
+        </div>
+      <% end %>
     </div>
     <div>
+      <%= form.label :porcentaje_ganancia, 'Ganancia real (%)', class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
+      <%= form.text_field :porcentaje_ganancia,
+                          class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none transition-all",
+                          id: "producto_porcentaje_ganancia",
+                          inputmode: "decimal",
+                          autocomplete: "off",
+                          placeholder: "% 0,00",
+                          data: { money_mask: true, money_symbol: '%' } %>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div>
       <%= form.label :precio_venta_usd, "Precio Venta ($)", class:"text-xs font-bold text-slate-400 uppercase tracking-wider" %>
-      <%= form.text_field :precio_venta_usd, class:"w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none", id: "producto_precio_venta_usd" %>
+      <%= form.text_field :precio_venta_usd,
+                          class:"w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none",
+                          id: "producto_precio_venta_usd",
+                          inputmode: "decimal",
+                          autocomplete: "off",
+                          placeholder: "$ 0,00",
+                          data: { money_mask: true, money_symbol: '$' } %>
     </div>
     <div>
       <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Precio Venta (Bs)</label>
-      <input type="text" name="precio_venta_bs" id="precio_venta_bs_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Precio en Bs">
+      <input type="text" name="precio_venta_bs" id="precio_venta_bs_visual" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Bs 0,00">
     </div>
   </div>
   <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
@@ -87,7 +146,7 @@
           <%= pv.hidden_field :_destroy, class: "variation-destroy" %>
           <div class="flex items-start justify-between gap-3">
             <div class="text-sm font-bold text-slate-700">Variacion</div>
-            <button type="button" class="remove-variation p-2 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" title="Eliminar variación" aria-label="Eliminar variación">
+            <button type="button" class="remove-variation inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow" title="Eliminar variación" aria-label="Eliminar variación">
               <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M9 3a1 1 0 0 0-1 1v1H5a1 1 0 1 0 0 2h.636l.89 12.46A2 2 0 0 0 8.52 21h6.96a2 2 0 0 0 1.994-1.54L18.364 7H19a1 1 0 1 0 0-2h-3V4a1 1 0 0 0-1-1H9Zm2 2h2v1h-2V5Zm-2.37 2h6.74l-.86 12.04a.5.5 0 0 1-.498.46H9.988a.5.5 0 0 1-.498-.46L8.63 7Z"/>
               </svg>
@@ -100,7 +159,12 @@
             </div>
             <div>
               <%= pv.label :safety_stock, "Stock de seguridad", class: "block text-xs font-bold text-slate-400 uppercase tracking-wider" %>
-              <%= pv.number_field :safety_stock, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+              <%= pv.number_field :safety_stock,
+                                  value: (pv.object.safety_stock || 0).to_i,
+                                  step: 1,
+                                  min: 0,
+                                  inputmode: 'numeric',
+                                  class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
             </div>
           </div>
         </div>
@@ -118,10 +182,9 @@
               <div class="text-sm font-bold text-slate-700"><%= sp.supplier&.nombre || 'Proveedor' %></div>
             </div>
             <div class="mt-3 grid grid-cols-2 gap-4 text-sm text-slate-600">
-              <div><span class="font-semibold">Costo mayor:</span> <%= format_money(sp.costo_mayor) %></div>
-              <div><span class="font-semibold">Unid por pack:</span> <%= sp.cantidad %></div>
-              <div><span class="font-semibold">Costo menor:</span> <%= format_money(sp.costo_menor) %></div>
-              <div><span class="font-semibold">Unid por pack:</span> <%= format_quantity(sp.cantidad) %></div>
+              <div><span class="font-semibold">Costo mayor:</span> <%= format_money(sp.costo_mayor, unit: '$') %></div>
+              <div><span class="font-semibold">Costo menor:</span> <%= format_money(sp.costo_menor, unit: '$') %></div>
+              <div><span class="font-semibold">Unid por pack:</span> <%= format_quantity(sp.cantidad, precision: 0) %></div>
             </div>
           </div>
         <% end %>
@@ -138,15 +201,28 @@
       <% available_lots = producto.inventory_lots.select { |lot| lot.quantity_remaining.to_d > 0 } %>
       <% if available_lots.any? %>
         <% available_lots.each do |lot| %>
+          <% units_per_pack = lot.purchase_invoice_item&.unid_x_pack.to_d %>
+          <% purchased_units = units_per_pack.positive? ? (lot.quantity_in.to_d * units_per_pack) : lot.quantity_in.to_d %>
+          <% remaining_units = if lot.stock_lot_variations.any?
+                                lot.stock_lot_variations.sum(:quantity_remaining).to_d
+                              elsif units_per_pack.positive?
+                                lot.quantity_remaining.to_d * units_per_pack
+                              else
+                                lot.quantity_remaining.to_d
+                              end %>
           <div class="rounded-2xl border border-slate-200 bg-white p-4">
             <div class="flex items-center justify-between">
-              <div class="text-sm font-bold text-slate-700"><%= lot.supplier_display_name %></div>
+              <div>
+                <div class="text-sm font-bold text-slate-700">Lote principal #<%= lot.id %></div>
+                <div class="text-xs text-slate-500"><%= lot.supplier_display_name %></div>
+              </div>
               <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer">
                 <input
                     type="radio"
                     name="lote_costo_selector"
                     class="lot-cost-selector h-4 w-4 text-sky-600 border-slate-300 focus:ring-sky-500"
                     data-unit-cost="<%= lot.unit_cost_usd.to_s %>"
+                    data-lot-timestamp="<%= (lot.purchased_at || lot.created_at)&.to_i || 0 %>"
                     <%= 'disabled' if lot.quantity_remaining.to_d <= 0 %>
                   >
                   <span class="<%= lot.quantity_remaining.to_d > 0 ? 'text-emerald-600' : 'text-slate-400' %>">
@@ -157,8 +233,8 @@
               <div class="mt-3 grid grid-cols-2 gap-4 text-sm text-slate-600">
                 <div><span class="font-semibold">Costo unid:</span> <%= format_money(lot.unit_cost_usd, unit: '$') %></div>
                 <div><span class="font-semibold">Fecha compra:</span> <%= l((lot.purchased_at || lot.created_at).to_date) rescue '-' %></div>
-                <div><span class="font-semibold">Cantidad comprada:</span> <%= format_quantity(lot.quantity_in) %></div>
-                <div><span class="font-semibold">Cantidad restante:</span> <%= format_quantity(lot.quantity_remaining) %></div>
+                <div><span class="font-semibold">Cantidad comprada (unid):</span> <%= format_quantity(purchased_units, precision: 0) %></div>
+                <div><span class="font-semibold">Cantidad restante (unid):</span> <%= format_quantity(remaining_units, precision: 0) %></div>
               </div>
             </div>
           <% end %>
@@ -176,7 +252,7 @@
       <input type="hidden" name="producto[product_variations_attributes][NEW_RECORD][_destroy]" value="0" class="variation-destroy">
       <div class="flex items-start justify-between gap-3">
         <div class="text-sm font-bold text-slate-700">Variacion</div>
-        <button type="button" class="remove-variation p-2 rounded-lg text-red-500 hover:text-red-700 hover:bg-red-50" title="Eliminar variación" aria-label="Eliminar variación">
+        <button type="button" class="remove-variation inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 p-2 text-rose-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow" title="Eliminar variación" aria-label="Eliminar variación">
           <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
             <path d="M9 3a1 1 0 0 0-1 1v1H5a1 1 0 1 0 0 2h.636l.89 12.46A2 2 0 0 0 8.52 21h6.96a2 2 0 0 0 1.994-1.54L18.364 7H19a1 1 0 1 0 0-2h-3V4a1 1 0 0 0-1-1H9Zm2 2h2v1h-2V5Zm-2.37 2h6.74l-.86 12.04a.5.5 0 0 1-.498.46H9.988a.5.5 0 0 1-.498-.46L8.63 7Z"/>
           </svg>
@@ -189,7 +265,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Stock de seguridad</label>
-          <input class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" step="0.01" min="0" name="producto[product_variations_attributes][NEW_RECORD][safety_stock]" type="number" value="0">
+          <input class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" step="1" min="0" inputmode="numeric" name="producto[product_variations_attributes][NEW_RECORD][safety_stock]" type="number" value="0">
         </div>
       </div>
     </div>
@@ -205,8 +281,31 @@
         frame.dataset.variationIndex = String(Date.now());
       }
 
-      frame.addEventListener('click', (ev) => {
-        if (ev.target && ev.target.id === 'add-variation') {
+      const confirmVariationDelete = () => {
+        if (window.Swal) {
+          return window.Swal.fire({
+            title: '¿Eliminar variación?',
+            text: 'Si la variación ya existe, se eliminará al guardar el producto.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            target: 'body',
+            heightAuto: false,
+          }).then((result) => result.isConfirmed);
+        }
+
+        return Promise.resolve(window.confirm('¿Eliminar variación?'));
+      };
+
+      frame.addEventListener('click', async (ev) => {
+        const clickedElement = ev.target instanceof Element ? ev.target : null;
+        if (!clickedElement) return;
+
+        const addButton = clickedElement.closest('#add-variation');
+        if (addButton) {
           const container = frame.querySelector('#variations-list');
           const template = frame.querySelector('#variation-template');
           if (!container || !template) return;
@@ -214,19 +313,26 @@
           const html = template.innerHTML.replace(/NEW_RECORD/g, currentIndex);
           frame.dataset.variationIndex = String(currentIndex + 1);
           container.insertAdjacentHTML('beforeend', html);
+          return;
         }
 
-        if (ev.target && ev.target.classList.contains('remove-variation')) {
-          const row = ev.target.closest('.variation-row');
-          if (!row) return;
-          const destroyInput = row.querySelector('.variation-destroy');
-          const isNew = row.dataset.newRecord === 'true';
-          if (destroyInput && !isNew) {
-            destroyInput.value = '1';
-            row.classList.add('hidden');
-          } else {
-            row.remove();
-          }
+        const removeButton = clickedElement.closest('.remove-variation');
+        if (!removeButton) return;
+
+        ev.preventDefault();
+        const confirmed = await confirmVariationDelete();
+        if (!confirmed) return;
+
+        const row = removeButton.closest('.variation-row');
+        if (!row) return;
+
+        const destroyInput = row.querySelector('.variation-destroy');
+        const isNew = row.dataset.newRecord === 'true';
+        if (destroyInput && !isNew) {
+          destroyInput.value = '1';
+          row.classList.add('hidden');
+        } else {
+          row.remove();
         }
       });
     });

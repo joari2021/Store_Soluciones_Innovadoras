@@ -18,9 +18,12 @@ class Venta < ApplicationRecord
   }.freeze
 
   belongs_to :business
+  belongs_to :user, optional: true
+  belongs_to :cash_shift, optional: true
   belongs_to :cliente, optional: true
   has_many :venta_items, dependent: :destroy, inverse_of: :venta
   has_many :venta_payments, dependent: :destroy, inverse_of: :venta
+  has_many :service_cost_debts, class_name: 'Debt', dependent: :nullify
 
   accepts_nested_attributes_for :venta_items, allow_destroy: true
   accepts_nested_attributes_for :venta_payments, allow_destroy: true
@@ -43,6 +46,10 @@ class Venta < ApplicationRecord
 
   def cliente_display_name
     cliente&.name.presence || 'Cliente general'
+  end
+
+  def seller_display_name
+    user&.display_name.presence || 'Sin usuario'
   end
 
   def base_currency_ves?

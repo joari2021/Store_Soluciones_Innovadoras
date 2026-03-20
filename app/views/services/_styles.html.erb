@@ -185,7 +185,12 @@
     background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
     border: 1px solid #e2e8f0;
     transition: transform 0.25s ease, box-shadow 0.25s ease;
-    animation: services-rise 0.6s ease both;
+    animation: services-rise 0.82s ease both;
+  }
+
+  html[data-turbo-preview] .services-card,
+  body[data-turbo-preview] .services-card {
+    animation: none !important;
   }
 
   .services-card:hover {

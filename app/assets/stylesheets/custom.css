@@ -1,8 +1,19 @@
 /*=============== BASE ===============*/
 
-input,
 button {
   border: none;
+  outline: none;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(
+    [type="color"]
+  ):not([type="submit"]):not([type="button"]):not([type="image"]):not(
+    [type="reset"]
+  ):not([type="hidden"]):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--theme-input-focus, #06b6d4) !important;
+  box-shadow: 0 0 0 3px var(--theme-input-shadow, rgba(34, 211, 238, 0.26)) !important;
   outline: none;
 }
 

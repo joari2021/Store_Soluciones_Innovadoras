@@ -23,16 +23,16 @@ class ExpensePayment < ApplicationRecord
   def payment_method_rules
     return if account.blank?
 
-    if account.account_type == 'bank_account'
+    if account.account_type == 'bank_account' && account.currency == 'VES'
       errors.add(:payment_method, 'es requerido') if payment_method.blank?
     elsif payment_method.present?
-      errors.add(:payment_method, 'solo aplica a cuentas bancarias')
+      errors.add(:payment_method, 'solo aplica a cuentas bancarias en Bs')
     end
   end
 
   def reference_rules
     return if account.blank?
-    return unless account.account_type == 'bank_account'
+    return unless account.account_type == 'bank_account' && account.currency == 'VES'
     return if payment_method.blank?
 
     if reference.blank?

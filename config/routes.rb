@@ -1,15 +1,18 @@
 Rails.application.routes.draw do
+  get '/login', to: 'authentication/sessions#new', as: :new_session
+  post '/login', to: 'authentication/sessions#create', as: :sessions
+  delete '/logout', to: 'authentication/sessions#destroy', as: :logout
+
+  get '/registro', to: 'authentication/users#new', as: :new_user
+  post '/registro', to: 'authentication/users#create', as: :users
+
   resources :tasa_cambios do
     collection do
       get :bcv_por_fecha
+      get :rates_for_date
       post :scrape_bcv
       post :scrape_usdt
     end
-  end
-
-  namespace :authentication, path: '', as: '' do
-    resources :users, only: %i[new create], path: '/register', path_names: { new: '/' }
-    resources :sessions, only: %i[new create destroy], path: '/login', path_names: { new: '/' }
   end
 
   resources :productos do
@@ -17,6 +20,8 @@ Rails.application.routes.draw do
       get :search
     end
   end
+  resources :profit_margin_presets, path: 'porcentajes-ganancia', only: %i[index create edit update destroy]
+  resources :categorias, path: 'categorias', only: %i[index create edit update destroy]
   resources :suppliers do
     member do
       patch :overwrite_product_values
@@ -26,6 +31,7 @@ Rails.application.routes.draw do
     member do
       post :select
     end
+    resources :staff_members, path: 'personal'
   end
   resources :clientes do
     collection do
@@ -41,6 +47,7 @@ Rails.application.routes.draw do
   end
   resources :expenses, path: 'gastos' do
     resources :expense_payments, only: %i[new create]
+    post 'convert_amount', to: 'api/expense_payments#convert_amount', on: :member
   end
   resources :debts, path: 'deudas' do
     collection do
@@ -48,14 +55,32 @@ Rails.application.routes.draw do
     end
     resources :debt_payments, only: %i[new create]
   end
-  resources :ventas, only: %i[index create show] do
+  resources :ventas, only: %i[index create show destroy] do
     collection do
       get :historial
+      get :drafts
+      get :products_snapshot
+      get 'drafts/:id', action: :show_draft
+      post :save_draft
+      patch 'drafts/:id', action: :update_draft
+      delete 'drafts/:id', action: :destroy_draft
+    end
+  end
+  resources :cash_shifts, path: 'cierres-turno', only: %i[index create show] do
+    member do
+      patch :close
     end
   end
   resources :purchase_invoices, path: 'facturas-compra'
   resources :managers
   resources :services do
+    collection do
+      get :pending_costs
+      get 'pending_costs/:debt_id', action: :pending_cost_detail, as: :pending_cost_detail
+      get :pending_cost_rates
+      post :pay_pending_cost_line
+    end
+
     resources :service_managers, only: %i[new create edit update destroy]
   end
   resources :system_services

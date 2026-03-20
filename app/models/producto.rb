@@ -1,6 +1,13 @@
 class Producto < ApplicationRecord
   include PgSearch::Model
+
+  attr_accessor :porcentaje_ganancia unless column_names.include?('porcentaje_ganancia')
+
+  attr_accessor :profit_margin_preset_id unless column_names.include?('profit_margin_preset_id')
+
   belongs_to :business
+  belongs_to :categoria
+  belongs_to :profit_margin_preset, optional: true if column_names.include?('profit_margin_preset_id')
   has_one_attached :foto
   has_many :supplier_products, dependent: :destroy
   has_many :suppliers, through: :supplier_products
@@ -16,6 +23,9 @@ class Producto < ApplicationRecord
   has_many :purchase_invoice_items, class_name: 'PurchaseInvoiceItem', foreign_key: :producto_id, dependent: :nullify
 
   validates :descripcion, presence: true
+  validates :porcentaje_ganancia,
+            numericality: { greater_than_or_equal_to: 0, less_than: 1000 },
+            allow_nil: true
 
   before_validation :ensure_default_variation, on: :create
   before_validation :normalize_localized_monetary_fields
@@ -48,6 +58,39 @@ class Producto < ApplicationRecord
     stock_lots.sum(:quantity_remaining)
   end
 
+  def highest_active_lot_unit_cost_usd
+    stock_lots
+      .select { |lot| lot.quantity_remaining.to_d.positive? }
+      .map { |lot| lot.unit_cost_usd.to_d }
+      .max
+  end
+
+  def target_margin_percentage
+    preset_percentage = profit_margin_preset&.percentage
+    return preset_percentage.to_d if preset_percentage.present?
+
+    return nil if porcentaje_ganancia.blank?
+
+    porcentaje_ganancia.to_d
+  end
+
+  def expected_price_usd_from_target_margin(cost_usd = highest_active_lot_unit_cost_usd)
+    return nil unless cost_usd.to_d.positive?
+
+    margin = target_margin_percentage
+    return nil if margin.nil?
+
+    (cost_usd.to_d * (1 + margin / 100)).round(2)
+  end
+
+  def below_target_margin_for_highest_active_lot?
+    highest_cost = highest_active_lot_unit_cost_usd
+    expected_price = expected_price_usd_from_target_margin(highest_cost)
+    return false if expected_price.nil?
+
+    precio_venta_usd.to_d < expected_price
+  end
+
   def consume_variation_stock!(variation_id:, quantity_units:)
     requested = quantity_units.to_d
     raise ActiveRecord::RecordInvalid.new(self), 'Cantidad inválida para descuento.' if requested <= 0
@@ -73,18 +116,34 @@ class Producto < ApplicationRecord
   def ensure_default_variation
     return if product_variations.any?
 
-    product_variations.build(description: 'Unica')
+    product_variations.build(description: 'Unica', safety_stock: 0)
   end
 
   def normalize_localized_monetary_fields
     self.precio_venta_usd = normalize_localized_decimal(precio_venta_usd_before_type_cast)
+    porcentaje_raw = if respond_to?(:porcentaje_ganancia_before_type_cast)
+                       porcentaje_ganancia_before_type_cast
+                     else
+                       porcentaje_ganancia
+                     end
+    self.porcentaje_ganancia = normalize_localized_decimal(porcentaje_raw)
   end
 
   def normalize_localized_decimal(raw_value)
     return raw_value if raw_value.blank? || raw_value.is_a?(Numeric)
 
-    sanitized = raw_value.to_s.strip.gsub('.', '').gsub(',', '.')
-    BigDecimal(sanitized)
+    compact = raw_value.to_s.strip.gsub(/\s+/, '').gsub(/[^\d,.-]/, '')
+    return nil if compact.blank?
+
+    normalized = if compact.include?(',')
+                   compact.delete('.').tr(',', '.')
+                 elsif compact.count('.') > 1 && compact.split('.').drop(1).all? { |group| group.length == 3 }
+                   compact.delete('.')
+                 else
+                   compact
+                 end
+
+    BigDecimal(normalized)
   rescue ArgumentError
     raw_value
   end

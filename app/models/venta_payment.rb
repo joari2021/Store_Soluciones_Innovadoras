@@ -29,6 +29,7 @@ class VentaPayment < ApplicationRecord
   validates :payment_kind, presence: true, inclusion: { in: PAYMENT_KINDS.keys }
   validates :reference, presence: true, format: { with: /\A\d{6}\z/, message: 'debe tener 6 digitos' },
                         if: :reference_required?
+  validates :payment_date, presence: true, if: :reference_required?
 
   before_validation :set_defaults
   before_validation :set_amount_bs

@@ -1,7 +1,7 @@
 module ApplicationHelper
   include Pagy::Frontend
 
-  def truncated_name(name, length = 20, omission = "...")
+  def truncated_name(name, length = 20, omission = '...')
     if name.length > length
       "#{name[0, length]}#{omission}"
     else
@@ -9,14 +9,14 @@ module ApplicationHelper
     end
   end
 
-  def format_money(value, unit: "", precision: 2)
+  def format_money(value, unit: '', precision: 2)
     number_to_currency(
       value || 0,
       unit: unit,
       precision: precision,
-      separator: ",",
-      delimiter: ".",
-      format: unit.present? ? "%u\u00A0%n" : "%n"
+      separator: ',',
+      delimiter: '.',
+      format: unit.present? ? "%u\u00A0%n" : '%n'
     )
   end
 
@@ -24,9 +24,145 @@ module ApplicationHelper
     number_with_precision(
       value || 0,
       precision: precision,
-      separator: ",",
-      delimiter: ".",
+      separator: ',',
+      delimiter: '.',
       strip_insignificant_zeros: true
     )
+  end
+
+  def account_movement_display_description(movement)
+    description = movement.description.to_s.strip
+    return 'Sin descripción' if description.blank?
+
+    formatted_debt_description = normalize_debt_movement_description(description)
+    return formatted_debt_description if formatted_debt_description.present?
+
+    cleaned = description.gsub(/\s*\[(?:DEBT|DP|VENTA|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO):\d+\]/i, '')
+    cleaned.gsub(/\s{2,}/, ' ').strip
+  end
+
+  def account_movement_source_link_data(movement)
+    description = movement.description.to_s
+    return nil if description.blank?
+
+    if (debt_id = debt_source_id_for_description(description)).present?
+      debt = current_business&.debts&.select(:id)&.find_by(id: debt_id)
+      return { label: 'Ver registro de deuda', path: debt_path(debt) } if debt.present?
+    end
+
+    if (sale_id = extract_movement_source_id(description, 'VENTA')).present?
+      sale = current_business&.ventas&.select(:id)&.find_by(id: sale_id)
+      return { label: 'Ver venta', path: venta_path(sale) } if sale.present?
+    end
+
+    invoice_id = extract_movement_source_id(description, 'FACTURA_COMPRA') ||
+                 extract_movement_source_id(description, 'PURCHASE_INVOICE')
+    if invoice_id.present?
+      invoice = current_business&.purchase_invoices&.select(:id)&.find_by(id: invoice_id)
+      return { label: 'Ver factura', path: purchase_invoice_path(invoice) } if invoice.present?
+    end
+
+    if (expense_id = extract_movement_source_id(description, 'GASTO')).present?
+      expense = current_business&.expenses&.select(:id)&.find_by(id: expense_id)
+      return { label: 'Ver gasto', path: expense_path(expense) } if expense.present?
+    end
+
+    nil
+  end
+
+  def debt_display_description(value)
+    raw_description = value.to_s.strip
+    return 'Deuda sin descripcion' if raw_description.blank?
+
+    cleaned = raw_description.gsub(/\s*\[(?:VENTA):\d+\]/i, '')
+    cleaned.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
+  end
+
+  def debt_source_link_data(debt)
+    description = debt&.description.to_s
+    return nil if description.blank?
+
+    sale_id = extract_movement_source_id(description, 'VENTA')
+    return nil if sale_id.blank?
+
+    sale = current_business&.ventas&.select(:id)&.find_by(id: sale_id)
+    return nil if sale.blank?
+
+    {
+      label: "Ver venta ##{sale.id}",
+      path: venta_path(sale)
+    }
+  end
+
+  private
+
+  def normalize_debt_movement_description(description)
+    action = detect_debt_movement_action(description)
+    return nil if action.blank?
+
+    payment = debt_payment_from_description(description)
+    debt = payment&.debt || debt_from_description(description)
+    return nil if debt.blank?
+
+    cliente_name = debt.counterparty_display_name.to_s.strip.presence || 'Sin cliente'
+    debt_description = if payment&.excess_payment?
+                         'Excedente'
+                       else
+                         debt.description.to_s.strip.presence || 'Deuda sin descripcion'
+                       end
+    reference = extract_movement_reference(description)
+
+    base = "#{action}: #{cliente_name} (#{debt_description})"
+    return base if reference.blank?
+
+    "#{base} - Ref #{reference}"
+  end
+
+  def detect_debt_movement_action(description)
+    return 'Cobro de deuda' if description.to_s.match?(/\bCobro\s+(?:de\s+)?deuda\b/i)
+    return 'Pago de deuda' if description.to_s.match?(/\bPago\s+(?:de\s+)?deuda\b/i)
+    return 'Prestamo deuda' if description.to_s.match?(/\bPrestamo\s+deuda\b/i)
+
+    nil
+  end
+
+  def extract_movement_reference(description)
+    match = description.to_s.match(/(?:-|\s)Ref\s+([^\s\]]+)/i)
+    match&.captures&.first
+  end
+
+  def debt_from_description(description)
+    debt_id = debt_source_id_for_description(description)
+    return nil if debt_id.blank?
+
+    @movement_debt_cache ||= {}
+    @movement_debt_cache[debt_id] ||= current_business&.debts&.find_by(id: debt_id)
+  end
+
+  def debt_source_id_for_description(description)
+    direct_debt_id = extract_movement_source_id(description, 'DEBT')
+    return direct_debt_id if direct_debt_id.present?
+
+    payment = debt_payment_from_description(description)
+    payment&.debt_id
+  end
+
+  def debt_payment_from_description(description)
+    payment_id = extract_movement_source_id(description, 'DP')
+    return nil if payment_id.blank?
+
+    @movement_payment_cache ||= {}
+    return @movement_payment_cache[payment_id] if @movement_payment_cache.key?(payment_id)
+
+    @movement_payment_cache[payment_id] = DebtPayment
+                                          .joins(:debt)
+                                          .includes(:debt)
+                                          .where(id: payment_id, debts: { business_id: current_business&.id })
+                                          .first
+  end
+
+  def extract_movement_source_id(description, tag)
+    match = description.to_s.match(/\[#{Regexp.escape(tag)}:(\d+)\]/i)
+    match&.captures&.first&.to_i
   end
 end

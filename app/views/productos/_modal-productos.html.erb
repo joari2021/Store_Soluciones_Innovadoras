@@ -57,6 +57,20 @@
       if (modal) modal.classList.add('hidden');
     }
 
+    function showProductSavedSuccess() {
+      if (!window.Swal) return;
+
+      setTimeout(() => {
+        Swal.fire({
+          icon: 'success',
+          title: 'Producto guardado correctamente.',
+          showConfirmButton: false,
+          timer: 1500,
+          heightAuto: false,
+        });
+      }, 80);
+    }
+
     function handleModalFrameLoad(e) {
       const frame = e && e.target ? e.target : modalFrame;
 
@@ -105,11 +119,8 @@
 
               try { closeProductModal(); } catch (err) { const mod = document.getElementById('productModal'); if (mod) mod.classList.add('hidden'); }
 
-              if (window.Swal) {
-                setTimeout(() => {
-                  Swal.fire({ icon: 'success', title: 'Producto guardado con éxito', showConfirmButton: false, timer: 1500, heightAuto: false });
-                }, 80);
-              }
+                showProductSavedSuccess();
+                modalSubmitting = false;
             }
           } catch (err) { /* ignore insertion errors */ }
         }
@@ -119,6 +130,34 @@
 
     if (modalFrame) {
       modalFrame.addEventListener('turbo:frame-load', handleModalFrameLoad);
+
+      const closeWhenFrameBecomesEmpty = () => {
+        const modal = document.getElementById('productModal');
+        const isModalOpen = modal && !modal.classList.contains('hidden');
+        if (!isModalOpen) return;
+
+        const hasForm = !!modalFrame.querySelector('form');
+        const frameEmptyish = !modalFrame.innerHTML || modalFrame.innerHTML.trim().length === 0;
+        if (!hasForm && frameEmptyish) {
+          closeProductModal();
+
+          if (modalSubmitting) {
+            showProductSavedSuccess();
+            modalSubmitting = false;
+          }
+        }
+      };
+
+      const modalFrameObserver = new MutationObserver(closeWhenFrameBecomesEmpty);
+      modalFrameObserver.observe(modalFrame, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
+
+      document.addEventListener('turbo:before-cache', () => {
+        modalFrameObserver.disconnect();
+      }, { once: true });
     }
 
     document.addEventListener('turbo:frame-load', (e) => {
@@ -140,9 +179,7 @@
               const isRow = el.tagName === 'TR' || (el.querySelector && el.querySelector('td span.font-medium'));
               if (isRow) {
                 try { closeProductModal(); } catch (err) { const mod = document.getElementById('productModal'); if (mod) mod.classList.add('hidden'); }
-                if (window.Swal) {
-                  setTimeout(() => { Swal.fire({ icon: 'success', title: 'Producto guardado con éxito', showConfirmButton: false, timer: 1500, heightAuto: false }); }, 120);
-                }
+                showProductSavedSuccess();
                 modalSubmitting = false;
                 observer.disconnect();
                 return;

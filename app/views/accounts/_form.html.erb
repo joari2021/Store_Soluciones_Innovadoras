@@ -102,6 +102,34 @@
       </div>
     <% end %>
     <div class="col-span-2 md:col-span-1">
+      <%= f.label :logo, 'Imagen para tarjeta en cuentas', class: 'block text-sm font-medium text-slate-700' %>
+      <% if account.settlement_enabled? %>
+        <div class="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          Para Biopago, Punto de venta y Cashea se usa la imagen predefinida en el index de cuentas.
+        </div>
+      <% else %>
+        <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+        <p class="mt-1 text-xs text-slate-500">Se muestra como imagen de fondo en las tarjetas del index de cuentas.</p>
+        <% if account.logo.attached? %>
+          <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+            <%= image_tag account.logo, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para cuentas" %>
+            <span class="text-xs font-medium text-slate-600">Imagen actual</span>
+          </div>
+        <% end %>
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :payment_method_image, 'Imagen para metodos de pago en ventas', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.file_field :payment_method_image, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+      <p class="mt-1 text-xs text-slate-500">Se muestra en el modal de metodos de pago de ventas.</p>
+      <% if account.payment_method_image.attached? %>
+        <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <%= image_tag account.payment_method_image, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para metodos de pago" %>
+          <span class="text-xs font-medium text-slate-600">Imagen actual</span>
+        </div>
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
       <label class="mt-7 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
         <%= f.check_box :active, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
         Cuenta activa
@@ -118,65 +146,70 @@
   </div>
 <% end %>
 <script>
-  const initAccountFormPreview = () => {
-    const form = document.getElementById('account-form');
-    const preview = document.getElementById('account-preview');
-    if (!form || !preview) return;
-    if (form.dataset.previewBound === 'true') return;
-    form.dataset.previewBound = 'true';
+  (() => {
+    const initAccountFormPreview = () => {
+      const form = document.getElementById('account-form');
+      const preview = document.getElementById('account-preview');
+      if (!form || !preview) return;
+      if (form.dataset.previewBound === 'true') return;
+      form.dataset.previewBound = 'true';
 
-    const typeSelect = form.querySelector('#account_account_type');
-    const currencySelect = form.querySelector('#account_currency');
-    const colorSelect = form.querySelector('#account_theme_color');
-    const previewCard = document.getElementById('account-preview-card');
-    const typeBadge = document.getElementById('account-preview-type-badge');
-    const currencyBadge = document.getElementById('account-preview-currency-badge');
-    const typeIconEl = document.getElementById('account-preview-type-icon');
-    const typeLabelEl = document.getElementById('account-preview-type-label');
-    const currencyIconEl = document.getElementById('account-preview-currency-icon');
-    const currencyLabelEl = document.getElementById('account-preview-currency-label');
-    const currencySymbolEl = document.getElementById('account-preview-currency-symbol');
+      const typeSelect = form.querySelector('#account_account_type');
+      const currencySelect = form.querySelector('#account_currency');
+      const colorSelect = form.querySelector('#account_theme_color');
+      const previewCard = document.getElementById('account-preview-card');
+      const typeBadge = document.getElementById('account-preview-type-badge');
+      const currencyBadge = document.getElementById('account-preview-currency-badge');
+      const typeIconEl = document.getElementById('account-preview-type-icon');
+      const typeLabelEl = document.getElementById('account-preview-type-label');
+      const currencyIconEl = document.getElementById('account-preview-currency-icon');
+      const currencyLabelEl = document.getElementById('account-preview-currency-label');
+      const currencySymbolEl = document.getElementById('account-preview-currency-symbol');
 
-    if (!typeSelect || !currencySelect || !colorSelect || !previewCard || !typeBadge || !currencyBadge || !typeIconEl || !typeLabelEl || !currencyIconEl || !currencyLabelEl || !currencySymbolEl) return;
+      if (!typeSelect || !currencySelect || !colorSelect || !previewCard || !typeBadge || !currencyBadge || !typeIconEl || !typeLabelEl || !currencyIconEl || !currencyLabelEl || !currencySymbolEl) return;
 
-    const typeIcons = JSON.parse(preview.dataset.typeIcons || '{}');
-    const typeLabels = JSON.parse(preview.dataset.typeLabels || '{}');
-    const currencyIcons = JSON.parse(preview.dataset.currencyIcons || '{}');
-    const currencyLabels = JSON.parse(preview.dataset.currencyLabels || '{}');
-    const currencySymbols = JSON.parse(preview.dataset.currencySymbols || '{}');
-    const themeCards = JSON.parse(preview.dataset.themeCards || '{}');
-    const themeTags = JSON.parse(preview.dataset.themeTags || '{}');
+      const typeIcons = JSON.parse(preview.dataset.typeIcons || '{}');
+      const typeLabels = JSON.parse(preview.dataset.typeLabels || '{}');
+      const currencyIcons = JSON.parse(preview.dataset.currencyIcons || '{}');
+      const currencyLabels = JSON.parse(preview.dataset.currencyLabels || '{}');
+      const currencySymbols = JSON.parse(preview.dataset.currencySymbols || '{}');
+      const themeCards = JSON.parse(preview.dataset.themeCards || '{}');
+      const themeTags = JSON.parse(preview.dataset.themeTags || '{}');
 
-    const cardBaseClasses = 'mt-3 rounded-xl border p-3 transition-colors';
-    const badgeBaseClasses = 'inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-semibold';
+      const cardBaseClasses = 'mt-3 rounded-xl border p-3 transition-colors';
+      const badgeBaseClasses = 'inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-semibold';
 
-    const refreshPreview = () => {
-      const selectedType = typeSelect.value;
-      const selectedCurrency = currencySelect.value;
-      const selectedColor = colorSelect.value;
+      const refreshPreview = () => {
+        const selectedType = typeSelect.value;
+        const selectedCurrency = currencySelect.value;
+        const selectedColor = colorSelect.value;
 
-      typeIconEl.setAttribute('data-lucide', typeIcons[selectedType] || 'wallet');
-      typeLabelEl.textContent = typeLabels[selectedType] || 'Cuenta';
+        typeIconEl.setAttribute('data-lucide', typeIcons[selectedType] || 'wallet');
+        typeLabelEl.textContent = typeLabels[selectedType] || 'Cuenta';
 
-      currencyIconEl.setAttribute('data-lucide', currencyIcons[selectedCurrency] || 'coins');
-      currencyLabelEl.textContent = currencyLabels[selectedCurrency] || selectedCurrency;
-      currencySymbolEl.textContent = currencySymbols[selectedCurrency] || selectedCurrency;
+        currencyIconEl.setAttribute('data-lucide', currencyIcons[selectedCurrency] || 'coins');
+        currencyLabelEl.textContent = currencyLabels[selectedCurrency] || selectedCurrency;
+        currencySymbolEl.textContent = currencySymbols[selectedCurrency] || selectedCurrency;
 
-      previewCard.className = `${cardBaseClasses} ${themeCards[selectedColor] || themeCards.sky || ''}`;
-      typeBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
-      currencyBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
+        previewCard.className = `${cardBaseClasses} ${themeCards[selectedColor] || themeCards.sky || ''}`;
+        typeBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
+        currencyBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
 
-      if (window.lucide && typeof window.lucide.createIcons === 'function') {
-        window.lucide.createIcons();
-      }
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      };
+
+      typeSelect.addEventListener('change', refreshPreview);
+      currencySelect.addEventListener('change', refreshPreview);
+      colorSelect.addEventListener('change', refreshPreview);
+      refreshPreview();
     };
 
-    typeSelect.addEventListener('change', refreshPreview);
-    currencySelect.addEventListener('change', refreshPreview);
-    colorSelect.addEventListener('change', refreshPreview);
-    refreshPreview();
-  };
-
-  document.addEventListener('turbo:load', initAccountFormPreview);
-  document.addEventListener('DOMContentLoaded', initAccountFormPreview);
+    if (!window.__accountFormPreviewListenersBound) {
+      window.__accountFormPreviewListenersBound = true;
+      document.addEventListener('turbo:load', initAccountFormPreview);
+      document.addEventListener('DOMContentLoaded', initAccountFormPreview);
+    }
+  })();
 </script>

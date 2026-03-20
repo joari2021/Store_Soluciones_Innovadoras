@@ -84,6 +84,36 @@ const displayFlashToasts = () => {
   });
 };
 
+const displayBalanceInsufficientAlerts = () => {
+  const nodes = document.querySelectorAll(
+    "[data-balance-insufficient-alert='true']",
+  );
+
+  nodes.forEach((node) => {
+    if (node.dataset.balanceAlertRendered === "true") return;
+
+    const message = String(
+      node.dataset.balanceInsufficientMessage || "",
+    ).trim();
+    if (!message) return;
+
+    if (window.Swal) {
+      window.Swal.fire({
+        icon: "warning",
+        title: "Saldo insuficiente",
+        text: message,
+        confirmButtonText: "Entendido",
+        target: "body",
+        heightAuto: false,
+      });
+    } else {
+      showAppToast("warning", message, { title: "Saldo insuficiente" });
+    }
+
+    node.dataset.balanceAlertRendered = "true";
+  });
+};
+
 window.AppToast = {
   show: showAppToast,
   success: (message, options = {}) => showAppToast("success", message, options),
@@ -95,9 +125,27 @@ window.AppToast = {
 const parseDisplayDate = (value) => {
   if (!value) return null;
 
-  const match = String(value)
-    .trim()
-    .match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  const normalized = String(value).trim();
+
+  const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const date = new Date(year, month - 1, day);
+
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+
+    return date;
+  }
+
+  const match = normalized.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
   if (!match) return null;
 
   const day = Number(match[1]);
@@ -247,18 +295,18 @@ const ensureTodayButton = (input) => {
     currentInstance.setDate(today);
     input.value = formatDisplayDate(today);
     updateFacturaRateByDate(input, today);
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
     normalizeDatepickerHeaderText();
     currentInstance.close();
   });
 };
 
-const initializeMaterializeDatepickers = () => {
+const initializeMaterializeDatepickers = (scope = document) => {
   if (!window.M?.Datepicker) return;
 
+  const root =
+    scope instanceof Element || scope instanceof Document ? scope : document;
   const container = document.getElementById("materialize-datepicker-portal");
-  const dateInputs = document.querySelectorAll(".js-materialize-datepicker");
+  const dateInputs = root.querySelectorAll(".js-materialize-datepicker");
 
   dateInputs.forEach((input) => {
     if (window.M.Datepicker.getInstance(input)) return;
@@ -284,8 +332,6 @@ const initializeMaterializeDatepickers = () => {
       onSelect: (selectedDate) => {
         input.value = formatDisplayDate(selectedDate);
         updateFacturaRateByDate(input, selectedDate);
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-        input.dispatchEvent(new Event("change", { bubbles: true }));
         normalizeDatepickerHeaderText();
       },
       i18n: {
@@ -339,10 +385,12 @@ const initializeMaterializeDatepickers = () => {
   });
 };
 
-const destroyMaterializeDatepickers = () => {
+const destroyMaterializeDatepickers = (scope = document) => {
   if (!window.M?.Datepicker) return;
 
-  const dateInputs = document.querySelectorAll(".js-materialize-datepicker");
+  const root =
+    scope instanceof Element || scope instanceof Document ? scope : document;
+  const dateInputs = root.querySelectorAll(".js-materialize-datepicker");
 
   dateInputs.forEach((input) => {
     const instance = window.M.Datepicker.getInstance(input);
@@ -350,15 +398,80 @@ const destroyMaterializeDatepickers = () => {
   });
 };
 
+const initializeTailwindDatepickers = (scope = document) => {
+  const root =
+    scope instanceof Element || scope instanceof Document ? scope : document;
+
+  root
+    .querySelectorAll(
+      'input[type="date"]:not([data-tailwind-datepicker="false"])',
+    )
+    .forEach((input) => {
+      if (input.dataset.tailwindDatepickerBound === "true") return;
+      input.dataset.tailwindDatepickerBound = "true";
+      input.dataset.tailwindDatepicker = "true";
+      input.classList.add("tailwind-datepicker-input");
+
+      const normalizedDate = parseDisplayDate(input.value);
+      if (normalizedDate) {
+        input.value = formatIsoDate(normalizedDate);
+      }
+
+      const tryShowPicker = () => {
+        if (input.disabled) return;
+        if (typeof input.showPicker !== "function") return;
+
+        try {
+          input.showPicker();
+        } catch (_error) {}
+      };
+
+      input.addEventListener("focus", tryShowPicker);
+      input.addEventListener("click", tryShowPicker);
+      input.addEventListener("change", () => {
+        const selectedDate = parseDisplayDate(input.value);
+        if (!selectedDate) return;
+
+        input.value = formatIsoDate(selectedDate);
+        updateFacturaRateByDate(input, selectedDate);
+      });
+    });
+};
+
+window.initializeMaterializeDatepickers = initializeMaterializeDatepickers;
+window.initializeTailwindDatepickers = initializeTailwindDatepickers;
+
 const initializeMoneyMasks = () => {
   window.MoneyInputMask?.init(document);
 };
 
-document.addEventListener("turbo:load", initializeMaterializeDatepickers);
-document.addEventListener("DOMContentLoaded", initializeMaterializeDatepickers);
-document.addEventListener("turbo:render", initializeMaterializeDatepickers);
-document.addEventListener("turbo:frame-load", initializeMaterializeDatepickers);
-document.addEventListener("turbo:before-cache", destroyMaterializeDatepickers);
+document.addEventListener("turbo:load", () =>
+  initializeTailwindDatepickers(document),
+);
+document.addEventListener("DOMContentLoaded", () =>
+  initializeTailwindDatepickers(document),
+);
+document.addEventListener("turbo:render", () =>
+  initializeTailwindDatepickers(document),
+);
+document.addEventListener("turbo:frame-load", (event) =>
+  initializeTailwindDatepickers(event.target),
+);
+document.addEventListener("turbo:load", () =>
+  initializeMaterializeDatepickers(document),
+);
+document.addEventListener("DOMContentLoaded", () =>
+  initializeMaterializeDatepickers(document),
+);
+document.addEventListener("turbo:render", () =>
+  initializeMaterializeDatepickers(document),
+);
+document.addEventListener("turbo:frame-load", (event) =>
+  initializeMaterializeDatepickers(event.target),
+);
+document.addEventListener("turbo:before-cache", () =>
+  destroyMaterializeDatepickers(document),
+);
 document.addEventListener("turbo:load", initializeMoneyMasks);
 document.addEventListener("DOMContentLoaded", initializeMoneyMasks);
 document.addEventListener("turbo:render", initializeMoneyMasks);
@@ -367,6 +480,10 @@ document.addEventListener("turbo:load", displayFlashToasts);
 document.addEventListener("DOMContentLoaded", displayFlashToasts);
 document.addEventListener("turbo:render", displayFlashToasts);
 document.addEventListener("turbo:frame-load", displayFlashToasts);
+document.addEventListener("turbo:load", displayBalanceInsufficientAlerts);
+document.addEventListener("DOMContentLoaded", displayBalanceInsufficientAlerts);
+document.addEventListener("turbo:render", displayBalanceInsufficientAlerts);
+document.addEventListener("turbo:frame-load", displayBalanceInsufficientAlerts);
 
 document.addEventListener(
   "submit",
@@ -419,104 +536,201 @@ document.addEventListener("click", (event) => {
   }
 });
 
-document.addEventListener("click", (event) => {
-  const deleteLink = event.target.closest(
-    "a[data-swal-delete], a[data-turbo-method='delete'], a[data-method='delete']",
-  );
-  if (!deleteLink) return;
+document.addEventListener(
+  "click",
+  (event) => {
+    const clickedElement = event.target;
+    if (!(clickedElement instanceof Element)) return;
 
-  event.preventDefault();
+    const deleteLink = clickedElement.closest(
+      "a[data-swal-delete], a[data-turbo-method='delete'], a[data-method='delete']",
+    );
+    if (!deleteLink) return;
 
-  const deleteType = deleteLink.dataset.swalDelete;
-  const messages = {
-    supplier: {
-      title: "¿Eliminar proveedor?",
-      text: "Esta acción eliminará el proveedor y sus asociaciones directas. El historial de lotes/facturas se conservará.",
-    },
-    account: {
-      title: "¿Eliminar cuenta?",
-      text: "Esta acción eliminará la cuenta financiera seleccionada.",
-    },
-    business: {
-      title: "Eliminar negocio?",
-      text: "Esta accion eliminara el negocio y sus datos asociados.",
-    },
-    cliente: {
-      title: "¿Eliminar cliente?",
-      text: "Esta accion eliminara el cliente y su relacion con ventas.",
-    },
-    tasa_cambio: {
-      title: "¿Eliminar tasa de cambio?",
-      text: "Esta acción eliminará la tasa seleccionada.",
-    },
-    service: {
-      title: "¿Eliminar servicio?",
-      text: "Esta accion eliminara el servicio seleccionado.",
-    },
-    system_service: {
-      title: "¿Eliminar sistema de servicios?",
-      text: "Esta accion eliminara el sistema de servicios seleccionado.",
-    },
-    manager: {
-      title: "¿Eliminar gestor?",
-      text: "Esta accion eliminara el gestor seleccionado.",
-    },
-    expense: {
-      title: "¿Eliminar gasto?",
-      text: "Esta accion eliminara el gasto y sus pagos asociados.",
-    },
-    debt: {
-      title: "¿Eliminar deuda?",
-      text: "Esta accion eliminara la deuda y sus pagos asociados.",
-    },
-  };
-
-  const config = messages[deleteType] || {
-    title: "¿Eliminar registro?",
-    text: "Esta acción no se puede deshacer.",
-  };
-
-  if (!window.Swal) {
-    return;
-  }
-
-  Swal.fire({
-    title: config.title,
-    text: config.text,
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonText: "Sí, eliminar",
-    cancelButtonText: "Cancelar",
-    confirmButtonColor: "#dc2626",
-    cancelButtonColor: "#64748b",
-    target: "body",
-    heightAuto: false,
-  }).then((result) => {
-    if (!result.isConfirmed) return;
-
-    const form = document.createElement("form");
-    form.method = "post";
-    form.action = deleteLink.href;
-    form.style.display = "none";
-
-    const methodInput = document.createElement("input");
-    methodInput.type = "hidden";
-    methodInput.name = "_method";
-    methodInput.value = "delete";
-    form.appendChild(methodInput);
-
-    const csrfToken = document
-      .querySelector('meta[name="csrf-token"]')
-      ?.getAttribute("content");
-    if (csrfToken) {
-      const csrfInput = document.createElement("input");
-      csrfInput.type = "hidden";
-      csrfInput.name = "authenticity_token";
-      csrfInput.value = csrfToken;
-      form.appendChild(csrfInput);
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
     }
 
-    document.body.appendChild(form);
-    form.submit();
-  });
-});
+    const deleteType = deleteLink.dataset.swalDelete;
+    const messages = {
+      supplier: {
+        title: "¿Eliminar proveedor?",
+        text: "Esta acción eliminará el proveedor y sus asociaciones directas. El historial de lotes/facturas se conservará.",
+      },
+      account: {
+        title: "¿Eliminar cuenta?",
+        text: "Esta acción eliminará la cuenta financiera seleccionada.",
+      },
+      business: {
+        title: "Eliminar negocio?",
+        text: "Esta accion eliminara el negocio y sus datos asociados.",
+      },
+      cliente: {
+        title: "¿Eliminar cliente?",
+        text: "Esta accion eliminara el cliente y su relacion con ventas.",
+      },
+      tasa_cambio: {
+        title: "¿Eliminar tasa de cambio?",
+        text: "Esta acción eliminará la tasa seleccionada.",
+      },
+      service: {
+        title: "¿Eliminar servicio?",
+        text: "Esta accion eliminara el servicio seleccionado.",
+      },
+      system_service: {
+        title: "¿Eliminar sistema de servicios?",
+        text: "Esta accion eliminara el sistema de servicios seleccionado.",
+      },
+      manager: {
+        title: "¿Eliminar gestor?",
+        text: "Esta accion eliminara el gestor seleccionado.",
+      },
+      expense: {
+        title: "¿Eliminar gasto?",
+        text: "Esta accion eliminara el gasto y sus pagos asociados.",
+      },
+      purchase_invoice: {
+        title: "¿Eliminar factura de compra?",
+        text: "Esta accion eliminara la factura y revertira sus efectos asociados: pagos, deudas pendientes y lotes de inventario.",
+      },
+      venta: {
+        title: "¿Eliminar venta?",
+        text: "Esta accion eliminara la venta y todo lo asociado: items, pagos, movimientos y reposicion de stock.",
+      },
+    };
+
+    if (!window.Swal) {
+      return;
+    }
+
+    const submitDeleteForm = (extraFields = {}) => {
+      const form = document.createElement("form");
+      form.method = "post";
+      form.action = deleteLink.href;
+      form.style.display = "none";
+
+      const methodInput = document.createElement("input");
+      methodInput.type = "hidden";
+      methodInput.name = "_method";
+      methodInput.value = "delete";
+      form.appendChild(methodInput);
+
+      const csrfToken = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute("content");
+      if (csrfToken) {
+        const csrfInput = document.createElement("input");
+        csrfInput.type = "hidden";
+        csrfInput.name = "authenticity_token";
+        csrfInput.value = csrfToken;
+        form.appendChild(csrfInput);
+      }
+
+      Object.entries(extraFields).forEach(([key, value]) => {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = String(value);
+        form.appendChild(input);
+      });
+
+      document.body.appendChild(form);
+      form.submit();
+    };
+
+    if (deleteType === "debt") {
+      const confirmDebtDeleteMode = (deleteMode) => {
+        const config =
+          deleteMode === "with_movements"
+            ? {
+                title: "¿Eliminar deuda y movimientos?",
+                text: "Se eliminará la deuda y también todos los movimientos de cuentas vinculados a esa deuda. Esta acción no se puede deshacer.",
+                confirmButtonColor: "#dc2626",
+              }
+            : {
+                title: "¿Eliminar solo deuda?",
+                text: "Se eliminará solo la deuda. Los movimientos de cuentas vinculados se conservarán. Esta acción no se puede deshacer.",
+                confirmButtonColor: "#2563eb",
+              };
+
+        Swal.fire({
+          title: config.title,
+          text: config.text,
+          icon: "warning",
+          showCancelButton: true,
+          confirmButtonText: "Sí, eliminar",
+          cancelButtonText: "Volver",
+          confirmButtonColor: config.confirmButtonColor,
+          cancelButtonColor: "#64748b",
+          target: "body",
+          heightAuto: false,
+        }).then((result) => {
+          if (result.isConfirmed) {
+            submitDeleteForm({ delete_mode: deleteMode });
+            return;
+          }
+
+          if (result.dismiss === Swal.DismissReason.cancel) {
+            openDebtDeleteModeSelector();
+          }
+        });
+      };
+
+      const openDebtDeleteModeSelector = () => {
+        Swal.fire({
+          title: "¿Eliminar deuda?",
+          html: "Selecciona cómo deseas eliminarla:<br><br><b>1)</b> Eliminar deuda y movimientos en cuentas.<br><b>2)</b> Eliminar solo deuda y conservar movimientos.",
+          icon: "warning",
+          showCancelButton: true,
+          showDenyButton: true,
+          confirmButtonText: "Deuda + movimientos",
+          denyButtonText: "Solo deuda",
+          cancelButtonText: "Cancelar",
+          confirmButtonColor: "#dc2626",
+          denyButtonColor: "#2563eb",
+          cancelButtonColor: "#64748b",
+          target: "body",
+          heightAuto: false,
+        }).then((result) => {
+          if (result.isConfirmed) {
+            confirmDebtDeleteMode("with_movements");
+            return;
+          }
+
+          if (result.isDenied) {
+            confirmDebtDeleteMode("debt_only");
+          }
+        });
+      };
+
+      openDebtDeleteModeSelector();
+
+      return;
+    }
+
+    const config = messages[deleteType] || {
+      title: "¿Eliminar registro?",
+      text: "Esta acción no se puede deshacer.",
+    };
+
+    Swal.fire({
+      title: config.title,
+      text: config.text,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar",
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#64748b",
+      target: "body",
+      heightAuto: false,
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+
+      submitDeleteForm();
+    });
+  },
+  true,
+);

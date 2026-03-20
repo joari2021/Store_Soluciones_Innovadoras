@@ -1,4 +1,6 @@
 class TasaCambiosController < ApplicationController
+  before_action -> { require_module_access!(:rates) }
+  before_action :require_admin, only: %i[new create edit destroy]
   before_action :set_tasa_cambio, only: %i[show edit update destroy]
 
   def bcv_por_fecha
@@ -15,6 +17,21 @@ class TasaCambiosController < ApplicationController
     else
       render json: { error: 'No hay tasa Dolar BCV registrada para esta fecha de referencia' }, status: :not_found
     end
+  end
+
+  def rates_for_date
+    fecha = parse_fecha(params[:fecha])
+    return render json: { error: 'Fecha inválida' }, status: :unprocessable_entity if fecha.blank?
+
+    rates = Account::CURRENCIES.keys.each_with_object({}) do |currency, hash|
+      hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: fecha).to_d.to_f
+    end
+    rates['VES'] = 1.0
+
+    render json: {
+      fecha_referencia: fecha,
+      rates: rates
+    }
   end
 
   def index

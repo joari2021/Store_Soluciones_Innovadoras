@@ -1,5 +1,7 @@
 class ClientesController < ApplicationController
   before_action :require_business
+  before_action -> { require_module_access!(:clientes) }
+  before_action :require_admin, only: %i[destroy]
   before_action :set_cliente, only: %i[show edit update destroy]
 
   def index
@@ -61,7 +63,7 @@ class ClientesController < ApplicationController
   def edit; end
 
   def update
-    if @cliente.update(cliente_params)
+    if @cliente.update(cliente_update_params)
       redirect_to cliente_path(@cliente), notice: 'Cliente actualizado correctamente.'
     else
       render :edit, status: :unprocessable_entity
@@ -81,5 +83,11 @@ class ClientesController < ApplicationController
 
   def cliente_params
     params.require(:cliente).permit(:document_type, :document_number, :name, :phone, :address)
+  end
+
+  def cliente_update_params
+    return cliente_params if current_user_admin?
+
+    params.require(:cliente).permit(:phone, :address)
   end
 end

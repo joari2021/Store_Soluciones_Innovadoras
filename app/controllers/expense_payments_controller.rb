@@ -26,6 +26,11 @@ class ExpensePaymentsController < ApplicationController
       notes: expense_payment_params[:notes]
     )
 
+    if account.present? && amount.to_d.positive? && amount.to_d > account.balance.to_d
+      @expense_payment.errors.add(:base, account.insufficient_balance_message(amount))
+      return render :new, status: :unprocessable_entity
+    end
+
     return render :new, status: :unprocessable_entity unless @expense_payment.valid?
 
     ExpensePayment.transaction do
@@ -70,7 +75,7 @@ class ExpensePaymentsController < ApplicationController
   end
 
   def build_movement_description
-    base = "Gasto #{@expense.name}"
+    base = "Gasto #{@expense.name} [GASTO:#{@expense.id}]"
     return base if @expense_payment.reference.blank?
 
     "#{base} - Ref #{@expense_payment.reference}"
@@ -86,7 +91,13 @@ class ExpensePaymentsController < ApplicationController
     return 0 if value.nil?
     return value.to_d if value.is_a?(Numeric)
 
-    cleaned = value.to_s.strip.tr(',', '.')
+    cleaned = value.to_s.strip.gsub(/[^\d,.-]/, '')
+    if cleaned.include?(',') && cleaned.include?('.')
+      cleaned = cleaned.gsub('.', '').tr(',', '.')
+    elsif cleaned.include?(',')
+      cleaned = cleaned.tr(',', '.')
+    end
+
     BigDecimal(cleaned)
   rescue ArgumentError
     0
@@ -95,7 +106,13 @@ class ExpensePaymentsController < ApplicationController
   def parse_datetime(value)
     return nil if value.blank?
 
-    Time.zone.parse(value.to_s)
+    raw = value.to_s.strip
+
+    return Date.strptime(raw.tr('/', '-'), '%d-%m-%Y').in_time_zone if raw.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+
+    return Date.iso8601(raw).in_time_zone if raw.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+
+    Time.zone.parse(raw)
   rescue ArgumentError
     nil
   end

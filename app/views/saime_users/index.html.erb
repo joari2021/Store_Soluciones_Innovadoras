@@ -84,16 +84,18 @@
         <div class="col-md-3">
           <%= label_tag :start_date, "Desde:" %>
           <%= date_field_tag :start_date, params[:start_date], 
-        class: "form-control", 
+        class: "form-control tailwind-datepicker-input", 
         min: Date.tomorrow, 
-        max: (Date.today + 1.month) %>
+        max: (Date.today + 1.month),
+        data: { tailwind_datepicker: true } %>
         </div>
         <div class="col-md-3">
           <%= label_tag :end_date, "Hasta:" %>
           <%= date_field_tag :end_date, params[:end_date], 
-        class: "form-control", 
+        class: "form-control tailwind-datepicker-input", 
         min: Date.tomorrow, 
-        max: (Date.today + 1.month) %>
+        max: (Date.today + 1.month),
+        data: { tailwind_datepicker: true } %>
         </div>
         <div class="col-md-2 d-flex align-items-end">
           <%= submit_tag "Buscar", class: "btn btn-primary" %>

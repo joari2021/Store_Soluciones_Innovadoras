@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_19_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -134,7 +134,40 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "theme_profile", default: "neon_blue", null: false
     t.index ["name"], name: "index_businesses_on_name"
+    t.index ["theme_profile"], name: "index_businesses_on_theme_profile"
+  end
+
+  create_table "cash_shifts", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "opened_by_id", null: false
+    t.bigint "closed_by_id"
+    t.string "status", default: "open", null: false
+    t.datetime "opened_at", null: false
+    t.datetime "closed_at"
+    t.decimal "opening_balance_ves", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "opening_balance_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "declared_closing_ves", precision: 14, scale: 2
+    t.decimal "declared_closing_usd", precision: 14, scale: 2
+    t.text "opening_notes"
+    t.text "closing_notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "status"], name: "index_cash_shifts_on_business_id_and_status"
+    t.index ["business_id"], name: "index_cash_shifts_on_business_id"
+    t.index ["closed_by_id"], name: "index_cash_shifts_on_closed_by_id"
+    t.index ["opened_at"], name: "index_cash_shifts_on_opened_at"
+    t.index ["opened_by_id"], name: "index_cash_shifts_on_opened_by_id"
+  end
+
+  create_table "categorias", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "nombre", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "nombre"], name: "index_categorias_on_business_id_and_nombre", unique: true
+    t.index ["business_id"], name: "index_categorias_on_business_id"
   end
 
   create_table "clientes", force: :cascade do |t|
@@ -182,11 +215,18 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.bigint "cliente_id"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "service_cost_pending", default: false, null: false
+    t.bigint "venta_id"
+    t.bigint "service_id"
+    t.jsonb "service_cost_details", default: {}, null: false
     t.index ["business_id"], name: "index_debts_on_business_id"
     t.index ["cliente_id"], name: "index_debts_on_cliente_id"
     t.index ["debt_kind"], name: "index_debts_on_debt_kind"
     t.index ["due_on"], name: "index_debts_on_due_on"
     t.index ["issued_on"], name: "index_debts_on_issued_on"
+    t.index ["service_cost_pending", "debt_kind"], name: "index_debts_on_service_cost_pending_and_kind"
+    t.index ["service_id"], name: "index_debts_on_service_id"
+    t.index ["venta_id"], name: "index_debts_on_venta_id"
   end
 
   create_table "expense_payments", force: :cascade do |t|
@@ -368,7 +408,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.datetime "updated_at", null: false
     t.decimal "porcentaje_ganancia", precision: 5, scale: 2
     t.bigint "business_id", null: false
+    t.bigint "categoria_id", null: false
+    t.bigint "profit_margin_preset_id"
     t.index ["business_id"], name: "index_productos_on_business_id"
+    t.index ["categoria_id"], name: "index_productos_on_categoria_id"
+    t.index ["profit_margin_preset_id"], name: "index_productos_on_profit_margin_preset_id"
+  end
+
+  create_table "profit_margin_presets", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.decimal "percentage", precision: 7, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "percentage"], name: "index_profit_margin_presets_on_business_and_percentage", unique: true
+    t.index ["business_id"], name: "index_profit_margin_presets_on_business_id"
   end
 
   create_table "rankings", force: :cascade do |t|
@@ -475,6 +528,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.decimal "quantity", precision: 12, scale: 2, default: "1.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "product_variation_id"
+    t.index ["product_variation_id"], name: "index_service_product_expenses_on_product_variation_id"
     t.index ["producto_id"], name: "index_service_product_expenses_on_producto_id"
     t.index ["service_expense_structure_id"], name: "index_service_product_expenses_on_service_expense_structure_id"
   end
@@ -510,8 +565,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.boolean "available", default: true, null: false
     t.string "pricing_mode", default: "fixed", null: false
     t.boolean "nested_available", default: false, null: false
+    t.bigint "business_id", null: false
+    t.boolean "caution_service", default: false, null: false
+    t.boolean "restricted_service", default: false, null: false
+    t.boolean "auto_cost_stock_discount", default: false, null: false
+    t.index ["auto_cost_stock_discount"], name: "index_services_on_auto_cost_stock_discount"
+    t.index ["business_id"], name: "index_services_on_business_id"
+    t.index ["caution_service"], name: "index_services_on_caution_service"
     t.index ["nested_available"], name: "index_services_on_nested_available"
     t.index ["pricing_mode"], name: "index_services_on_pricing_mode"
+    t.index ["restricted_service"], name: "index_services_on_restricted_service"
     t.index ["system_service_id"], name: "index_services_on_system_service_id"
   end
 
@@ -598,6 +661,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.boolean "admin", default: false
     t.boolean "personal", default: false
     t.boolean "personal_saime", default: false, null: false
+    t.bigint "business_id"
+    t.string "full_name"
+    t.boolean "active", default: true, null: false
+    t.string "authorization_level", default: "standard_staff", null: false
+    t.index ["authorization_level"], name: "index_users_on_authorization_level"
+    t.index ["business_id"], name: "index_users_on_business_id"
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["username"], name: "index_users_on_username", unique: true
   end
@@ -630,6 +699,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.decimal "amount_original", precision: 14, scale: 2, default: "0.0", null: false
     t.string "reference"
     t.string "payment_kind", default: "in", null: false
+    t.date "payment_date"
+    t.index ["account_id", "reference", "payment_date"], name: "index_venta_payments_on_account_reference_payment_date"
     t.index ["account_id"], name: "index_venta_payments_on_account_id"
     t.index ["currency"], name: "index_venta_payments_on_currency"
     t.index ["payment_kind"], name: "index_venta_payments_on_payment_kind"
@@ -652,10 +723,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
     t.decimal "vat_usd", precision: 14, scale: 2, default: "0.0", null: false
     t.bigint "cliente_id"
     t.string "base_currency", default: "USD", null: false
+    t.bigint "cash_shift_id"
+    t.bigint "user_id"
     t.index ["base_currency"], name: "index_ventas_on_base_currency"
     t.index ["business_id"], name: "index_ventas_on_business_id"
+    t.index ["cash_shift_id"], name: "index_ventas_on_cash_shift_id"
     t.index ["cliente_id"], name: "index_ventas_on_cliente_id"
     t.index ["status"], name: "index_ventas_on_status"
+    t.index ["user_id"], name: "index_ventas_on_user_id"
     t.index ["vat_mode"], name: "index_ventas_on_vat_mode"
   end
 
@@ -681,11 +756,17 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "appointments", "saime_users"
+  add_foreign_key "cash_shifts", "businesses"
+  add_foreign_key "cash_shifts", "users", column: "closed_by_id"
+  add_foreign_key "cash_shifts", "users", column: "opened_by_id"
+  add_foreign_key "categorias", "businesses"
   add_foreign_key "clientes", "businesses"
   add_foreign_key "debt_payments", "accounts"
   add_foreign_key "debt_payments", "debts"
   add_foreign_key "debts", "businesses"
   add_foreign_key "debts", "clientes"
+  add_foreign_key "debts", "services", on_delete: :nullify
+  add_foreign_key "debts", "ventas", on_delete: :nullify
   add_foreign_key "expense_payments", "accounts"
   add_foreign_key "expense_payments", "expenses"
   add_foreign_key "expenses", "businesses"
@@ -704,6 +785,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
   add_foreign_key "peliculas", "users"
   add_foreign_key "product_variations", "productos"
   add_foreign_key "productos", "businesses"
+  add_foreign_key "productos", "categorias"
+  add_foreign_key "productos", "profit_margin_presets"
+  add_foreign_key "profit_margin_presets", "businesses"
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
   add_foreign_key "saime_users", "users"
@@ -714,9 +798,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
   add_foreign_key "service_managers", "services"
   add_foreign_key "service_nested_expenses", "service_expense_structures"
   add_foreign_key "service_nested_expenses", "services", column: "nested_service_id"
+  add_foreign_key "service_product_expenses", "product_variations"
   add_foreign_key "service_product_expenses", "productos"
   add_foreign_key "service_product_expenses", "service_expense_structures"
   add_foreign_key "service_variable_expenses", "service_expense_structures"
+  add_foreign_key "services", "businesses"
   add_foreign_key "services", "system_services"
   add_foreign_key "stock_lot_variations", "product_variations"
   add_foreign_key "stock_lot_variations", "stock_lots"
@@ -726,12 +812,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_12_000400) do
   add_foreign_key "supplier_products", "productos"
   add_foreign_key "supplier_products", "suppliers"
   add_foreign_key "suppliers", "businesses"
+  add_foreign_key "users", "businesses"
   add_foreign_key "venta_items", "product_variations"
   add_foreign_key "venta_items", "productos"
   add_foreign_key "venta_items", "ventas"
   add_foreign_key "venta_payments", "accounts"
   add_foreign_key "venta_payments", "ventas"
   add_foreign_key "ventas", "businesses"
+  add_foreign_key "ventas", "cash_shifts"
   add_foreign_key "ventas", "clientes"
+  add_foreign_key "ventas", "users"
   add_foreign_key "video_details", "peliculas"
 end

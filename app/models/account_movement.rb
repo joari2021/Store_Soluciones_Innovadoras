@@ -19,6 +19,7 @@ class AccountMovement < ApplicationRecord
   validates :occurred_at, presence: true
   validates :payment_method, inclusion: { in: PAYMENT_METHODS.keys }, allow_blank: true
   validate :payment_method_rules
+  validate :sufficient_balance_for_debit
 
   after_commit :refresh_account_balance
 
@@ -48,5 +49,36 @@ class AccountMovement < ApplicationRecord
     elsif payment_method.present?
       errors.add(:payment_method, 'solo aplica a cuentas bancarias')
     end
+  end
+
+  def sufficient_balance_for_debit
+    return if account.blank?
+
+    required_amount = additional_debit_required
+    return unless required_amount.positive?
+
+    available_balance = account.balance.to_d
+    return if required_amount <= available_balance
+
+    errors.add(:base, account.insufficient_balance_message(required_amount, available_balance: available_balance))
+  end
+
+  def additional_debit_required
+    previous_signed = signed_amount_for(
+      movement_kind: movement_kind_in_database,
+      amount: amount_in_database
+    )
+    new_signed = signed_amount_for(movement_kind: movement_kind, amount: amount)
+
+    delta = new_signed - previous_signed
+    delta.negative? ? -delta : 0.to_d
+  end
+
+  def signed_amount_for(movement_kind:, amount:)
+    kind = movement_kind.to_s
+    numeric_amount = amount.to_d
+    return -numeric_amount if kind == 'expense'
+
+    numeric_amount
   end
 end

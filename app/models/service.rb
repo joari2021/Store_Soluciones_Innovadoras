@@ -5,9 +5,11 @@ class Service < ApplicationRecord
   LEGACY_USD_REFERENCE = '$'.freeze
   DEFAULT_REFERENCE = 'Dolar BCV'.freeze
 
+  belongs_to :business
   belongs_to :system_service, optional: true
   has_many :service_managers, dependent: :destroy
   has_many :service_expense_structures, dependent: :destroy
+  has_many :service_cost_debts, class_name: 'Debt', dependent: :nullify
 
   accepts_nested_attributes_for :service_managers, allow_destroy: true
   accepts_nested_attributes_for :service_expense_structures, allow_destroy: true
@@ -23,6 +25,8 @@ class Service < ApplicationRecord
   before_validation :migrate_legacy_value_units_to_sale_price
 
   validate :validate_fixed_price_fields
+  validate :validate_visibility_flags
+  validate :validate_auto_cost_stock_discount_settings
 
   pg_search_scope :whose_name_starts_with,
                   against: { description: 'B' }, # Asigna grado "B" a la descripción del servicio
@@ -32,6 +36,29 @@ class Service < ApplicationRecord
                   using: {
                     tsearch: { prefix: true }
                   }
+
+  scope :visible_for_user, lambda { |user|
+    return all if user&.admin?
+
+    where(restricted_service: false)
+  }
+
+  def visible_for_user?(user)
+    return true if user&.admin?
+
+    !restricted_service?
+  end
+
+  def show_allowed_for?(user)
+    return true if user&.admin?
+    return false if restricted_service?
+
+    available?
+  end
+
+  def caution_notice_for?(user)
+    caution_service? && !user&.admin?
+  end
 
   def unit_price_usd(tasa_dolar: nil, unidad_vi: nil)
     return nil unless fixed?
@@ -131,6 +158,23 @@ class Service < ApplicationRecord
     end
 
     errors.add(:sale_price, 'must be present for fixed pricing') unless reference_price_amount.positive?
+  end
+
+  def validate_visibility_flags
+    return unless restricted_service? && caution_service?
+
+    errors.add(:restricted_service, 'no puede combinarse con servicio con precaucion')
+    errors.add(:caution_service, 'no puede combinarse con servicio restringido')
+  end
+
+  def validate_auto_cost_stock_discount_settings
+    return unless auto_cost_stock_discount?
+
+    errors.add(:auto_cost_stock_discount, 'requiere activar la opcion "Conlleva gastos"') unless cost?
+
+    return if service_expense_structures.reject(&:marked_for_destruction?).any?
+
+    errors.add(:auto_cost_stock_discount, 'requiere al menos una estructura de gastos activa')
   end
 
   def valid_currency_reference?(reference)

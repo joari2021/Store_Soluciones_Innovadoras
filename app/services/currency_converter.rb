@@ -5,7 +5,7 @@ class CurrencyConverter
     'USDT' => 'USDT'
   }.freeze
 
-  def self.convert(amount:, from_currency:, to_currency:)
+  def self.convert(amount:, from_currency:, to_currency:, on_date: nil)
     from = normalize_currency(from_currency)
     to = normalize_currency(to_currency)
     value = amount.to_d
@@ -13,8 +13,8 @@ class CurrencyConverter
     return nil unless value.positive? || value.zero?
     return conversion_result(amount: value, rate: 1.to_d) if from == to
 
-    from_rate_to_ves = rate_to_ves(from)
-    to_rate_to_ves = rate_to_ves(to)
+    from_rate_to_ves = rate_to_ves(from, on_date: on_date)
+    to_rate_to_ves = rate_to_ves(to, on_date: on_date)
     return nil unless from_rate_to_ves.positive? && to_rate_to_ves.positive?
 
     converted_amount = (value * from_rate_to_ves / to_rate_to_ves)
@@ -23,14 +23,14 @@ class CurrencyConverter
     conversion_result(amount: converted_amount, rate: rate)
   end
 
-  def self.rate_to_ves(currency)
+  def self.rate_to_ves(currency, on_date: nil)
     normalized_currency = normalize_currency(currency)
     return 1.to_d if normalized_currency == 'VES'
 
     reference = reference_for_currency(normalized_currency)
     return 0.to_d if reference.blank?
 
-    TasaCambio.latest_value(reference).to_d
+    rate_value(reference, on_date: on_date)
   end
 
   def self.supported_currency?(currency)
@@ -69,5 +69,31 @@ class CurrencyConverter
     currency.to_s.strip.upcase
   end
 
-  private_class_method :candidate_references, :conversion_result, :normalize_currency
+  def self.rate_value(reference, on_date: nil)
+    scope = TasaCambio.where(description: reference)
+
+    reference_date = normalize_reference_date(on_date)
+    if reference_date.present?
+      historical = scope
+                   .where('fecha_referencia <= ?', reference_date)
+                   .order(fecha_referencia: :desc, created_at: :desc)
+                   .first
+      return historical.valor.to_d if historical.present?
+    end
+
+    latest_value = scope.order(fecha_referencia: :desc, created_at: :desc).limit(1).pick(:valor)
+    latest_value.present? ? latest_value.to_d : 0.to_d
+  end
+
+  def self.normalize_reference_date(on_date)
+    return nil if on_date.blank?
+    return on_date if on_date.is_a?(Date)
+
+    on_date.to_date
+  rescue ArgumentError, NoMethodError
+    nil
+  end
+
+  private_class_method :candidate_references, :conversion_result, :normalize_currency,
+                       :rate_value, :normalize_reference_date
 end

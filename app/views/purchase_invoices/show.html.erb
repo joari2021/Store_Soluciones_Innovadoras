@@ -69,7 +69,15 @@
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Factura #<%= @purchase_invoice.id %></h1>
         <p class="mt-1 text-sm text-slate-500">Detalle de compra, proveedor y composición de costos.</p>
       </div>
-      <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300' %>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
+        <% if current_user_admin? %>
+          <%= link_to 'Eliminar factura',
+                      purchase_invoice_path(@purchase_invoice),
+                      class: 'inline-flex items-center justify-center rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300 cursor-pointer',
+                      data: { turbo_method: :delete, swal_delete: 'purchase_invoice' } %>
+        <% end %>
+      </div>
     </div>
   </div>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -96,6 +104,16 @@
     <p class="mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Observaciones</p>
     <p class="mt-2 text-sm text-slate-700"><%= @purchase_invoice.observaciones.presence || '-' %></p>
   </div>
+  <% invoice_pending_balance_bs = (@invoice_pending_balance_bs || 0).to_d.round(2) %>
+  <% invoice_total_paid_bs = (@invoice_total_paid_bs || 0).to_d.round(2) %>
+  <% invoice_debt_assigned_bs = (@invoice_debt_assigned_bs || 0).to_d.round(2) %>
+  <% invoice_usd_per_bs = total_final_bs.positive? ? (total_final_usd / total_final_bs) : 0.to_d %>
+  <% convert_bs_to_invoice_usd = lambda do |amount_bs|
+       (amount_bs.to_d * invoice_usd_per_bs).round(2)
+     end %>
+  <% invoice_pending_balance_usd = convert_bs_to_invoice_usd.call(invoice_pending_balance_bs) %>
+  <% invoice_total_paid_usd = convert_bs_to_invoice_usd.call(invoice_total_paid_bs) %>
+  <% invoice_debt_assigned_usd = convert_bs_to_invoice_usd.call(invoice_debt_assigned_bs) %>
   <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-100 px-6 py-4">
       <h2 class="text-lg font-semibold text-slate-800">Items de la factura</h2>
@@ -214,6 +232,82 @@
         </tfoot>
       </table>
     </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+      <div>
+        <h2 class="text-base font-semibold text-slate-800">Pago de factura</h2>
+        <p class="text-sm text-slate-500">Métodos de pago registrados y monto asignado a deuda.</p>
+      </div>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Base: total factura <%= format_money(total_final_usd, unit: '$') %></p>
+    </div>
+    <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Total pagado $</p>
+        <p class="mt-2 text-lg font-extrabold text-emerald-800"><%= format_money(invoice_total_paid_usd, unit: '$') %></p>
+      </div>
+      <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Asignado a deuda $</p>
+        <p class="mt-2 text-lg font-extrabold text-amber-800"><%= format_money(invoice_debt_assigned_usd, unit: '$') %></p>
+      </div>
+      <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo pendiente actual $</p>
+        <p class="mt-2 text-lg font-extrabold text-slate-800"><%= format_money(invoice_pending_balance_usd, unit: '$') %></p>
+      </div>
+    </div>
+    <div class="mt-4">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Métodos de pago registrados</p>
+      <% if @invoice_payment_movements.present? %>
+        <div class="mt-2 space-y-2">
+          <% @invoice_payment_movements.each do |movement| %>
+            <% payment_method_label = if movement.payment_method.present?
+                                        movement.payment_method_label
+                                      elsif movement.account&.account_type == 'cash_box'
+                                        'Efectivo'
+                                      else
+                                        movement.account&.account_type_label || 'Sin método'
+                                      end %>
+            <div class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p class="text-sm font-semibold text-slate-800"><%= movement.account.name %></p>
+                <p class="mt-1 text-xs text-slate-500">
+                  <%= l(movement.occurred_at.to_date, format: '%d/%m/%Y') %>
+                  · Método: <%= payment_method_label %>
+                </p>
+              </div>
+              <p class="text-sm font-extrabold text-emerald-700"><%= format_money(convert_bs_to_invoice_usd.call(movement.amount), unit: '$') %></p>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+          Esta factura no tiene pagos directos registrados en su creación.
+        </div>
+      <% end %>
+    </div>
+    <% if @invoice_pending_debt.present? %>
+      <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-sm font-semibold text-amber-800">Deuda pendiente asociada</p>
+            <p class="mt-1 text-xs text-amber-700">
+              Vence: <%= @invoice_pending_debt.due_on.present? ? @invoice_pending_debt.due_on.strftime('%d/%m/%Y') : 'Sin fecha' %>
+              · Estado: <%= @invoice_pending_debt.status_label %>
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <% if invoice_pending_balance_bs.positive? %>
+              <%= link_to new_debt_debt_payment_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800', data: { turbo_frame: '_top' } do %>
+                Registrar pago
+              <% end %>
+            <% end %>
+            <%= link_to debt_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50', data: { turbo_frame: '_top' } do %>
+              Ver deuda
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
   </div>
 </div>
 <% if highlight_active %>

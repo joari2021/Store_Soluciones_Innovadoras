@@ -24,11 +24,24 @@ class ApplicationController < ActionController::Base
   def set_business_context
     return unless ActiveRecord::Base.connection.data_source_exists?('businesses')
 
-    @businesses = Business.order(:name)
+    scoped_businesses = if Current.user&.admin?
+                          Business.order(:name)
+                        elsif Current.user.present?
+                          Business.where(id: Current.user.business_id).order(:name)
+                        else
+                          Business.order(:name)
+                        end
+
+    @businesses = scoped_businesses.to_a
+
     @current_business = if session[:business_id].present?
                           @businesses.find { |business| business.id == session[:business_id].to_i }
                         end
     @current_business ||= @businesses.first
+
+    if Current.user&.standard_staff? && Current.user&.business_id.present?
+      @current_business = @businesses.find { |business| business.id == Current.user.business_id } || @current_business
+    end
 
     session[:business_id] = @current_business&.id
     return unless Current.is_a?(Class) && Current.respond_to?(:business=)
@@ -38,10 +51,14 @@ class ApplicationController < ActionController::Base
 
   attr_reader :current_business
 
+  def current_user
+    Current.user
+  end
+
   def require_business
     return if current_business.present?
 
     redirect_to new_business_path, alert: 'Crea un negocio para continuar.'
   end
-  helper_method :current_business
+  helper_method :current_business, :current_user
 end

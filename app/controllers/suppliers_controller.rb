@@ -1,5 +1,6 @@
 class SuppliersController < ApplicationController
   before_action :require_business
+  before_action :require_admin
   before_action :set_supplier, only: %i[show edit update destroy overwrite_product_values]
   before_action :set_tasa_dolar_bcv, only: %i[show update]
 

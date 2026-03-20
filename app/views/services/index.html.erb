@@ -1,3 +1,15 @@
+<% service_systems = @services.each_with_object(Hash.new(0)) do |service, counts|
+                     system_name = service.system_service&.name.to_s.strip
+                     next if system_name.blank?
+
+                     counts[system_name] += 1
+                   end.sort_by { |nombre, _cantidad| nombre.downcase } %>
+<% service_status_counts = {
+     available: @services.count(&:available?),
+     unavailable: @services.count { |service| !service.available? },
+     caution: @services.count(&:caution_service?),
+     restricted: @services.count(&:restricted_service?)
+   } %>
 <div class="services-scope space-y-6">
   <div class="services-hero relative overflow-hidden rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
     <div class="services-hero-glow services-hero-glow--one"></div>
@@ -10,6 +22,10 @@
       </div>
       <div class="flex flex-wrap gap-2">
         <% if Current.user&.admin? %>
+          <%= link_to pending_costs_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition-colors hover:bg-rose-100", data: { turbo_frame: "_top" } do %>
+            <i data-lucide="wallet" class="h-4 w-4"></i>
+            Costos pendientes
+          <% end %>
           <%= link_to new_service_path, class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95", data: { turbo_frame: "_top" } do %>
             <i data-lucide="plus" class="h-4 w-4"></i>
             Nuevo servicio
@@ -27,14 +43,57 @@
     </div>
   </div>
   <div class="services-search">
-    <div class="relative min-w-[260px] flex-1">
+    <div class="relative w-full lg:w-[24rem] xl:w-[28rem]">
       <i data-lucide="search" class="services-search-icon"></i>
       <input id="service-search-input" type="text" placeholder="Buscar servicios..." class="services-search-input">
       <button type="button" id="service-search-clear" class="services-clear-btn hidden" aria-label="Limpiar busqueda">
         <i data-lucide="x" class="h-3.5 w-3.5"></i>
       </button>
     </div>
-    <button type="button" id="service-search-button" class="services-secondary-btn">Buscar</button>
+  </div>
+  <% if service_systems.any? %>
+    <div class="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-3">
+      <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Sistemas de servicios</p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <button type="button" data-service-system-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+          <span>Todos</span>
+          <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @services.size %></span>
+        </button>
+        <% service_systems.each do |nombre_sistema, cantidad_items| %>
+          <button type="button" data-service-system-filter="<%= nombre_sistema %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
+            <span class="max-w-[10rem] truncate"><%= nombre_sistema %></span>
+            <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-bold text-cyan-700"><%= cantidad_items %></span>
+          </button>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+  <div class="rounded-2xl border border-slate-200 bg-white p-3">
+    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Estatus del servicio</p>
+    <div class="mt-2 flex flex-wrap gap-2">
+      <button type="button" data-service-status-filter="all" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+        <span>Todos</span>
+        <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @services.size %></span>
+      </button>
+      <button type="button" data-service-status-filter="available" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 transition-colors hover:bg-emerald-50">
+        <span>Disponible</span>
+        <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700"><%= service_status_counts[:available] %></span>
+      </button>
+      <button type="button" data-service-status-filter="unavailable" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-colors hover:bg-slate-50">
+        <span>No disponible</span>
+        <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] font-bold text-slate-700"><%= service_status_counts[:unavailable] %></span>
+      </button>
+      <button type="button" data-service-status-filter="caution" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 transition-colors hover:bg-amber-50">
+        <span>Con precaucion</span>
+        <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-700"><%= service_status_counts[:caution] %></span>
+      </button>
+      <% if Current.user&.admin? %>
+        <button type="button" data-service-status-filter="restricted" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 transition-colors hover:bg-rose-50">
+          <span>Restringido</span>
+          <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-rose-100 px-1.5 py-0.5 text-[11px] font-bold text-rose-700"><%= service_status_counts[:restricted] %></span>
+        </button>
+      <% end %>
+    </div>
   </div>
   <%= turbo_frame_tag "services-#{@pagy.page}" do %>
     <% if @services.any? %>
@@ -44,10 +103,27 @@
           <% tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil %>
           <% unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil %>
           <% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
-          <article class="services-card group rounded-2xl p-3 shadow-sm" data-service-query="<%= service_query %>" style="animation-delay: <%= (index % 6) * 0.05 %>s;">
+          <article class="services-card group rounded-2xl p-3 shadow-sm"
+                   data-service-query="<%= service_query %>"
+                   data-service-system="<%= system_name %>"
+                   data-service-available="<%= service.available? %>"
+                   data-service-caution="<%= service.caution_service? %>"
+                   data-service-restricted="<%= service.restricted_service? %>"
+                   style="animation-delay: <%= (index % 6) * 0.05 %>s;">
             <div class="flex items-start justify-between gap-3">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-wider text-slate-400"><%= system_name %></p>
+                <div class="mt-1 flex flex-wrap gap-1">
+                  <% if service.caution_service? %>
+                    <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">Con precaucion</span>
+                  <% end %>
+                  <% if service.restricted_service? %>
+                    <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">Restringido</span>
+                  <% end %>
+                  <% if service.auto_cost_stock_discount? %>
+                    <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-700">Costo/stock auto</span>
+                  <% end %>
+                </div>
               </div>
               <span class="services-status <%= service.available? ? 'services-status--ok' : 'services-status--off' %>">
                 <%= service.available? ? 'Disponible' : 'No disponible' %>
@@ -91,11 +167,14 @@
                 <% end %>
               </div>
               <div class="flex items-center gap-2">
-                <% if Current.user&.personal? && service.available? %>
+                <% can_open_show_modal = Current.user&.admin? || service.available? %>
+                <% if can_open_show_modal %>
                   <button type="button"
-                          class="services-icon-btn view-service"
+                          class="services-icon-btn view-service cursor-pointer"
                           data-service-id="<%= service.id %>"
                           data-service-description="<%= service.description.upcase %> (<%= system_name.upcase %>)"
+                          data-service-caution="<%= service.caution_notice_for?(Current.user) %>"
+                          data-user-admin="<%= Current.user&.admin? %>"
                           title="Ver detalles">
                     <i data-lucide="eye" class="h-4 w-4"></i>
                   </button>
@@ -173,10 +252,14 @@
   document.addEventListener("turbo:load", () => {
     const searchInput = document.getElementById("service-search-input");
     const clearButton = document.getElementById("service-search-clear");
-    const searchButton = document.getElementById("service-search-button");
-    if (!searchInput || !clearButton || !searchButton) return;
+    const serviceSystemButtons = Array.from(document.querySelectorAll("[data-service-system-filter]"));
+    const serviceStatusButtons = Array.from(document.querySelectorAll("[data-service-status-filter]"));
+    if (!searchInput || !clearButton) return;
     if (searchInput.dataset.bound === "true") return;
     searchInput.dataset.bound = "true";
+
+    let activeSystem = "";
+    let activeStatus = "all";
 
     const normalize = (value) =>
       String(value || "")
@@ -192,18 +275,97 @@
       const cards = Array.from(document.querySelectorAll("[data-service-query]"));
       cards.forEach((card) => {
         const cardValue = normalize(card.dataset.serviceQuery);
-        card.classList.toggle("hidden", query.length > 0 && !cardValue.includes(query));
+        const cardSystem = normalize(card.dataset.serviceSystem || "");
+        const isAvailable = String(card.dataset.serviceAvailable || "false") === "true";
+        const isCaution = String(card.dataset.serviceCaution || "false") === "true";
+        const isRestricted = String(card.dataset.serviceRestricted || "false") === "true";
+
+        const matchesSystem = activeSystem.length === 0 || cardSystem === activeSystem;
+        let matchesStatus = true;
+
+        if (activeStatus === "available") {
+          matchesStatus = isAvailable;
+        } else if (activeStatus === "unavailable") {
+          matchesStatus = !isAvailable;
+        } else if (activeStatus === "caution") {
+          matchesStatus = isCaution;
+        } else if (activeStatus === "restricted") {
+          matchesStatus = isRestricted;
+        }
+
+        card.classList.toggle("hidden", (query.length > 0 && !cardValue.includes(query)) || !matchesSystem || !matchesStatus);
+      });
+    };
+
+    const updateServiceSystemFilterStyles = () => {
+      serviceSystemButtons.forEach((button) => {
+        const systemValue = normalize(button.dataset.serviceSystemFilter || "");
+        const isActive = systemValue === activeSystem;
+
+        button.classList.toggle("bg-sky-600", isActive);
+        button.classList.toggle("text-white", isActive);
+        button.classList.toggle("border-sky-600", isActive);
+        button.classList.toggle("shadow-sm", isActive);
+        button.classList.toggle("hover:bg-sky-700", isActive);
+        button.classList.toggle("hover:text-white", isActive);
+
+        button.classList.toggle("bg-white", !isActive);
+        button.classList.toggle("text-cyan-700", !isActive);
+        button.classList.toggle("border-cyan-200", !isActive);
+        button.classList.toggle("ring-1", !isActive);
+        button.classList.toggle("ring-cyan-200", !isActive);
+        button.classList.toggle("hover:bg-cyan-50", !isActive);
+        button.classList.toggle("hover:text-cyan-700", !isActive);
+      });
+    };
+
+    const updateServiceStatusFilterStyles = () => {
+      serviceStatusButtons.forEach((button) => {
+        const statusValue = String(button.dataset.serviceStatusFilter || "all").trim();
+        const isActive = statusValue === activeStatus;
+
+        button.classList.toggle("bg-sky-600", isActive);
+        button.classList.toggle("text-white", isActive);
+        button.classList.toggle("border-sky-600", isActive);
+        button.classList.toggle("shadow-sm", isActive);
+        button.classList.toggle("hover:bg-sky-700", isActive);
+
+        button.classList.toggle("bg-white", !isActive);
+        button.classList.toggle("text-slate-700", !isActive);
+        button.classList.toggle("border-slate-200", !isActive);
+        button.classList.toggle("ring-1", !isActive);
+        button.classList.toggle("ring-slate-200", !isActive);
+        button.classList.toggle("hover:bg-slate-50", !isActive);
       });
     };
 
     searchInput.addEventListener("input", applyFilter);
-    searchButton.addEventListener("click", applyFilter);
 
     clearButton.addEventListener("click", () => {
       searchInput.value = "";
       applyFilter();
       searchInput.focus();
     });
+
+    serviceSystemButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeSystem = normalize(button.dataset.serviceSystemFilter || "");
+        updateServiceSystemFilterStyles();
+        applyFilter();
+      });
+    });
+
+    serviceStatusButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        activeStatus = String(button.dataset.serviceStatusFilter || "all").trim();
+        updateServiceStatusFilterStyles();
+        applyFilter();
+      });
+    });
+
+    updateServiceSystemFilterStyles();
+    updateServiceStatusFilterStyles();
+    applyFilter();
   });
 </script>
 <%= render "services/styles" %>

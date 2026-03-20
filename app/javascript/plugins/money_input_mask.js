@@ -20,7 +20,13 @@ const parseCurrencyNumber = (rawValue) => {
   let normalized = compact;
   if (compact.includes(",")) {
     normalized = compact.replace(/\./g, "").replace(",", ".");
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(compact)) {
+  } else if (
+    compact.split(".").length > 2 &&
+    compact
+      .split(".")
+      .slice(1)
+      .every((group) => group.length === 3)
+  ) {
     normalized = compact.replace(/\./g, "");
   }
 

@@ -1,11 +1,15 @@
-<div class="space-y-6">
+<div class="space-y-6 fade-in">
+  <% filter_from_query_value = @fecha_desde&.iso8601 %>
+  <% filter_to_query_value = @fecha_hasta&.iso8601 %>
+  <% filter_from_display_value = @fecha_desde_value.presence || @fecha_desde&.strftime('%d-%m-%Y') %>
+  <% filter_to_display_value = @fecha_hasta_value.presence || @fecha_hasta&.strftime('%d-%m-%Y') %>
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Facturas de Compra</h1>
         <p class="mt-1 text-sm text-slate-500">Controla compras por proveedor, tasa y detalle de costos en un solo lugar.</p>
       </div>
-      <%= link_to new_purchase_invoice_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" do %>
+      <%= link_to new_purchase_invoice_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium cursor-pointer" do %>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
           <path d="M12 4.5a.75.75 0 0 1 .75.75v6h6a.75.75 0 0 1 0 1.5h-6v6a.75.75 0 0 1-1.5 0v-6h-6a.75.75 0 0 1 0-1.5h6v-6a.75.75 0 0 1 .75-.75Z" />
         </svg>
@@ -13,75 +17,117 @@
       <% end %>
     </div>
   </div>
+  <% if @has_purchase_invoices || @filters_applied %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <%= form_with url: purchase_invoices_path, method: :get, local: true, class: "grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_repeat(2,minmax(0,0.8fr))_auto] lg:items-end" do %>
+        <div>
+          <label for="purchase_invoice_filter_supplier" class="block text-sm font-medium text-slate-700">Proveedor</label>
+          <%= select_tag :supplier_id,
+                         options_for_select([['Todos los proveedores', '']] + @available_suppliers.map { |supplier| [supplier.nombre, supplier.id] }, @selected_supplier_id),
+                         id: 'purchase_invoice_filter_supplier',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="purchase_invoice_filter_payment_status" class="block text-sm font-medium text-slate-700">Estado de pago</label>
+          <%= select_tag :payment_status,
+                         options_for_select(invoice_payment_status_filter_options, @selected_payment_status),
+                         id: 'purchase_invoice_filter_payment_status',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="purchase_invoice_filter_from" class="block text-sm font-medium text-slate-700">Desde</label>
+          <%= text_field_tag :fecha_desde,
+                             filter_from_display_value,
+                             id: 'purchase_invoice_filter_from',
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="purchase_invoice_filter_to" class="block text-sm font-medium text-slate-700">Hasta</label>
+          <%= text_field_tag :fecha_hasta,
+                             filter_to_display_value,
+                             id: 'purchase_invoice_filter_to',
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div class="flex flex-col gap-2 sm:flex-row lg:justify-end">
+          <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 cursor-pointer">
+            Filtrar
+          </button>
+          <% if @filters_applied %>
+            <%= link_to purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer' do %>
+              Limpiar
+            <% end %>
+          <% end %>
+        </div>
+      <% end %>
+      <div class="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          Mostrando <span class="font-semibold text-slate-700" data-purchase-invoices-loaded-count="true"><%= @purchase_invoices.size %></span>
+          de <span class="font-semibold text-slate-700"><%= @matching_purchase_invoices_count %></span>
+          <%= @matching_purchase_invoices_count == 1 ? 'factura' : 'facturas' %>
+          <% if @filters_applied %>
+            con los filtros aplicados.
+          <% else %>
+            registradas.
+          <% end %>
+        </p>
+        <p>Filtro por proveedor, estado de pago y fecha de emisión.</p>
+      </div>
+    </div>
+  <% end %>
   <% if @purchase_invoices.any? %>
-    <div class="grid gap-3 md:hidden">
-      <% @purchase_invoices.each do |f| %>
-        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-sky-200 hover:shadow-md hover:shadow-sky-100/50">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0 flex-1">
-              <h3 class="truncate text-base font-bold text-slate-800">Factura #<%= f.id %></h3>
-              <p class="mt-1 text-sm text-slate-600"><span class="font-semibold text-slate-700">Proveedor:</span> <%= f.supplier_display_name %></p>
-            </div>
-            <span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"><%= format_money(f.monto_total, unit: "$") %></span>
-          </div>
-          <div class="mt-3 text-sm text-slate-600">
-            <span class="font-semibold text-slate-700">Fecha:</span> <%= f.fecha_emision.present? ? f.fecha_emision.to_date.strftime('%d/%m/%Y') : '-' %>
-          </div>
-          <div class="mt-4 flex items-center gap-2">
-            <%= link_to purchase_invoice_path(f), class: 'inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors', title: 'Ver', 'aria-label': 'Ver' do %>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                <path d="M12 4.5c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z" />
-                <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
-              </svg>
+    <div
+      class="space-y-4"
+      data-purchase-invoices-index="true"
+      data-purchase-invoices-url="<%= purchase_invoices_path %>"
+      data-purchase-invoices-supplier-id="<%= @selected_supplier_id %>"
+      data-purchase-invoices-payment-status="<%= @selected_payment_status %>"
+      data-purchase-invoices-from="<%= filter_from_query_value %>"
+      data-purchase-invoices-to="<%= filter_to_query_value %>"
+    >
+      <div id="purchase-invoices-mobile-list" class="grid gap-3 md:hidden">
+        <% @purchase_invoices.each do |purchase_invoice| %>
+          <%= render 'purchase_invoice_card', purchase_invoice: purchase_invoice %>
+        <% end %>
+      </div>
+      <div class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+        <table class="min-w-full table-auto text-sm text-slate-700">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-6 py-4 text-left font-bold">Factura</th>
+              <th class="px-6 py-4 text-left font-bold">Proveedor</th>
+              <th class="px-6 py-4 text-center font-bold">Monto total</th>
+              <th class="px-6 py-4 text-left font-bold">Fecha emisión</th>
+              <th class="px-6 py-4 text-center font-bold">Estado de pago</th>
+              <th class="px-6 py-4 text-right font-bold">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="purchase-invoices-table-body" class="divide-y divide-slate-100">
+            <% @purchase_invoices.each_with_index do |purchase_invoice, index| %>
+              <%= render 'purchase_invoice_row', purchase_invoice: purchase_invoice, index: index %>
             <% end %>
-            <%= link_to edit_purchase_invoice_path(f), class: 'inline-flex items-center justify-center rounded-lg bg-amber-50 p-2 text-amber-600 hover:bg-amber-100 transition-colors', title: 'Editar', 'aria-label': 'Editar' do %>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                <path d="M16.862 3.487a2.625 2.625 0 1 1 3.712 3.713L8.25 19.524l-4.5.75.75-4.5L16.862 3.487Z" />
-              </svg>
-            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <% if @next_page.present? %>
+        <div class="flex justify-center py-2" data-purchase-invoices-pagination="true" data-next-page="<%= @next_page %>">
+          <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-sky-400"></span>
+            <span data-purchase-invoices-pagination-text="true">Cargando más facturas...</span>
           </div>
-        </article>
+        </div>
       <% end %>
     </div>
-    <div class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
-      <table class="min-w-full table-auto text-sm text-slate-700">
-        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-          <tr>
-            <th class="px-6 py-4 text-left font-bold">Factura</th>
-            <th class="px-6 py-4 text-left font-bold">Proveedor</th>
-            <th class="px-6 py-4 text-center font-bold">Monto total</th>
-            <th class="px-6 py-4 text-left font-bold">Fecha emisión</th>
-            <th class="px-6 py-4 text-right font-bold">Acciones</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          <% @purchase_invoices.each_with_index do |f, index| %>
-            <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/50' %> hover:bg-sky-50/70">
-              <td class="px-6 py-4 font-semibold text-slate-800">#<%= f.id %></td>
-              <td class="px-6 py-4"><%= f.supplier_display_name %></td>
-              <td class="px-6 py-4 text-center whitespace-nowrap">
-                <span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"><%= format_money(f.monto_total, unit: "$") %></span>
-              </td>
-              <td class="px-6 py-4"><%= f.fecha_emision.present? ? f.fecha_emision.to_date.strftime('%d/%m/%Y') : '-' %></td>
-              <td class="px-6 py-4">
-                <div class="flex items-center justify-end gap-2">
-                  <%= link_to purchase_invoice_path(f), class: 'inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors', title: 'Ver', 'aria-label': 'Ver' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                      <path d="M12 4.5c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z" />
-                      <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
-                    </svg>
-                  <% end %>
-                  <%= link_to edit_purchase_invoice_path(f), class: 'inline-flex items-center justify-center rounded-lg bg-amber-50 p-2 text-amber-600 hover:bg-amber-100 transition-colors', title: 'Editar', 'aria-label': 'Editar' do %>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                      <path d="M16.862 3.487a2.625 2.625 0 1 1 3.712 3.713L8.25 19.524l-4.5.75.75-4.5L16.862 3.487Z" />
-                    </svg>
-                  <% end %>
-                </div>
-              </td>
-            </tr>
-          <% end %>
-        </tbody>
-      </table>
+  <% elsif @filters_applied %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No hay facturas para ese filtro</h3>
+      <p class="mt-1 text-sm text-slate-500">Prueba con otro proveedor, estado o ajusta el rango de fechas.</p>
+      <%= link_to purchase_invoices_path, class: 'mt-4 inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer' do %>
+        Limpiar filtros
+      <% end %>
     </div>
   <% else %>
     <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
@@ -90,3 +136,183 @@
     </div>
   <% end %>
 </div>
+<script>
+  (() => {
+    const findPurchaseInvoiceRoots = (scope) => {
+      const roots = [];
+
+      if (scope instanceof Element && scope.matches("[data-purchase-invoices-index='true']")) {
+        roots.push(scope);
+      }
+
+      if (scope.querySelectorAll) {
+        roots.push(...scope.querySelectorAll("[data-purchase-invoices-index='true']"));
+      }
+
+      return [...new Set(roots)];
+    };
+
+    const initPurchaseInvoicesInfiniteScroll = (scope = document) => {
+      findPurchaseInvoiceRoots(scope).forEach((root) => {
+        if (root.dataset.infiniteScrollBound === "true") return;
+        root.dataset.infiniteScrollBound = "true";
+
+        const mobileContainer = root.querySelector("#purchase-invoices-mobile-list");
+        const tableBody = root.querySelector("#purchase-invoices-table-body");
+        const loadedCountNode = document.querySelector("[data-purchase-invoices-loaded-count='true']");
+        let observer = null;
+        let loading = false;
+
+        const buildUrl = (page) => {
+          const url = new URL(root.dataset.purchaseInvoicesUrl, window.location.origin);
+
+          if (root.dataset.purchaseInvoicesSupplierId) {
+            url.searchParams.set("supplier_id", root.dataset.purchaseInvoicesSupplierId);
+          }
+
+          if (root.dataset.purchaseInvoicesPaymentStatus) {
+            url.searchParams.set("payment_status", root.dataset.purchaseInvoicesPaymentStatus);
+          }
+
+          if (root.dataset.purchaseInvoicesFrom) {
+            url.searchParams.set("fecha_desde", root.dataset.purchaseInvoicesFrom);
+          }
+
+          if (root.dataset.purchaseInvoicesTo) {
+            url.searchParams.set("fecha_hasta", root.dataset.purchaseInvoicesTo);
+          }
+
+          url.searchParams.set("page", String(page));
+          url.searchParams.set("format", "json");
+          return url.toString();
+        };
+
+        const disconnectObserver = () => {
+          if (observer) {
+            observer.disconnect();
+            observer = null;
+          }
+        };
+
+        const setRetryState = (pagination) => {
+          pagination.innerHTML = `
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer"
+              data-purchase-invoices-retry="true"
+            >
+              Reintentar carga
+            </button>
+          `;
+        };
+
+        const bindPagination = (pagination) => {
+          if (!pagination) return;
+
+          disconnectObserver();
+
+          if (!("IntersectionObserver" in window)) {
+            setRetryState(pagination);
+            return;
+          }
+
+          observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+
+                disconnectObserver();
+                loadPage(pagination);
+              });
+            },
+            { rootMargin: "220px 0px" },
+          );
+
+          observer.observe(pagination);
+        };
+
+        const loadPage = async (pagination) => {
+          const nextPage = Number(pagination.dataset.nextPage || 0);
+          if (!nextPage || loading) return;
+
+          loading = true;
+          const messageNode = pagination.querySelector("[data-purchase-invoices-pagination-text='true']");
+          if (messageNode) messageNode.textContent = "Cargando más facturas...";
+
+          try {
+            const response = await fetch(buildUrl(nextPage), {
+              headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+              },
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "No se pudo cargar la siguiente página");
+
+            if (data.mobile_html && mobileContainer) {
+              mobileContainer.insertAdjacentHTML("beforeend", data.mobile_html);
+            }
+
+            if (data.table_rows_html && tableBody) {
+              tableBody.insertAdjacentHTML("beforeend", data.table_rows_html);
+            }
+
+            if (loadedCountNode) {
+              const currentValue = Number(loadedCountNode.textContent || 0);
+              loadedCountNode.textContent = String(currentValue + Number(data.batch_count || 0));
+            }
+
+            if (data.next_page) {
+              pagination.dataset.nextPage = String(data.next_page);
+
+              if (messageNode) {
+                messageNode.textContent = "Desplázate para cargar más";
+              }
+
+              bindPagination(pagination);
+            } else {
+              pagination.remove();
+            }
+          } catch (_error) {
+            setRetryState(pagination);
+          } finally {
+            loading = false;
+          }
+        };
+
+        root.addEventListener("click", (event) => {
+          const retryButton = event.target.closest("[data-purchase-invoices-retry='true']");
+          if (!retryButton) return;
+
+          const pagination = retryButton.closest("[data-purchase-invoices-pagination='true']");
+          if (!pagination) return;
+
+          pagination.innerHTML = `
+            <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
+              <span class="h-2 w-2 animate-pulse rounded-full bg-sky-400"></span>
+              <span data-purchase-invoices-pagination-text="true">Cargando más facturas...</span>
+            </div>
+          `;
+
+          loadPage(pagination);
+        });
+
+        bindPagination(root.querySelector("[data-purchase-invoices-pagination='true']"));
+
+        document.addEventListener(
+          "turbo:before-cache",
+          () => {
+            disconnectObserver();
+          },
+          { once: true },
+        );
+      });
+    };
+
+    document.addEventListener("turbo:load", () => initPurchaseInvoicesInfiniteScroll(document));
+    document.addEventListener("DOMContentLoaded", () => initPurchaseInvoicesInfiniteScroll(document));
+    document.addEventListener("turbo:render", () => initPurchaseInvoicesInfiniteScroll(document));
+    document.addEventListener("turbo:frame-load", (event) => initPurchaseInvoicesInfiniteScroll(event.target));
+  })();
+</script>

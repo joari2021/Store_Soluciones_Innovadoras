@@ -43,6 +43,7 @@
           <li class="px-5 py-4">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
+                <% movement_source_link = account_movement_source_link_data(movement) %>
                 <p class="text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></p>
                 <p class="text-xs text-slate-500">
                   <%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %>
@@ -50,7 +51,12 @@
                 <% if movement.payment_method.present? %>
                   <p class="mt-1 text-xs text-slate-500">Metodo: <span class="font-semibold text-slate-700"><%= movement.payment_method_label %></span></p>
                 <% end %>
-                <p class="mt-1 text-sm text-slate-600"><%= movement.description.presence || 'Sin descripción' %></p>
+                <p class="mt-1 text-sm text-slate-600"><%= account_movement_display_description(movement) %></p>
+                <% if movement_source_link.present? %>
+                  <p class="mt-2">
+                    <%= link_to movement_source_link[:label], movement_source_link[:path], class: 'inline-flex cursor-pointer items-center rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800' %>
+                  </p>
+                <% end %>
               </div>
               <div class="text-right">
                 <span class="text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>">

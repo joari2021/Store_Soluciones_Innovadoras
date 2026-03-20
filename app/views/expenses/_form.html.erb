@@ -1,5 +1,38 @@
-<%= form_with model: @expense, local: true, class: "space-y-6" do |form| %>
+<% payment_account_options = Array(@accounts).map do |account| %>
+  <% ["#{account.name} (#{account.currency})", account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+<% end %>
+<% currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+<% selected_payment_account = Array(@accounts).find { |account| account.id.to_s == params[:payment_account_id].to_s } %>
+<% selected_payment_currency = selected_payment_account&.currency %>
+<% selected_payment_symbol = currency_symbols[selected_payment_currency] || selected_payment_currency || '$' %>
+<% show_payment_method = selected_payment_account&.account_type == 'bank_account' && selected_payment_account&.currency == 'VES' %>
+<%
+  initial_payment_date = begin
+    raw_value = params[:payment_occurred_at].to_s.strip
+    if raw_value.blank?
+      nil
+    elsif raw_value.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+      Date.strptime(raw_value.tr('/', '-'), '%d-%m-%Y')
+    elsif raw_value.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+      Date.iso8601(raw_value)
+    else
+      Date.parse(raw_value)
+    end
+  rescue ArgumentError, TypeError
+    nil
+  end
+%>
+<% initial_payment_date_value = (initial_payment_date || Date.current).strftime('%d-%m-%Y') %>
+<%= form_with model: @expense, local: true, class: "space-y-6", data: { expense_form: true, expense_currency_symbols: currency_symbols.to_json } do |form| %>
   <% if @expense.errors.any? %>
+    <% balance_error_message = @expense.errors.full_messages.find { |message| message.to_s.downcase.include?('saldo insuficiente') } %>
+    <% if balance_error_message.present? %>
+      <div
+        class="hidden"
+        data-balance-insufficient-alert="true"
+        data-balance-insufficient-message="<%= balance_error_message %>"
+      ></div>
+    <% end %>
     <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
       <div class="flex items-center justify-between">
         <h4 class="text-sm font-bold">No se pudo guardar el gasto</h4>
@@ -34,7 +67,18 @@
     <div class="mt-4 grid gap-4 md:grid-cols-2">
       <div>
         <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.number_field :amount, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "Opcional para gastos variables" %>
+        <%= form.text_field :amount,
+          value: form.object.amount.present? ? (Account::CURRENCIES[form.object.currency.to_s]&.dig(:symbol).to_s + ' ' + sprintf('%.2f', form.object.amount).gsub('.', ',')) : '',
+          inputmode: 'decimal',
+          autocomplete: 'off',
+          placeholder: (Account::CURRENCIES[form.object.currency.to_s]&.dig(:symbol).to_s + ' 0,00'),
+          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+          data: {
+            money_mask: true,
+            money_symbol: Account::CURRENCIES[form.object.currency.to_s]&.dig(:symbol).to_s,
+            expense_base_amount: true
+          }
+        %>
       </div>
       <div>
         <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
@@ -51,11 +95,19 @@
       </div>
       <div>
         <%= form.label :start_date, "Fecha de inicio", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.date_field :start_date, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        <%= form.text_field :start_date,
+                            value: form.object.start_date&.strftime('%d-%m-%Y'),
+                            autocomplete: 'off',
+                            placeholder: 'dd-mm-aaaa',
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
       </div>
       <div>
         <%= form.label :end_date, "Fecha de fin", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.date_field :end_date, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        <%= form.text_field :end_date,
+                            value: form.object.end_date&.strftime('%d-%m-%Y'),
+                            autocomplete: 'off',
+                            placeholder: 'dd-mm-aaaa',
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
       </div>
       <div>
         <%= form.label :occurrences_limit, "Cantidad de pagos", class: "block text-sm font-medium text-slate-700" %>
@@ -78,29 +130,204 @@
       <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div>
           <label class="block text-sm font-medium text-slate-700">Cuenta</label>
-          <%= select_tag :payment_account_id, options_for_select(@accounts.map { |account| ["#{account.name} (#{account.currency})", account.id] }, params[:payment_account_id]), include_blank: "Selecciona una cuenta", class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+          <%= select_tag :payment_account_id,
+                         options_for_select(payment_account_options, params[:payment_account_id]),
+                         include_blank: "Selecciona una cuenta",
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { expense_payment_account: true } %>
+        </div>
+        <div class="<%= show_payment_method ? '' : 'hidden' %>" data-expense-payment-method-wrapper="true">
+          <label class="block text-sm font-medium text-slate-700">Metodo (solo banco en Bs)</label>
+          <%= select_tag :payment_method,
+                         options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], params[:payment_method]),
+                         include_blank: "Selecciona",
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { expense_payment_method: true } %>
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700">Monto pagado</label>
-          <%= number_field_tag :payment_amount, params[:payment_amount], step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-        </div>
-        <div>
-          <label class="block text-sm font-medium text-slate-700">Metodo (solo banco)</label>
-          <%= select_tag :payment_method, options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], params[:payment_method]), include_blank: "Selecciona", class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+          <%= text_field_tag :payment_amount,
+                             params[:payment_amount].presence || "#{selected_payment_symbol} 0,00",
+                             inputmode: 'decimal',
+                             autocomplete: 'off',
+                             placeholder: "#{selected_payment_symbol} 0,00",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: {
+                               money_mask: true,
+                               money_symbol: selected_payment_symbol,
+                               expense_payment_amount: true
+                             } %>
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700">Referencia</label>
-          <%= text_field_tag :payment_reference, params[:payment_reference], class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", placeholder: "6 digitos" %>
+          <%= text_field_tag :payment_reference,
+                             params[:payment_reference],
+                             inputmode: "numeric",
+                             maxlength: 6,
+                             minlength: 6,
+                             pattern: "\\d{6}",
+                             autocomplete: "off",
+                             title: "La referencia debe tener exactamente 6 digitos",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             placeholder: "6 digitos",
+                             data: { expense_payment_reference: true } %>
         </div>
         <div>
           <label class="block text-sm font-medium text-slate-700">Fecha de pago</label>
-          <%= datetime_local_field_tag :payment_occurred_at, params[:payment_occurred_at], class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+          <%= text_field_tag :payment_occurred_at,
+                             initial_payment_date_value,
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: { expense_payment_date: true } %>
         </div>
       </div>
     </div>
   <% end %>
   <div class="flex flex-wrap items-center gap-3">
-    <%= form.submit(@expense.persisted? ? "Actualizar gasto" : "Crear gasto", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
+    <%= form.submit(@expense.persisted? ? "Actualizar gasto" : "Crear gasto", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 cursor-pointer") %>
     <%= link_to 'Cancelar', expenses_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
   </div>
 <% end %>
+<script>
+  (function () {
+    const form = document.querySelector("[data-expense-form='true']");
+    if (!form || form.dataset.bound === "true") return;
+    form.dataset.bound = "true";
+
+    const accountSelect = form.querySelector("[data-expense-payment-account='true']");
+    const methodWrapper = form.querySelector("[data-expense-payment-method-wrapper='true']");
+    const methodSelect = form.querySelector("[data-expense-payment-method='true']");
+    const referenceInput = form.querySelector("[data-expense-payment-reference='true']");
+    const amountInput = form.querySelector("[data-expense-payment-amount='true']");
+    const registerPaymentCheckbox = form.querySelector("#register_payment");
+    const currencySymbols = (() => {
+      try {
+        return JSON.parse(form.dataset.expenseCurrencySymbols || "{}");
+      } catch (_error) {
+        return {};
+      }
+    })();
+
+    const registerPaymentEnabled = () => (registerPaymentCheckbox ? registerPaymentCheckbox.checked : true);
+
+    const parseMaskedValue = (input) => {
+      if (!input) return 0;
+      if (window.MoneyInputMask?.parseValue) return window.MoneyInputMask.parseValue(input);
+
+      const compact = String(input.value || "")
+        .replace(/\s/g, "")
+        .replace(/[^\d.,-]/g, "");
+
+      const normalized = compact.includes(",")
+        ? compact.replace(/\./g, "").replace(",", ".")
+        : compact;
+
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+    };
+
+    const selectedOption = () => accountSelect?.options?.[accountSelect.selectedIndex];
+
+    const isBsBankAccountSelected = () => {
+      const option = selectedOption();
+      const isBank = option?.dataset.accountType === "bank_account";
+      const isVes = String(option?.dataset.accountCurrency || "").toUpperCase() === "VES";
+      return isBank && isVes;
+    };
+
+    const updateMethodVisibility = () => {
+      if (!methodWrapper || !methodSelect) return;
+
+      const visible = isBsBankAccountSelected();
+      methodWrapper.classList.toggle("hidden", !visible);
+
+      if (!visible) {
+        methodSelect.value = "";
+        if (referenceInput) referenceInput.value = "";
+      }
+    };
+
+    const updateAmountMaskByAccount = () => {
+      if (!amountInput) return;
+
+      const option = selectedOption();
+      const currency = String(option?.dataset.accountCurrency || "USD").toUpperCase();
+      const symbol = currencySymbols[currency] || currency || "$";
+      const currentValue = parseMaskedValue(amountInput);
+
+      amountInput.dataset.moneySymbol = symbol;
+      amountInput.placeholder = `${symbol} 0,00`;
+
+      if (window.MoneyInputMask?.setValue) {
+        window.MoneyInputMask.setValue(amountInput, currentValue, symbol);
+      }
+    };
+
+    const sanitizeReference = () => {
+      if (!referenceInput) return "";
+
+      const digits = String(referenceInput.value || "")
+        .replace(/\D/g, "")
+        .slice(0, 6);
+
+      if (referenceInput.value !== digits) {
+        referenceInput.value = digits;
+      }
+
+      return digits;
+    };
+
+    const referenceRequired = () => {
+      return registerPaymentEnabled() && isBsBankAccountSelected() && String(methodSelect?.value || "").trim().length > 0;
+    };
+
+    const updateReferenceRules = () => {
+      if (!referenceInput) return;
+
+      const digits = sanitizeReference();
+      const requiresReference = referenceRequired();
+      const shouldValidate = registerPaymentEnabled() && (requiresReference || digits.length > 0);
+
+      referenceInput.required = requiresReference;
+      referenceInput.setCustomValidity(
+        shouldValidate && digits.length !== 6 ? "La referencia debe tener exactamente 6 digitos." : ""
+      );
+    };
+
+    if (accountSelect) {
+      accountSelect.addEventListener("change", () => {
+        updateMethodVisibility();
+        updateAmountMaskByAccount();
+        updateReferenceRules();
+      });
+    }
+
+    if (methodSelect) {
+      methodSelect.addEventListener("change", updateReferenceRules);
+    }
+
+    if (referenceInput) {
+      referenceInput.addEventListener("input", updateReferenceRules);
+    }
+
+    if (registerPaymentCheckbox) {
+      registerPaymentCheckbox.addEventListener("change", updateReferenceRules);
+    }
+
+    form.addEventListener("submit", (event) => {
+      updateReferenceRules();
+
+      const digits = sanitizeReference();
+      const shouldValidate = registerPaymentEnabled() && (referenceRequired() || digits.length > 0);
+      if (shouldValidate && digits.length !== 6) {
+        event.preventDefault();
+        referenceInput?.focus();
+      }
+    });
+
+    updateMethodVisibility();
+    updateAmountMaskByAccount();
+    updateReferenceRules();
+  })();
+</script>

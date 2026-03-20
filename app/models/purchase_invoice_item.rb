@@ -11,7 +11,7 @@ class PurchaseInvoiceItem < ApplicationRecord
   before_validation :normalize_costs_for_currency_priority
   before_validation :normalize_variation_breakdown
   before_validation :calcular_subtotal
-  after_commit :sync_stock_lot
+  after_commit :sync_stock_lot, on: %i[create update]
 
   def set_product_name
     self.product_name = producto&.descripcion if product_name.blank?
@@ -52,7 +52,11 @@ class PurchaseInvoiceItem < ApplicationRecord
     raw_breakdown = variation_breakdown
     parsed = case raw_breakdown
              when String
-               JSON.parse(raw_breakdown) rescue []
+               begin
+                 JSON.parse(raw_breakdown)
+               rescue StandardError
+                 []
+               end
              when Array
                raw_breakdown
              else
@@ -76,10 +80,12 @@ class PurchaseInvoiceItem < ApplicationRecord
 
     self.variation_breakdown = rows
     self.variacion_nombre = if rows.empty?
-                             nil
-                           else
-                             rows.map { |row| "#{row['description'].presence || 'Variación'}: #{row['quantity']}" }.join(' | ')
-                           end
+                              nil
+                            else
+                              rows.map do |row|
+                                "#{row['description'].presence || 'Variación'}: #{row['quantity']}"
+                              end.join(' | ')
+                            end
   end
 
   def sync_stock_lot
@@ -100,7 +106,9 @@ class PurchaseInvoiceItem < ApplicationRecord
 
   def sync_stock_lot_variations!(lot)
     rows = build_variation_stock_rows
-    existing_rows = lot.stock_lot_variations.index_by { |entry| variation_row_key(entry.product_variation_id, entry.variation_description) }
+    existing_rows = lot.stock_lot_variations.index_by do |entry|
+      variation_row_key(entry.product_variation_id, entry.variation_description)
+    end
     used_keys = []
 
     rows.each do |row|

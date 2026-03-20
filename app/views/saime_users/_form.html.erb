@@ -54,10 +54,11 @@
             <%= appointment_fields.hidden_field :_destroy %>
             <%= appointment_fields.label :appointment_date, "Fecha de la Cita" %>
             <%= appointment_fields.date_field :appointment_date, 
-                class: "form-control appointment-date", 
+              class: "form-control appointment-date tailwind-datepicker-input", 
                 min: Date.today.to_s, 
                 max: (Date.today + 3.months).to_s, 
-                required: true %>
+              required: true,
+              data: { tailwind_datepicker: true } %>
           </div>
           <div class="col-md-3">
             <%= appointment_fields.label :appointment_type, "Tipo de Cita" %>
@@ -98,7 +99,7 @@
       <div class="row">
         <div class="col-md-2">
           <label>Fecha de la Cita</label>
-          <input type="date" name="saime_user[appointments_attributes][INDEX][appointment_date]" class="form-control appointment-date" required>
+          <input type="date" name="saime_user[appointments_attributes][INDEX][appointment_date]" class="form-control appointment-date tailwind-datepicker-input" data-tailwind-datepicker="true" required>
         </div>
         <div class="col-md-3">
           <label>Tipo de Cita</label>
