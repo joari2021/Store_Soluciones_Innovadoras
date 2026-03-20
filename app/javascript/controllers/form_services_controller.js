@@ -181,6 +181,10 @@ export default class extends Controller {
       this.syncNestedServiceRow(target);
     }
 
+    if (target.matches("[data-structure-active-toggle]")) {
+      this.enforceSingleActiveStructure(target);
+    }
+
     this.refreshAllStructureTotals();
   }
 
@@ -1001,6 +1005,19 @@ export default class extends Controller {
     return Array.from(
       this.element.querySelectorAll("[data-structure-item]"),
     ).filter((row) => this.isVisibleRow(row));
+  }
+
+  enforceSingleActiveStructure(input) {
+    if (!(input instanceof HTMLInputElement)) return;
+    if (!input.checked) return;
+
+    this.visibleStructureRows().forEach((row) => {
+      const toggle = row.querySelector("[data-structure-active-toggle]");
+      if (!(toggle instanceof HTMLInputElement)) return;
+      if (toggle === input) return;
+
+      toggle.checked = false;
+    });
   }
 
   visibleNestedRows(structureRow, key) {

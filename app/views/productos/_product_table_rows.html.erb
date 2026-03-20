@@ -21,6 +21,7 @@
                               else
                                 variation_lookup_by_description[entry.variation_description.to_s.strip.downcase]
                               end %>
+        <% linked_variation ||= variations.first if linked_variation.blank? && variations.one? %>
         <% next unless linked_variation %>
         <% quantity_remaining = entry.quantity_remaining.to_d %>
         <% next unless quantity_remaining.positive? %>
@@ -53,6 +54,7 @@
                                 else
                                   variation_lookup_by_description[legacy_description]
                                 end %>
+          <% linked_variation ||= variations.first if linked_variation.blank? && variations.one? %>
           <% next unless linked_variation %>
           <% quantity = (entry['quantity'] || entry[:quantity]).to_d %>
           <% next unless quantity.positive? %>
@@ -217,7 +219,7 @@
     <% group[:lots].each do |lot_entry| %>
       <% lot_sale_total_value = (product_sale_price_usd * lot_entry[:quantity_remaining].to_d).round(2) %>
       <tr class="js-product-lot-row hidden bg-white/90 text-sm" data-product-lot-for="<%= producto.id %>" data-variation-key="<%= variation_key %>">
-        <td class="px-6 py-3 pl-24">
+        <td class="px-6 py-3 pl-24 whitespace-normal align-top">
           <span class="inline-flex items-start gap-2 text-slate-700">
             <span class="text-slate-400">↳</span>
             <span class="inline-flex flex-col">
@@ -230,7 +232,7 @@
             </span>
           </span>
         </td>
-        <td class="px-6 py-3 text-slate-600"><%= lot_entry[:invoice_ref] %> · <%= lot_entry[:lot_date_label] %> · <%= lot_entry[:supplier_display_name] %></td>
+        <td class="px-6 py-3 text-slate-600 whitespace-normal break-words"><%= lot_entry[:invoice_ref] %> · <%= lot_entry[:lot_date_label] %> · <%= lot_entry[:supplier_display_name] %></td>
         <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_entry[:unit_cost_usd], unit: '$', precision: 2) %></td>
         <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
         <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_quantity(lot_entry[:quantity_remaining]) %> / <%= format_quantity(lot_entry[:quantity_in]) %></td>

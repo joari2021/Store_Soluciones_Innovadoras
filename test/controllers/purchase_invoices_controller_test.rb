@@ -286,6 +286,55 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0.to_d, @producto.reload.total_quantity.to_d
   end
 
+  test 'auto assigns single variation quantities in units for purchase lots' do
+    post purchase_invoices_path, params: purchase_invoice_payload(
+      payment_amount: '232.00',
+      mark_pending_payment: '0',
+      product_id: @producto.id,
+      quantity: '2',
+      units_per_pack: '4'
+    )
+
+    assert_redirected_to purchase_invoices_path
+
+    item = PurchaseInvoiceItem.order(:id).last
+    variation = @producto.product_variations.order(:id).first
+    breakdown_row = item.variation_breakdown.first
+
+    assert_equal 1, item.variation_breakdown.size
+    assert_equal variation.id, breakdown_row['variation_id']
+    assert_equal variation.description, breakdown_row['description']
+    assert_equal BigDecimal('8'), breakdown_row['quantity'].to_d
+
+    lot_variation = item.stock_lot.stock_lot_variations.order(:id).first
+    assert_not_nil lot_variation
+    assert_equal variation.id, lot_variation.product_variation_id
+    assert_equal BigDecimal('8'), lot_variation.quantity_in.to_d
+    assert_equal BigDecimal('8'), lot_variation.quantity_remaining.to_d
+  end
+
+  test 'show invoice renders current variation name after variation rename' do
+    variation = @producto.product_variations.order(:id).first
+
+    post purchase_invoices_path, params: purchase_invoice_payload(
+      payment_amount: '232.00',
+      mark_pending_payment: '0',
+      product_id: @producto.id,
+      quantity: '2',
+      units_per_pack: '4',
+      variation_breakdown: [{ variation_id: variation.id, description: 'Unica', quantity: 8 }]
+    )
+
+    invoice = PurchaseInvoice.order(:id).last
+    variation.update!(description: 'Azul')
+
+    get purchase_invoice_path(invoice)
+
+    assert_response :success
+    assert_includes response.body, 'Azul'
+    refute_includes response.body, '>Unica</span>'
+  end
+
   private
 
   def login_and_select_business!
@@ -294,15 +343,16 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
   end
 
   def purchase_invoice_payload(payment_amount:, mark_pending_payment:, pending_due_on: '', account_id: @bs_account.id,
-                               product_id: nil, quantity: '1')
+                               product_id: nil, quantity: '1', units_per_pack: '1', variation_breakdown: nil)
     item_attributes = {
       product_name: 'Producto prueba',
       costo_mayor: '10',
       cantidad: quantity,
-      unid_x_pack: '1',
+      unid_x_pack: units_per_pack,
       exento: '0'
     }
     item_attributes[:producto_id] = product_id.to_s if product_id.present?
+    item_attributes[:variation_breakdown] = variation_breakdown if variation_breakdown.present?
 
     {
       purchase_invoice: {

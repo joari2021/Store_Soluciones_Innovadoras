@@ -23,7 +23,27 @@
        total_usd = costo_mayor * cantidad_packs
        total_bs = costo_mayor_bs * cantidad_packs
        product_variations = item.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || []
-       variation_breakdown_rows = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+       product_variation_lookup_by_id = product_variations.index_by { |variation| variation[:id].to_s }
+       single_variation_description = if product_variations.one?
+                                        product_variations.first[:description].presence || 'Unica'
+                                      end
+       variation_breakdown_rows_raw = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+       variation_breakdown_rows = variation_breakdown_rows_raw.filter_map do |entry|
+         next unless entry.is_a?(Hash)
+
+         variation_id = (entry['variation_id'] || entry[:variation_id]).presence
+         stored_description = (entry['description'] || entry[:description]).to_s.strip
+         resolved_description = if variation_id.present?
+                                  product_variation_lookup_by_id.dig(variation_id.to_s, :description)
+                                end
+         resolved_description = resolved_description.presence || single_variation_description.presence || stored_description.presence || 'Variación'
+
+         {
+           'variation_id' => variation_id,
+           'description' => resolved_description,
+           'quantity' => (entry['quantity'] || entry[:quantity])
+         }
+       end
        variation_count = if variation_breakdown_rows.any?
                            variation_breakdown_rows.size
                          elsif product_variations.one?

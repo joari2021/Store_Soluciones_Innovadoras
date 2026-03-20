@@ -42,11 +42,11 @@
     {}
   end
   service_cost_rows = Array(notes_payload['service_cost_settlements'])
-  service_cost_rows_by_name = service_cost_rows.each_with_object({}) do |row, hash|
+  service_cost_rows_by_name = service_cost_rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, hash|
     key = row.is_a?(Hash) ? row['service_name'].to_s.strip.downcase : ''
     next if key.blank?
 
-    hash[key] ||= row
+    hash[key] << row
   end
 %>
 <div class="space-y-6">
@@ -165,36 +165,69 @@
             <% @venta.venta_items.each_with_index do |item, index| %>
               <% unit_usd = item.unit_price_usd.to_d.round(2) %>
               <% subtotal_usd = item.subtotal_usd.to_d.round(2) %>
-              <% unit_base = base_is_ves ? @venta.base_unit_price(item) : unit_usd %>
-              <% subtotal_base = base_is_ves ? @venta.base_line_subtotal(item) : subtotal_usd %>
-              <% unit_alt = base_is_ves ? unit_usd : (tasa.positive? ? (unit_usd * tasa).round(2) : 0) %>
-              <% subtotal_alt = base_is_ves ? subtotal_usd : (tasa.positive? ? (subtotal_usd * tasa).round(2) : 0) %>
+              <% raw_unit_base = base_is_ves ? @venta.base_unit_price(item) : unit_usd %>
+              <% raw_subtotal_base = base_is_ves ? @venta.base_line_subtotal(item) : subtotal_usd %>
               <% item_kind_class = item.producto.present? ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100' : 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100' %>
               <% is_service_item = item.producto.blank? %>
               <% default_item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
-              <% masked_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
-              <% display_item_name = is_service_item ? 'Servicio de internet' : masked_item_name %>
-              <% service_snapshot = is_service_item ? service_cost_rows_by_name[default_item_name.to_s.strip.downcase] : nil %>
-              <% product_expense_lines = if is_service_item
-                                           Array(service_snapshot.is_a?(Hash) ? service_snapshot['detail_lines'] : []).select do |line|
-                                             line.is_a?(Hash) && line['classification'].to_s == 'product_expense'
-                                           end
-                                         else
-                                           []
-                                         end %>
-              <% service_consumption_usd = product_expense_lines.sum { |line| line['amount_usd'].to_d }.round(2) %>
-              <% service_net_usd = [(subtotal_usd - service_consumption_usd).round(2), 0.to_d].max %>
-              <% service_consumption_base = base_is_ves ? (tasa.positive? ? (service_consumption_usd * tasa).round(2) : 0) : service_consumption_usd %>
-              <% service_net_base = base_is_ves ? (tasa.positive? ? (service_net_usd * tasa).round(2) : 0) : service_net_usd %>
-              <% service_consumption_alt = base_is_ves ? service_consumption_usd : (tasa.positive? ? (service_consumption_usd * tasa).round(2) : 0) %>
-              <% service_net_alt = base_is_ves ? service_net_usd : (tasa.positive? ? (service_net_usd * tasa).round(2) : 0) %>
+              <% display_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
+              <% service_snapshot = if is_service_item
+                                      service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
+                                    end %>
+              <% service_breakdown_lines = if is_service_item
+                                             Array(service_snapshot.is_a?(Hash) ? service_snapshot['detail_lines'] : []).filter_map do |line|
+                                               next unless line.is_a?(Hash)
+
+                                               classification = line['classification'].to_s
+                                               next unless %w[product_expense nested_expense].include?(classification)
+
+                                               line_total_usd = line['amount_usd'].to_d.round(2)
+                                               next unless line_total_usd.positive?
+
+                                               line_quantity = line['quantity'].to_d.round(2)
+                                               line_quantity = 1.to_d unless line_quantity.positive?
+                                               line_unit_usd = (line_total_usd / line_quantity).round(2)
+
+                                               line_label = classification == 'nested_expense' ? 'Servicio anidado' : 'Producto del servicio'
+                                               line_name = line['source_name'].to_s.strip.presence || line_label
+
+                                               {
+                                                 classification: classification,
+                                                 label: line_label,
+                                                 name: line_name,
+                                                 quantity: line_quantity,
+                                                 unit_usd: line_unit_usd,
+                                                 subtotal_usd: line_total_usd
+                                               }
+                                             end
+                                           else
+                                             []
+                                           end %>
+              <% service_breakdown_total_usd = service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+              <% service_visual_subtotal_usd = if is_service_item
+                                                 [(subtotal_usd - service_breakdown_total_usd).round(2), 0.to_d].max
+                                               else
+                                                 subtotal_usd
+                                               end %>
+              <% service_quantity = item.quantity.to_d %>
+              <% service_quantity = 1.to_d unless service_quantity.positive? %>
+              <% service_visual_unit_usd = is_service_item ? (service_visual_subtotal_usd / service_quantity).round(2) : unit_usd %>
+              <% display_subtotal_usd = service_visual_subtotal_usd %>
+              <% display_unit_usd = service_visual_unit_usd %>
+              <% if is_service_item && base_is_ves && subtotal_usd.positive? %>
+                <% base_ratio = (display_subtotal_usd / subtotal_usd).to_d %>
+                <% subtotal_base = (raw_subtotal_base.to_d * base_ratio).round(2) %>
+                <% unit_base = (subtotal_base / service_quantity).round(2) %>
+              <% else %>
+                <% unit_base = base_is_ves ? raw_unit_base : display_unit_usd %>
+                <% subtotal_base = base_is_ves ? raw_subtotal_base : display_subtotal_usd %>
+              <% end %>
+              <% unit_alt = base_is_ves ? display_unit_usd : (tasa.positive? ? (display_unit_usd * tasa).round(2) : 0) %>
+              <% subtotal_alt = base_is_ves ? display_subtotal_usd : (tasa.positive? ? (display_subtotal_usd * tasa).round(2) : 0) %>
               <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/50">
                 <td class="px-6 py-4">
                   <div class="flex flex-col gap-1">
                     <span class="font-semibold text-slate-800"><%= display_item_name %></span>
-                    <% if is_service_item %>
-                      <span class="sr-only"><%= masked_item_name %></span>
-                    <% end %>
                     <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= item_kind_class %>"><%= item.producto.present? ? 'Producto' : 'Servicio' %></span>
                   </div>
                 </td>
@@ -212,43 +245,40 @@
                 </td>
               </tr>
               <% if is_service_item %>
-                <tr class="<%= index.even? ? 'bg-sky-50/30' : 'bg-cyan-50/30' %>">
-                  <td colspan="5" class="px-6 pb-4 pt-0">
-                    <div class="rounded-xl border border-cyan-100 bg-white/90 p-3">
-                      <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Consumos descontados del servicio</p>
-                      <% if product_expense_lines.any? %>
-                        <div class="mt-2 space-y-1.5">
-                          <% product_expense_lines.each do |line| %>
-                            <% line_amount_usd = line['amount_usd'].to_d.round(2) %>
-                            <% line_amount_base = base_is_ves ? (tasa.positive? ? (line_amount_usd * tasa).round(2) : 0) : line_amount_usd %>
-                            <% line_amount_alt = base_is_ves ? line_amount_usd : (tasa.positive? ? (line_amount_usd * tasa).round(2) : 0) %>
-                            <div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs">
-                              <span class="font-medium text-slate-700"><%= line['source_name'] %></span>
-                              <span class="font-semibold text-rose-700">
-                                - <%= format_money(line_amount_base, unit: base_symbol) %>
-                                <span class="ml-1 text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(line_amount_alt, unit: alt_symbol) : '--' %></span>
-                              </span>
-                            </div>
-                          <% end %>
-                        </div>
-                        <div class="mt-3 grid gap-2 md:grid-cols-2">
-                          <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                            Descuento total consumibles:
-                            <span class="font-semibold"><%= format_money(service_consumption_base, unit: base_symbol) %></span>
-                            <span class="ml-1 text-rose-600"><%= (base_is_ves || tasa.positive?) ? format_money(service_consumption_alt, unit: alt_symbol) : '--' %></span>
-                          </div>
-                          <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                            Neto visual del servicio:
-                            <span class="font-semibold"><%= format_money(service_net_base, unit: base_symbol) %></span>
-                            <span class="ml-1 text-emerald-600"><%= (base_is_ves || tasa.positive?) ? format_money(service_net_alt, unit: alt_symbol) : '--' %></span>
-                          </div>
-                        </div>
-                      <% else %>
-                        <p class="mt-2 text-xs text-slate-500">Sin consumibles descontados para este servicio en el registro de costos.</p>
-                      <% end %>
-                    </div>
-                  </td>
-                </tr>
+                <% service_breakdown_lines.each do |line| %>
+                  <% child_quantity = line[:quantity].to_d %>
+                  <% child_unit_usd = line[:unit_usd].to_d.round(2) %>
+                  <% child_subtotal_usd = line[:subtotal_usd].to_d.round(2) %>
+                  <% child_unit_base = base_is_ves ? (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) : child_unit_usd %>
+                  <% child_subtotal_base = base_is_ves ? (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) : child_subtotal_usd %>
+                  <% child_unit_alt = base_is_ves ? child_unit_usd : (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) %>
+                  <% child_subtotal_alt = base_is_ves ? child_subtotal_usd : (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) %>
+                  <% child_kind_class = line[:classification] == 'nested_expense' ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-100' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100' %>
+                  <% child_row_tone_class = line[:classification] == 'nested_expense' ? 'bg-violet-50/35 hover:bg-violet-50/55' : 'bg-amber-50/35 hover:bg-amber-50/55' %>
+                  <% child_border_class = line[:classification] == 'nested_expense' ? 'border-l-violet-300' : 'border-l-amber-300' %>
+                  <% child_marker_class = line[:classification] == 'nested_expense' ? 'bg-violet-100 text-violet-700 ring-violet-200' : 'bg-amber-100 text-amber-700 ring-amber-200' %>
+                  <tr class="transition-all duration-150 border-t border-dashed border-slate-200/80 <%= child_row_tone_class %>">
+                    <td class="relative border-l-4 <%= child_border_class %> px-6 py-3 pl-14">
+                      <span class="absolute left-5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-bold ring-1 <%= child_marker_class %>">↳</span>
+                      <div class="flex flex-col gap-1">
+                        <span class="font-semibold text-slate-800"><%= line[:name] %></span>
+                        <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= child_kind_class %>"><%= line[:label] %></span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-3">
+                      <span class="inline-flex w-fit items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-300">Sublinea · Asociado a <%= display_item_name %></span>
+                    </td>
+                    <td class="px-6 py-3 text-center font-semibold text-slate-700"><%= format_quantity(child_quantity, precision: 2) %></td>
+                    <td class="px-6 py-3 text-right">
+                      <span class="font-semibold text-slate-800"><%= format_money(child_unit_base, unit: base_symbol) %></span>
+                      <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(child_unit_alt, unit: alt_symbol) : '--' %></div>
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                      <span class="font-semibold text-slate-800"><%= format_money(child_subtotal_base, unit: base_symbol) %></span>
+                      <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(child_subtotal_alt, unit: alt_symbol) : '--' %></div>
+                    </td>
+                  </tr>
+                <% end %>
               <% end %>
             <% end %>
           </tbody>

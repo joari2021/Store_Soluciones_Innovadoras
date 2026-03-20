@@ -141,22 +141,22 @@
           <% exento_activo = fi.object.exento? %>
           <% product_variations = fi.object.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || [] %>
           <% variation_breakdown_rows = fi.object.variation_breakdown.is_a?(Array) ? fi.object.variation_breakdown : [] %>
-          <% variation_summary = if variation_breakdown_rows.any?
-              variation_breakdown_rows.map { |entry| "#{entry['description'].presence || 'Variación'}: #{format_decimal_input.call(entry['quantity'], 2)}" }.join(' · ')
-            elsif product_variations.one?
-              'Unica'
+          <% single_variation = product_variations.one? ? product_variations.first : nil %>
+          <% single_variation_quantity = cantidad_packs * (unid_x_pack.positive? ? unid_x_pack : 1) %>
+          <% effective_variation_rows = if variation_breakdown_rows.any?
+              variation_breakdown_rows
+            elsif single_variation.present?
+              [{
+                'variation_id' => single_variation[:id],
+                'description' => single_variation[:description],
+                'quantity' => single_variation_quantity.to_f
+              }]
             else
-              'Sin detalle'
+              []
             end %>
-          <% variation_count = if variation_breakdown_rows.any?
-              variation_breakdown_rows.size
-            elsif product_variations.one?
-              1
-            else
-              0
-            end %>
+          <% variation_count = effective_variation_rows.size %>
           <% product_variations_json = product_variations.to_json %>
-          <% variation_breakdown_json = variation_breakdown_rows.to_json %>
+          <% variation_breakdown_json = effective_variation_rows.to_json %>
           <% supplier_ref = if factura.supplier_id.present? && fi.object.producto_id.present?
               SupplierProduct.find_by(supplier_id: factura.supplier_id, producto_id: fi.object.producto_id)
             end %>
@@ -219,20 +219,15 @@
                 </div>
                 <div class="pointer-events-none absolute left-0 top-full z-30 mt-1 w-max max-w-[18rem] translate-y-1 rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-700 opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
                   <ul class="js-variations-tooltip-list space-y-1">
-                    <% if variation_breakdown_rows.any? %>
-                      <% variation_breakdown_rows.each do |entry| %>
-                        <% description = entry['description'].presence || 'Variación' %>
-                        <% quantity = format_decimal_input.call(entry['quantity'], 2) %>
+                    <% if effective_variation_rows.any? %>
+                      <% effective_variation_rows.each do |entry| %>
+                        <% description = (entry['description'] || entry[:description]).presence || 'Variación' %>
+                        <% quantity = format_decimal_input.call(entry['quantity'] || entry[:quantity], 2) %>
                         <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
                           <span class="truncate"><%= description %></span>
                           <span class="font-semibold text-slate-600"><%= quantity %></span>
                         </li>
                       <% end %>
-                    <% elsif product_variations.one? %>
-                      <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                        <span class="truncate"><%= product_variations.first[:description].presence || 'Unica' %></span>
-                        <span class="font-semibold text-slate-600">Unica</span>
-                      </li>
                     <% else %>
                       <li class="text-slate-500">Sin detalle</li>
                     <% end %>
@@ -243,7 +238,7 @@
             <td class="px-4 py-3 table-number js-total-usd"><%= format_money(total_usd, unit: '$') %></td>
             <td class="px-4 py-3 table-number js-total-bs"><%= format_money(total_bs, unit: 'Bs') %></td>
           </tr>
-          <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= factura.supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>">
+          <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= factura.supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>" data-single-variation-id="<%= single_variation&.[](:id) %>" data-single-variation-description="<%= single_variation&.[](:description) %>">
             <%= fi.hidden_field :_destroy, class: 'factura-item-destroy' %>
             <%= fi.hidden_field :producto_id %>
             <%= fi.hidden_field :product_name %>
@@ -605,7 +600,7 @@
       <td class="px-4 py-3 table-number js-total-usd">$ 0,00</td>
       <td class="px-4 py-3 table-number js-total-bs">Bs 0,00</td>
     </tr>
-    <tr class="factura-row-edit bg-slate-50/40" data-row-key="NEW_RECORD" data-new-record="true" data-product-id="PRODUCT_ID" data-ref-supplier-id="" data-has-reference="false" data-ref-costo-mayor="" data-ref-unid-x-pack="" data-ref-costo-menor="" data-variations="PRODUCT_VARIATIONS_JSON">
+    <tr class="factura-row-edit bg-slate-50/40" data-row-key="NEW_RECORD" data-new-record="true" data-product-id="PRODUCT_ID" data-ref-supplier-id="" data-has-reference="false" data-ref-costo-mayor="" data-ref-unid-x-pack="" data-ref-costo-menor="" data-variations="PRODUCT_VARIATIONS_JSON" data-single-variation-id="" data-single-variation-description="">
       <td class="px-4 py-3">
         <div class="flex items-center gap-2">
           <button type="button" class="save-factura-row inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors" data-row-key="NEW_RECORD" title="Guardar" aria-label="Guardar">
@@ -816,7 +811,30 @@
           }
         };
 
-        const rowVariations = (editRow) => parseJsonSafe(editRow?.dataset?.variations, []);
+        const rowVariations = (editRow) => {
+          const parsed = parseJsonSafe(editRow?.dataset?.variations, []);
+          if (parsed.length > 0) return parsed;
+
+          const fallbackId = String(editRow?.dataset?.singleVariationId || '').trim();
+          const fallbackDescription = String(editRow?.dataset?.singleVariationDescription || '').trim();
+          if (fallbackId.length > 0) {
+            return [{ id: fallbackId, description: fallbackDescription || 'Unica' }];
+          }
+
+          const hiddenRows = parseJsonSafe(editRow?.querySelector('.row-variation-breakdown')?.value, []);
+          if (hiddenRows.length === 1) {
+            const singleRow = hiddenRows[0] || {};
+            const singleRowId = String(singleRow.variation_id || singleRow.variationId || '').trim();
+            if (singleRowId.length > 0) {
+              return [{
+                id: singleRowId,
+                description: String(singleRow.description || 'Unica').trim()
+              }];
+            }
+          }
+
+          return [];
+        };
 
         const variationRowsFromInput = (editRow) => {
           const hiddenInput = editRow?.querySelector('.row-variation-breakdown');
@@ -875,6 +893,18 @@
           return normalizedRows;
         };
 
+        const applySingleVariationBreakdown = (editRow) => {
+          const variations = rowVariations(editRow);
+          if (variations.length !== 1) return null;
+
+          const only = variations[0];
+          return setVariationRows(editRow, [{
+            variation_id: only.id,
+            description: only.description,
+            quantity: expectedVariationQuantity(editRow)
+          }], { keepZero: true });
+        };
+
         const syncVariationSummary = (rowKey) => {
           const displayRow = tbody.querySelector(`.factura-row-display[data-row-key="${rowKey}"]`);
           const editRow = tbody.querySelector(`.factura-row-edit[data-row-key="${rowKey}"]`);
@@ -886,7 +916,9 @@
           const tooltipListEl = summaryEl.querySelector('.js-variations-tooltip-list');
 
           const variations = rowVariations(editRow);
-          const rows = normalizeVariationRows(variationRowsFromInput(editRow));
+          const rows = variations.length === 1
+            ? (applySingleVariationBreakdown(editRow) || [])
+            : normalizeVariationRows(variationRowsFromInput(editRow));
           if (summaryCountEl) summaryCountEl.textContent = formatVariationCountLabel(rows, variations);
           if (tooltipListEl) tooltipListEl.innerHTML = variationTooltipItems(rows, variations);
         };
@@ -1002,6 +1034,21 @@
 
         const validateVariationQuantityForRow = (editRow, { showAlert = true } = {}) => {
           if (!editRow) return true;
+
+          const variations = rowVariations(editRow);
+          if (variations.length === 0) {
+            const rowKey = editRow.dataset.rowKey;
+            if (rowKey) syncVariationSummary(rowKey);
+            return true;
+          }
+
+          if (variations.length === 1) {
+            applySingleVariationBreakdown(editRow);
+
+            const rowKey = editRow.dataset.rowKey;
+            if (rowKey) syncVariationSummary(rowKey);
+            return true;
+          }
 
           const quantityPacks = clampNonNegative(editRow.querySelector('.row-cantidad-packs')?.value);
           const unitsPerPack = clampNonNegative(editRow.querySelector('.row-unidades')?.value);
@@ -1264,7 +1311,7 @@
 
           const variations = rowVariations(editRow);
           if (variations.length === 1) {
-            setVariationRows(editRow, [{ variation_id: variations[0].id, description: variations[0].description, quantity: expectedVariationQuantity(editRow) }]);
+            applySingleVariationBreakdown(editRow);
             renderVariationEditor(editRow);
             const rowKeyForVariation = editRow.dataset.rowKey;
             if (rowKeyForVariation) syncVariationSummary(rowKeyForVariation);
@@ -1504,12 +1551,14 @@
           const costoMayorInput = editRow.querySelector('.row-costo-mayor');
           const unidadesInput = editRow.querySelector('.row-unidades');
           const exentoInput = editRow.querySelector('.row-exento');
-            const variationBreakdownInput = editRow.querySelector('.row-variation-breakdown');
+          const variationBreakdownInput = editRow.querySelector('.row-variation-breakdown');
 
           const costoMayor = parseNumber(defaults.costo_mayor);
           const costoMenor = parseNumber(defaults.costo_menor);
           const unidXPack = parseNumber(defaults.unid_x_pack);
           const supplierId = String(supplierSelect?.value || '').trim();
+          const normalizedVariations = Array.isArray(defaults.variations) ? defaults.variations : [];
+          const singleVariation = normalizedVariations.length === 1 ? normalizedVariations[0] : null;
 
           if (cantidadInput && !cantidadInput.value) cantidadInput.value = '';
           if (unidadesInput && !unidadesInput.value) unidadesInput.value = unidXPack > 0 ? formatDecimalInput(unidXPack, 2) : '';
@@ -1526,7 +1575,9 @@
           setMaskedMoney(costoMayorInput, costoMayor, '$');
 
           editRow.dataset.productId = String(productId || '');
-            editRow.dataset.variations = JSON.stringify(defaults.variations || []);
+          editRow.dataset.variations = JSON.stringify(normalizedVariations);
+          editRow.dataset.singleVariationId = singleVariation ? String(singleVariation.id || '') : '';
+          editRow.dataset.singleVariationDescription = singleVariation ? String(singleVariation.description || 'Unica') : '';
           editRow.dataset.refSupplierId = supplierId;
           editRow.dataset.hasReference = supplierId ? 'true' : 'false';
           editRow.dataset.refCostoMayor = String(costoMayor || 0);
@@ -1537,9 +1588,17 @@
             displayRow.dataset.productId = String(productId || '');
           }
 
-            if (variationBreakdownInput && (!variationBreakdownInput.value || variationBreakdownInput.value === '[]')) {
+          if (variationBreakdownInput && (!variationBreakdownInput.value || variationBreakdownInput.value === '[]')) {
+            if (singleVariation) {
+              variationBreakdownInput.value = JSON.stringify([{
+                variation_id: singleVariation.id,
+                description: singleVariation.description,
+                quantity: expectedVariationQuantity(editRow)
+              }]);
+            } else {
               variationBreakdownInput.value = '[]';
             }
+          }
 
           if (costoMenor > 0 && unidXPack > 0 && costoMayor <= 0) {
             const costoMayorFromMenor = costoMenor * unidXPack;
@@ -1549,8 +1608,8 @@
           }
 
           recalcEditRow(editRow, { source: 'supplier' });
-            renderVariationEditor(editRow);
-            commitVariationEditor(editRow);
+          renderVariationEditor(editRow);
+          commitVariationEditor(editRow);
         }
         setEditMode(rowKey, true);
       };

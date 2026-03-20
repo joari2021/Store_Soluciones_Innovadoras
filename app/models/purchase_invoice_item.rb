@@ -63,19 +63,38 @@ class PurchaseInvoiceItem < ApplicationRecord
                []
              end
 
+    single_variation = single_product_variation
+
     rows = parsed.filter_map do |entry|
       next unless entry.is_a?(Hash)
 
-      variation_id = entry['variation_id'] || entry[:variation_id]
-      description = (entry['description'] || entry[:description]).to_s.strip
       quantity = (entry['quantity'] || entry[:quantity]).to_d
       next if quantity <= 0
 
+      variation_id_raw = entry['variation_id'] || entry[:variation_id]
+      variation_id = variation_id_raw.to_i
+      variation_id = nil unless variation_id.positive?
+      variation_id = single_variation&.id if variation_id.blank? && single_variation.present?
+
+      description = (entry['description'] || entry[:description]).to_s.strip
+      description = single_variation&.description.to_s.strip if description.blank? && single_variation.present?
+
       {
-        'variation_id' => variation_id.presence,
-        'description' => description,
+        'variation_id' => variation_id,
+        'description' => description.presence || 'Variación',
         'quantity' => quantity.to_f
       }
+    end
+
+    if rows.empty? && single_variation.present?
+      total_units = total_units_for_variation_breakdown
+      if total_units.positive?
+        rows = [{
+          'variation_id' => single_variation.id,
+          'description' => single_variation.description,
+          'quantity' => total_units.to_f
+        }]
+      end
     end
 
     self.variation_breakdown = rows
@@ -151,6 +170,7 @@ class PurchaseInvoiceItem < ApplicationRecord
     units_per_pack = unid_x_pack.to_d
     total_units = cantidad.to_d * (units_per_pack.positive? ? units_per_pack : 1)
     rows = []
+    single_variation = single_product_variation
 
     if variation_breakdown.is_a?(Array) && variation_breakdown.any?
       rows = variation_breakdown.filter_map do |entry|
@@ -159,30 +179,58 @@ class PurchaseInvoiceItem < ApplicationRecord
         quantity = (entry['quantity'] || entry[:quantity]).to_d
         next if quantity <= 0
 
-        variation_id = (entry['variation_id'] || entry[:variation_id]).presence
-        variation_description = (entry['description'] || entry[:description]).to_s.strip.presence || 'Variación'
+        variation_id_raw = entry['variation_id'] || entry[:variation_id]
+        variation_id = variation_id_raw.to_i
+        variation_id = nil unless variation_id.positive?
+        variation_id = single_variation&.id if variation_id.blank? && single_variation.present?
+
+        variation_description = (entry['description'] || entry[:description]).to_s.strip
+        variation_description = single_variation&.description.to_s.strip if variation_description.blank? && single_variation.present?
 
         {
           product_variation_id: variation_id,
-          variation_description: variation_description,
+          variation_description: variation_description.presence || 'Variación',
           quantity_in: quantity
         }
       end
     end
 
     if rows.empty?
-      unica = producto&.product_variations&.order(:id)&.first
       rows = [{
-        product_variation_id: unica&.id,
-        variation_description: unica&.description.presence || variacion_nombre.presence || 'Unica',
+        product_variation_id: single_variation&.id,
+        variation_description: single_variation&.description.presence || variacion_nombre.presence || 'Unica',
         quantity_in: total_units
       }]
     end
 
     rows
+      .group_by { |row| variation_row_key(row[:product_variation_id], row[:variation_description]) }
+      .values
+      .map do |entries|
+        sample = entries.first
+        {
+          product_variation_id: sample[:product_variation_id],
+          variation_description: sample[:variation_description],
+          quantity_in: entries.sum { |entry| entry[:quantity_in].to_d }
+        }
+      end
   end
 
   def variation_row_key(variation_id, description)
     "#{variation_id.presence || 'none'}::#{description.to_s.strip.downcase}"
+  end
+
+  def single_product_variation
+    return nil unless producto
+
+    variations = producto.product_variations.order(:id).to_a
+    return nil unless variations.one?
+
+    variations.first
+  end
+
+  def total_units_for_variation_breakdown
+    units_per_pack = unid_x_pack.to_d
+    cantidad.to_d * (units_per_pack.positive? ? units_per_pack : 1)
   end
 end

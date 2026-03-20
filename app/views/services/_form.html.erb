@@ -18,23 +18,23 @@
       <p class="mt-1 text-sm text-slate-500">Configura disponibilidad, uso anidado y visibilidad segun el nivel de acceso.</p>
     </div>
     <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <label class="inline-flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <%= form.check_box :available, class: "mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500", id: "service-available" %>
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <%= form.check_box :available, class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-emerald-600 focus:ring-emerald-500", id: "service-available" %>
         <span>
           <span class="block font-semibold">Servicio disponible</span>
           <span class="mt-0.5 block text-xs text-slate-500">Si esta desactivado, solo el administrador podra ver detalles.</span>
         </span>
       </label>
-      <label class="inline-flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <%= form.check_box :nested_available, class: "mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "service-nested-available" %>
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <%= form.check_box :nested_available, class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "service-nested-available" %>
         <span>
           <span class="block font-semibold">Servicio anidado</span>
           <span class="mt-0.5 block text-xs text-slate-500">Permite usar este servicio como parte de estructuras de costos.</span>
         </span>
       </label>
-      <label class="inline-flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
         <%= form.check_box :caution_service,
-                           class: "mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500",
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-amber-300 text-amber-600 focus:ring-amber-500",
                            id: "service-caution-service",
                            data: { caution_flag: true } %>
         <span>
@@ -42,9 +42,9 @@
           <span class="mt-0.5 block text-xs text-amber-700">El personal estandar y encargado pueden verlo, pero al abrir detalles veran una advertencia.</span>
         </span>
       </label>
-      <label class="inline-flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
         <%= form.check_box :restricted_service,
-                           class: "mt-0.5 h-4 w-4 rounded border-rose-300 text-rose-600 focus:ring-rose-500",
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-rose-300 text-rose-600 focus:ring-rose-500",
                            id: "service-restricted-service",
                            data: { restricted_flag: true } %>
         <span>
@@ -52,9 +52,9 @@
           <span class="mt-0.5 block text-xs text-rose-700">Solo el administrador puede verlo y acceder a su detalle.</span>
         </span>
       </label>
-      <label class="inline-flex items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
         <%= form.check_box :auto_cost_stock_discount,
-                           class: "mt-0.5 h-4 w-4 rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500",
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500",
                            id: "service-auto-cost-stock-discount" %>
         <span>
           <span class="block font-semibold">Descuento automatico de costo/stock</span>
@@ -166,10 +166,10 @@
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
       <div>
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estructuras de gastos</p>
-        <p class="mt-1 text-sm text-slate-500">Activa esta opcion para asociar gestores, gastos variables, servicios anidados e insumos.</p>
+        <p class="mt-1 text-sm text-slate-500">Activa esta opcion para asociar gestores, gastos variables, servicios anidados e insumos. Si ninguna estructura esta marcada como activa en ventas, las ventas nuevas de este servicio se registraran sin costo.</p>
       </div>
-      <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-        <%= form.check_box :cost, class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "cost", data: { expense_toggle: true } %>
+      <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+        <%= form.check_box :cost, class: "h-4 w-4 cursor-pointer rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "cost", data: { expense_toggle: true } %>
         Conlleva gastos
       </label>
     </div>

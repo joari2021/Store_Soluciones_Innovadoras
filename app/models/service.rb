@@ -27,6 +27,7 @@ class Service < ApplicationRecord
   validate :validate_fixed_price_fields
   validate :validate_visibility_flags
   validate :validate_auto_cost_stock_discount_settings
+  validate :validate_single_active_expense_structure_for_sales
 
   pg_search_scope :whose_name_starts_with,
                   against: { description: 'B' }, # Asigna grado "B" a la descripción del servicio
@@ -88,16 +89,24 @@ class Service < ApplicationRecord
     (reference_amount * reference_rate_bs).round(2)
   end
 
-  def total_expense_usd(tasa_dolar: nil, unidad_vi: nil)
-    service_expense_structures.sum do |structure|
+  def total_expense_usd(tasa_dolar: nil, unidad_vi: nil, active_only: false)
+    structures = expense_structures_for_totals(active_only: active_only)
+
+    structures.sum do |structure|
       structure.total_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi)
     end.round(2)
   end
 
-  def total_expense_bs(tasa_dolar: nil, unidad_vi: nil)
-    service_expense_structures.sum do |structure|
+  def total_expense_bs(tasa_dolar: nil, unidad_vi: nil, active_only: false)
+    structures = expense_structures_for_totals(active_only: active_only)
+
+    structures.sum do |structure|
       structure.total_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi)
     end.round(2)
+  end
+
+  def active_expense_structures_for_sales
+    expense_structures_for_totals(active_only: true)
   end
 
   private
@@ -171,10 +180,19 @@ class Service < ApplicationRecord
     return unless auto_cost_stock_discount?
 
     errors.add(:auto_cost_stock_discount, 'requiere activar la opcion "Conlleva gastos"') unless cost?
+  end
 
-    return if service_expense_structures.reject(&:marked_for_destruction?).any?
+  def validate_single_active_expense_structure_for_sales
+    return if expense_structures_for_totals(active_only: true).size <= 1
 
-    errors.add(:auto_cost_stock_discount, 'requiere al menos una estructura de gastos activa')
+    errors.add(:base, 'Solo puedes marcar una estructura de gastos como activa en ventas.')
+  end
+
+  def expense_structures_for_totals(active_only:)
+    structures = service_expense_structures.reject(&:marked_for_destruction?)
+    return structures unless active_only
+
+    structures.select { |structure| ActiveModel::Type::Boolean.new.cast(structure.active_for_sales) }
   end
 
   def valid_currency_reference?(reference)

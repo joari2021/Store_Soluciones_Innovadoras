@@ -1,6 +1,8 @@
 class ServiceExpenseStructure < ApplicationRecord
   belongs_to :service
 
+  scope :enabled_for_sales, -> { where(active_for_sales: true) }
+
   has_many :service_manager_expenses, dependent: :destroy
   has_many :service_variable_expenses, dependent: :destroy
   has_many :service_nested_expenses, dependent: :destroy
@@ -24,7 +26,7 @@ class ServiceExpenseStructure < ApplicationRecord
 
   def total_bs(tasa_dolar: nil, unidad_vi: nil)
     rate = tasa_dolar.to_d
-    rate = TasaCambio.latest_value('Dolar BCV').to_d unless rate.positive?
+    rate = TasaCambio.latest_value("Dolar BCV").to_d unless rate.positive?
 
     manager_total = service_manager_expenses.sum { |row| row.current_amount_bs }
     variable_total = service_variable_expenses.sum { |row| row.current_amount_bs }

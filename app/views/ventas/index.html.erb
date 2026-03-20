@@ -4576,6 +4576,21 @@
                     }
                   };
 
+                  const parseJsonResponseOrThrow = async (response, fallbackMessage) => {
+                    const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+
+                    if (contentType.includes('application/json')) {
+                      return response.json();
+                    }
+
+                    const responseText = await response.text();
+                    if (responseText.includes('<!DOCTYPE') || responseText.includes('<html')) {
+                      throw new Error(fallbackMessage || 'El servidor devolvio una respuesta inesperada.');
+                    }
+
+                    throw new Error(responseText.trim() || fallbackMessage || 'El servidor devolvio una respuesta invalida.');
+                  };
+
                   const openClientModal = (presetName) => {
                     if (!window.Swal) return;
 
@@ -4617,6 +4632,9 @@
                       showCancelButton: true,
                       confirmButtonText: 'Guardar',
                       cancelButtonText: 'Cancelar',
+                      showLoaderOnConfirm: true,
+                      allowOutsideClick: false,
+                      allowEscapeKey: () => !window.Swal.isLoading(),
                       buttonsStyling: false,
                       customClass: {
                         popup: 'ventas-client-modal',
@@ -4654,9 +4672,11 @@
                         const response = await fetch('/clientes', {
                           method: 'POST',
                           headers: {
+                            Accept: 'application/json',
                             'Content-Type': 'application/json',
                             'X-CSRF-Token': csrfToken,
                           },
+                          credentials: 'same-origin',
                           body: JSON.stringify({
                             cliente: {
                               document_type: documentType,
@@ -4668,13 +4688,18 @@
                           }),
                         });
 
-                        const data = await response.json();
-                        if (!response.ok) {
-                          window.Swal.showValidationMessage(data.error || 'No se pudo guardar el cliente.');
+                        try {
+                          const data = await parseJsonResponseOrThrow(response, 'No se pudo guardar el cliente correctamente.');
+                          if (!response.ok) {
+                            window.Swal.showValidationMessage(data.error || 'No se pudo guardar el cliente.');
+                            return null;
+                          }
+
+                          return data;
+                        } catch (error) {
+                          window.Swal.showValidationMessage(error.message || 'No se pudo guardar el cliente.');
                           return null;
                         }
-
-                        return data;
                       },
                     }).then((result) => {
                       if (!result.isConfirmed) return;

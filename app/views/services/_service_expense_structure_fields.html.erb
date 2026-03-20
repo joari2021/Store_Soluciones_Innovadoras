@@ -14,6 +14,12 @@
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total estructura</p>
       <p class="text-sm font-bold text-slate-800" data-structure-total-usd>$ 0,00</p>
       <p class="text-xs text-slate-500" data-structure-total-bs>Bs 0,00</p>
+      <label class="mt-2 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+        <%= f.check_box :active_for_sales,
+                        class: "h-3.5 w-3.5 cursor-pointer rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500",
+                        data: { structure_active_toggle: true } %>
+        Activa en ventas (solo una)
+      </label>
     </div>
   </div>
   <div class="mt-3 flex justify-end gap-2">
