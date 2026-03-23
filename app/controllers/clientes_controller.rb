@@ -34,7 +34,8 @@ class ClientesController < ApplicationController
         {
           id: client.id,
           name: client.name,
-          document: client.document_label
+          document: client.document_label,
+          phone: client.phone.to_s
         }
       end
     }
@@ -50,7 +51,8 @@ class ClientesController < ApplicationController
           render json: {
             id: @cliente.id,
             name: @cliente.name,
-            document: @cliente.document_label
+            document: @cliente.document_label,
+            phone: @cliente.phone.to_s
           }, status: :created
         end
       else

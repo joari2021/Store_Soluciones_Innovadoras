@@ -1,0 +1,60 @@
+<div class="relative rounded-xl border border-slate-200 bg-white p-3 pr-12" data-print-material-surcharge-row data-nested-row>
+  <%= f.hidden_field :_destroy, data: { destroy_input: true } %>
+  <%= f.hidden_field :id %>
+  <%= f.select :producto_id,
+               products_options_for_select(
+                 products: products,
+                 bcv_rate: bcv_rate,
+                 selected_id: f.object.producto_id
+               ),
+               { include_blank: 'Selecciona material' },
+               class: 'hidden',
+               data: { product_select: true } %>
+  <div class="grid gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_96px]">
+    <div>
+      <%= f.label :description, 'Descripcion corta', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+      <%= f.text_field :description,
+                       autocomplete: 'off',
+                       maxlength: 120,
+                       placeholder: 'Ej: Papel Fotografico',
+                       class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+      <p class="mt-1 text-xs text-slate-500">Nombre corto que se mostrara en ventas y factura.</p>
+    </div>
+    <div>
+      <% selected_product_name = f.object.producto&.descripcion.to_s.strip %>
+      <%= f.label :producto_id, 'Material', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+      <div class="relative mt-1">
+        <input type="search"
+               class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+               placeholder="Buscar material"
+               autocomplete="off"
+               value="<%= selected_product_name %>"
+               data-product-search>
+        <div class="absolute z-30 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" data-product-results></div>
+      </div>
+      <p class="mt-2 text-xs text-slate-500" data-product-selected-label>
+        <%= selected_product_name.present? ? "Seleccionado: #{selected_product_name}" : 'Sin material seleccionado' %>
+      </p>
+    </div>
+    <div>
+      <%= f.label :surcharge_percent, 'Recargo', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+      <%= f.text_field :surcharge_percent,
+                       autocomplete: 'off',
+                       inputmode: 'decimal',
+                       class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                       data: { money_mask: true, money_symbol: '%' },
+                       value: (f.object.surcharge_percent.present? ? format_money(f.object.surcharge_percent, unit: '%') : '') %>
+      <p class="mt-1 text-xs text-slate-500">Recargo adicional aplicado a este material.</p>
+    </div>
+  </div>
+  <label class="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700">
+    <%= f.check_box :include_product_price_in_sale,
+                    class: 'h-4 w-4 cursor-pointer rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500' %>
+    Sumar precio del producto material al precio final de cada impresion
+  </label>
+  <button type="button"
+          class="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
+          data-remove-print-material-surcharge-row>
+    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+  </button>
+</div>

@@ -156,7 +156,8 @@ input[type="number"] {
   color: var(--theme-nav-active-text);
 }
 
-.sidebar-nav-scroll {
+.sidebar-nav-scroll,
+.app-thin-scrollbar {
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -164,20 +165,33 @@ input[type="number"] {
     transparent;
 }
 
-.sidebar-nav-scroll::-webkit-scrollbar {
+.sidebar-nav-scroll::-webkit-scrollbar,
+.app-thin-scrollbar::-webkit-scrollbar {
   width: 4px;
+  border-radius: 999px;
 }
 
-.sidebar-nav-scroll::-webkit-scrollbar-track {
+.sidebar-nav-scroll::-webkit-scrollbar-button,
+.app-thin-scrollbar::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.sidebar-nav-scroll::-webkit-scrollbar-track,
+.app-thin-scrollbar::-webkit-scrollbar-track {
   background: transparent;
+  border-radius: 999px;
 }
 
-.sidebar-nav-scroll::-webkit-scrollbar-thumb {
+.sidebar-nav-scroll::-webkit-scrollbar-thumb,
+.app-thin-scrollbar::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--theme-sky-500) 34%, transparent);
   border-radius: 999px;
 }
 
-.sidebar-nav-scroll:hover::-webkit-scrollbar-thumb {
+.sidebar-nav-scroll:hover::-webkit-scrollbar-thumb,
+.app-thin-scrollbar:hover::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--theme-sky-500) 52%, transparent);
 }
 

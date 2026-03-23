@@ -5,6 +5,8 @@ class Producto < ApplicationRecord
 
   attr_accessor :profit_margin_preset_id unless column_names.include?('profit_margin_preset_id')
 
+  attr_accessor :exento unless column_names.include?('exento')
+
   belongs_to :business
   belongs_to :categoria
   belongs_to :profit_margin_preset, optional: true if column_names.include?('profit_margin_preset_id')

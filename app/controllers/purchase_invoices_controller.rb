@@ -18,6 +18,7 @@ class PurchaseInvoicesController < ApplicationController
 
   before_action :require_business
   before_action :require_admin
+  before_action :ensure_purchase_invoice_columns_loaded
   before_action :set_purchase_invoice, only: %i[show edit update destroy]
   before_action :load_suppliers, only: %i[index new edit create update]
   before_action :load_bs_accounts, only: %i[new create]
@@ -25,6 +26,9 @@ class PurchaseInvoicesController < ApplicationController
 
   def index
     base_scope = current_business.purchase_invoices.includes(:supplier)
+
+    @initial_inventory_invoice = current_business.purchase_invoices.initial_inventory.order(created_at: :desc).first
+    @hide_initial_inventory_button = current_business.hide_initial_inventory_button?
 
     @has_purchase_invoices = base_scope.exists?
     @selected_supplier_id = params[:supplier_id].to_s.strip.presence
@@ -71,6 +75,16 @@ class PurchaseInvoicesController < ApplicationController
     render json: paginated_purchase_invoices_payload if request.format.json?
   end
 
+  def initial_inventory
+    invoice = current_business.purchase_invoices.initial_inventory.order(created_at: :desc).first
+
+    if invoice.present?
+      redirect_to edit_purchase_invoice_path(invoice)
+    else
+      redirect_to new_purchase_invoice_path(invoice_kind: PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY)
+    end
+  end
+
   def show
     @highlight_from_lot = params[:source].to_s == 'lot'
     @highlighted_item_id = if @highlight_from_lot && params[:highlighted_item_id].present?
@@ -80,6 +94,15 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def new
+    if initial_inventory_mode_requested?
+      existing_initial_inventory = current_business.purchase_invoices.initial_inventory.order(created_at: :desc).first
+      if existing_initial_inventory.present?
+        redirect_to edit_purchase_invoice_path(existing_initial_inventory),
+                    alert: 'Ya existe un inventario inicial para este negocio. Puedes editarlo.'
+        return
+      end
+    end
+
     caracas_now = Time.current.in_time_zone('America/Caracas')
     tasa_hoy_bcv = TasaCambio.find_by(description: 'Dolar BCV', fecha_referencia: caracas_now.to_date)&.valor
 
@@ -87,7 +110,8 @@ class PurchaseInvoicesController < ApplicationController
       fecha_emision: caracas_now.to_date,
       tasa_dolar: tasa_hoy_bcv
     )
-    apply_invoice_payment_form_state(default_invoice_payment_context)
+    @purchase_invoice.invoice_kind = requested_invoice_kind
+    apply_invoice_payment_form_state(default_invoice_payment_context) unless @purchase_invoice.initial_inventory?
     # render view with turbo_frame_tag so the response includes the expected frame
     # the corresponding template (new.html.erb) already wraps content in
     # <turbo-frame id="modal-facturas">...
@@ -97,6 +121,16 @@ class PurchaseInvoicesController < ApplicationController
   def create
     payment_context = nil
     @purchase_invoice = current_business.purchase_invoices.new(purchase_invoice_params)
+    @purchase_invoice.invoice_kind = requested_invoice_kind
+
+    if @purchase_invoice.initial_inventory?
+      if @purchase_invoice.save
+        redirect_to purchase_invoices_path, notice: 'Inventario inicial registrado correctamente'
+      else
+        render :new, status: :unprocessable_entity
+      end
+      return
+    end
 
     @purchase_invoice.valid?
     payment_context = build_invoice_payment_context(@purchase_invoice)
@@ -131,9 +165,15 @@ class PurchaseInvoicesController < ApplicationController
 
   def update
     if @purchase_invoice.update(purchase_invoice_params)
-      redirect_to purchase_invoices_path, notice: 'Factura actualizada'
+      success_message = if @purchase_invoice.initial_inventory?
+                          'Inventario inicial actualizado'
+                        else
+                          'Factura actualizada'
+                        end
+
+      redirect_to purchase_invoices_path, notice: success_message
     else
-      load_invoice_payment_summary
+      load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit
     end
   end
@@ -145,12 +185,18 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     redirect_to purchase_invoices_path,
-                notice: 'Factura eliminada correctamente. Se revirtieron pagos, deudas y lotes asociados.'
+                notice: destroy_notice_message(@purchase_invoice)
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to purchase_invoices_path, alert: e.message.presence || 'No se pudo eliminar la factura.'
   end
 
   private
+
+  def ensure_purchase_invoice_columns_loaded
+    return if PurchaseInvoice.attribute_names.include?('invoice_kind')
+
+    PurchaseInvoice.reset_column_information
+  end
 
   def set_purchase_invoice
     @purchase_invoice = current_business.purchase_invoices.find(params[:id])
@@ -186,6 +232,28 @@ class PurchaseInvoicesController < ApplicationController
         _destroy
       ]
     )
+  end
+
+  def requested_invoice_kind
+    raw_kind = params[:invoice_kind].presence || params.dig(:purchase_invoice, :invoice_kind)
+    raw_kind = raw_kind.to_s.strip
+    if raw_kind == PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY
+      return PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY
+    end
+
+    PurchaseInvoice::INVOICE_KIND_PURCHASE
+  end
+
+  def initial_inventory_mode_requested?
+    requested_invoice_kind == PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY
+  end
+
+  def destroy_notice_message(invoice)
+    if invoice.initial_inventory?
+      'Inventario inicial eliminado correctamente. Se revirtieron lotes asociados.'
+    else
+      'Factura eliminada correctamente. Se revirtieron pagos, deudas y lotes asociados.'
+    end
   end
 
   def default_invoice_payment_context
@@ -448,6 +516,11 @@ class PurchaseInvoicesController < ApplicationController
 
   def build_invoice_payment_status_map(invoices)
     invoices.each_with_object({}) do |invoice, map|
+      if invoice.initial_inventory?
+        map[invoice.id] = 'paid'
+        next
+      end
+
       total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
       pending_debt = find_invoice_pending_debt(invoice)
       pending_balance_bs = pending_debt&.balance.to_d.round(2)

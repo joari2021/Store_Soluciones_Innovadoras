@@ -1,6 +1,6 @@
 class CashShiftsController < ApplicationController
   CLOSING_VERIFICATION_ACCOUNT_TYPES = %w[biopago pos cash_box].freeze
-  AUTO_SETTLEMENT_ACCOUNT_TYPES = %w[biopago pos].freeze
+  AUTO_SETTLEMENT_ACCOUNT_TYPES = %w[pos].freeze
 
   before_action :require_business
   before_action -> { require_module_access!(:cash_shifts) }
@@ -384,6 +384,34 @@ class CashShiftsController < ApplicationController
     end
 
     listed_account_ids = rows.map { |row| row[:account_id].to_i }
+
+    pending_biopago_totals_by_account_id.each do |account_id, pending_total|
+      normalized_pending_total = pending_total.to_d.round(2)
+      next unless normalized_pending_total.positive?
+
+      account = current_business.accounts.find_by(id: account_id)
+      next if account.blank?
+
+      existing_row = rows.find { |row| row[:account_id].to_i == account_id }
+      if existing_row.present?
+        existing_row[:expected_amount] = normalized_pending_total
+        existing_row[:currency] = account.currency.to_s.upcase
+        existing_row[:currency_symbol] = account.currency_symbol
+      else
+        rows << {
+          account_id: account.id,
+          account_name: account.name.to_s,
+          account_type: account.account_type,
+          currency: account.currency.to_s.upcase,
+          currency_symbol: account.currency_symbol,
+          expected_amount: normalized_pending_total,
+          carryover_from_previous: 0.to_d
+        }
+      end
+
+      listed_account_ids << account_id unless listed_account_ids.include?(account_id)
+    end
+
     carryover_map.each do |account_id, carryover_amount|
       normalized_carryover = carryover_amount.to_d.round(2)
       next unless normalized_carryover.positive?
@@ -412,6 +440,16 @@ class CashShiftsController < ApplicationController
 
     rows.sort_by do |row|
       [account_type_order.fetch(row[:account_type], 99), row[:account_name].downcase, row[:account_id]]
+    end
+  end
+
+  def pending_biopago_totals_by_account_id
+    current_business.accounts.where(account_type: 'biopago').each_with_object({}) do |account, hash|
+      pending_total = account.account_movements.where(account_settlement_id: nil).sum(
+        Arel.sql("CASE WHEN movement_kind = 'expense' THEN -amount ELSE amount END")
+      ).to_d
+
+      hash[account.id] = pending_total if pending_total.positive?
     end
   end
 
@@ -512,7 +550,6 @@ class CashShiftsController < ApplicationController
     sale_ids = @cash_shift.ventas.pluck(:id)
     return [] if sale_ids.empty?
 
-    declared_by_account_id = Array(verification_rows).index_by { |row| row[:account_id].to_i }
     settlement_rows = []
 
     current_business.accounts.where(account_type: AUTO_SETTLEMENT_ACCOUNT_TYPES).find_each do |account|
@@ -523,26 +560,10 @@ class CashShiftsController < ApplicationController
       next unless pending_total.positive?
 
       settlement_account = account.settlement_account
-      if settlement_account.blank?
-        @cash_shift.errors.add(:base,
-                               "La cuenta #{account.name} no tiene cuenta bancaria en Bs asignada para liquidacion.")
-        raise ActiveRecord::RecordInvalid, @cash_shift
-      end
 
       pending_count = pending_scope.count
       period_start = pending_scope.minimum(:occurred_at)
       period_end = pending_scope.maximum(:occurred_at)
-
-      declared_amount = declared_by_account_id.dig(account.id, :declared_amount)
-      declared_amount = pending_total if declared_amount.nil?
-      declared_amount = declared_amount.to_d.round(2)
-
-      if declared_amount.negative?
-        @cash_shift.errors.add(:base, "El monto total de #{account.name} no puede ser negativo.")
-        raise ActiveRecord::RecordInvalid, @cash_shift
-      end
-
-      commission_amount = (pending_total - declared_amount).positive? ? (pending_total - declared_amount) : 0.to_d
 
       settlement = account.account_settlements.create!(
         total_amount: pending_total,
@@ -556,49 +577,15 @@ class CashShiftsController < ApplicationController
       pending_scope.update_all(account_settlement_id: settlement.id, updated_at: Time.current)
       account.recalculate_balance!
 
-      base_date = settlement.period_end_at || settlement.closed_at
-      settlement_date = base_date.in_time_zone('Caracas').to_date + 1.day
-      occurred_at = Time.zone.parse(settlement_date.to_s)
-
-      settlement.update!(
-        credited_amount: declared_amount,
-        commission_amount: commission_amount.round(2),
-        processed_at: Time.current,
-        settlement_account: settlement_account,
-        settlement_date: settlement_date
-      )
-
-      settlement_account.account_movements.create!(
-        movement_kind: 'income',
-        amount: declared_amount,
-        description: "Liquidacion #{account.account_type_label} (cierre ##{settlement.id})",
-        occurred_at: occurred_at,
-        payment_method: 'settlement'
-      )
-
-      # Actualiza el balance dentro de la transaccion para validar correctamente un posible egreso por comision.
-      settlement_account.recalculate_balance!
-
-      if commission_amount.positive?
-        settlement_account.account_movements.create!(
-          movement_kind: 'expense',
-          amount: commission_amount.round(2),
-          description: "Comision #{account.account_type_label} (cierre ##{settlement.id})",
-          occurred_at: occurred_at,
-          payment_method: 'settlement'
-        )
-
-        settlement_account.recalculate_balance!
-      end
-
       settlement_rows << {
         account_id: account.id,
         account_name: account.name,
         account_type: account.account_type,
         settlement_id: settlement.id,
         expected_amount: pending_total.round(2),
-        declared_amount: declared_amount,
-        commission_amount: commission_amount.round(2)
+        declared_amount: pending_total.round(2),
+        commission_amount: 0.to_d,
+        processed: false
       }
     end
 
@@ -640,7 +627,8 @@ class CashShiftsController < ApplicationController
           settlement_id: row[:settlement_id],
           expected_amount: row[:expected_amount].to_d.round(2).to_s('F'),
           declared_amount: row[:declared_amount].to_d.round(2).to_s('F'),
-          commission_amount: row[:commission_amount].to_d.round(2).to_s('F')
+          commission_amount: row[:commission_amount].to_d.round(2).to_s('F'),
+          processed: ActiveModel::Type::Boolean.new.cast(row[:processed])
         }
       end
     }

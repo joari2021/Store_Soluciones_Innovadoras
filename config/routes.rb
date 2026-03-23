@@ -15,6 +15,8 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :header_notifications, only: %i[destroy]
+
   resources :productos do
     collection do
       get :search
@@ -42,6 +44,7 @@ Rails.application.routes.draw do
     member do
       patch :set_primary
       patch :unset_primary
+      post :transfer
     end
     resources :account_settlements, path: 'cierres', only: %i[index show create update]
   end
@@ -56,6 +59,10 @@ Rails.application.routes.draw do
     resources :debt_payments, only: %i[new create]
   end
   resources :ventas, only: %i[index create show destroy] do
+    member do
+      get :delivery_note, path: 'nota-entrega'
+    end
+
     collection do
       get :historial
       get :drafts
@@ -71,14 +78,24 @@ Rails.application.routes.draw do
       patch :close
     end
   end
-  resources :purchase_invoices, path: 'facturas-compra'
+  resources :purchase_invoices, path: 'facturas-compra' do
+    collection do
+      get :initial_inventory, path: 'inventario-inicial'
+    end
+  end
   resources :managers
   resources :services do
     collection do
-      get :pending_costs
-      get 'pending_costs/:debt_id', action: :pending_cost_detail, as: :pending_cost_detail
+      get :pending_costs, path: 'sale_services'
+      get 'sale_services/:debt_id', action: :pending_cost_detail, as: :pending_cost_detail
       get :pending_cost_rates
+      get :printing_prices
       post :pay_pending_cost_line
+      delete :remove_pending_cost_line_payment
+    end
+
+    member do
+      patch :update_printing_prices
     end
 
     resources :service_managers, only: %i[new create edit update destroy]

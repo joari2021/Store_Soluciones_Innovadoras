@@ -15,7 +15,7 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div>
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estatus del servicio</p>
-      <p class="mt-1 text-sm text-slate-500">Configura disponibilidad, uso anidado y visibilidad segun el nivel de acceso.</p>
+      <p class="mt-1 text-sm text-slate-500">Configura disponibilidad y visibilidad segun el nivel de acceso.</p>
     </div>
     <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -25,14 +25,7 @@
           <span class="mt-0.5 block text-xs text-slate-500">Si esta desactivado, solo el administrador podra ver detalles.</span>
         </span>
       </label>
-      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-        <%= form.check_box :nested_available, class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "service-nested-available" %>
-        <span>
-          <span class="block font-semibold">Servicio anidado</span>
-          <span class="mt-0.5 block text-xs text-slate-500">Permite usar este servicio como parte de estructuras de costos.</span>
-        </span>
-      </label>
-      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" data-status-extra-card="true">
         <%= form.check_box :caution_service,
                            class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-amber-300 text-amber-600 focus:ring-amber-500",
                            id: "service-caution-service",
@@ -42,7 +35,7 @@
           <span class="mt-0.5 block text-xs text-amber-700">El personal estandar y encargado pueden verlo, pero al abrir detalles veran una advertencia.</span>
         </span>
       </label>
-      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800" data-status-extra-card="true">
         <%= form.check_box :restricted_service,
                            class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-rose-300 text-rose-600 focus:ring-rose-500",
                            id: "service-restricted-service",
@@ -50,15 +43,6 @@
         <span>
           <span class="block font-semibold">Servicio restringido</span>
           <span class="mt-0.5 block text-xs text-rose-700">Solo el administrador puede verlo y acceder a su detalle.</span>
-        </span>
-      </label>
-      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-800">
-        <%= form.check_box :auto_cost_stock_discount,
-                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500",
-                           id: "service-auto-cost-stock-discount" %>
-        <span>
-          <span class="block font-semibold">Descuento automatico de costo/stock</span>
-          <span class="mt-0.5 block text-xs text-cyan-700">Al facturar, descuenta insumos de la estructura de gastos y registra costo pagado o pendiente.</span>
         </span>
       </label>
     </div>
@@ -124,7 +108,7 @@
       </div>
     </div>
   </div>
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-requirements-section>
     <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Requisitos y datos</p>
     <div class="mt-4 grid gap-4 md:grid-cols-2">
       <div>
@@ -151,7 +135,7 @@
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Entrega</p>
-    <div class="mt-4 grid gap-4 md:grid-cols-2">
+    <div class="mt-4 grid gap-4 md:grid-cols-2" data-delivery-metadata-section>
       <div>
         <%= form.label :delivery_content, "Contenido de entrega", class: "block text-sm font-medium text-slate-700" %>
         <%= form.text_area :delivery_content, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
@@ -162,95 +146,1274 @@
       </div>
     </div>
   </div>
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estructuras de gastos</p>
-        <p class="mt-1 text-sm text-slate-500">Activa esta opcion para asociar gestores, gastos variables, servicios anidados e insumos. Si ninguna estructura esta marcada como activa en ventas, las ventas nuevas de este servicio se registraran sin costo.</p>
-      </div>
-      <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-        <%= form.check_box :cost, class: "h-4 w-4 cursor-pointer rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "cost", data: { expense_toggle: true } %>
-        Conlleva gastos
+  <% current_print_pages = @service.respond_to?(:normalized_print_delivery_pages) ? @service.normalized_print_delivery_pages : [] %>
+  <% current_print_pages = [{ 'page_number' => 1, 'coverage_percent' => 1.0 }] if current_print_pages.blank? %>
+  <% supports_print_delivery_extra_products = @service.class.column_names.include?('print_delivery_extra_products') %>
+  <% current_delivery_extra_products = supports_print_delivery_extra_products && @service.respond_to?(:normalized_print_delivery_extra_products) ? @service.normalized_print_delivery_extra_products : [] %>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-delivery-section>
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Presentaciones</p>
+    <div class="mt-4 grid gap-3 md:grid-cols-2">
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <%= form.check_box :delivery_physical_enabled,
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500",
+                           data: { delivery_physical_toggle: true } %>
+        <span>
+          <span class="block font-semibold">Presentacion fisica</span>
+          <span class="mt-0.5 block text-xs text-slate-500">Permite configurar tipo de impresion, paginas y cobertura de color.</span>
+        </span>
+      </label>
+      <label class="inline-flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <%= form.check_box :delivery_digital_enabled,
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-sky-600 focus:ring-sky-500",
+                           data: { delivery_digital_toggle: true } %>
+        <span>
+          <span class="block font-semibold">Presentacion digital</span>
+          <span class="mt-0.5 block text-xs text-slate-500">Disponible para entrega por medios digitales.</span>
+        </span>
       </label>
     </div>
-    <div id="service-expense-structures-wrapper" class="mt-4 space-y-3">
-      <div id="service-expense-structures" class="grid items-start gap-3 md:grid-cols-2 lg:grid-cols-3">
-        <%= form.fields_for :service_expense_structures do |structure_fields| %>
-          <%= render "service_expense_structure_fields",
+    <div class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4" data-delivery-physical-panel>
+      <div class="flex justify-end">
+        <div class="w-full md:max-w-xs">
+          <p class="text-sm font-medium text-slate-700">Costo de la impresion (Bs)</p>
+          <div class="mt-1 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2">
+            <p class="text-sm font-semibold text-slate-700" data-print-cost-bs>
+              <%= format_money(@service.resolved_printing_cost_bs, unit: 'Bs') rescue 'Bs 0,00' %>
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="mt-4">
+        <div class="mb-2 flex justify-end">
+          <button type="button"
+                  class="inline-flex items-center gap-2 rounded-xl bg-cyan-100 px-3 py-2 text-xs font-semibold text-cyan-700 hover:bg-cyan-200"
+                  data-add-print-page>
+            Agregar pagina
+          </button>
+        </div>
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Paginas y cobertura de color</p>
+        </div>
+        <div class="mt-3 space-y-2" data-print-pages-container>
+          <% current_print_pages.each_with_index do |page_row, index| %>
+            <% page_number = page_row['page_number'].to_i.positive? ? page_row['page_number'].to_i : (index + 1) %>
+            <% coverage_percent = page_row['coverage_percent'].to_d.round(2) %>
+            <% selected_type_id = page_row['print_type_service_id'].to_i.positive? ? page_row['print_type_service_id'].to_i : @service.print_delivery_service_id %>
+            <% type_service = @print_type_services.find { |svc| svc.id == selected_type_id } %>
+            <% selected_material_id = page_row['material_surcharge_id'].to_i.positive? ? page_row['material_surcharge_id'].to_i : @service.print_delivery_material_surcharge_id %>
+            <% includes_lamination = ActiveModel::Type::Boolean.new.cast(page_row['includes_lamination']) %>
+            <% selected_lamination_service_id = page_row['lamination_service_id'].to_i.positive? ? page_row['lamination_service_id'].to_i : nil %>
+            <% material_options_for_page = if type_service.present?
+                                             type_service.service_print_material_surcharges
+                                                         .sort_by { |row| [row.created_at || Time.at(0), row.id.to_i] }
+                                                         .map { |row| [row.display_label.to_s, row.id] }
+                                           else
+                                             []
+                                           end %>
+            <div class="grid gap-3 rounded-xl border border-cyan-200 bg-white px-3 py-3 md:grid-cols-[auto_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto] md:items-end" data-print-page-row>
+              <div class="self-center text-xs font-semibold text-slate-600" data-print-page-label>Pagina <%= page_number %></div>
+              <div>
+                <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tipo de impresion</label>
+                <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                        data-print-page-type>
+                  <option value="">Selecciona tipo</option>
+                  <% @print_type_services.reject { |svc| svc.id == @service.id }.each do |svc| %>
+                    <option value="<%= svc.id %>" <%= 'selected' if svc.id == selected_type_id %>><%= svc.description %></option>
+                    <% end %>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Material</label>
+                  <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                        data-print-page-material>
+                    <option value="">Selecciona material</option>
+                    <% material_options_for_page.each do |label, id| %>
+                      <option value="<%= id %>" <%= 'selected' if id == selected_material_id %>><%= label %></option>
+                      <% end %>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
+                    <input type="text"
+                       inputmode="decimal"
+                       class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                       data-print-page-coverage
+                       data-money-mask="true"
+                       data-money-symbol="%"
+                       value="<%= format_money(coverage_percent, unit: '%') %>">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Costo pagina (Bs)</label>
+                    <input type="text"
+                       readonly
+                       class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700"
+                       data-print-page-cost-bs
+                       value="Bs 0,00">
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Plastificacion</label>
+                    <label class="mt-1 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                      <input type="checkbox"
+                         class="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                             data-print-page-lamination-enabled
+                             <%= 'checked' if includes_lamination %>>
+                      Incluye servicio
+                    </label>
+                    <div class="mt-2 <%= includes_lamination ? '' : 'hidden' %>" data-print-page-lamination-wrapper>
+                      <select class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                              data-print-page-lamination-service>
+                        <option value="">Selecciona servicio</option>
+                        <% @lamination_services.each do |lamination_service| %>
+                          <option value="<%= lamination_service.id %>" <%= 'selected' if lamination_service.id == selected_lamination_service_id %>><%= lamination_service.description %></option>
+                          <% end %>
+                        </select>
+                      </div>
+                    </div>
+                    <button type="button"
+                      class="self-center justify-self-end inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                      data-remove-print-page
+                      title="Quitar pagina"
+                      aria-label="Quitar pagina">
+                      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                    </button>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+            <%= form.hidden_field :print_delivery_pages,
+                            value: current_print_pages.to_json,
+                            data: { print_pages_hidden: true } %>
+            <p class="mt-3 text-xs text-slate-500" data-print-pages-hint>Se tomara el precio por cobertura igual o mayor mas cercano para cada pagina.</p>
+            <% if supports_print_delivery_extra_products %>
+              <div class="mt-5 rounded-2xl border border-cyan-200 bg-white/90 p-4" data-physical-extra-products-section>
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Productos adicionales por entrega fisica</p>
+                    <p class="mt-1 text-sm text-slate-600">Se incluyen por cada unidad del servicio con presentacion fisica. No dependen de cada pagina de impresion.</p>
+                  </div>
+                  <button type="button"
+                          class="inline-flex items-center gap-2 rounded-xl bg-cyan-100 px-3 py-2 text-xs font-semibold text-cyan-700 hover:bg-cyan-200"
+                          data-add-physical-extra-product-row>
+                    Agregar producto
+                  </button>
+                </div>
+                <div class="mt-3 space-y-2" data-physical-extra-products-container>
+                  <% current_delivery_extra_products.each do |row| %>
+                    <% selected_product_id = row['product_id'].to_i %>
+                    <% selected_variation_id = row['variation_id'].to_i.positive? ? row['variation_id'].to_i : nil %>
+                    <% selected_quantity = row['quantity'].to_d.positive? ? row['quantity'].to_d : 1.to_d %>
+                    <% selected_breakdown = ActiveModel::Type::Boolean.new.cast(row['breakdown_in_invoice']) %>
+                    <% selected_product = @products_for_expenses.find { |product| product.id == selected_product_id } %>
+                    <% selected_product_name = selected_product&.descripcion.to_s.strip %>
+                    <div class="relative rounded-xl border border-slate-200 bg-white p-3 pr-12" data-physical-extra-product-row data-nested-row>
+                      <select class="hidden" data-product-select>
+                        <option value="">Selecciona producto</option>
+                        <%= raw products_options_for_select(
+                          products: @products_for_expenses,
+                          bcv_rate: @service_expenses_bcv_rate,
+                          selected_id: selected_product_id
+                        ) %>
+                      </select>
+                      <div class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_120px_220px] md:items-start">
+                        <div>
+                          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Producto</label>
+                          <div class="relative mt-1">
+                            <input type="search"
+                                   class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                                   placeholder="Buscar producto"
+                                   autocomplete="off"
+                                   value="<%= selected_product_name %>"
+                                   data-product-search>
+                            <div class="absolute z-30 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" data-product-results></div>
+                          </div>
+                          <p class="mt-2 text-xs text-slate-500" data-product-selected-label>
+                            <%= selected_product_name.present? ? "Seleccionado: #{selected_product_name}" : 'Sin producto seleccionado' %>
+                          </p>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Variacion</label>
+                          <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                                  data-physical-extra-variation>
+                            <option value="">Selecciona variacion</option>
+                            <%= raw product_variation_options_for_select(product: selected_product, selected_id: selected_variation_id) %>
+                          </select>
+                          <p class="mt-1 text-xs text-slate-500">Se descuenta stock de la variacion elegida.</p>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Cantidad</label>
+                          <input type="number"
+                                 min="0.01"
+                                 step="0.01"
+                                 value="<%= selected_quantity.frac.zero? ? selected_quantity.to_i.to_s : selected_quantity.to_s('F') %>"
+                                 class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                                 data-physical-extra-quantity>
+                          <p class="mt-1 text-xs text-slate-500">Por unidad del servicio.</p>
+                        </div>
+                        <div>
+                          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Factura</label>
+                          <label class="mt-1 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700">
+                            <input type="checkbox"
+                                   class="h-4 w-4 cursor-pointer rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500"
+                                   data-physical-extra-breakdown
+                                   <%= 'checked' if selected_breakdown %>>
+                            Desglosar en factura
+                          </label>
+                        </div>
+                      </div>
+                      <button type="button"
+                              class="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                              data-remove-physical-extra-product-row>
+                        <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                      </button>
+                    </div>
+                  <% end %>
+                </div>
+                <%= form.hidden_field :print_delivery_extra_products,
+                                      value: current_delivery_extra_products.to_json,
+                                      data: { physical_extra_products_hidden: true } %>
+              </div>
+            <% end %>
+          </div>
+        </div>
+        <div class="rounded-2xl border border-cyan-200 bg-cyan-50/40 p-5 shadow-sm" data-printing-only-section>
+          <p class="text-xs font-semibold uppercase tracking-widest text-cyan-700">Precios de impresion</p>
+          <p class="mt-1 text-sm text-slate-600">La configuracion de coberturas y recargos por material se administra desde la vista centralizada de impresion.</p>
+          <div class="mt-3">
+            <%= link_to printing_prices_services_path,
+                  class: 'inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-semibold text-white hover:bg-cyan-700',
+                  data: { turbo_frame: '_top' } do %>
+              <i data-lucide="printer" class="h-3.5 w-3.5"></i>
+              Ir a Precios de Impresiones
+            <% end %>
+          </div>
+        </div>
+        <div class="hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-print-coverage-section>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estructura de impresion por cobertura</p>
+              <p class="mt-1 text-sm text-slate-500">Disponible solo para servicios cuyo sistema asociado sea "impresion". Define porcentaje de cobertura, precio base y recargos adicionales por material.</p>
+            </div>
+            <button type="button"
+              class="inline-flex items-center gap-2 rounded-xl bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-200"
+              data-add-print-coverage-row>
+              Agregar cobertura
+            </button>
+          </div>
+          <div class="mt-4 space-y-2" data-print-coverage-container>
+            <% sorted_coverage_prices = @service.service_print_coverage_prices.sort_by { |row| [row.price_bs.to_d, row.coverage_percent.to_d, row.id.to_i] } %>
+            <%= form.fields_for :service_print_coverage_prices, sorted_coverage_prices do |coverage_fields| %>
+              <div class="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-print-coverage-row>
+                <%= coverage_fields.hidden_field :id %>
+                <%= coverage_fields.hidden_field :_destroy, value: '0', data: { destroy_input: true } %>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
+                  <%= coverage_fields.text_field :coverage_percent,
+                                           autocomplete: 'off',
+                                           inputmode: 'decimal',
+                                           class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
+                                           data: { money_mask: true, money_symbol: '%' },
+                                           value: (coverage_fields.object.coverage_percent.present? ? format_money(coverage_fields.object.coverage_percent, unit: '%') : '') %>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio (Bs)</label>
+                  <%= coverage_fields.text_field :price_bs,
+                                           autocomplete: 'off',
+                                           class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
+                                           data: { money_mask: true, money_symbol: 'Bs' } %>
+                </div>
+                <button type="button"
+                  class="self-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100"
+                  data-remove-print-coverage-row>
+                  Quitar
+                </button>
+              </div>
+            <% end %>
+          </div>
+          <template id="service-print-coverage-template" data-placeholder="NEW_PRINT_COVERAGE">
+            <%= form.fields_for :service_print_coverage_prices, ServicePrintCoveragePrice.new, child_index: 'NEW_PRINT_COVERAGE' do |coverage_fields| %>
+              <div class="grid gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-print-coverage-row>
+                <%= coverage_fields.hidden_field :id %>
+                <%= coverage_fields.hidden_field :_destroy, value: '0', data: { destroy_input: true } %>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
+                  <%= coverage_fields.text_field :coverage_percent,
+                                           autocomplete: 'off',
+                                           inputmode: 'decimal',
+                                           class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
+                                           data: { money_mask: true, money_symbol: '%' } %>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio (Bs)</label>
+                  <%= coverage_fields.text_field :price_bs,
+                                           autocomplete: 'off',
+                                           class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
+                                           data: { money_mask: true, money_symbol: 'Bs' } %>
+                </div>
+                <button type="button"
+                  class="self-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100"
+                  data-remove-print-coverage-row>
+                  Quitar
+                </button>
+              </div>
+            <% end %>
+          </template>
+          <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Recargos por material</p>
+                <p class="mt-1 text-sm text-slate-500">Agrega uno o varios materiales y define el porcentaje de recargo adicional para cada uno.</p>
+              </div>
+              <button type="button"
+                class="inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-200"
+                data-add-print-material-surcharge-row>
+                Agregar material
+              </button>
+            </div>
+            <div class="mt-4 space-y-2" data-print-material-surcharge-container>
+              <%= form.fields_for :service_print_material_surcharges do |material_fields| %>
+                <%= render 'service_print_material_surcharge_fields',
+                     f: material_fields,
+                     products: @products_for_expenses,
+                     bcv_rate: @service_expenses_bcv_rate %>
+              <% end %>
+            </div>
+            <template id="service-print-material-surcharge-template" data-placeholder="NEW_PRINT_MATERIAL_SURCHARGE">
+              <%= form.fields_for :service_print_material_surcharges, ServicePrintMaterialSurcharge.new, child_index: 'NEW_PRINT_MATERIAL_SURCHARGE' do |material_fields| %>
+                <%= render 'service_print_material_surcharge_fields',
+                     f: material_fields,
+                     products: @products_for_expenses,
+                     bcv_rate: @service_expenses_bcv_rate %>
+              <% end %>
+            </template>
+          </div>
+        </div>
+        <div class="hidden rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm" data-lamination-material-section>
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-widest text-emerald-700">Lista de materiales del servicio</p>
+              <p class="mt-1 text-sm text-slate-600">Configura los materiales requeridos para prestar este servicio de plastificacion. Aqui no se aplican recargos.</p>
+            </div>
+            <button type="button"
+              class="inline-flex items-center gap-2 rounded-xl bg-emerald-100 px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-200"
+              data-add-lamination-material-row>
+              Agregar material
+            </button>
+          </div>
+          <div class="mt-4 space-y-2" data-lamination-material-container>
+            <%= form.fields_for :service_print_material_surcharges do |material_fields| %>
+              <%= render 'lamination_material_fields',
+                   f: material_fields,
+                   products: @products_for_expenses,
+                   bcv_rate: @service_expenses_bcv_rate %>
+            <% end %>
+          </div>
+          <template id="service-lamination-material-template" data-placeholder="NEW_LAMINATION_MATERIAL">
+            <%= form.fields_for :service_print_material_surcharges, ServicePrintMaterialSurcharge.new, child_index: 'NEW_LAMINATION_MATERIAL' do |material_fields| %>
+              <%= render 'lamination_material_fields',
+                   f: material_fields,
+                   products: @products_for_expenses,
+                   bcv_rate: @service_expenses_bcv_rate %>
+            <% end %>
+          </template>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Estructuras de gastos</p>
+              <p class="mt-1 text-sm text-slate-500">Activa esta opcion para asociar gestores, gastos variables, servicios anidados e insumos. Si ninguna estructura esta marcada como activa en ventas, las ventas nuevas de este servicio se registraran sin costo.</p>
+            </div>
+            <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+              <%= form.check_box :cost, class: "h-4 w-4 cursor-pointer rounded border-slate-300 text-sky-600 focus:ring-sky-500", id: "cost", data: { expense_toggle: true } %>
+              Conlleva gastos
+            </label>
+          </div>
+          <div id="service-expense-structures-wrapper" class="mt-4 space-y-3">
+            <div id="service-expense-structures" class="grid items-start gap-3 md:grid-cols-2 lg:grid-cols-3">
+              <%= form.fields_for :service_expense_structures do |structure_fields| %>
+                <%= render "service_expense_structure_fields",
                      f: structure_fields,
                      managers: @managers,
                      expense_currency_rows: @expense_currency_rows,
                      nested_services: @nested_services_for_expenses,
                      products: @products_for_expenses,
                      bcv_rate: @service_expenses_bcv_rate %>
-        <% end %>
-      </div>
-      <button type="button" class="inline-flex items-center gap-2 rounded-xl bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-200" data-add-expense-structure>
-        Agregar estructura de gastos
-      </button>
-    </div>
-  </div>
-  <template id="service-expense-structure-template" data-placeholder="NEW_EXPENSE_STRUCTURE">
-    <%= form.fields_for :service_expense_structures, ServiceExpenseStructure.new, child_index: "NEW_EXPENSE_STRUCTURE" do |structure_fields| %>
-      <%= render "service_expense_structure_fields",
+              <% end %>
+            </div>
+            <button type="button" class="inline-flex items-center gap-2 rounded-xl bg-sky-100 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-200" data-add-expense-structure>
+              Agregar estructura de gastos
+            </button>
+          </div>
+        </div>
+        <template id="service-expense-structure-template" data-placeholder="NEW_EXPENSE_STRUCTURE">
+          <%= form.fields_for :service_expense_structures, ServiceExpenseStructure.new, child_index: "NEW_EXPENSE_STRUCTURE" do |structure_fields| %>
+            <%= render "service_expense_structure_fields",
                  f: structure_fields,
                  managers: @managers,
                  expense_currency_rows: @expense_currency_rows,
                  nested_services: @nested_services_for_expenses,
                  products: @products_for_expenses,
                  bcv_rate: @service_expenses_bcv_rate %>
-    <% end %>
-  </template>
-  <div class="flex flex-wrap items-center gap-3">
-    <%= form.submit(@service.persisted? ? "Actualizar servicio" : "Crear servicio", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
-    <%= link_to 'Volver', services_path, class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
-  </div>
-<% end %>
-<script>
-  (() => {
-    if (window.servicesResizeTextareasBound) return;
-    window.servicesResizeTextareasBound = true;
+          <% end %>
+        </template>
+        <div class="flex flex-wrap items-center gap-3">
+          <%= form.submit(@service.persisted? ? "Actualizar servicio" : "Crear servicio", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
+          <%= link_to 'Volver', services_path, class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+        </div>
+      <% end %>
+      <script type="application/json" id="service-print-type-services-data">
+        <%= raw ERB::Util.json_escape((@print_type_services_payload || []).to_json) %>
+      </script>
+      <script type="application/json" id="service-lamination-services-data">
+        <%= raw ERB::Util.json_escape((@lamination_services_payload || []).to_json) %>
+      </script>
+      <script>
+        (() => {
+          if (window.servicesResizeTextareasBound) return;
+          window.servicesResizeTextareasBound = true;
 
-    const resizeTextareas = (scope) => {
-      scope.querySelectorAll("textarea").forEach((textarea) => {
-        textarea.style.height = "auto";
-        textarea.style.height = `${textarea.scrollHeight}px`;
-      });
-    };
+          const resizeTextareas = (scope) => {
+            scope.querySelectorAll("textarea").forEach((textarea) => {
+              textarea.style.height = "auto";
+              textarea.style.height = `${textarea.scrollHeight}px`;
+            });
+          };
 
-    const handleInput = (event) => {
-      const textarea = event.target.closest("#form-services textarea");
-      if (!textarea) return;
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    };
+          const handleInput = (event) => {
+            const textarea = event.target.closest("#form-services textarea");
+            if (!textarea) return;
+            textarea.style.height = "auto";
+            textarea.style.height = `${textarea.scrollHeight}px`;
+          };
 
-    const handleLoad = () => {
-      const form = document.getElementById("form-services");
-      if (!form) return;
+          const handleLoad = () => {
+            const form = document.getElementById("form-services");
+            if (!form) return;
+            const systemServiceSelect = form.querySelector('#service_system_service_id');
 
-      resizeTextareas(form);
+            resizeTextareas(form);
 
-      const cautionFlag = form.querySelector('[data-caution-flag="true"]');
-      const restrictedFlag = form.querySelector('[data-restricted-flag="true"]');
-      if (!cautionFlag || !restrictedFlag) return;
+            const cautionFlag = form.querySelector('[data-caution-flag="true"]');
+            const restrictedFlag = form.querySelector('[data-restricted-flag="true"]');
+            const statusExtraCards = Array.from(form.querySelectorAll('[data-status-extra-card="true"]'));
+            const statusExtraInputs = [
+              cautionFlag,
+              restrictedFlag
+            ].filter(Boolean);
 
-      if (form.dataset.statusBound === "true") return;
-      form.dataset.statusBound = "true";
+            const normalizedText = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
-      cautionFlag.addEventListener("change", () => {
-        if (!cautionFlag.checked) return;
-        restrictedFlag.checked = false;
-      });
+            const selectedSystemLabel = () => {
+              if (!systemServiceSelect) return '';
 
-      restrictedFlag.addEventListener("change", () => {
-        if (!restrictedFlag.checked) return;
-        cautionFlag.checked = false;
-      });
-    };
+              const selectedOption = systemServiceSelect.options[systemServiceSelect.selectedIndex];
+              return normalizedText(selectedOption?.textContent || '');
+            };
 
-    document.addEventListener("input", handleInput);
-    document.addEventListener("DOMContentLoaded", handleLoad);
-    document.addEventListener("turbo:load", handleLoad);
-  })();
-</script>
+            const isPrintingSystemServiceSelected = () => {
+              const label = selectedSystemLabel();
+              return /impres/.test(label);
+            };
+
+            const isLaminationSystemServiceSelected = () => {
+              const label = selectedSystemLabel();
+              return /plast/.test(label);
+            };
+
+            const isBindingSystemServiceSelected = () => {
+              const label = selectedSystemLabel();
+              return /encuadern/.test(label);
+            };
+
+            const refreshStatusVisibility = () => {
+              const printingSelected = isPrintingSystemServiceSelected();
+
+              statusExtraCards.forEach((card) => {
+                card.classList.toggle('hidden', printingSelected);
+              });
+
+              statusExtraInputs.forEach((input) => {
+                input.disabled = printingSelected;
+                if (printingSelected) input.checked = false;
+              });
+            };
+
+            if (form.dataset.statusBound === "true") return;
+            form.dataset.statusBound = "true";
+
+            if (cautionFlag && restrictedFlag) {
+              cautionFlag.addEventListener("change", () => {
+                if (!cautionFlag.checked) return;
+                restrictedFlag.checked = false;
+              });
+
+              restrictedFlag.addEventListener("change", () => {
+                if (!restrictedFlag.checked) return;
+                cautionFlag.checked = false;
+              });
+            }
+
+            if (form.dataset.printingConfigBound === "true") return;
+            form.dataset.printingConfigBound = "true";
+
+            const deliverySection = form.querySelector('[data-delivery-section]');
+            const requirementsSection = form.querySelector('[data-requirements-section]');
+            const deliveryMetadataSection = form.querySelector('[data-delivery-metadata-section]');
+            const printCoverageSection = form.querySelector('[data-print-coverage-section]');
+            const laminationMaterialSection = form.querySelector('[data-lamination-material-section]');
+            const printingOnlySections = Array.from(form.querySelectorAll('[data-printing-only-section]'));
+            const addPrintCoverageButton = form.querySelector('[data-add-print-coverage-row]');
+            const printCoverageContainer = form.querySelector('[data-print-coverage-container]');
+            const printCoverageTemplate = form.querySelector('#service-print-coverage-template');
+            const addPrintMaterialSurchargeButton = form.querySelector('[data-add-print-material-surcharge-row]');
+            const printMaterialSurchargeContainer = form.querySelector('[data-print-material-surcharge-container]');
+            const printMaterialSurchargeTemplate = form.querySelector('#service-print-material-surcharge-template');
+            const addLaminationMaterialButton = form.querySelector('[data-add-lamination-material-row]');
+            const laminationMaterialContainer = form.querySelector('[data-lamination-material-container]');
+            const laminationMaterialTemplate = form.querySelector('#service-lamination-material-template');
+
+            const physicalToggle = form.querySelector('[data-delivery-physical-toggle="true"]');
+            const digitalToggle = form.querySelector('[data-delivery-digital-toggle="true"]');
+            const physicalPanel = form.querySelector('[data-delivery-physical-panel]');
+            const printPagesContainer = form.querySelector('[data-print-pages-container]');
+            const addPrintPageButton = form.querySelector('[data-add-print-page]');
+            const printPagesHidden = form.querySelector('[data-print-pages-hidden="true"]');
+            const printCostBsElement = form.querySelector('[data-print-cost-bs]');
+            const physicalExtraProductsSection = form.querySelector('[data-physical-extra-products-section]');
+            const physicalExtraProductsContainer = form.querySelector('[data-physical-extra-products-container]');
+            const addPhysicalExtraProductButton = form.querySelector('[data-add-physical-extra-product-row]');
+            const physicalExtraProductsHidden = form.querySelector('[data-physical-extra-products-hidden="true"]');
+
+            const printTypesPayload = (() => {
+              try {
+                const payloadEl = document.getElementById('service-print-type-services-data');
+                return JSON.parse(payloadEl?.textContent || '[]');
+              } catch (_error) {
+                return [];
+              }
+            })();
+
+            const laminationServicesPayload = (() => {
+              try {
+                const payloadEl = document.getElementById('service-lamination-services-data');
+                return JSON.parse(payloadEl?.textContent || '[]');
+              } catch (_error) {
+                return [];
+              }
+            })();
+
+            const physicalExtraProductOptionsHtml = `<option value="">Selecciona producto</option><%= j(products_options_for_select(products: @products_for_expenses, bcv_rate: @service_expenses_bcv_rate, selected_id: nil).to_s) %>`;
+
+            const parseProductVariationsFromOption = (option) => {
+              if (!option) return [];
+
+              try {
+                const raw = option.dataset.variations;
+                const parsed = JSON.parse(raw || '[]');
+                if (!Array.isArray(parsed)) return [];
+
+                return parsed
+                  .map((row) => ({
+                    id: Number.parseInt(String(row?.id || '').trim(), 10),
+                    description: String(row?.description || '').trim(),
+                  }))
+                  .filter((row) => Number.isInteger(row.id) && row.id > 0);
+              } catch (_error) {
+                return [];
+              }
+            };
+
+            const buildVariationOptionsHtml = (variations, selectedId = '') => {
+              const safeSelectedId = String(selectedId || '').trim();
+
+              const rows = ['<option value="">Selecciona variacion</option>']
+                .concat((Array.isArray(variations) ? variations : []).map((variation) => {
+                  const optionId = String(variation?.id || '').trim();
+                  const optionLabel = String(variation?.description || '').trim() || 'Variacion';
+                  const selectedAttr = optionId && optionId === safeSelectedId ? ' selected' : '';
+
+                  return `<option value="${optionId}"${selectedAttr}>${optionLabel}</option>`;
+                }));
+
+              return rows.join('');
+            };
+
+            const syncPhysicalExtraVariationOptions = (row, { keepCurrent = true } = {}) => {
+              if (!row) return;
+
+              const productSelect = row.querySelector('[data-product-select]');
+              const variationSelect = row.querySelector('[data-physical-extra-variation]');
+              if (!productSelect || !variationSelect) return;
+
+              const selectedProductId = String(productSelect.value || '').trim();
+              const hasPreviousProduct = Object.prototype.hasOwnProperty.call(row.dataset, 'physicalExtraPreviousProductId');
+              const previousProductId = hasPreviousProduct
+                ? String(row.dataset.physicalExtraPreviousProductId || '').trim()
+                : selectedProductId;
+              const selectedProductOption = productSelect.options[productSelect.selectedIndex] || null;
+              const variations = parseProductVariationsFromOption(selectedProductOption);
+              const currentVariationValue = String(variationSelect.value || '').trim();
+              const productChanged = hasPreviousProduct && previousProductId !== selectedProductId;
+              const selectedVariationId = keepCurrent && !productChanged ? currentVariationValue : '';
+
+              variationSelect.innerHTML = buildVariationOptionsHtml(variations, selectedVariationId);
+              variationSelect.disabled = variations.length === 0;
+
+              if (selectedVariationId) {
+                const canKeep = variations.some((variation) => String(variation.id) === currentVariationValue);
+                if (!canKeep) variationSelect.value = '';
+              }
+
+              row.dataset.physicalExtraPreviousProductId = selectedProductId;
+            };
+
+            const parseMaskedMoney = (input) => {
+              if (!input) return 0;
+              if (window.MoneyInputMask?.parseValue) return Number(window.MoneyInputMask.parseValue(input) || 0);
+
+              const cleaned = String(input.value || '').replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+              if (!cleaned) return 0;
+              const normalized = cleaned.includes(',') ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+              const parsed = Number.parseFloat(normalized);
+              return Number.isFinite(parsed) ? parsed : 0;
+            };
+
+            const parsePrintCoverageValue = (input) => {
+              const raw = parseMaskedMoney(input);
+              if (!Number.isFinite(raw)) return 0;
+              const clamped = Math.min(Math.max(raw, 0), 100);
+              return Number(clamped.toFixed(2));
+            };
+
+            const formatMoneyValue = (value, symbol) => {
+              if (window.MoneyInputMask?.formatMoney) {
+                return window.MoneyInputMask.formatMoney(Number(value || 0), symbol || 'Bs');
+              }
+
+              const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+              return `${symbol || 'Bs'} ${safeValue.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            };
+
+            const setSectionDisabled = (section, disabled) => {
+              if (!section) return;
+
+              section.querySelectorAll('input, select, textarea, button').forEach((field) => {
+                field.disabled = disabled;
+              });
+            };
+
+            const refreshPrintCoverageVisibility = () => {
+              const printingSelected = isPrintingSystemServiceSelected();
+              const laminationSelected = isLaminationSystemServiceSelected();
+              const bindingSelected = isBindingSystemServiceSelected();
+              const excludePresentations = printingSelected || laminationSelected;
+              const excludeRequirementsAndDeliveryMetadata = printingSelected || laminationSelected || bindingSelected;
+
+              if (requirementsSection) {
+                requirementsSection.classList.toggle('hidden', excludeRequirementsAndDeliveryMetadata);
+                requirementsSection.style.display = excludeRequirementsAndDeliveryMetadata ? 'none' : '';
+                setSectionDisabled(requirementsSection, excludeRequirementsAndDeliveryMetadata);
+              }
+
+              if (deliveryMetadataSection) {
+                deliveryMetadataSection.classList.toggle('hidden', excludeRequirementsAndDeliveryMetadata);
+                deliveryMetadataSection.style.display = excludeRequirementsAndDeliveryMetadata ? 'none' : '';
+                setSectionDisabled(deliveryMetadataSection, excludeRequirementsAndDeliveryMetadata);
+              }
+
+              if (deliverySection) {
+                deliverySection.classList.toggle('hidden', excludePresentations);
+                setSectionDisabled(deliverySection, excludePresentations);
+              }
+
+              if (printCoverageSection) {
+                printCoverageSection.classList.toggle('hidden', !printingSelected);
+                setSectionDisabled(printCoverageSection, !printingSelected);
+              }
+
+              if (laminationMaterialSection) {
+                laminationMaterialSection.classList.toggle('hidden', !laminationSelected);
+                setSectionDisabled(laminationMaterialSection, !laminationSelected);
+              }
+
+              printingOnlySections.forEach((section) => {
+                section.classList.toggle('hidden', !printingSelected);
+              });
+
+              if (excludePresentations) {
+                if (physicalToggle) physicalToggle.checked = false;
+                if (digitalToggle) digitalToggle.checked = false;
+              }
+
+              refreshPhysicalPanel();
+            };
+
+            const ensureAtLeastOneCoverageRow = () => {
+              if (!printCoverageContainer || !printCoverageTemplate) return;
+              const rows = printCoverageContainer.querySelectorAll('[data-print-coverage-row]');
+              if (rows.length > 0) return;
+
+              const placeholder = printCoverageTemplate.dataset.placeholder;
+              const token = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+              const html = (printCoverageTemplate.innerHTML || '').split(placeholder).join(token);
+              printCoverageContainer.insertAdjacentHTML('beforeend', html);
+              window.MoneyInputMask?.init(printCoverageContainer);
+            };
+
+            const addPrintMaterialSurchargeRow = () => {
+              if (!printMaterialSurchargeContainer || !printMaterialSurchargeTemplate) return;
+
+              const placeholder = printMaterialSurchargeTemplate.dataset.placeholder;
+              const token = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+              const html = (printMaterialSurchargeTemplate.innerHTML || '').split(placeholder).join(token);
+              printMaterialSurchargeContainer.insertAdjacentHTML('beforeend', html);
+              window.MoneyInputMask?.init(printMaterialSurchargeContainer);
+            };
+
+            const addLaminationMaterialRow = () => {
+              if (!laminationMaterialContainer || !laminationMaterialTemplate) return;
+
+              const placeholder = laminationMaterialTemplate.dataset.placeholder;
+              const token = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+              const html = (laminationMaterialTemplate.innerHTML || '').split(placeholder).join(token);
+              laminationMaterialContainer.insertAdjacentHTML('beforeend', html);
+              window.MoneyInputMask?.init(laminationMaterialContainer);
+            };
+
+            const renumberPrintPages = () => {
+              if (!printPagesContainer) return;
+              printPagesContainer.querySelectorAll('[data-print-page-row]').forEach((row, index) => {
+                const label = row.querySelector('[data-print-page-label]');
+                if (label) label.textContent = `Pagina ${index + 1}`;
+                row.dataset.pageNumber = String(index + 1);
+              });
+            };
+
+            const syncPrintPagesHidden = () => {
+              if (!printPagesContainer || !printPagesHidden) return;
+
+              const rows = Array.from(printPagesContainer.querySelectorAll('[data-print-page-row]')).map((row, index) => {
+                const printTypeInput = row.querySelector('[data-print-page-type]');
+                const materialInput = row.querySelector('[data-print-page-material]');
+                const coverageInput = row.querySelector('[data-print-page-coverage]');
+                const laminationEnabledInput = row.querySelector('[data-print-page-lamination-enabled]');
+                const laminationServiceInput = row.querySelector('[data-print-page-lamination-service]');
+                const coverage = parsePrintCoverageValue(coverageInput);
+                const printTypeServiceId = Number.parseInt(String(printTypeInput?.value || '').trim(), 10);
+                const materialSurchargeId = Number.parseInt(String(materialInput?.value || '').trim(), 10);
+                const laminationEnabled = Boolean(laminationEnabledInput?.checked);
+                const laminationServiceId = Number.parseInt(String(laminationServiceInput?.value || '').trim(), 10);
+
+                return {
+                  page_number: index + 1,
+                  print_type_service_id: Number.isInteger(printTypeServiceId) && printTypeServiceId > 0 ? printTypeServiceId : null,
+                  material_surcharge_id: Number.isInteger(materialSurchargeId) && materialSurchargeId > 0 ? materialSurchargeId : null,
+                  coverage_percent: Number.isFinite(coverage) && coverage > 0 ? Number(coverage.toFixed(2)) : 0,
+                  includes_lamination: laminationEnabled,
+                  lamination_service_id: laminationEnabled && Number.isInteger(laminationServiceId) && laminationServiceId > 0 ? laminationServiceId : null
+                };
+              }).filter((row) => row.coverage_percent > 0 && row.print_type_service_id && row.material_surcharge_id);
+
+              printPagesHidden.value = JSON.stringify(rows);
+            };
+
+            const refreshPageLaminationVisibility = (row) => {
+              if (!row) return;
+
+              const toggle = row.querySelector('[data-print-page-lamination-enabled]');
+              const wrapper = row.querySelector('[data-print-page-lamination-wrapper]');
+              const select = row.querySelector('[data-print-page-lamination-service]');
+              const enabled = Boolean(toggle?.checked);
+
+              if (wrapper) wrapper.classList.toggle('hidden', !enabled);
+              if (select) {
+                select.disabled = !enabled;
+                if (!enabled) select.value = '';
+              }
+            };
+
+            const printTypePayloadById = (serviceId) => {
+              const selectedId = String(serviceId || '').trim();
+              if (!selectedId) return null;
+
+              return printTypesPayload.find((row) => String(row.id) === selectedId) || null;
+            };
+
+            const setPageRowMaterialOptions = (row, printTypeServiceId, { keepCurrent = true } = {}) => {
+              if (!row) return;
+
+              const materialSelect = row.querySelector('[data-print-page-material]');
+              if (!materialSelect) return;
+
+              const currentValue = String(materialSelect.value || '').trim();
+              const typePayload = printTypePayloadById(printTypeServiceId);
+              const materialOptions = Array.isArray(typePayload?.material_options) ? typePayload.material_options : [];
+
+              const optionRows = ['<option value="">Selecciona material</option>']
+                .concat(materialOptions.map((material) => {
+                  const optionValue = String(material?.id || '').trim();
+                  const optionLabel = String(material?.label || '').trim();
+                  return `<option value="${optionValue}">${optionLabel}</option>`;
+                }));
+
+              materialSelect.innerHTML = optionRows.join('');
+
+              if (keepCurrent && materialOptions.some((material) => String(material?.id || '').trim() === currentValue)) {
+                materialSelect.value = currentValue;
+                return;
+              }
+
+              materialSelect.value = '';
+            };
+
+            const resolvePriceForCoverage = (coverage, prices) => {
+              const normalizedCoverage = Number(coverage || 0);
+              if (!(normalizedCoverage > 0)) return 0;
+
+              const sorted = Array.isArray(prices)
+                ? prices
+                    .map((row) => ({
+                      coverage_percent: Number(row.coverage_percent || 0),
+                      price_bs: Number(row.price_bs || 0)
+                    }))
+                    .filter((row) => row.coverage_percent > 0 && row.price_bs >= 0)
+                    .sort((a, b) => a.coverage_percent - b.coverage_percent)
+                : [];
+
+              if (sorted.length === 0) return 0;
+              const match = sorted.find((row) => row.coverage_percent >= normalizedCoverage) || sorted[sorted.length - 1];
+              return Number(match.price_bs || 0);
+            };
+
+            const recalculatePrintCost = () => {
+              let totalBs = 0;
+              if (printPagesContainer) {
+                printPagesContainer.querySelectorAll('[data-print-page-row]').forEach((row) => {
+                  const typeInput = row.querySelector('[data-print-page-type]');
+                  const coverageInput = row.querySelector('[data-print-page-coverage]');
+                  const pageCostInput = row.querySelector('[data-print-page-cost-bs]');
+                  const selectedType = printTypePayloadById(typeInput?.value || '');
+                  const prices = selectedType?.coverage_prices || [];
+                  const coverage = parsePrintCoverageValue(coverageInput);
+                  if (!(Number.isFinite(coverage) && coverage > 0) || prices.length === 0) {
+                    if (pageCostInput) pageCostInput.value = 'Bs 0,00';
+                    return;
+                  }
+
+                  const pageCostBs = resolvePriceForCoverage(coverage, prices);
+                  totalBs += pageCostBs;
+
+                  if (pageCostInput) {
+                    pageCostInput.value = window.MoneyInputMask?.formatMoney
+                      ? window.MoneyInputMask.formatMoney(pageCostBs, 'Bs')
+                      : `Bs ${Number(pageCostBs || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                  }
+                });
+              }
+
+              if (printCostBsElement) {
+                printCostBsElement.textContent = formatMoneyValue(totalBs, 'Bs') || 'Bs 0,00';
+              }
+            };
+
+            const parsePhysicalExtraQuantity = (input) => {
+              const rawValue = String(input?.value || '').trim().replace(',', '.');
+              const parsed = Number.parseFloat(rawValue);
+              if (!Number.isFinite(parsed) || parsed <= 0) return 0;
+
+              return Number(parsed.toFixed(2));
+            };
+
+            const syncPhysicalExtraProductsHidden = () => {
+              if (!physicalExtraProductsContainer || !physicalExtraProductsHidden) return;
+
+              const duplicateErrorMessage = 'No puedes repetir el mismo producto con la misma variacion.';
+              const seenRowByPair = new Map();
+              physicalExtraProductsContainer
+                .querySelectorAll('[data-physical-extra-variation]')
+                .forEach((variationSelect) => {
+                  variationSelect.setCustomValidity('');
+                });
+
+              const rows = Array.from(physicalExtraProductsContainer.querySelectorAll('[data-physical-extra-product-row]'))
+                .map((row) => {
+                  const productSelect = row.querySelector('[data-product-select]');
+                  const variationSelect = row.querySelector('[data-physical-extra-variation]');
+                  const quantityInput = row.querySelector('[data-physical-extra-quantity]');
+                  const breakdownInput = row.querySelector('[data-physical-extra-breakdown]');
+                  const productId = Number.parseInt(String(productSelect?.value || '').trim(), 10);
+                  const variationId = Number.parseInt(String(variationSelect?.value || '').trim(), 10);
+                  const quantity = parsePhysicalExtraQuantity(quantityInput);
+                  if (!(Number.isInteger(productId) && productId > 0 && Number.isInteger(variationId) && variationId > 0 && quantity > 0)) return null;
+
+                  const pairKey = `${productId}:${variationId}`;
+                  const firstMatch = seenRowByPair.get(pairKey);
+                  if (firstMatch) {
+                    variationSelect?.setCustomValidity(duplicateErrorMessage);
+                    firstMatch?.setCustomValidity(duplicateErrorMessage);
+                  } else {
+                    seenRowByPair.set(pairKey, variationSelect);
+                  }
+
+                  return {
+                    product_id: productId,
+                    variation_id: variationId,
+                    quantity,
+                    breakdown_in_invoice: Boolean(breakdownInput?.checked),
+                  };
+                })
+                .filter(Boolean);
+
+              physicalExtraProductsHidden.value = JSON.stringify(rows);
+            };
+
+            const addPhysicalExtraProductRow = () => {
+              if (!physicalExtraProductsContainer) return;
+
+              const row = document.createElement('div');
+              row.className = 'relative rounded-xl border border-slate-200 bg-white p-3 pr-12';
+              row.setAttribute('data-physical-extra-product-row', '');
+              row.setAttribute('data-nested-row', '');
+              row.innerHTML = `
+                <select class="hidden" data-product-select>
+                  ${physicalExtraProductOptionsHtml}
+                </select>
+                <div class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_120px_220px] md:items-start">
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Producto</label>
+                    <div class="relative mt-1">
+                      <input type="search"
+                             class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                             placeholder="Buscar producto"
+                             autocomplete="off"
+                             data-product-search>
+                      <div class="absolute z-30 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" data-product-results></div>
+                    </div>
+                    <p class="mt-2 text-xs text-slate-500" data-product-selected-label>Sin producto seleccionado</p>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Variacion</label>
+                    <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                            data-physical-extra-variation
+                            disabled>
+                      <option value="">Selecciona variacion</option>
+                    </select>
+                    <p class="mt-1 text-xs text-slate-500">Se descuenta stock de la variacion elegida.</p>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Cantidad</label>
+                    <input type="number"
+                           min="0.01"
+                           step="0.01"
+                           value="1"
+                           class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                           data-physical-extra-quantity>
+                    <p class="mt-1 text-xs text-slate-500">Por unidad del servicio.</p>
+                  </div>
+                  <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Factura</label>
+                    <label class="mt-1 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700">
+                      <input type="checkbox"
+                             class="h-4 w-4 cursor-pointer rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500"
+                             data-physical-extra-breakdown>
+                      Desglosar en factura
+                    </label>
+                  </div>
+                </div>
+                <button type="button"
+                        class="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
+                        data-remove-physical-extra-product-row>
+                  <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                </button>
+              `;
+
+              physicalExtraProductsContainer.appendChild(row);
+              syncPhysicalExtraVariationOptions(row, { keepCurrent: false });
+              if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { 'stroke-width': 2 } });
+              syncPhysicalExtraProductsHidden();
+            };
+
+            const refreshPhysicalPanel = () => {
+              if (!physicalToggle || !physicalPanel) return;
+
+              const enabled = Boolean(physicalToggle.checked) && !isPrintingSystemServiceSelected();
+              physicalPanel.classList.toggle('hidden', !enabled);
+
+              physicalPanel.querySelectorAll('select, input, button').forEach((field) => {
+                if (field === physicalToggle) return;
+                field.disabled = !enabled;
+              });
+
+              if (enabled) {
+                renumberPrintPages();
+                syncPrintPagesHidden();
+                recalculatePrintCost();
+                syncPhysicalExtraProductsHidden();
+              }
+            };
+
+            const addPrintPage = () => {
+              if (!printPagesContainer) return;
+
+              const firstRow = printPagesContainer.querySelector('[data-print-page-row]');
+              const defaultTypeId = String(firstRow?.querySelector('[data-print-page-type]')?.value || '').trim();
+              const defaultMaterialId = String(firstRow?.querySelector('[data-print-page-material]')?.value || '').trim();
+
+              const row = document.createElement('div');
+              row.className = 'grid gap-3 rounded-xl border border-cyan-200 bg-white px-3 py-3 md:grid-cols-[auto_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto] md:items-end';
+              row.setAttribute('data-print-page-row', '');
+              row.innerHTML = `
+                <div class="self-center text-xs font-semibold text-slate-600" data-print-page-label>Pagina</div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Tipo de impresion</label>
+                  <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-type>
+                    <option value="">Selecciona tipo</option>
+                    ${printTypesPayload
+                      .filter((row) => String(row?.id || '').trim() !== String(form.dataset.serviceId || '').trim())
+                      .map((row) => `<option value="${String(row.id || '')}">${String(row.name || '')}</option>`)
+                      .join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Material</label>
+                  <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-material>
+                    <option value="">Selecciona material</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
+                  <input type="text" inputmode="decimal" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-coverage data-money-mask="true" data-money-symbol="%" value="%1,00">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Costo pagina (Bs)</label>
+                  <input type="text" readonly class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700" data-print-page-cost-bs value="Bs 0,00">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Plastificacion</label>
+                  <label class="mt-1 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" data-print-page-lamination-enabled>
+                    Incluye servicio
+                  </label>
+                  <div class="mt-2 hidden" data-print-page-lamination-wrapper>
+                    <select class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-lamination-service>
+                      <option value="">Selecciona servicio</option>
+                      ${laminationServicesPayload.map((service) => `<option value="${String(service?.id || '')}">${String(service?.name || '')}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+                <button type="button" class="self-center justify-self-end inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100" data-remove-print-page title="Quitar pagina" aria-label="Quitar pagina"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i></button>
+              `;
+              printPagesContainer.appendChild(row);
+
+              const rowTypeSelect = row.querySelector('[data-print-page-type]');
+              if (rowTypeSelect && defaultTypeId) rowTypeSelect.value = defaultTypeId;
+              setPageRowMaterialOptions(row, rowTypeSelect?.value || '', { keepCurrent: false });
+
+              const rowMaterialSelect = row.querySelector('[data-print-page-material]');
+              if (rowMaterialSelect && defaultMaterialId) rowMaterialSelect.value = defaultMaterialId;
+              refreshPageLaminationVisibility(row);
+
+              window.MoneyInputMask?.init(row);
+              if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { 'stroke-width': 2 } });
+              renumberPrintPages();
+              syncPrintPagesHidden();
+              recalculatePrintCost();
+            };
+
+            addPrintCoverageButton?.addEventListener('click', () => {
+              if (!printCoverageContainer || !printCoverageTemplate) return;
+
+              const placeholder = printCoverageTemplate.dataset.placeholder;
+              const token = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
+              const html = (printCoverageTemplate.innerHTML || '').split(placeholder).join(token);
+              printCoverageContainer.insertAdjacentHTML('beforeend', html);
+              window.MoneyInputMask?.init(printCoverageContainer);
+            });
+
+            addPrintMaterialSurchargeButton?.addEventListener('click', () => {
+              addPrintMaterialSurchargeRow();
+            });
+
+            addLaminationMaterialButton?.addEventListener('click', () => {
+              addLaminationMaterialRow();
+            });
+
+            printCoverageContainer?.addEventListener('click', (event) => {
+              const removeButton = event.target.closest('[data-remove-print-coverage-row]');
+              if (!removeButton) return;
+
+              const row = removeButton.closest('[data-print-coverage-row]');
+              if (!row) return;
+
+              const destroyInput = row.querySelector('input[data-destroy-input="true"]');
+              const idInput = row.querySelector('input[type="hidden"][name$="[id]"]');
+              const persisted = idInput && String(idInput.value || '').trim().length > 0;
+
+              if (persisted && destroyInput) {
+                destroyInput.value = '1';
+                row.style.display = 'none';
+              } else {
+                row.remove();
+              }
+
+              ensureAtLeastOneCoverageRow();
+            });
+
+            printMaterialSurchargeContainer?.addEventListener('click', (event) => {
+              const removeButton = event.target.closest('[data-remove-print-material-surcharge-row]');
+              if (!removeButton) return;
+
+              const row = removeButton.closest('[data-print-material-surcharge-row]');
+              if (!row) return;
+
+              const destroyInput = row.querySelector('input[data-destroy-input="true"]');
+              const idInput = row.querySelector('input[type="hidden"][name$="[id]"]');
+              const persisted = idInput && String(idInput.value || '').trim().length > 0;
+
+              if (persisted && destroyInput) {
+                destroyInput.value = '1';
+                row.style.display = 'none';
+              } else {
+                row.remove();
+              }
+            });
+
+            laminationMaterialContainer?.addEventListener('click', (event) => {
+              const removeButton = event.target.closest('[data-remove-lamination-material-row]');
+              if (!removeButton) return;
+
+              const row = removeButton.closest('[data-lamination-material-row]');
+              if (!row) return;
+
+              const destroyInput = row.querySelector('input[data-destroy-input="true"]');
+              const idInput = row.querySelector('input[type="hidden"][name$="[id]"]');
+              const persisted = idInput && String(idInput.value || '').trim().length > 0;
+
+              if (persisted && destroyInput) {
+                destroyInput.value = '1';
+                row.style.display = 'none';
+              } else {
+                row.remove();
+              }
+            });
+
+            addPrintPageButton?.addEventListener('click', () => {
+              addPrintPage();
+            });
+
+            addPhysicalExtraProductButton?.addEventListener('click', () => {
+              addPhysicalExtraProductRow();
+            });
+
+            printPagesContainer?.addEventListener('click', (event) => {
+              const removeButton = event.target.closest('[data-remove-print-page]');
+              if (!removeButton) return;
+
+              const row = removeButton.closest('[data-print-page-row]');
+              if (!row) return;
+
+              const rows = printPagesContainer.querySelectorAll('[data-print-page-row]');
+              if (rows.length <= 1) return;
+
+              row.remove();
+              renumberPrintPages();
+              syncPrintPagesHidden();
+              recalculatePrintCost();
+            });
+
+            printPagesContainer?.addEventListener('input', (event) => {
+              if (!event.target.matches('[data-print-page-coverage]')) return;
+              syncPrintPagesHidden();
+              recalculatePrintCost();
+            });
+
+            printPagesContainer?.addEventListener('change', (event) => {
+              const target = event.target;
+
+              if (target.matches('[data-print-page-type]')) {
+                const row = target.closest('[data-print-page-row]');
+                setPageRowMaterialOptions(row, target.value, { keepCurrent: false });
+                syncPrintPagesHidden();
+                recalculatePrintCost();
+                return;
+              }
+
+              if (target.matches('[data-print-page-material]')) {
+                syncPrintPagesHidden();
+                recalculatePrintCost();
+                return;
+              }
+
+              if (target.matches('[data-print-page-lamination-enabled]')) {
+                const row = target.closest('[data-print-page-row]');
+                refreshPageLaminationVisibility(row);
+                syncPrintPagesHidden();
+                return;
+              }
+
+              if (target.matches('[data-print-page-lamination-service]')) {
+                syncPrintPagesHidden();
+              }
+            });
+
+            physicalExtraProductsContainer?.addEventListener('click', (event) => {
+              const removeButton = event.target.closest('[data-remove-physical-extra-product-row]');
+              if (!removeButton) return;
+
+              const row = removeButton.closest('[data-physical-extra-product-row]');
+              if (!row) return;
+
+              row.remove();
+              syncPhysicalExtraProductsHidden();
+            });
+
+            physicalExtraProductsContainer?.addEventListener('input', (event) => {
+              if (!event.target.matches('[data-physical-extra-quantity], [data-product-search]')) return;
+              syncPhysicalExtraProductsHidden();
+            });
+
+            physicalExtraProductsContainer?.addEventListener('change', (event) => {
+              if (!event.target.matches('[data-product-select], [data-physical-extra-breakdown], [data-physical-extra-quantity], [data-physical-extra-variation]')) return;
+
+              if (event.target.matches('[data-product-select]')) {
+                const row = event.target.closest('[data-physical-extra-product-row]');
+                syncPhysicalExtraVariationOptions(row, { keepCurrent: false });
+              }
+
+              syncPhysicalExtraProductsHidden();
+            });
+
+            physicalToggle?.addEventListener('change', () => {
+              refreshPhysicalPanel();
+            });
+
+            systemServiceSelect?.addEventListener('change', () => {
+              refreshStatusVisibility();
+              refreshPrintCoverageVisibility();
+            });
+
+            window.MoneyInputMask?.init(form);
+            refreshStatusVisibility();
+            refreshPrintCoverageVisibility();
+            refreshPhysicalPanel();
+            if (printPagesContainer) {
+              printPagesContainer.querySelectorAll('[data-print-page-row]').forEach((row) => {
+                const rowTypeSelect = row.querySelector('[data-print-page-type]');
+                setPageRowMaterialOptions(row, rowTypeSelect?.value || '', { keepCurrent: true });
+                refreshPageLaminationVisibility(row);
+              });
+            }
+            if (physicalExtraProductsContainer) {
+              physicalExtraProductsContainer.querySelectorAll('[data-physical-extra-product-row]').forEach((row) => {
+                syncPhysicalExtraVariationOptions(row, { keepCurrent: true });
+              });
+            }
+            syncPrintPagesHidden();
+            recalculatePrintCost();
+            syncPhysicalExtraProductsHidden();
+          };
+
+          document.addEventListener("input", handleInput);
+          document.addEventListener("DOMContentLoaded", handleLoad);
+          document.addEventListener("turbo:load", handleLoad);
+        })();
+      </script>

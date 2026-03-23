@@ -1,6 +1,10 @@
 class PurchaseInvoice < ApplicationRecord
   self.table_name = 'facturas'
 
+  INVOICE_KIND_PURCHASE = 'purchase'.freeze
+  INVOICE_KIND_INITIAL_INVENTORY = 'initial_inventory'.freeze
+  INVOICE_KINDS = [INVOICE_KIND_PURCHASE, INVOICE_KIND_INITIAL_INVENTORY].freeze
+
   belongs_to :business
   belongs_to :supplier, optional: true
   has_many :purchase_invoice_items, lambda {
@@ -10,10 +14,23 @@ class PurchaseInvoice < ApplicationRecord
 
   accepts_nested_attributes_for :purchase_invoice_items, allow_destroy: true
 
-  validates :supplier, presence: true, on: :create
+  validates :supplier, presence: true, unless: :initial_inventory?
+  validates :invoice_kind, presence: true, inclusion: { in: INVOICE_KINDS }
+  validate :single_initial_inventory_per_business
 
+  before_validation :normalize_invoice_kind
   before_validation :set_supplier_name_snapshot
   before_save :calcular_monto_total
+
+  scope :initial_inventory, -> { where(invoice_kind: INVOICE_KIND_INITIAL_INVENTORY) }
+
+  def initial_inventory?
+    invoice_kind == INVOICE_KIND_INITIAL_INVENTORY
+  end
+
+  def kind_label
+    initial_inventory? ? 'Inventario inicial' : 'Factura de compra'
+  end
 
   def supplier_display_name
     supplier_name.presence || supplier&.nombre || 'Proveedor'
@@ -44,14 +61,30 @@ class PurchaseInvoice < ApplicationRecord
   def totals_breakdown
     active_items = purchase_invoice_items.reject(&:marked_for_destruction?)
 
+    if initial_inventory?
+      total_usd = active_items.sum { |item| item.line_subtotal_usd.to_d }
+      total_bs = active_items.sum { |item| item.line_subtotal_bs.to_d }
+
+      return {
+        subtotal_usd: 0.to_d,
+        subtotal_bs: 0.to_d,
+        exento_usd: total_usd,
+        exento_bs: total_bs,
+        iva_usd: 0.to_d,
+        iva_bs: 0.to_d,
+        total_usd: total_usd,
+        total_bs: total_bs
+      }
+    end
+
     subtotal_usd = 0.to_d
     subtotal_bs = 0.to_d
     exento_usd = 0.to_d
     exento_bs = 0.to_d
 
     active_items.each do |item|
-      line_usd = item.subtotal.to_d
-      line_bs = item.costo_mayor_bs.to_d * item.cantidad.to_d
+      line_usd = item.line_subtotal_usd.to_d
+      line_bs = item.line_subtotal_bs.to_d
 
       if item.exento?
         exento_usd += line_usd
@@ -77,5 +110,22 @@ class PurchaseInvoice < ApplicationRecord
       total_usd: total_usd,
       total_bs: total_bs
     }
+  end
+
+  private
+
+  def normalize_invoice_kind
+    self.invoice_kind = invoice_kind.presence || INVOICE_KIND_PURCHASE
+  end
+
+  def single_initial_inventory_per_business
+    return unless initial_inventory?
+    return if business_id.blank?
+
+    conflict_scope = self.class.where(business_id: business_id, invoice_kind: INVOICE_KIND_INITIAL_INVENTORY)
+    conflict_scope = conflict_scope.where.not(id: id) if persisted?
+    return unless conflict_scope.exists?
+
+    errors.add(:base, 'Solo puede existir un inventario inicial por negocio.')
   end
 end

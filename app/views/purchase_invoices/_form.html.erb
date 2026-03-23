@@ -1,4 +1,15 @@
-<%= form_with model: factura, scope: :purchase_invoice, local: true, html: { id: 'purchase_invoice_form' } do |f| %>
+<% initial_inventory_mode = factura.initial_inventory? %>
+<%= form_with model: factura,
+              scope: :purchase_invoice,
+              local: true,
+              html: {
+                id: 'purchase_invoice_form',
+                data: {
+                  require_supplier_for_products: (!initial_inventory_mode).to_s,
+                  initial_inventory_mode: initial_inventory_mode.to_s
+                }
+              } do |f| %>
+  <%= hidden_field_tag :invoice_kind, factura.invoice_kind %>
   <% format_decimal_input = lambda do |value, scale = 2|
        next '' if value.nil?
 
@@ -66,12 +77,20 @@
   <% end %>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
     <div>
-      <%= f.label :supplier_id, 'Proveedor', class: 'block text-sm font-medium text-slate-700' %>
-      <% supplier_options = @available_suppliers.map { |supplier| [supplier.nombre, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
-      <%= f.select :supplier_id,
-                   options_for_select(supplier_options, f.object.supplier_id),
-                   { prompt: 'Seleccionar proveedor' },
-                   class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+      <% if initial_inventory_mode %>
+        <%= f.hidden_field :supplier_id, value: nil %>
+        <p class="block text-sm font-medium text-slate-700">Proveedor</p>
+        <div class="mt-1 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800">
+          Inventario inicial no requiere proveedor.
+        </div>
+      <% else %>
+        <%= f.label :supplier_id, 'Proveedor', class: 'block text-sm font-medium text-slate-700' %>
+        <% supplier_options = @available_suppliers.map { |supplier| [supplier.nombre, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
+        <%= f.select :supplier_id,
+                    options_for_select(supplier_options, f.object.supplier_id),
+                    { prompt: 'Seleccionar proveedor' },
+                    class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+      <% end %>
       <% initial_priority = factura.supplier&.pricing_currency_priority.presence || 'usd' %>
       <p id="supplier-currency-priority-badge" class="mt-2 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
         Base de cálculo: <span class="ml-1" id="supplier-currency-priority-value"><%= initial_priority == 'bs' ? 'Bs' : '$' %></span>
@@ -98,6 +117,9 @@
     </div>
   </div>
   <h3 class="mt-6 text-lg font-semibold text-slate-800">Productos</h3>
+  <% if initial_inventory_mode %>
+    <p class="mt-1 text-xs font-semibold text-cyan-700">Modo inventario inicial: destaca la columna "Existencia inicial" para registrar unidades reales disponibles.</p>
+  <% end %>
   <div class="mt-3 relative md:max-w-2xl">
     <label for="producto-search" class="block text-sm font-medium text-slate-700">Buscar producto</label>
     <div class="mt-1 relative">
@@ -116,11 +138,18 @@
         <tr>
           <th class="px-4 py-3 text-left">Acciones</th>
           <th class="px-4 py-3 text-left">Producto</th>
-          <th class="px-4 py-3 text-left">E</th>
-          <th class="px-4 py-3 text-center">Cantidad Packs</th>
+          <% unless initial_inventory_mode %>
+            <th class="px-4 py-3 text-left">E</th>
+            <th class="px-4 py-3 text-center">Cantidad Packs</th>
+          <% end %>
           <th class="px-4 py-3 text-right">Costo Mayor $</th>
           <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
           <th class="px-4 py-3 text-center">Unid x Pack</th>
+          <% if initial_inventory_mode %>
+            <th class="px-4 py-3 text-right text-cyan-800 bg-cyan-50/80">Precio unit $</th>
+            <th class="px-4 py-3 text-right text-cyan-800 bg-cyan-50/80">Precio unit Bs</th>
+            <th class="px-4 py-3 text-center text-cyan-800 bg-cyan-50/80">Existencia inicial</th>
+          <% end %>
           <th class="px-4 py-3 text-left">Variaciones</th>
           <th class="px-4 py-3 text-right">Total $</th>
           <th class="px-4 py-3 text-right">Total Bs</th>
@@ -136,13 +165,15 @@
           <% costo_menor = unid_x_pack.positive? ? (costo_mayor / unid_x_pack) : fi.object.costo_menor.to_d %>
           <% tasa = (factura.tasa_dolar || 0).to_d %>
           <% costo_mayor_bs = fi.object.costo_mayor_bs.to_d.positive? ? fi.object.costo_mayor_bs.to_d : (costo_mayor * tasa) %>
-          <% total_usd = costo_mayor * cantidad_packs %>
-          <% total_bs = costo_mayor_bs * cantidad_packs %>
+          <% costo_menor_rounded = costo_menor.round(2) %>
+          <% costo_menor_bs = initial_inventory_mode ? (costo_menor_rounded * tasa) : (unid_x_pack.positive? ? (costo_mayor_bs / unid_x_pack) : costo_mayor_bs) %>
+          <% total_usd = initial_inventory_mode ? (costo_menor_rounded * cantidad_packs) : (costo_mayor * cantidad_packs) %>
+          <% total_bs = initial_inventory_mode ? (costo_menor_bs * cantidad_packs) : (costo_mayor_bs * cantidad_packs) %>
           <% exento_activo = fi.object.exento? %>
           <% product_variations = fi.object.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || [] %>
           <% variation_breakdown_rows = fi.object.variation_breakdown.is_a?(Array) ? fi.object.variation_breakdown : [] %>
           <% single_variation = product_variations.one? ? product_variations.first : nil %>
-          <% single_variation_quantity = cantidad_packs * (unid_x_pack.positive? ? unid_x_pack : 1) %>
+          <% single_variation_quantity = initial_inventory_mode ? cantidad_packs : (cantidad_packs * (unid_x_pack.positive? ? unid_x_pack : 1)) %>
           <% effective_variation_rows = if variation_breakdown_rows.any?
               variation_breakdown_rows
             elsif single_variation.present?
@@ -191,24 +222,31 @@
               </div>
             </td>
             <td class="px-4 py-3 font-semibold text-slate-800 js-product-name"><%= product_name %></td>
-            <td class="px-4 py-3">
-              <button
-                type="button"
-                class="toggle-exento-row js-exento-mark inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors <%= exento_activo ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50' %>"
-                data-row-key="<%= row_key %>"
-                title="Marcar exento"
-                aria-label="Marcar exento"
-                aria-pressed="<%= exento_activo ? 'true' : 'false' %>">
-                <span class="text-[11px] font-bold">E</span>
-                <span class="js-exento-track relative inline-flex h-5 w-10 items-center rounded-full transition-colors <%= exento_activo ? 'bg-emerald-500' : 'bg-slate-300' %>">
-                  <span class="js-exento-thumb inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform <%= exento_activo ? 'translate-x-5' : 'translate-x-0.5' %>"></span>
-                </span>
-              </button>
-            </td>
-            <td class="px-4 py-3 text-center js-cantidad-packs"><%= format_quantity(cantidad_packs) %></td>
+            <% unless initial_inventory_mode %>
+              <td class="px-4 py-3">
+                <button
+                  type="button"
+                  class="toggle-exento-row js-exento-mark inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors <%= exento_activo ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50' %>"
+                  data-row-key="<%= row_key %>"
+                  title="Marcar exento"
+                  aria-label="Marcar exento"
+                  aria-pressed="<%= exento_activo ? 'true' : 'false' %>">
+                  <span class="text-[11px] font-bold">E</span>
+                  <span class="js-exento-track relative inline-flex h-5 w-10 items-center rounded-full transition-colors <%= exento_activo ? 'bg-emerald-500' : 'bg-slate-300' %>">
+                    <span class="js-exento-thumb inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform <%= exento_activo ? 'translate-x-5' : 'translate-x-0.5' %>"></span>
+                  </span>
+                </button>
+              </td>
+              <td class="px-4 py-3 text-center js-cantidad-packs"><%= format_quantity(cantidad_packs) %></td>
+            <% end %>
             <td class="px-4 py-3 table-number js-costo-mayor-usd"><%= format_money(costo_mayor, unit: '$') %></td>
             <td class="px-4 py-3 table-number js-costo-mayor-bs"><%= format_money(costo_mayor_bs, unit: 'Bs') %></td>
             <td class="px-4 py-3 text-center js-unidades"><%= format_quantity(unid_x_pack) %></td>
+            <% if initial_inventory_mode %>
+              <td class="px-4 py-3 table-number js-costo-unit-usd font-semibold text-cyan-800 bg-cyan-50/40"><%= format_money(costo_menor_rounded, unit: '$') %></td>
+              <td class="px-4 py-3 table-number js-costo-unit-bs font-semibold text-cyan-800 bg-cyan-50/40"><%= format_money(costo_menor_bs, unit: 'Bs') %></td>
+              <td class="px-4 py-3 text-center js-cantidad-packs font-semibold text-cyan-800 bg-cyan-50/40"><%= format_quantity(cantidad_packs) %></td>
+            <% end %>
             <td class="px-4 py-3">
               <div class="js-variations-summary group relative max-w-[16rem]">
                 <div class="js-variations-summary-text inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
@@ -264,16 +302,20 @@
               </div>
             </td>
             <td class="px-4 py-3 font-semibold text-slate-800 row-product-name"><%= product_name %></td>
-            <td class="px-4 py-3">
-              <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
-                <%= fi.check_box :exento, class: 'row-exento peer sr-only' %>
-                <span class="text-[11px] font-bold">E</span>
-                <span class="js-edit-exento-track relative inline-flex h-5 w-10 items-center rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-500">
-                  <span class="js-edit-exento-thumb inline-block h-4 w-4 translate-x-0.5 transform rounded-full bg-white shadow transition-transform"></span>
-                </span>
-              </label>
-            </td>
-            <td class="px-4 py-3"><%= fi.number_field :cantidad, step: 0.01, value: format_decimal_input.call(fi.object.cantidad, 2), class: 'row-cantidad-packs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500' %></td>
+            <% unless initial_inventory_mode %>
+              <td class="px-4 py-3">
+                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+                  <%= fi.check_box :exento, class: 'row-exento peer sr-only' %>
+                  <span class="text-[11px] font-bold">E</span>
+                  <span class="js-edit-exento-track relative inline-flex h-5 w-10 items-center rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-500">
+                    <span class="js-edit-exento-thumb inline-block h-4 w-4 translate-x-0.5 transform rounded-full bg-white shadow transition-transform"></span>
+                  </span>
+                </label>
+              </td>
+              <td class="px-4 py-3"><%= fi.number_field :cantidad, step: 0.01, value: format_decimal_input.call(fi.object.cantidad, 2), class: 'row-cantidad-packs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500' %></td>
+            <% else %>
+              <%= fi.hidden_field :exento, value: 1, class: 'row-exento' %>
+            <% end %>
             <td class="px-4 py-3">
               <%= fi.hidden_field :costo_mayor, class: 'row-costo-mayor-native' %>
               <%= fi.hidden_field :costo_mayor_bs, value: costo_mayor_bs.to_s('F'), class: 'row-costo-mayor-bs-native' %>
@@ -281,6 +323,11 @@
             </td>
             <td class="px-4 py-3"><input type="text" class="row-costo-mayor-bs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs" value="<%= format_money(costo_mayor_bs, unit: 'Bs') %>"></td>
             <td class="px-4 py-3"><%= fi.number_field :unid_x_pack, step: 0.01, value: format_decimal_input.call(fi.object.unid_x_pack, 2), class: 'row-unidades block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500' %></td>
+            <% if initial_inventory_mode %>
+              <td class="px-4 py-3 bg-cyan-50/30"><input type="text" class="row-costo-unit-usd block w-full rounded-xl border border-cyan-300 bg-cyan-50/70 px-3 py-2 text-right font-semibold text-cyan-900 shadow-sm" readonly></td>
+              <td class="px-4 py-3 bg-cyan-50/30"><input type="text" class="row-costo-unit-bs block w-full rounded-xl border border-cyan-300 bg-cyan-50/70 px-3 py-2 text-right font-semibold text-cyan-900 shadow-sm" readonly></td>
+              <td class="px-4 py-3 bg-cyan-50/30"><%= fi.number_field :cantidad, step: 0.01, value: format_decimal_input.call(fi.object.cantidad, 2), class: 'row-cantidad-packs block w-full rounded-xl border border-cyan-300 bg-cyan-50/70 px-3 py-2 text-center font-semibold text-cyan-900 shadow-sm focus:border-cyan-500 focus:ring-cyan-500' %></td>
+            <% end %>
             <td class="px-4 py-3">
               <div class="row-variation-editor max-w-[16rem] space-y-1.5"></div>
             </td>
@@ -291,26 +338,29 @@
         <% end %>
       </tbody>
       <tfoot class="bg-slate-50 border-t border-slate-200">
+        <% totals_leading_colspan = initial_inventory_mode ? 8 : 7 %>
+        <% unless initial_inventory_mode %>
+          <tr>
+            <td class="px-4 py-3" colspan="<%= totals_leading_colspan %>"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">Subtotal</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-subtotal-usd">$ 0,00</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-subtotal-bs">Bs 0,00</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3" colspan="<%= totals_leading_colspan %>"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">IVA 16%</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-iva-usd">$ 0,00</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-iva-bs">Bs 0,00</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3" colspan="<%= totals_leading_colspan %>"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">Exento</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-exento-usd">$ 0,00</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-exento-bs">Bs 0,00</td>
+          </tr>
+        <% end %>
         <tr>
-          <td class="px-4 py-3" colspan="7"></td>
-          <td class="px-4 py-3 text-right font-bold text-slate-700">Subtotal</td>
-          <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-subtotal-usd">$ 0,00</td>
-          <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-subtotal-bs">Bs 0,00</td>
-        </tr>
-        <tr>
-          <td class="px-4 py-3" colspan="7"></td>
-          <td class="px-4 py-3 text-right font-bold text-slate-700">IVA 16%</td>
-          <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-iva-usd">$ 0,00</td>
-          <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-iva-bs">Bs 0,00</td>
-        </tr>
-        <tr>
-          <td class="px-4 py-3" colspan="7"></td>
-          <td class="px-4 py-3 text-right font-bold text-slate-700">Exento</td>
-          <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-exento-usd">$ 0,00</td>
-          <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-exento-bs">Bs 0,00</td>
-        </tr>
-        <tr>
-          <td class="px-4 py-3" colspan="7"></td>
+          <td class="px-4 py-3" colspan="<%= totals_leading_colspan %>"></td>
           <td class="px-4 py-3 text-right font-bold text-slate-700">Total</td>
           <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-total-final-usd">$ 0,00</td>
           <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-total-final-bs">Bs 0,00</td>
@@ -318,51 +368,52 @@
       </tfoot>
     </table>
   </div>
-  <% if factura.new_record? %>
-    <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '' }] %>
-    <% payment_account_options = Array(@bs_accounts).map do |account| %>
-      <% ["#{account.name} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
-    <% end %>
-    <% pending_checked = @pending_payment_checked == true %>
-    <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-invoice-payments-block="true">
-      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago de factura</p>
-          <p class="mt-1 text-sm text-slate-500">Distribuye el pago entre cuentas en Bs o deja saldo pendiente por pagar.</p>
-        </div>
-        <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
-          <%= check_box_tag :mark_pending_payment,
+  <% unless initial_inventory_mode %>
+    <% if factura.new_record? %>
+      <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '' }] %>
+      <% payment_account_options = Array(@bs_accounts).map do |account| %>
+        <% ["#{account.name} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
+      <% end %>
+      <% pending_checked = @pending_payment_checked == true %>
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-invoice-payments-block="true">
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago de factura</p>
+            <p class="mt-1 text-sm text-slate-500">Distribuye el pago entre cuentas en Bs o deja saldo pendiente por pagar.</p>
+          </div>
+          <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+            <%= check_box_tag :mark_pending_payment,
                             '1',
                             pending_checked,
                             id: 'purchase_invoice_mark_pending',
                             class: 'h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500',
                             data: { invoice_pending_toggle: true } %>
-          Pendiente por pagar
-        </label>
-      </div>
-      <% if payment_account_options.empty? %>
-        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          No hay cuentas activas en Bs. Crea o activa una cuenta en moneda VES para registrar pagos.
+            Pendiente por pagar
+          </label>
         </div>
-      <% end %>
-      <div class="mt-4 space-y-3" data-invoice-payments-container="true">
-        <% payment_rows.each_with_index do |row, index| %>
-          <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
-          <% row_amount_value = row[:amount].presence || row['amount'].presence || 'Bs 0,00' %>
-          <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end"
+        <% if payment_account_options.empty? %>
+          <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            No hay cuentas activas en Bs. Crea o activa una cuenta en moneda VES para registrar pagos.
+          </div>
+        <% end %>
+        <div class="mt-4 space-y-3" data-invoice-payments-container="true">
+          <% payment_rows.each_with_index do |row, index| %>
+            <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
+            <% row_amount_value = row[:amount].presence || row['amount'].presence || 'Bs 0,00' %>
+            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end"
                data-invoice-payment-row="true"
                data-invoice-payment-index="<%= index %>">
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
-              <%= select_tag "invoice_payments[#{index}][account_id]",
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
+                <%= select_tag "invoice_payments[#{index}][account_id]",
                              options_for_select(payment_account_options, row_account_id),
                              include_blank: 'Selecciona cuenta en Bs',
                              class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                              data: { invoice_payment_account: true } %>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
-              <%= text_field_tag "invoice_payments[#{index}][amount]",
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
+                <%= text_field_tag "invoice_payments[#{index}][amount]",
                                  row_amount_value,
                                  inputmode: 'decimal',
                                  autocomplete: 'off',
@@ -373,17 +424,17 @@
                                    money_symbol: 'Bs',
                                    invoice_payment_amount: true
                                  } %>
-            </div>
-            <button type="button"
+              </div>
+              <button type="button"
                     class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
                     data-invoice-payment-remove="true">
-              Quitar
-            </button>
-          </div>
-        <% end %>
-      </div>
-      <div class="mt-3 flex flex-wrap items-center gap-3">
-        <button type="button"
+                Quitar
+              </button>
+            </div>
+          <% end %>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-3">
+          <button type="button"
                 class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                 data-invoice-payment-add="true"
                 <%= 'disabled' if payment_account_options.empty? %>>
@@ -412,30 +463,30 @@
       </p>
 
       <div class="mt-4 <%= pending_checked ? '' : 'hidden' %>" data-invoice-pending-due-wrapper="true">
-          <label for="purchase_invoice_pending_due_on" class="block text-sm font-medium text-slate-700">Fecha de vencimiento del saldo pendiente</label>
-          <%= text_field_tag :pending_due_on,
+            <label for="purchase_invoice_pending_due_on" class="block text-sm font-medium text-slate-700">Fecha de vencimiento del saldo pendiente</label>
+            <%= text_field_tag :pending_due_on,
                    pending_due_on_input_value,
                    id: 'purchase_invoice_pending_due_on',
                autocomplete: 'off',
                placeholder: 'dd-mm-aaaa',
                class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                data: { invoice_pending_due_on: true } %>
-        </div>
-        <template id="invoice-payment-row-template">
-          <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end"
+          </div>
+          <template id="invoice-payment-row-template">
+            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end"
              data-invoice-payment-row="true"
              data-invoice-payment-index="__INDEX__">
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
-              <%= select_tag 'invoice_payments[__INDEX__][account_id]',
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
+                <%= select_tag 'invoice_payments[__INDEX__][account_id]',
                            options_for_select(payment_account_options),
                            include_blank: 'Selecciona cuenta en Bs',
                            class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                            data: { invoice_payment_account: true } %>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
-              <%= text_field_tag 'invoice_payments[__INDEX__][amount]',
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
+                <%= text_field_tag 'invoice_payments[__INDEX__][amount]',
                                'Bs 0,00',
                                inputmode: 'decimal',
                                autocomplete: 'off',
@@ -446,98 +497,99 @@
                                  money_symbol: 'Bs',
                                  invoice_payment_amount: true
                                } %>
-            </div>
-            <button type="button"
+              </div>
+              <button type="button"
                   class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
                   data-invoice-payment-remove="true">
-              Quitar
-            </button>
+                Quitar
+              </button>
+            </div>
+          </template>
+        </div>
+      <% else %>
+        <% pending_balance_bs = @invoice_pending_balance_bs.to_d %>
+        <% total_paid_bs = @invoice_total_paid_bs.to_d %>
+        <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago de factura</p>
+              <p class="mt-1 text-sm text-slate-500">Aqui puedes ver lo que ya se registro al crear la factura y el saldo pendiente actual.</p>
+            </div>
+            <% if @invoice_pending_debt.present? %>
+              <span class="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
+                Pendiente por pagar
+              </span>
+            <% else %>
+              <span class="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
+                Factura pagada
+              </span>
+            <% end %>
           </div>
-        </template>
-      </div>
-    <% else %>
-      <% pending_balance_bs = @invoice_pending_balance_bs.to_d %>
-      <% total_paid_bs = @invoice_total_paid_bs.to_d %>
-      <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago de factura</p>
-            <p class="mt-1 text-sm text-slate-500">Aqui puedes ver lo que ya se registro al crear la factura y el saldo pendiente actual.</p>
+          <div class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total factura Bs</p>
+              <p class="mt-1 text-base font-extrabold text-slate-800"><%= format_money(factura.total_bs, unit: 'Bs') %></p>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total pagado actual Bs</p>
+              <p class="mt-1 text-base font-extrabold text-emerald-700"><%= format_money(total_paid_bs, unit: 'Bs') %></p>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo pendiente actual Bs</p>
+              <p class="mt-1 text-base font-extrabold text-amber-700"><%= format_money(pending_balance_bs, unit: 'Bs') %></p>
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold text-slate-700">Pagos registrados en la factura</p>
+              <p class="text-xs text-slate-500">Los pagos posteriores del saldo pendiente se registran desde la deuda asociada.</p>
+            </div>
+            <% if @invoice_payment_movements.present? %>
+              <div class="mt-3 space-y-3">
+                <% @invoice_payment_movements.each do |movement| %>
+                  <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p class="text-sm font-semibold text-slate-800"><%= movement.account.name %></p>
+                      <p class="mt-1 text-xs text-slate-500">
+                        <%= l(movement.occurred_at.to_date, format: '%d/%m/%Y') %>
+                        <% if movement.payment_method.present? %>
+                          · <%= movement.payment_method_label %>
+                        <% end %>
+                      </p>
+                    </div>
+                    <p class="text-sm font-extrabold text-emerald-700"><%= format_money(movement.amount, unit: 'Bs') %></p>
+                  </div>
+                <% end %>
+              </div>
+            <% else %>
+              <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                Esta factura no tiene pagos directos registrados en su creacion.
+              </div>
+            <% end %>
           </div>
           <% if @invoice_pending_debt.present? %>
-            <span class="inline-flex items-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700">
-              Pendiente por pagar
-            </span>
-          <% else %>
-            <span class="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700">
-              Factura pagada
-            </span>
-          <% end %>
-        </div>
-        <div class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total factura Bs</p>
-            <p class="mt-1 text-base font-extrabold text-slate-800"><%= format_money(factura.total_bs, unit: 'Bs') %></p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total pagado actual Bs</p>
-            <p class="mt-1 text-base font-extrabold text-emerald-700"><%= format_money(total_paid_bs, unit: 'Bs') %></p>
-          </div>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo pendiente actual Bs</p>
-            <p class="mt-1 text-base font-extrabold text-amber-700"><%= format_money(pending_balance_bs, unit: 'Bs') %></p>
-          </div>
-        </div>
-        <div class="mt-4">
-          <div class="flex items-center justify-between gap-3">
-            <p class="text-sm font-semibold text-slate-700">Pagos registrados en la factura</p>
-            <p class="text-xs text-slate-500">Los pagos posteriores del saldo pendiente se registran desde la deuda asociada.</p>
-          </div>
-          <% if @invoice_payment_movements.present? %>
-            <div class="mt-3 space-y-3">
-              <% @invoice_payment_movements.each do |movement| %>
-                <div class="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p class="text-sm font-semibold text-slate-800"><%= movement.account.name %></p>
-                    <p class="mt-1 text-xs text-slate-500">
-                      <%= l(movement.occurred_at.to_date, format: '%d/%m/%Y') %>
-                      <% if movement.payment_method.present? %>
-                        · <%= movement.payment_method_label %>
-                      <% end %>
-                    </p>
-                  </div>
-                  <p class="text-sm font-extrabold text-emerald-700"><%= format_money(movement.amount, unit: 'Bs') %></p>
+            <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+              <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-amber-800">Deuda pendiente asociada</p>
+                  <p class="mt-1 text-xs text-amber-700">
+                    Vence: <%= @invoice_pending_debt.due_on.present? ? @invoice_pending_debt.due_on.strftime('%d/%m/%Y') : 'Sin fecha' %>
+                    · Estado: <%= @invoice_pending_debt.status_label %>
+                  </p>
                 </div>
-              <% end %>
-            </div>
-          <% else %>
-            <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-              Esta factura no tiene pagos directos registrados en su creacion.
+                <div class="flex flex-wrap items-center gap-2">
+                  <%= link_to new_debt_debt_payment_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800', data: { turbo_frame: '_top' } do %>
+                    Registrar pago
+                  <% end %>
+                  <%= link_to debt_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50', data: { turbo_frame: '_top' } do %>
+                    Ver deuda
+                  <% end %>
+                </div>
+              </div>
             </div>
           <% end %>
         </div>
-        <% if @invoice_pending_debt.present? %>
-          <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
-            <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p class="text-sm font-semibold text-amber-800">Deuda pendiente asociada</p>
-                <p class="mt-1 text-xs text-amber-700">
-                  Vence: <%= @invoice_pending_debt.due_on.present? ? @invoice_pending_debt.due_on.strftime('%d/%m/%Y') : 'Sin fecha' %>
-                  · Estado: <%= @invoice_pending_debt.status_label %>
-                </p>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <%= link_to new_debt_debt_payment_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800', data: { turbo_frame: '_top' } do %>
-                  Registrar pago
-                <% end %>
-                <%= link_to debt_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50', data: { turbo_frame: '_top' } do %>
-                  Ver deuda
-                <% end %>
-              </div>
-            </div>
-          </div>
-        <% end %>
-      </div>
+      <% end %>
     <% end %>
   <% end %>
   <template id="factura-item-template">
@@ -564,24 +616,31 @@
       <td class="px-4 py-3">
         <div class="font-semibold text-slate-800 js-product-name">PRODUCT_NAME</div>
       </td>
-      <td class="px-4 py-3">
-        <button
-        type="button"
-        class="toggle-exento-row js-exento-mark inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
-        data-row-key="NEW_RECORD"
-        title="Marcar exento"
-        aria-label="Marcar exento"
-        aria-pressed="false">
-          <span class="text-[11px] font-bold">E</span>
-          <span class="js-exento-track relative inline-flex h-5 w-10 items-center rounded-full bg-slate-300 transition-colors">
-            <span class="js-exento-thumb inline-block h-4 w-4 translate-x-0.5 transform rounded-full bg-white shadow transition-transform"></span>
-          </span>
-        </button>
-      </td>
-      <td class="px-4 py-3 text-center js-cantidad-packs">0</td>
+      <% unless initial_inventory_mode %>
+        <td class="px-4 py-3">
+          <button
+          type="button"
+          class="toggle-exento-row js-exento-mark inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50"
+          data-row-key="NEW_RECORD"
+          title="Marcar exento"
+          aria-label="Marcar exento"
+          aria-pressed="false">
+            <span class="text-[11px] font-bold">E</span>
+            <span class="js-exento-track relative inline-flex h-5 w-10 items-center rounded-full bg-slate-300 transition-colors">
+              <span class="js-exento-thumb inline-block h-4 w-4 translate-x-0.5 transform rounded-full bg-white shadow transition-transform"></span>
+            </span>
+          </button>
+        </td>
+        <td class="px-4 py-3 text-center js-cantidad-packs">0</td>
+      <% end %>
       <td class="px-4 py-3 table-number js-costo-mayor-usd">$ 0,00</td>
       <td class="px-4 py-3 table-number js-costo-mayor-bs">Bs 0,00</td>
       <td class="px-4 py-3 text-center js-unidades">0</td>
+      <% if initial_inventory_mode %>
+        <td class="px-4 py-3 table-number js-costo-unit-usd font-semibold text-cyan-800 bg-cyan-50/40">$ 0,00</td>
+        <td class="px-4 py-3 table-number js-costo-unit-bs font-semibold text-cyan-800 bg-cyan-50/40">Bs 0,00</td>
+        <td class="px-4 py-3 text-center js-cantidad-packs font-semibold text-cyan-800 bg-cyan-50/40">0</td>
+      <% end %>
       <td class="px-4 py-3">
         <div class="js-variations-summary group relative max-w-[16rem]">
           <div class="js-variations-summary-text inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
@@ -627,19 +686,25 @@
         <input type="hidden" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][variation_breakdown]" value="[]" class="row-variation-breakdown">
         <div class="font-semibold text-slate-800 row-product-name">PRODUCT_NAME</div>
       </td>
-      <td class="px-4 py-3">
-        <input type="hidden" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" value="0">
-        <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
-          <input class="row-exento peer sr-only" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" type="checkbox" value="1">
-          <span class="text-[11px] font-bold">E</span>
-          <span class="js-edit-exento-track relative inline-flex h-5 w-10 items-center rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-500">
-            <span class="js-edit-exento-thumb inline-block h-4 w-4 translate-x-0.5 transform rounded-full bg-white shadow transition-transform"></span>
-          </span>
-        </label>
-      </td>
-      <td class="px-4 py-3">
-        <input class="row-cantidad-packs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500" step="0.01" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="number">
-      </td>
+      <% if initial_inventory_mode %>
+        <input class="row-exento" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" type="hidden" value="1">
+      <% else %>
+        <td class="px-4 py-3">
+          <input type="hidden" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" value="0">
+          <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+            <input class="row-exento peer sr-only" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" type="checkbox" value="1">
+            <span class="text-[11px] font-bold">E</span>
+            <span class="js-edit-exento-track relative inline-flex h-5 w-10 items-center rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-500">
+              <span class="js-edit-exento-thumb inline-block h-4 w-4 translate-x-0.5 transform rounded-full bg-white shadow transition-transform"></span>
+            </span>
+          </label>
+        </td>
+      <% end %>
+      <% unless initial_inventory_mode %>
+        <td class="px-4 py-3">
+          <input class="row-cantidad-packs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500" step="0.01" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="number">
+        </td>
+      <% end %>
       <td class="px-4 py-3">
         <input class="row-costo-mayor-native" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][costo_mayor]" type="hidden" value="0">
         <input class="row-costo-mayor-bs-native" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][costo_mayor_bs]" type="hidden" value="0">
@@ -651,6 +716,17 @@
       <td class="px-4 py-3">
         <input class="row-unidades block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500" step="0.01" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][unid_x_pack]" type="number">
       </td>
+      <% if initial_inventory_mode %>
+        <td class="px-4 py-3 bg-cyan-50/30">
+          <input type="text" class="row-costo-unit-usd block w-full rounded-xl border border-cyan-300 bg-cyan-50/70 px-3 py-2 text-right font-semibold text-cyan-900 shadow-sm" readonly value="$ 0,00">
+        </td>
+        <td class="px-4 py-3 bg-cyan-50/30">
+          <input type="text" class="row-costo-unit-bs block w-full rounded-xl border border-cyan-300 bg-cyan-50/70 px-3 py-2 text-right font-semibold text-cyan-900 shadow-sm" readonly value="Bs 0,00">
+        </td>
+        <td class="px-4 py-3 bg-cyan-50/30">
+          <input class="row-cantidad-packs block w-full rounded-xl border border-cyan-300 bg-cyan-50/70 px-3 py-2 text-center font-semibold text-cyan-900 shadow-sm focus:border-cyan-500 focus:ring-cyan-500" step="0.01" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="number">
+        </td>
+      <% end %>
       <td class="px-4 py-3">
         <div class="row-variation-editor max-w-[16rem] space-y-1.5"></div>
       </td>
@@ -676,6 +752,8 @@
       const searchInput = form.querySelector('#producto-search');
       const resultsBox = form.querySelector('#producto-results');
       const supplierSelect = form.querySelector('#purchase_invoice_supplier_id');
+      const requiresSupplierForProducts = String(form.dataset.requireSupplierForProducts || 'true') !== 'false';
+      const initialInventoryMode = String(form.dataset.initialInventoryMode || 'false') === 'true';
       const supplierCurrencyPriorityValue = form.querySelector('#supplier-currency-priority-value');
       const tasaInput = form.querySelector('#purchase_invoice_tasa_dolar');
       const tasaInputRaw = form.querySelector('#purchase_invoice_tasa_dolar_raw');
@@ -686,7 +764,11 @@
 
       let lastSupplierAlertAt = 0;
 
-      const hasSupplierSelected = () => Boolean(supplierSelect && supplierSelect.value && supplierSelect.value.trim() !== '');
+      const hasSupplierSelected = () => {
+        if (!requiresSupplierForProducts) return true;
+
+        return Boolean(supplierSelect && supplierSelect.value && supplierSelect.value.trim() !== '');
+      };
       const currentSupplierPriority = () => {
         const selectedOption = supplierSelect?.options?.[supplierSelect.selectedIndex];
         const priority = selectedOption?.dataset?.pricingCurrencyPriority;
@@ -702,6 +784,8 @@
       };
 
       const showSupplierRequiredAlert = () => {
+        if (!requiresSupplierForProducts) return;
+
         const now = Date.now();
         if (now - lastSupplierAlertAt < 1200) return;
         lastSupplierAlertAt = now;
@@ -730,7 +814,7 @@
           searchInput.placeholder = 'Seleccione primero un proveedor';
           if (resultsBox) resultsBox.classList.add('hidden');
         } else {
-          searchInput.placeholder = 'Buscar producto...';
+          searchInput.placeholder = requiresSupplierForProducts ? 'Buscar producto...' : 'Buscar producto para inventario inicial...';
         }
       };
 
@@ -797,6 +881,8 @@
 
       const expectedVariationQuantity = (editRow) => {
         const quantityPacks = clampNonNegative(editRow?.querySelector('.row-cantidad-packs')?.value);
+        if (initialInventoryMode) return quantityPacks;
+
         const unitsPerPack = clampNonNegative(editRow?.querySelector('.row-unidades')?.value);
         return quantityPacks * unitsPerPack;
       };
@@ -1052,7 +1138,7 @@
 
           const quantityPacks = clampNonNegative(editRow.querySelector('.row-cantidad-packs')?.value);
           const unitsPerPack = clampNonNegative(editRow.querySelector('.row-unidades')?.value);
-          const expectedTotal = quantityPacks * unitsPerPack;
+          const expectedTotal = expectedVariationQuantity(editRow);
           const variationTotal = rowVariationTotal(editRow);
           const isValid = Math.abs(expectedTotal - variationTotal) < 0.0001;
 
@@ -1061,7 +1147,9 @@
             window.Swal.fire({
               icon: 'warning',
               title: 'Variaciones no cuadran',
-              text: `${productName}: (${formatQty(quantityPacks)} packs × ${formatQty(unitsPerPack)} unid) = ${formatQty(expectedTotal)} y variaciones suma ${formatQty(variationTotal)}.`,
+              text: initialInventoryMode
+                ? `${productName}: existencia inicial ${formatQty(quantityPacks)} y variaciones suma ${formatQty(variationTotal)}.`
+                : `${productName}: (${formatQty(quantityPacks)} packs × ${formatQty(unitsPerPack)} unid) = ${formatQty(expectedTotal)} y variaciones suma ${formatQty(variationTotal)}.`,
               confirmButtonText: 'Entendido',
               confirmButtonColor: '#0284c7',
               target: 'body',
@@ -1136,13 +1224,14 @@
         const costoMayor = clampNonNegative(editRow.querySelector('.row-costo-mayor-native')?.value || editRow.querySelector('.row-costo-mayor')?.value);
         const unidXPack = clampNonNegative(editRow.querySelector('.row-unidades')?.value);
         const costoMenor = unidXPack > 0 ? (costoMayor / unidXPack) : 0;
+        const costoMenorUsdRounded = roundValue(costoMenor, 2);
         const tasa = currentRate();
         return {
           costoMayorUsd: roundValue(costoMayor, 2),
           costoMayorBs: roundValue(costoMayor * tasa, 2),
           unidXPack: roundValue(unidXPack, 4),
-          costoMenorUsd: roundValue(costoMenor, 2),
-          costoMenorBs: roundValue(costoMenor * tasa, 2)
+          costoMenorUsd: costoMenorUsdRounded,
+          costoMenorBs: costoMenorUsdRounded * tasa
         };
       };
 
@@ -1150,13 +1239,14 @@
         const refCostoMayor = clampNonNegative(editRow.dataset.refCostoMayor || 0);
         const refUnidXPack = clampNonNegative(editRow.dataset.refUnidXPack || 0);
         const refCostoMenor = clampNonNegative(editRow.dataset.refCostoMenor || 0);
+        const refCostoMenorUsdRounded = roundValue(refCostoMenor, 2);
         const tasa = currentRate();
         return {
           costoMayorUsd: roundValue(refCostoMayor, 2),
           costoMayorBs: roundValue(refCostoMayor * tasa, 2),
           unidXPack: roundValue(refUnidXPack, 4),
-          costoMenorUsd: roundValue(refCostoMenor, 2),
-          costoMenorBs: roundValue(refCostoMenor * tasa, 2)
+          costoMenorUsd: refCostoMenorUsdRounded,
+          costoMenorBs: refCostoMenorUsdRounded * tasa
         };
       };
 
@@ -1206,14 +1296,34 @@
       };
 
       const updateGrandTotals = () => {
+        const totalFinalUsdEl = form.querySelector('#factura-total-final-usd');
+        const totalFinalBsEl = form.querySelector('#factura-total-final-bs');
+
+        if (!totalFinalUsdEl || !totalFinalBsEl) return;
+
+        if (initialInventoryMode) {
+          let totalUsd = 0;
+          let totalBs = 0;
+
+          tbody.querySelectorAll('.factura-row-edit').forEach((row) => {
+            const destroyInput = row.querySelector('.factura-item-destroy');
+            if (destroyInput && destroyInput.value === '1') return;
+
+            totalUsd += parseNumber(row.querySelector('.row-total-usd')?.value);
+            totalBs += parseNumber(row.querySelector('.row-total-bs')?.value);
+          });
+
+          totalFinalUsdEl.textContent = formatMoney(totalUsd, '$');
+          totalFinalBsEl.textContent = formatMoney(totalBs, 'Bs');
+          return;
+        }
+
         const subtotalUsdEl = form.querySelector('#factura-subtotal-usd');
         const subtotalBsEl = form.querySelector('#factura-subtotal-bs');
         const ivaUsdEl = form.querySelector('#factura-iva-usd');
         const ivaBsEl = form.querySelector('#factura-iva-bs');
         const exentoUsdEl = form.querySelector('#factura-exento-usd');
         const exentoBsEl = form.querySelector('#factura-exento-bs');
-        const totalFinalUsdEl = form.querySelector('#factura-total-final-usd');
-        const totalFinalBsEl = form.querySelector('#factura-total-final-bs');
 
         if (!subtotalUsdEl || !subtotalBsEl || !ivaUsdEl || !ivaBsEl || !exentoUsdEl || !exentoBsEl || !totalFinalUsdEl || !totalFinalBsEl) return;
 
@@ -1280,6 +1390,8 @@
         const unidadesInput = editRow.querySelector('.row-unidades');
         const costoMenorInput = editRow.querySelector('.row-costo-menor');
         const costoMayorBsInput = editRow.querySelector('.row-costo-mayor-bs');
+        const costoUnitUsdInput = editRow.querySelector('.row-costo-unit-usd');
+        const costoUnitBsInput = editRow.querySelector('.row-costo-unit-bs');
         const totalUsdInput = editRow.querySelector('.row-total-usd');
         const totalBsInput = editRow.querySelector('.row-total-bs');
 
@@ -1318,14 +1430,20 @@
           }
 
         const costoMenor = unidades > 0 ? (costoMayor / unidades) : 0;
-        const totalUsd = costoMayor * cantidadPacks;
-        const totalBs = costoMayorBs * cantidadPacks;
+        const costoMenorRounded = roundValue(costoMenor, 2);
+        const costoMenorBs = initialInventoryMode
+          ? (costoMenorRounded * tasa)
+          : (unidades > 0 ? (costoMayorBs / unidades) : costoMayorBs);
+        const totalUsd = initialInventoryMode ? (costoMenorRounded * cantidadPacks) : (costoMayor * cantidadPacks);
+        const totalBs = initialInventoryMode ? (costoMenorBs * cantidadPacks) : (costoMayorBs * cantidadPacks);
 
         if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
         if (costoMayorBsNativeInput) costoMayorBsNativeInput.value = costoMayorBs.toFixed(8);
         setMaskedMoney(costoMayorInput, costoMayor, '$');
 
-        if (costoMenorInput) costoMenorInput.value = costoMenor.toFixed(2);
+        if (costoMenorInput) costoMenorInput.value = costoMenorRounded.toFixed(2);
+        if (costoUnitUsdInput) costoUnitUsdInput.value = formatMoney(costoMenorRounded, '$');
+        if (costoUnitBsInput) costoUnitBsInput.value = formatMoney(costoMenorBs, 'Bs');
         if (source === 'bs') {
           if (costoMayorBsInput && String(costoMayorBsInput.value || '').trim() === '') {
             costoMayorBsInput.value = '';
@@ -1351,8 +1469,13 @@
         const costoMayor = parseNumber(editRow.querySelector('.row-costo-mayor-native')?.value || editRow.querySelector('.row-costo-mayor')?.value);
         const costoMayorBs = parseNumber(editRow.querySelector('.row-costo-mayor-bs-native')?.value || editRow.querySelector('.row-costo-mayor-bs')?.value);
         const unidades = parseNumber(editRow.querySelector('.row-unidades')?.value);
-        const totalUsd = costoMayor * cantidadPacks;
-        const totalBs = costoMayorBs * cantidadPacks;
+        const costoMenor = unidades > 0 ? (costoMayor / unidades) : 0;
+        const costoMenorRounded = roundValue(costoMenor, 2);
+        const costoMenorBs = initialInventoryMode
+          ? (costoMenorRounded * currentRate())
+          : (unidades > 0 ? (costoMayorBs / unidades) : costoMayorBs);
+        const totalUsd = initialInventoryMode ? (costoMenorRounded * cantidadPacks) : (costoMayor * cantidadPacks);
+        const totalBs = initialInventoryMode ? (costoMenorBs * cantidadPacks) : (costoMayorBs * cantidadPacks);
         const exentoActivo = Boolean(editRow.querySelector('.row-exento')?.checked);
 
         const setText = (selector, value) => {
@@ -1367,6 +1490,8 @@
         setText('.js-costo-mayor-usd', formatMoney(costoMayor, '$'));
         setText('.js-costo-mayor-bs', formatMoney(costoMayorBs, 'Bs'));
         setText('.js-unidades', formatQty(unidades));
+        setText('.js-costo-unit-usd', formatMoney(costoMenorRounded, '$'));
+        setText('.js-costo-unit-bs', formatMoney(costoMenorBs, 'Bs'));
         setText('.js-total-usd', formatMoney(totalUsd, '$'));
         setText('.js-total-bs', formatMoney(totalBs, 'Bs'));
           syncVariationSummary(rowKey);

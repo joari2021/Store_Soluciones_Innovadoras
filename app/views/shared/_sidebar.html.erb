@@ -15,117 +15,89 @@
     </div>
   </div>
   <nav class="sidebar-nav-scroll flex-1 min-h-0 overflow-y-auto px-6 pr-4 space-y-2 mt-2">
-    <!--
-    <button onclick="switchTab('dashboard')" class="nav-btn nav-item-active w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
-      <i data-lucide="layout-grid" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-      <span>Dashboard</span>
-    </button>
-    <button onclick="switchTab('ventas')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
-      <i data-lucide="shopping-cart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-      <span>Ventas & POS</span>
-    </button>-->
-    <% if can_access_module?(:productos) %>
-      <%= link_to productos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="package" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Productos</span>
-      <% end %>
-    <% end %>
     <% if can_access_module?(:ventas) %>
       <%= link_to ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
         <i data-lucide="shopping-cart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
         <span>Ventas</span>
       <% end %>
     <% end %>
+
     <% if can_access_module?(:historial_ventas) %>
       <%= link_to historial_ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
         <i data-lucide="list" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Historial ventas</span>
+        <span>Historial de Ventas</span>
       <% end %>
     <% end %>
+
     <% if can_access_module?(:cash_shifts) %>
       <%= link_to cash_shifts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
         <i data-lucide="clock-3" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Cierres de turno</span>
+        <span>Cierres de Turno</span>
       <% end %>
     <% end %>
-    <% if can_access_module?(:purchase_invoices) %>
-      <%= link_to purchase_invoices_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="file-text" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Facturas de Compra</span>
+
+    <% if can_access_module?(:productos) %>
+      <%= link_to productos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+        <i data-lucide="package" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span>Productos</span>
       <% end %>
     <% end %>
-    <% if can_access_module?(:expenses) %>
-      <%= link_to expenses_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="receipt" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Gastos</span>
-      <% end %>
-    <% end %>
-    <% if can_access_module?(:deudas) %>
-      <%= link_to debts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="hand-coins" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Deudas</span>
-      <% end %>
-    <% end %>
+
     <% if can_access_module?(:services) %>
       <%= link_to services_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
         <i data-lucide="zap" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
         <span>Servicios</span>
       <% end %>
     <% end %>
-    <% if can_access_module?(:suppliers) %>
-      <%= link_to suppliers_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Proveedores</span>
+
+    <% if can_access_module?(:deudas) %>
+      <%= link_to debts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+        <i data-lucide="hand-coins" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span>Deudas</span>
       <% end %>
     <% end %>
+
+    <% if can_access_module?(:expenses) %>
+      <%= link_to expenses_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+        <i data-lucide="receipt" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span>Gastos</span>
+      <% end %>
+    <% end %>
+
     <% if can_access_module?(:accounts) %>
       <%= link_to accounts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
         <i data-lucide="wallet" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
         <span>Cuentas</span>
       <% end %>
     <% end %>
-    <% if can_access_module?(:rates) %>
-      <%= link_to tasa_cambios_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="arrow-left-right" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Tasas de Divisas</span>
+
+    <% if can_access_module?(:purchase_invoices) %>
+      <%= link_to purchase_invoices_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+        <i data-lucide="file-text" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span>Facturas de Compra</span>
       <% end %>
     <% end %>
-    <!--
-    <button onclick="switchTab('servicios')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
-      <i data-lucide="zap" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-      <span>Servicios</span>
-    </button>
-    <div class="pt-6 pb-2">
-      <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Directorio</p>
-    </div>
-    <button onclick="switchTab('clientes')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
-      <i data-lucide="users" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-      <span>Clientes</span>
-    </button>
-    <button onclick="switchTab('distribuidores')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
-      <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-      <span>Distribuidores</span>
-    </button>
-    <div class="pt-6 pb-2">
-      <p class="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Enlaces Sistema Anterior</p>
-    </div>-->
+
+    <% if can_access_module?(:suppliers) %>
+      <%= link_to suppliers_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+        <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span>Proveedores</span>
+      <% end %>
+    <% end %>
+
     <% if can_access_module?(:clientes) %>
       <%= link_to clientes_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
         <i data-lucide="users" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
         <span>Clientes</span>
       <% end %>
     <% end %>
-    <% if can_access_module?(:businesses) %>
-      <%= link_to businesses_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
-        <i data-lucide="building-2" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Negocios</span>
+
+    <% if can_access_module?(:rates) %>
+      <%= link_to tasa_cambios_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+        <i data-lucide="arrow-left-right" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span>Tasas de Divisas</span>
       <% end %>
     <% end %>
-    <!--
-    <button onclick="switchTab('distribuidores')" class="nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group">
-      <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-      <span>Distribuidores</span>
-    </button>-->
   </nav>
   <div class="p-6 border-t border-sky-100/50">
     <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-sky-50 to-white rounded-2xl border border-sky-100">
@@ -143,7 +115,7 @@
       </div>
     </div>
     <%= link_to logout_path,
-                data: { turbo_method: :delete },
+                data: { turbo_method: :delete, swal_delete: 'logout' },
                 class: 'mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100' do %>
       <i data-lucide="log-out" class="h-4 w-4"></i>
       Cerrar sesion

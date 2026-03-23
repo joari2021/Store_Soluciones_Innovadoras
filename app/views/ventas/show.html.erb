@@ -8,7 +8,22 @@
 <% base_total = base_is_ves ? sale_reference.fetch(:ves_total, @venta.total_bs.to_d) : sale_reference.fetch(:usd_total, @venta.total_usd.to_d) %>
 <% alt_total = base_is_ves ? sale_reference.fetch(:usd_total, @venta.total_usd.to_d) : sale_reference.fetch(:ves_total, @venta.total_bs.to_d) %>
 <% base_subtotal = base_is_ves ? @venta.base_subtotal : @venta.subtotal_usd %>
+<% base_exento = base_is_ves ? @venta.exento_base_subtotal : @venta.exento_subtotal_usd %>
 <% base_vat = base_is_ves ? @venta.base_vat : @venta.vat_usd %>
+<% paid_base_total = @venta.venta_payments.sum do |payment|
+     sign = payment.payment_kind == 'out' ? -1 : 1
+     amount = base_is_ves ? payment.amount_bs.to_d : payment.amount_usd.to_d
+     amount * sign
+   end.round(2) %>
+<% paid_alt_total = @venta.venta_payments.sum do |payment|
+     sign = payment.payment_kind == 'out' ? -1 : 1
+     amount = base_is_ves ? payment.amount_usd.to_d : payment.amount_bs.to_d
+     amount * sign
+   end.round(2) %>
+<% if base_is_ves && paid_base_total.positive? %>
+  <% base_total = paid_base_total %>
+  <% alt_total = paid_alt_total if paid_alt_total.positive? %>
+<% end %>
 <% currency_symbols = { 'USD' => '$', 'USDT' => 'USDT', 'VES' => 'Bs', 'EUR' => 'EUR' } %>
 <% items_count = @venta.venta_items.size %>
 <% incoming_payments = @venta.venta_payments.count { |payment| payment.payment_kind != 'out' } %>
@@ -34,21 +49,8 @@
                      when 'add' then 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
                      else 'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200'
                      end %>
-<%
-  notes_payload = begin
-    parsed = JSON.parse(@venta.notes.to_s)
-    parsed.is_a?(Hash) ? parsed : {}
-  rescue JSON::ParserError
-    {}
-  end
-  service_cost_rows = Array(notes_payload['service_cost_settlements'])
-  service_cost_rows_by_name = service_cost_rows.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |row, hash|
-    key = row.is_a?(Hash) ? row['service_name'].to_s.strip.downcase : ''
-    next if key.blank?
-
-    hash[key] << row
-  end
-%>
+<% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
 <div class="space-y-6">
   <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
@@ -64,6 +66,19 @@
       <div class="flex flex-wrap gap-2">
         <%= link_to historial_ventas_path, class: "inline-flex cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
           Volver al historial
+        <% end %>
+        <% if @venta.vat_mode == 'none' %>
+          <%= link_to delivery_note_venta_path(@venta, autoprint: 1),
+                      target: '_blank',
+                      rel: 'noopener',
+                      class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100' do %>
+            Generar nota de entrega
+          <% end %>
+        <% else %>
+          <span class="inline-flex cursor-not-allowed items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-500"
+                title="Disponible solo para facturas sin IVA">
+            Nota de entrega bloqueada (IVA activo)
+          </span>
         <% end %>
         <%= link_to ventas_path, class: "inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800" do %>
           Ir al POS
@@ -169,6 +184,8 @@
               <% raw_subtotal_base = base_is_ves ? @venta.base_line_subtotal(item) : subtotal_usd %>
               <% item_kind_class = item.producto.present? ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100' : 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100' %>
               <% is_service_item = item.producto.blank? %>
+              <% item_exento = item.respond_to?(:exento) && item.exento %>
+              <% service_system_label = item.variation_name.to_s.strip.presence || 'Servicio' %>
               <% default_item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
               <% display_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
               <% service_snapshot = if is_service_item
@@ -180,6 +197,10 @@
 
                                                classification = line['classification'].to_s
                                                next unless %w[product_expense nested_expense].include?(classification)
+
+                                               if classification == 'product_expense'
+                                                 next unless ActiveModel::Type::Boolean.new.cast(line['breakdown_in_invoice'])
+                                               end
 
                                                line_total_usd = line['amount_usd'].to_d.round(2)
                                                next unless line_total_usd.positive?
@@ -203,7 +224,35 @@
                                            else
                                              []
                                            end %>
-              <% service_breakdown_total_usd = service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+              <% service_printing_lines = if is_service_item
+                                            Array(service_printings_by_parent_name.delete(default_item_name.to_s.strip.downcase)).filter_map do |line|
+                                              next unless line.is_a?(Hash)
+
+                                              line_quantity = line['quantity'].to_d.round(2)
+                                              line_quantity = 1.to_d unless line_quantity.positive?
+                                              line_total_usd = line['total_sale_price_usd'].to_d.round(2)
+                                              next unless line_total_usd.positive?
+                                              line_total_bs = line['total_sale_price_bs'].to_d.round(2)
+                                              line_unit_bs = line['unit_sale_price_bs'].to_d.round(2)
+
+                                              {
+                                                classification: line['classification'].to_s.presence || 'printing_service',
+                                                label: line['classification_label'].to_s.presence || 'Servicio de impresion',
+                                                name: line['source_name'].to_s.strip.presence || 'Impresion',
+                                                quantity: line_quantity,
+                                                unit_bs: line_unit_bs,
+                                                subtotal_bs: line_total_bs,
+                                                unit_usd: line['unit_sale_price_usd'].to_d.round(2),
+                                                subtotal_usd: line_total_usd
+                                              }
+                                            end
+                                          else
+                                            []
+                                          end %>
+              <% all_service_breakdown_lines = service_breakdown_lines + service_printing_lines %>
+              <% service_breakdown_total_usd = all_service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+              <% service_printing_total_bs = service_printing_lines.sum { |line| line[:subtotal_bs].to_d }.round(2) %>
+              <% service_non_printing_breakdown_total_usd = service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
               <% service_visual_subtotal_usd = if is_service_item
                                                  [(subtotal_usd - service_breakdown_total_usd).round(2), 0.to_d].max
                                                else
@@ -215,9 +264,13 @@
               <% display_subtotal_usd = service_visual_subtotal_usd %>
               <% display_unit_usd = service_visual_unit_usd %>
               <% if is_service_item && base_is_ves && subtotal_usd.positive? %>
-                <% base_ratio = (display_subtotal_usd / subtotal_usd).to_d %>
-                <% subtotal_base = (raw_subtotal_base.to_d * base_ratio).round(2) %>
+                <% non_printing_breakdown_base = tasa.positive? ? (service_non_printing_breakdown_total_usd * tasa).round(2) : 0.to_d %>
+                <% subtotal_base = [raw_subtotal_base.to_d - service_printing_total_bs - non_printing_breakdown_base, 0.to_d].max.round(2) %>
                 <% unit_base = (subtotal_base / service_quantity).round(2) %>
+                <% if tasa.positive? %>
+                  <% display_subtotal_usd = (subtotal_base / tasa).round(2) %>
+                  <% display_unit_usd = (display_subtotal_usd / service_quantity).round(2) %>
+                <% end %>
               <% else %>
                 <% unit_base = base_is_ves ? raw_unit_base : display_unit_usd %>
                 <% subtotal_base = base_is_ves ? raw_subtotal_base : display_subtotal_usd %>
@@ -228,11 +281,18 @@
                 <td class="px-6 py-4">
                   <div class="flex flex-col gap-1">
                     <span class="font-semibold text-slate-800"><%= display_item_name %></span>
-                    <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= item_kind_class %>"><%= item.producto.present? ? 'Producto' : 'Servicio' %></span>
+                    <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= item_kind_class %>"><%= item.producto.present? ? 'Producto' : service_system_label %></span>
+                    <% if item.producto.present? && item_exento %>
+                      <span class="inline-flex w-fit items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Exento IVA</span>
+                    <% end %>
                   </div>
                 </td>
                 <td class="px-6 py-4">
-                  <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><%= item.variation_name.presence || item.product_variation&.description || 'Unica' %></span>
+                  <% if is_service_item %>
+                    <span class="text-xs text-slate-400">-</span>
+                  <% else %>
+                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><%= item.variation_name.presence || item.product_variation&.description || 'Unica' %></span>
+                  <% end %>
                 </td>
                 <td class="px-6 py-4 text-center font-semibold text-slate-700"><%= format_quantity(item.quantity, precision: 2) %></td>
                 <td class="px-6 py-4 text-right">
@@ -245,18 +305,61 @@
                 </td>
               </tr>
               <% if is_service_item %>
-                <% service_breakdown_lines.each do |line| %>
+                <% all_service_breakdown_lines.each do |line| %>
                   <% child_quantity = line[:quantity].to_d %>
                   <% child_unit_usd = line[:unit_usd].to_d.round(2) %>
                   <% child_subtotal_usd = line[:subtotal_usd].to_d.round(2) %>
-                  <% child_unit_base = base_is_ves ? (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) : child_unit_usd %>
-                  <% child_subtotal_base = base_is_ves ? (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) : child_subtotal_usd %>
-                  <% child_unit_alt = base_is_ves ? child_unit_usd : (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) %>
-                  <% child_subtotal_alt = base_is_ves ? child_subtotal_usd : (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) %>
-                  <% child_kind_class = line[:classification] == 'nested_expense' ? 'bg-violet-50 text-violet-700 ring-1 ring-violet-100' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-100' %>
-                  <% child_row_tone_class = line[:classification] == 'nested_expense' ? 'bg-violet-50/35 hover:bg-violet-50/55' : 'bg-amber-50/35 hover:bg-amber-50/55' %>
-                  <% child_border_class = line[:classification] == 'nested_expense' ? 'border-l-violet-300' : 'border-l-amber-300' %>
-                  <% child_marker_class = line[:classification] == 'nested_expense' ? 'bg-violet-100 text-violet-700 ring-violet-200' : 'bg-amber-100 text-amber-700 ring-amber-200' %>
+                  <% if %w[printing_service lamination_service].include?(line[:classification].to_s) && base_is_ves %>
+                    <% child_unit_base = line[:unit_bs].to_d.round(2) %>
+                    <% child_subtotal_base = line[:subtotal_bs].to_d.round(2) %>
+                    <% child_unit_alt = tasa.positive? ? (child_unit_base / tasa).round(2) : child_unit_usd %>
+                    <% child_subtotal_alt = tasa.positive? ? (child_subtotal_base / tasa).round(2) : child_subtotal_usd %>
+                  <% else %>
+                    <% child_unit_base = base_is_ves ? (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) : child_unit_usd %>
+                    <% child_subtotal_base = base_is_ves ? (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) : child_subtotal_usd %>
+                    <% child_unit_alt = base_is_ves ? child_unit_usd : (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) %>
+                    <% child_subtotal_alt = base_is_ves ? child_subtotal_usd : (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) %>
+                  <% end %>
+                  <% child_kind_class = case line[:classification]
+                                        when 'nested_expense'
+                                          'bg-violet-50 text-violet-700 ring-1 ring-violet-100'
+                                        when 'lamination_service'
+                                          'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+                                        when 'printing_service'
+                                          'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100'
+                                        else
+                                          'bg-amber-50 text-amber-700 ring-1 ring-amber-100'
+                                        end %>
+                  <% child_row_tone_class = case line[:classification]
+                                            when 'nested_expense'
+                                              'bg-violet-50/35 hover:bg-violet-50/55'
+                                            when 'lamination_service'
+                                              'bg-emerald-50/35 hover:bg-emerald-50/55'
+                                            when 'printing_service'
+                                              'bg-cyan-50/35 hover:bg-cyan-50/55'
+                                            else
+                                              'bg-amber-50/35 hover:bg-amber-50/55'
+                                            end %>
+                  <% child_border_class = case line[:classification]
+                                          when 'nested_expense'
+                                            'border-l-violet-300'
+                                          when 'lamination_service'
+                                            'border-l-emerald-300'
+                                          when 'printing_service'
+                                            'border-l-cyan-300'
+                                          else
+                                            'border-l-amber-300'
+                                          end %>
+                  <% child_marker_class = case line[:classification]
+                                          when 'nested_expense'
+                                            'bg-violet-100 text-violet-700 ring-violet-200'
+                                          when 'lamination_service'
+                                            'bg-emerald-100 text-emerald-700 ring-emerald-200'
+                                          when 'printing_service'
+                                            'bg-cyan-100 text-cyan-700 ring-cyan-200'
+                                          else
+                                            'bg-amber-100 text-amber-700 ring-amber-200'
+                                          end %>
                   <tr class="transition-all duration-150 border-t border-dashed border-slate-200/80 <%= child_row_tone_class %>">
                     <td class="relative border-l-4 <%= child_border_class %> px-6 py-3 pl-14">
                       <span class="absolute left-5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-bold ring-1 <%= child_marker_class %>">↳</span>
@@ -266,7 +369,7 @@
                       </div>
                     </td>
                     <td class="px-6 py-3">
-                      <span class="inline-flex w-fit items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-300">Sublinea · Asociado a <%= display_item_name %></span>
+                      <span class="inline-flex w-fit items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-300">Asociado a "<%= display_item_name %>"</span>
                     </td>
                     <td class="px-6 py-3 text-center font-semibold text-slate-700"><%= format_quantity(child_quantity, precision: 2) %></td>
                     <td class="px-6 py-3 text-right">
@@ -331,8 +434,12 @@
         <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">Resumen monetario</p>
         <div class="mt-4 space-y-3">
           <div class="flex items-center justify-between gap-3 text-sm text-slate-600">
-            <span>Subtotal</span>
+            <span>Subtotal gravado</span>
             <span class="font-semibold text-slate-800"><%= format_money(base_subtotal, unit: base_symbol) %></span>
+          </div>
+          <div class="flex items-center justify-between gap-3 text-sm text-slate-600">
+            <span>Exento</span>
+            <span class="font-semibold text-slate-800"><%= format_money(base_exento, unit: base_symbol) %></span>
           </div>
           <div class="flex items-center justify-between gap-3 text-sm text-slate-600">
             <span>IVA</span>

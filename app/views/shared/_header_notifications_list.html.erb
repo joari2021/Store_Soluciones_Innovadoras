@@ -1,0 +1,29 @@
+<div id="notifications-list" class="max-h-72 overflow-y-auto py-2">
+  <% if @header_notifications.present? %>
+    <% @header_notifications.each do |notification| %>
+      <div id="header-notification-<%= notification[:kind] %>" class="px-4 py-3 transition-colors hover:bg-slate-50">
+        <div class="flex items-start justify-between gap-3">
+          <%= link_to notification[:href], class: 'min-w-0 flex-1' do %>
+            <p class="text-sm font-semibold text-slate-800"><%= notification[:title] %></p>
+            <p class="mt-1 text-xs text-slate-500"><%= notification[:summary] %></p>
+          <% end %>
+          <div class="flex items-center gap-2">
+            <% if notification[:count].to_i.positive? %>
+              <span class="inline-flex items-center justify-center rounded-full bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-700"><%= notification[:count] %></span>
+            <% end %>
+            <%= button_to header_notification_path(notification[:kind]),
+                          method: :delete,
+                          class: 'inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 cursor-pointer',
+                          form: { class: 'js-dismiss-header-notification-form', data: { turbo: true, item_id: "header-notification-#{notification[:kind]}" } },
+                          title: 'Eliminar notificacion',
+                          aria: { label: 'Eliminar notificacion' } do %>
+              <span aria-hidden="true">×</span>
+            <% end %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="px-4 py-4 text-sm text-slate-500">No hay notificaciones pendientes.</div>
+  <% end %>
+</div>

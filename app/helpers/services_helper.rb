@@ -49,6 +49,11 @@ module ServicesHelper
                                  description: variation.description.to_s
                                }
         end
+        oldest_active_lot = product.stock_lots
+                                 .ordered_fifo
+                                 .find { |lot| lot.quantity_remaining.to_d.positive? }
+        oldest_lot_cost_usd = oldest_active_lot&.unit_cost_usd.to_d
+        oldest_lot_cost_bs = rate.positive? ? (oldest_lot_cost_usd * rate).round(2) : 0.to_d
 
         [
           "#{product.descripcion} ($#{format_quantity(price_usd)})",
@@ -57,7 +62,9 @@ module ServicesHelper
             data: {
               price_usd: price_usd.to_f,
               price_bs: price_bs.to_f,
-              variations: variations_payload.to_json
+              variations: variations_payload.to_json,
+              oldest_lot_cost_usd: oldest_lot_cost_usd.to_f,
+              oldest_lot_cost_bs: oldest_lot_cost_bs.to_f
             }
           }
         ]

@@ -7,6 +7,8 @@ class AccountMovement < ApplicationRecord
 
   PAYMENT_METHODS = {
     'transfer' => 'Transferencia',
+    'third_party_transfer' => 'Transferencia a tercero',
+    'interbank_transfer' => 'Transferencia a otro banco',
     'mobile_payment' => 'Pago movil',
     'settlement' => 'Liquidacion'
   }.freeze

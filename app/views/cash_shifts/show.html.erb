@@ -264,7 +264,7 @@
               <th class="px-3 py-2 text-left">Facturo</th>
               <th class="px-3 py-2 text-right">USD</th>
               <th class="px-3 py-2 text-right">VES</th>
-              <th class="px-3 py-2 text-left">Hora</th>
+              <th class="px-3 py-2 text-center">Hora</th>
               <th class="px-3 py-2 text-right">Accion</th>
             </tr>
           </thead>
@@ -280,7 +280,7 @@
                 <td class="px-3 py-2"><%= sale.seller_display_name %></td>
                 <td class="px-3 py-2 text-right"><%= number_to_currency(sale_total_usd, unit: '$ ') %></td>
                 <td class="px-3 py-2 text-right"><%= number_to_currency(sale_total_ves, unit: 'Bs ') %></td>
-                <td class="px-3 py-2">
+                <td class="px-3 py-2 text-center">
                   <span><%= l(sale.created_at, format: :short) rescue sale.created_at.strftime('%d/%m/%Y %H:%M') %></span>
                   <% if sale_rate_date.present? %>
                     <p class="text-xs text-slate-500">Tasa: <%= sale_rate_date.strftime('%d/%m/%Y') %></p>
@@ -409,8 +409,9 @@
             const currency = String(row.currency || '').toUpperCase();
             const symbol = symbolForRow(row);
             const expected = Number(row.expected_amount || 0);
+            const isCashBox = String(row.account_type || '') === 'cash_box';
             const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
-            const declared = parseAmountFromInput(declaredInput);
+            const declared = isCashBox ? parseAmountFromInput(declaredInput) : expected;
             const normalizedDeclared = Number.isFinite(declared) ? declared : 0;
             const difference = Number((normalizedDeclared - expected).toFixed(2));
             const diffBadge = differenceMeta(difference);
@@ -495,8 +496,9 @@
 
           for (let index = 0; index < rowsData.length; index += 1) {
             const row = rowsData[index];
+            const isCashBox = String(row.account_type || '') === 'cash_box';
             const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
-            const declaredAmount = parseAmountFromInput(declaredInput);
+            let declaredAmount = isCashBox ? parseAmountFromInput(declaredInput) : Number(row.expected_amount || 0);
 
             if (!Number.isFinite(declaredAmount) || declaredAmount < 0) {
               window.Swal.showValidationMessage(`Monto declarado invalido para ${row.account_name}.`);
@@ -562,11 +564,22 @@
                       </div>
                       <p class="text-sm font-bold text-slate-700">Esperado: ${escapeHtml(formatMoney(row.expected_amount, symbol))}</p>
                     </div>
-                    <div class="mt-2">
-                      <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto total reportado</label>
-                      <input type="text" inputmode="decimal" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="${symbol} 0,00" data-close-declared="${index}" data-money-mask="true" data-money-symbol="${symbol}">
-                      <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
-                    </div>
+                    ${isCashBox ? `
+                      <div class="mt-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto total reportado</label>
+                        <input type="text" inputmode="decimal" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="${symbol} 0,00" data-close-declared="${index}" data-money-mask="true" data-money-symbol="${symbol}">
+                        <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
+                      </div>
+                    ` : `
+                      <div class="mt-2 rounded-lg border border-sky-200 bg-sky-50/70 p-2.5">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">${String(row.account_type || '') === 'biopago' ? 'Total acumulado del dia' : 'Cierre de Puntos De Venta'}</p>
+                        <p class="mt-1 text-xs text-slate-600">${String(row.account_type || '') === 'biopago'
+                          ? 'verifique que en el sistema del Biopago el monto exacto del total coincida con el que esta viendo en el sistema. Sino coincide asegurese de verificar las ventas y registrar cualquier venta que se le haya pasado por alto o corregir alguna en la que se haya equivocado comunicandose con el Administrador, bajo ningun concepto debe hacer el cierre si estos montos no coinciden.'
+                          : 'verifique que en el monto total de los cierres generados del turno en curso, coincida con el que esta viendo en el sistema. Sino coincide asegurese de verificar las ventas y registrar cualquier venta que se le haya pasado por alto o corregir alguna en la que se haya equivocado comunicandose con el Administrador, bajo ningun concepto debe hacer el cierre si estos montos no coinciden.'}</p>
+                        <p class="mt-1 text-sm font-bold text-slate-800">${escapeHtml(formatMoney(row.expected_amount, symbol))}</p>
+                        <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
+                      </div>
+                    `}
                     ${isCashBox ? `
                       <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50/50 p-2.5">
                         <label class="block text-xs font-semibold uppercase tracking-wide text-amber-700">Retiro de efectivo</label>
@@ -577,14 +590,14 @@
                   </div>
                 `;
               }).join('')
-            : '<p class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No hay montos liquidables para Biopago, Punto de Venta o Cajas en este turno.</p>';
+            : '<p class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No hay montos por verificar para cajas, POS o Biopago en este turno.</p>';
 
           const result = await window.Swal.fire({
             title: 'Cerrar turno',
             html: `
               <div class="space-y-3 text-left">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Verificacion de metodos</p>
-                <p class="text-sm text-slate-600">Confirma montos para Biopago, Punto de Venta y Cajas. Se calcularan diferencias en tiempo real.</p>
+                <p class="text-sm text-slate-600">Confirma montos de caja. POS se registrara como cierre pendiente de procesamiento y Biopago permanecera pendiente para su cierre manual diario.</p>
                 <div class="space-y-2">${rowsHtml}</div>
                 <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen de diferencias</p>
@@ -610,7 +623,7 @@
               rowsData.forEach((row, index) => {
                 const symbol = symbolForRow(row);
                 const expected = Number(row.expected_amount || 0);
-                const initialAmount = 0;
+                const initialAmount = String(row.account_type || '') === 'cash_box' ? 0 : expected;
                 const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
 
                 if (declaredInput) {

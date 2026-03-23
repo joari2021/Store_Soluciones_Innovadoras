@@ -87,10 +87,23 @@ class ProductosController < ApplicationController
       return
     end
 
-    render json: productos
-      .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
-      .limit(10)
-      .select(:id, :descripcion)
+    rows = productos
+           .includes(:product_variations)
+           .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+           .limit(10)
+
+    render json: rows.map { |row|
+      {
+        id: row.id,
+        descripcion: row.descripcion,
+        costo_mayor: nil,
+        costo_menor: nil,
+        unid_x_pack: nil,
+        variations: row.product_variations.order(:id).map { |variation|
+          { id: variation.id, description: variation.description }
+        }
+      }
+    }
   end
 
   def new
@@ -113,8 +126,13 @@ class ProductosController < ApplicationController
           'products-below-target-badge',
           view_context.render(partial: 'productos/below_target_badge', locals: { count: below_target_count })
         )
+        set_header_notifications
+        refresh_header_notifications_stream = view_context.turbo_stream.replace(
+          'notifications-tooltip',
+          view_context.render(partial: 'shared/header_notifications')
+        )
         clear_frame = view_context.turbo_stream.update('modal-productos', '')
-        render turbo_stream: [append_stream, update_badge_stream, clear_frame]
+        render turbo_stream: [append_stream, update_badge_stream, refresh_header_notifications_stream, clear_frame]
       else
         redirect_to productos_path, notice: 'Producto creado exitosamente.'
       end
@@ -156,8 +174,13 @@ class ProductosController < ApplicationController
           'products-below-target-badge',
           view_context.render(partial: 'productos/below_target_badge', locals: { count: below_target_count })
         )
+        set_header_notifications
+        refresh_header_notifications_stream = view_context.turbo_stream.replace(
+          'notifications-tooltip',
+          view_context.render(partial: 'shared/header_notifications')
+        )
         clear_frame = view_context.turbo_stream.update('modal-productos', '')
-        render turbo_stream: [row_payload, update_badge_stream, clear_frame]
+        render turbo_stream: [row_payload, update_badge_stream, refresh_header_notifications_stream, clear_frame]
       else
         redirect_to productos_path, notice: 'Producto actualizado exitosamente.'
       end
@@ -203,15 +226,18 @@ class ProductosController < ApplicationController
   end
 
   def producto_params
-    params.require(:producto).permit(
+    allowed = [
       :descripcion,
       :precio_venta_usd,
       :categoria_id,
       :foto,
       :porcentaje_ganancia,
       :profit_margin_preset_id,
-      product_variations_attributes: %i[id description safety_stock _destroy]
-    )
+      { product_variations_attributes: %i[id description safety_stock _destroy] }
+    ]
+    allowed << :exento if Producto.column_names.include?('exento')
+
+    params.require(:producto).permit(*allowed)
   end
 
   def load_categorias_for_select

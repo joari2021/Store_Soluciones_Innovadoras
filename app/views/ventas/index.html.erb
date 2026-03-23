@@ -7,10 +7,17 @@
                       end.sort_by { |nombre, _cantidad| nombre.downcase } %>
 <% visible_services = @services.select do |service|
                        payload = @services_payload_by_id[service.id] || {}
+                       request_reference = payload[:currency_base_price].to_s.presence || 'Dolar BCV'
                        price_usd_value = payload[:price_usd].present? ? payload[:price_usd].to_d : nil
+                       price_bs_value = payload[:price_bs].present? ? payload[:price_bs].to_d : nil
                        price_on_request = payload[:price_on_request] == true
+                       price_available = if request_reference == 'Unidad VI'
+                                           price_usd_value&.positive? || price_bs_value&.positive?
+                                         else
+                                           price_usd_value&.positive?
+                                         end
 
-                       service.available? && (price_on_request || price_usd_value&.positive?)
+                       service.available? && (price_on_request || price_available)
                      end %>
 <% service_systems = visible_services.each_with_object(Hash.new(0)) do |service, counts|
                        system_name = service.system_service&.name.to_s.strip
@@ -18,46 +25,7 @@
 
                        counts[system_name] += 1
                      end.sort_by { |nombre, _cantidad| nombre.downcase } %>
-<% can_manage_cash_shifts = can_manage_action?(:manage_cash_shifts) %>
 <div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>">
-  <div class="ventas-theme-hero relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
-    <div class="ventas-theme-hero-orb-primary absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
-    <div class="ventas-theme-hero-orb-secondary absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-sky-200/30 blur-2xl"></div>
-    <div class="relative flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-      <div class="max-w-2xl">
-        <span class="ventas-theme-hero-kicker inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700 shadow-sm backdrop-blur">
-          <i data-lucide="scan-line" class="h-3.5 w-3.5"></i>
-          POS activo
-        </span>
-        <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-800 md:text-4xl">Ventas</h1>
-        <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Construye la orden, alterna entre productos y servicios y cierra el cobro con una interfaz m&aacute;s clara, viva y consistente con la paleta del sistema.</p>
-      </div>
-      <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap xl:w-auto xl:justify-end">
-        <% if @open_cash_shift.present? %>
-          <%= link_to cash_shift_path(@open_cash_shift), class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100" do %>
-            <i data-lucide="clock-3" class="h-4 w-4"></i>
-            Turno #<%= @open_cash_shift.id %> abierto
-          <% end %>
-        <% elsif can_manage_cash_shifts %>
-          <button type="button"
-                  id="ventas-open-cash-shift-trigger"
-                  data-create-url="<%= cash_shifts_path %>"
-                  class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100">
-            <i data-lucide="play" class="h-4 w-4"></i>
-            Abrir turno para facturar
-          </button>
-        <% else %>
-          <span class="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-xs font-semibold text-slate-600">
-            Espera al encargado para abrir turno
-          </span>
-        <% end %>
-        <%= link_to historial_ventas_path, class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-slate-800" do %>
-          <i data-lucide="list" class="h-4 w-4"></i>
-          Historial
-        <% end %>
-      </div>
-    </div>
-  </div>
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -375,6 +343,13 @@
                 <% payload = @products_payload_by_id[producto.id] || {} %>
                 <% available_total = payload[:available_total].to_d %>
                 <% price_usd_value = payload[:price_usd].present? ? payload[:price_usd].to_d : producto.precio_venta_usd.to_d %>
+                <% product_exento = if payload.key?(:exento) || payload.key?('exento')
+                                     ActiveModel::Type::Boolean.new.cast(payload[:exento] || payload['exento'])
+                                   elsif producto.respond_to?(:exento?)
+                                     producto.exento?
+                                   else
+                                     false
+                                   end %>
                 <% price_bs = bcv_rate.positive? ? (price_usd_value * bcv_rate) : nil %>
                 <% variations = producto.product_variations.sort_by(&:id) %>
                 <% variation_names = variations.map(&:description) %>
@@ -398,7 +373,7 @@
                                         else
                                           'border-sky-100'
                                         end %>
-                <article class="ventas-product-card glass-card group relative overflow-hidden rounded-3xl border <%= product_card_class %> bg-white/95 p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-100/60 active:scale-[0.98] <%= available_total.positive? ? 'cursor-pointer' : 'cursor-not-allowed' %>" data-product-id="<%= producto.id %>" data-product-query="<%= product_query %>" data-product-category="<%= producto.categoria&.nombre.to_s %>">
+                <article class="ventas-product-card glass-card group relative overflow-hidden rounded-3xl border <%= product_card_class %> bg-white/95 p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-100/60 active:scale-[0.98] <%= available_total.positive? ? 'cursor-pointer' : 'cursor-not-allowed' %>" data-product-id="<%= producto.id %>" data-product-query="<%= product_query %>" data-product-category="<%= producto.categoria&.nombre.to_s %>" data-product-exento="<%= product_exento ? 'true' : 'false' %>">
                   <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-100/70 via-cyan-50/60 to-white/0"></div>
                   <div class="relative">
                     <div class="flex items-start justify-between gap-2">
@@ -406,9 +381,16 @@
                         <i data-lucide="activity" class="h-3 w-3"></i>
                         Disp: <span data-product-stock="<%= producto.id %>"><%= format_quantity(available_total, precision: 0) %></span>
                       </span>
-                      <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" data-product-variation-count="<%= producto.id %>">
-                        <%= available_variation_names.size %> var.
-                      </span>
+                      <div class="flex items-center gap-1.5">
+                        <% if product_exento %>
+                          <span class="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                            Exento IVA
+                          </span>
+                        <% end %>
+                        <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" data-product-variation-count="<%= producto.id %>">
+                          <%= available_variation_names.size %> var.
+                        </span>
+                      </div>
                     </div>
                     <div class="relative mt-3 aspect-square overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
                       <% if producto.foto.attached? %>
@@ -505,12 +487,21 @@
                 <% payload = @services_payload_by_id[service.id] || {} %>
                 <% price_usd = payload[:price_usd] %>
                 <% price_usd_value = price_usd ? price_usd.to_d : nil %>
+                <% payload_price_bs_value = payload[:price_bs].present? ? payload[:price_bs].to_d : nil %>
                 <% price_on_request = payload[:price_on_request] == true %>
-                <% price_available = price_on_request || price_usd_value&.positive? %>
-                <% price_bs = price_usd_value&.positive? && bcv_rate.positive? ? (price_usd_value * bcv_rate) : nil %>
                 <% request_reference = payload[:currency_base_price].to_s.presence || 'Dolar BCV' %>
+                <% price_available = if request_reference == 'Unidad VI'
+                                       price_on_request || price_usd_value&.positive? || payload_price_bs_value&.positive?
+                                     else
+                                       price_on_request || price_usd_value&.positive?
+                                     end %>
+                <% price_bs = if payload_price_bs_value&.positive?
+                                payload_price_bs_value
+                              elsif price_usd_value&.positive? && bcv_rate.positive?
+                                (price_usd_value * bcv_rate)
+                              end %>
                 <% request_symbol = payload[:currency_symbol].to_s.presence || (request_reference == 'Bs' ? 'Bs' : '$') %>
-                <% auto_cost_discount = payload[:auto_cost_stock_discount] == true %>
+                <% unidad_vi_reference = request_reference == 'Unidad VI' %>
                 <% system_name = service.system_service&.name.to_s.strip %>
                 <% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
                 <% service_state_class = if price_on_request
@@ -536,9 +527,6 @@
                         <%= price_on_request ? 'A convenir' : 'Servicio' %>
                       </span>
                       <div class="flex flex-wrap items-center justify-end gap-1">
-                        <% if auto_cost_discount %>
-                          <span class="rounded-full bg-cyan-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-cyan-700 ring-1 ring-cyan-200">Costo auto</span>
-                        <% end %>
                         <% if system_name.present? %>
                           <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500"><%= system_name %></span>
                         <% end %>
@@ -563,8 +551,13 @@
                             </div>
                           <% elsif price_available %>
                             <div class="text-right">
-                              <p class="text-cyan-700 font-bold"><%= format_money(price_usd_value, unit: '$') %></p>
-                              <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                              <% if unidad_vi_reference %>
+                                <p class="text-cyan-700 font-bold"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                                <p class="text-xs text-slate-500"><%= price_usd_value&.positive? ? format_money(price_usd_value, unit: '$') : '$ --' %></p>
+                              <% else %>
+                                <p class="text-cyan-700 font-bold"><%= format_money(price_usd_value, unit: '$') %></p>
+                                <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                              <% end %>
                             </div>
                           <% else %>
                             <div class="text-right">
@@ -678,7 +671,7 @@
                           <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items de la orden</p>
                           <span class="rounded-full bg-slate-900/5 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Resumen en vivo</span>
                         </div>
-                        <div class="max-h-[40vh] overflow-y-auto pr-2">
+                        <div class="app-thin-scrollbar max-h-[40vh] overflow-y-auto pr-2">
                           <div id="ventas-cart-list" class="space-y-3"></div>
                           <div id="ventas-cart-empty" class="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center shadow-sm">
                             <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
@@ -709,10 +702,17 @@
                       <div class="ventas-theme-summary-panel mt-4 rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-4">
                         <div class="space-y-3">
                           <div class="flex justify-between text-sm text-slate-500">
-                            <span>Subtotal</span>
+                            <span>Subtotal gravado</span>
                             <span class="text-right">
                               <span id="ventas-subtotal-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
                               <span id="ventas-subtotal-bs" class="block text-xs text-slate-400">Bs 0,00</span>
+                            </span>
+                          </div>
+                          <div class="flex justify-between text-sm text-slate-500">
+                            <span>Exento</span>
+                            <span class="text-right">
+                              <span id="ventas-exento-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
+                              <span id="ventas-exento-bs" class="block text-xs text-slate-400">Bs 0,00</span>
                             </span>
                           </div>
                           <div class="flex justify-between text-sm text-slate-500">
@@ -1075,10 +1075,28 @@
                   const buildProductReservationSnapshot = () => {
                     const snapshot = new Map();
                     cart.forEach((item, key) => {
-                      if ((item.itemType || 'product') !== 'product') return;
                       const quantity = Number(item.quantity) || 0;
                       if (!(quantity > 0)) return;
-                      snapshot.set(String(key), quantity);
+
+                      if ((item.itemType || 'product') === 'product') {
+                        snapshot.set(String(key), quantity);
+                        return;
+                      }
+
+                      if ((item.itemType || 'product') !== 'service') return;
+                      const service = servicesById.get(String(item.serviceId || ''));
+                      if (!service) return;
+
+                      resolveServiceMaterialRowsForReservation(service, item).forEach((row) => {
+                        const materialProductId = String(row.productId || '').trim();
+                        const materialVariationId = normalizeVariationId(row.variationId || row.variation_id);
+                        const materialQuantity = Number(row.quantity) || 0;
+                        if (!materialProductId || !(materialQuantity > 0)) return;
+
+                        const materialKey = `print-material:${materialProductId}::${materialVariationId || 'none'}`;
+                        const previous = Number(snapshot.get(materialKey)) || 0;
+                        snapshot.set(materialKey, previous + (quantity * materialQuantity));
+                      });
                     });
                     return snapshot;
                   };
@@ -1109,20 +1127,36 @@
                     return total;
                   };
 
+                  const syncedReservedQuantityForPrintMaterialProduct = (productId) => {
+                    const prefix = `print-material:${String(productId)}::`;
+                    let total = 0;
+                    syncedReservedProductQuantities.forEach((quantity, key) => {
+                      if (!String(key).startsWith(prefix)) return;
+                      total += Number(quantity) || 0;
+                    });
+                    return total;
+                  };
+
+                  const syncedReservedQuantityForPrintMaterialVariation = (productId, variationId) => {
+                    const key = `print-material:${String(productId)}::${normalizeVariationId(variationId) || 'none'}`;
+                    return Number(syncedReservedProductQuantities.get(key)) || 0;
+                  };
+
                   const getVatMode = () => {
                     const selected = root.querySelector('input[name="ventas-vat-mode"]:checked');
                     return selected ? selected.value : 'none';
                   };
 
-                  const computePricing = (baseUnitUsd, quantity) => {
+                  const computePricing = (baseUnitUsd, quantity, options = {}) => {
                     const vatMode = getVatMode();
+                    const isExento = options?.exento === true;
                     const unitUsd = Number(baseUnitUsd) || 0;
                     const unitBaseRaw = baseCurrency === 'usd' ? unitUsd : convertUsdToBase(unitUsd);
                     const unitBase = roundTo(unitBaseRaw, 2);
                     const safeQty = Number(quantity) || 0;
                     let unitNet = unitBase;
 
-                    if (vatMode === 'included' && vatRate > 0) {
+                    if (!isExento && vatMode === 'included' && vatRate > 0) {
                       unitNet = roundTo(unitBase / (1 + vatRate), 2);
                     }
 
@@ -1131,15 +1165,56 @@
                       unitDisplay: unitNet,
                       lineNet: lineNet,
                       lineTotal: lineNet,
+                      exento: isExento,
                     };
                   };
 
-                  const resolveServiceUnitPriceUsd = (service, item = {}) => {
+                  const resolveServiceUnitPriceUsd = (service, item = {}, options = {}) => {
+                    const preferBsReference = options?.preferBsReference === true;
+                    const normalizedReference = normalizeServiceReferenceName(service);
+                    const servicePriceBs = Number(service?.price_bs);
+
+                    // For Unidad VI priced services, prefer recalculating from Bs to keep parity with print pricing rules.
+                    if (preferBsReference && Number.isFinite(servicePriceBs) && servicePriceBs > 0) {
+                      if (bcvRate > 0) return roundTo(servicePriceBs / bcvRate, 6);
+                      return 0;
+                    }
+
                     const itemPrice = Number(item.unit_price_usd);
                     if (Number.isFinite(itemPrice) && itemPrice > 0) return itemPrice;
 
+                    if (normalizedReference === 'Unidad VI' && Number.isFinite(servicePriceBs) && servicePriceBs > 0) {
+                      if (bcvRate > 0) return roundTo(servicePriceBs / bcvRate, 6);
+                      return 0;
+                    }
+
                     const defaultPrice = Number(service?.price_usd);
                     if (Number.isFinite(defaultPrice) && defaultPrice > 0) return defaultPrice;
+
+                    return 0;
+                  };
+
+                  const resolveServiceUnitPriceBaseAmount = (service, options = {}) => {
+                    const normalizedReference = normalizeServiceReferenceName(service);
+                    const servicePriceBs = Number(service?.price_bs);
+
+                    if (baseCurrency === 'ves') {
+                      if (Number.isFinite(servicePriceBs) && servicePriceBs > 0) return roundTo(servicePriceBs, 2);
+
+                      const servicePriceUsd = resolveServiceUnitPriceUsd(service, { unit_price_usd: service?.price_usd }, options);
+                      if (Number.isFinite(servicePriceUsd) && servicePriceUsd > 0 && bcvRate > 0) {
+                        return roundTo(servicePriceUsd * bcvRate, 2);
+                      }
+                    }
+
+                    const resolvedUnitPriceUsd = resolveServiceUnitPriceUsd(service, { unit_price_usd: service?.price_usd }, options);
+                    if (baseCurrency === 'usd' && Number.isFinite(resolvedUnitPriceUsd) && resolvedUnitPriceUsd > 0) {
+                      return roundTo(resolvedUnitPriceUsd, 2);
+                    }
+
+                    if (normalizedReference === 'Unidad VI' && Number.isFinite(servicePriceBs) && servicePriceBs > 0 && baseCurrency === 'usd' && bcvRate > 0) {
+                      return roundTo(servicePriceBs / bcvRate, 2);
+                    }
 
                     return 0;
                   };
@@ -1166,7 +1241,46 @@
                     }
 
                     const unitPriceUsd = resolveServiceUnitPriceUsd(service, item);
-                    return computePricing(unitPriceUsd, item.quantity);
+                    return computePricing(unitPriceUsd, item.quantity, { exento: false });
+                  };
+
+                  const calculateCartTotals = () => {
+                    let taxableSubtotalBase = 0;
+                    let exentoSubtotalBase = 0;
+                    const vatMode = getVatMode();
+
+                    cart.forEach((item) => {
+                      const itemType = item.itemType || 'product';
+                      if (itemType === 'service') {
+                        const service = servicesById.get(String(item.serviceId));
+                        if (!service) return;
+                        const pricing = computeServicePricing(service, item);
+                        if (!(pricing.unitDisplay > 0)) return;
+                        taxableSubtotalBase = roundTo(taxableSubtotalBase + pricing.lineNet, 2);
+                        return;
+                      }
+
+                      const product = productsById.get(String(item.productId));
+                      if (!product) return;
+
+                      const isExento = Boolean(product.exento);
+                      const pricing = computePricing(product.price_usd, item.quantity, { exento: isExento });
+                      if (isExento) {
+                        exentoSubtotalBase = roundTo(exentoSubtotalBase + pricing.lineNet, 2);
+                      } else {
+                        taxableSubtotalBase = roundTo(taxableSubtotalBase + pricing.lineNet, 2);
+                      }
+                    });
+
+                    const vatBase = vatMode === 'none' ? 0 : roundTo(taxableSubtotalBase * vatRate, 2);
+                    const totalBase = roundTo(taxableSubtotalBase + exentoSubtotalBase + vatBase, 2);
+
+                    return {
+                      taxableSubtotalBase,
+                      exentoSubtotalBase,
+                      vatBase,
+                      totalBase,
+                    };
                   };
 
                   const escapeHtml = (value) =>
@@ -1291,6 +1405,250 @@
                     return total;
                   };
 
+                  const resolveServiceMaterialProductId = (service, materialSurchargeId) => {
+                    const safeMaterialSurchargeId = String(materialSurchargeId || '').trim();
+                    if (!safeMaterialSurchargeId) return '';
+
+                    const options = Array.isArray(service?.print_material_options) ? service.print_material_options : [];
+                    const option = options.find((row) => String(row?.id || '').trim() === safeMaterialSurchargeId);
+                    return String(option?.product_id || '').trim();
+                  };
+
+                  const parseMaterialQuantity = (rawValue, fallback = 1) => {
+                    const normalized = String(rawValue ?? '')
+                      .trim()
+                      .replace(',', '.');
+                    const parsed = Number.parseFloat(normalized);
+                    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+
+                    return roundTo(parsed, 2);
+                  };
+
+                  const normalizeServiceMaterialRowsForCart = (rows) => {
+                    if (!Array.isArray(rows)) return [];
+
+                    return rows
+                      .map((row) => {
+                        const source = row || {};
+                        const productId = String(source.productId || source.product_id || '').trim();
+                        const rawSurchargeId = String(source.surchargeId || source.surcharge_id || '').trim();
+                        const surchargeId = rawSurchargeId || (productId ? `product-${productId}` : '');
+                        const label = String(source.label || '').trim();
+                        const variationId = normalizeVariationId(source.variationId || source.variation_id);
+                        const variationName = String(source.variationName || source.variation_name || '').trim();
+                        const quantity = parseMaterialQuantity(source.quantity || '1', 1);
+                        const breakdownInInvoice = Boolean(source.breakdownInInvoice || source.breakdown_in_invoice);
+                        const optionalDeliveryExtra = Boolean(source.optionalDeliveryExtra || source.optional_delivery_extra);
+                        const requestedQuantity = parseMaterialQuantity(source.requestedQuantity || source.requested_quantity || quantity, quantity);
+                        if (!surchargeId || !productId) return null;
+
+                        return {
+                          surchargeId,
+                          productId,
+                          label: label || null,
+                          variationId: variationId || null,
+                          variationName: variationName || null,
+                          quantity,
+                          breakdownInInvoice,
+                          optionalDeliveryExtra,
+                          requestedQuantity,
+                        };
+                      })
+                      .filter(Boolean);
+                  };
+
+                  const materialRowsSignatureToken = (rows) => {
+                    const normalizedRows = normalizeServiceMaterialRowsForCart(rows);
+                    if (normalizedRows.length === 0) return null;
+
+                    const signature = normalizedRows
+                      .map((row) => `${row.surchargeId}:${row.productId}:${row.variationId || 'none'}:${row.quantity}`)
+                      .sort()
+                      .join(',');
+
+                    return signature ? `material-set-${signature}` : null;
+                  };
+
+                  const resolveServiceMaterialRowsForReservation = (service, item) => {
+                    const explicitRows = normalizeServiceMaterialRowsForCart(item?.selected_print_material_rows);
+                    if (explicitRows.length > 0) return explicitRows;
+
+                    const materialProductId = String(item?.selected_print_material_product_id || '').trim()
+                      || resolveServiceMaterialProductId(service, item?.selected_print_material_surcharge_id);
+                    if (!materialProductId) return [];
+
+                    return [{
+                      surchargeId: String(item?.selected_print_material_surcharge_id || '').trim(),
+                      productId: materialProductId,
+                      label: String(item?.selected_print_material_label || '').trim() || null,
+                      quantity: parseMaterialQuantity(item?.quantity_per_service_material || 1, 1),
+                    }];
+                  };
+
+                  const resolveMaterialShortageContextLabel = ({ row, materialContext }) => {
+                    const rowLabel = String(row?.label || '').trim();
+                    const sourceLabel = String(materialContext?.sourceLabel || '').trim();
+
+                    if (sourceLabel && rowLabel) {
+                      return sourceLabel.toLowerCase() === rowLabel.toLowerCase()
+                        ? sourceLabel
+                        : `${sourceLabel} - ${rowLabel}`;
+                    }
+
+                    if (rowLabel) return rowLabel;
+                    if (sourceLabel) return sourceLabel;
+                    return 'Material del servicio';
+                  };
+
+                  const buildServiceMaterialShortageRows = ({ service, materialRows, serviceUnits, materialContext = null }) => {
+                    const rows = normalizeServiceMaterialRowsForCart(materialRows);
+                    if (rows.length === 0) return [];
+
+                    const safeUnits = parseMaterialQuantity(serviceUnits, 1);
+                    const groupedRequirements = new Map();
+
+                    rows.forEach((row) => {
+                      const productId = String(row.productId || '').trim();
+                      const variationId = normalizeVariationId(row.variationId || row.variation_id);
+                      const requirementKey = `${productId}::${variationId || 'none'}`;
+                      if (!productId) return;
+
+                      const previous = groupedRequirements.get(requirementKey) || {
+                        label: String(row.label || '').trim() || 'Material',
+                        variationId,
+                        variationName: String(row.variationName || '').trim(),
+                        required: 0,
+                        contexts: new Map(),
+                      };
+                      const rowRequired = parseMaterialQuantity(row.quantity, 1) * safeUnits;
+                      const contextLabel = resolveMaterialShortageContextLabel({ row, materialContext });
+
+                      previous.required += rowRequired;
+                      previous.contexts.set(
+                        contextLabel,
+                        roundTo((previous.contexts.get(contextLabel) || 0) + rowRequired, 2),
+                      );
+                      groupedRequirements.set(requirementKey, previous);
+                    });
+
+                    const shortages = [];
+                    groupedRequirements.forEach((requirement, requirementKey) => {
+                      const [productId] = String(requirementKey).split('::');
+                      const product = productsById.get(productId);
+                      const productName = String(product?.name || '').trim();
+                      const variationId = normalizeVariationId(requirement.variationId);
+                      const variationLabel = String(requirement.variationName || '').trim();
+                      const labelBase = productName || requirement.label || 'Material';
+                      const label = variationLabel ? `${labelBase} (${variationLabel})` : labelBase;
+                      const available = product
+                        ? (variationId ? Number(getAvailableForVariation(product, variationId)) || 0 : Number(getAvailableTotal(product)) || 0)
+                        : 0;
+                      const required = roundTo(requirement.required, 2);
+                      const missing = roundTo(Math.max(0, required - available), 2);
+                      if (!(missing > 0)) return;
+
+                      shortages.push({
+                        label,
+                        required,
+                        available: roundTo(Math.max(0, available), 2),
+                        missing,
+                        contexts: Array.from(requirement.contexts.entries()).map(([contextLabel, contextRequired]) => ({
+                          label: contextLabel,
+                          required: roundTo(contextRequired, 2),
+                        })),
+                      });
+                    });
+
+                    return shortages;
+                  };
+
+                  const notifyServiceMaterialShortage = async ({ service, shortages, serviceUnits }) => {
+                    if (!Array.isArray(shortages) || shortages.length === 0) return;
+                    if (!window.Swal) return;
+
+                    const serviceLabel = escapeHtml(String(service?.name || service?.sale_display_name || 'Servicio'));
+                    const unitsLabel = formatNumber(parseMaterialQuantity(serviceUnits, 1), 2);
+                    const rowsHtml = shortages
+                      .map((row) => `
+                        <li class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-left">
+                          <p class="text-sm font-semibold text-rose-700">${escapeHtml(row.label)}</p>
+                          <p class="text-xs text-rose-700">Requerido: ${formatNumber(row.required, 2)} · Disponible: ${formatNumber(row.available, 2)} · Faltan: ${formatNumber(row.missing, 2)}</p>
+                          ${Array.isArray(row.contexts) && row.contexts.length > 0
+                            ? `<p class="mt-1 text-[11px] text-rose-700">Origen: ${row.contexts
+                              .map((contextRow) => `${escapeHtml(contextRow.label)} (${formatNumber(contextRow.required, 2)})`)
+                              .join(' · ')}</p>`
+                            : ''}
+                        </li>
+                      `)
+                      .join('');
+
+                    await window.Swal.fire({
+                      icon: 'warning',
+                      title: 'Stock insuficiente de materiales',
+                      html: `
+                        <div class="space-y-3 text-left">
+                          <p class="text-sm text-slate-600">No se puede cargar al panel el servicio <strong>${serviceLabel}</strong> (${unitsLabel} unidad(es)).</p>
+                          <ul class="space-y-2">${rowsHtml}</ul>
+                        </div>
+                      `,
+                      confirmButtonText: 'Entendido',
+                      heightAuto: false,
+                    });
+                  };
+
+                  const ensureServiceMaterialsAvailability = async ({ service, materialRows, serviceUnits, materialContext = null }) => {
+                    const shortages = buildServiceMaterialShortageRows({ service, materialRows, serviceUnits, materialContext });
+                    if (shortages.length === 0) return true;
+
+                    await notifyServiceMaterialShortage({ service, shortages, serviceUnits });
+                    return false;
+                  };
+
+                  const getCartQuantityForPrintMaterialProduct = (productId) => {
+                    const safeProductId = String(productId || '').trim();
+                    if (!safeProductId) return 0;
+
+                    let total = 0;
+                    cart.forEach((item) => {
+                      if ((item.itemType || 'product') !== 'service') return;
+
+                      const service = servicesById.get(String(item.serviceId || ''));
+                      if (!service) return;
+
+                      resolveServiceMaterialRowsForReservation(service, item).forEach((row) => {
+                        if (String(row.productId || '').trim() !== safeProductId) return;
+
+                        total += (Number(item.quantity) || 0) * (Number(row.quantity) || 0);
+                      });
+                    });
+
+                    return total;
+                  };
+
+                  const getCartQuantityForPrintMaterialVariation = (productId, variationId) => {
+                    const safeProductId = String(productId || '').trim();
+                    const safeVariationId = normalizeVariationId(variationId);
+                    if (!safeProductId || !safeVariationId) return 0;
+
+                    let total = 0;
+                    cart.forEach((item) => {
+                      if ((item.itemType || 'product') !== 'service') return;
+
+                      const service = servicesById.get(String(item.serviceId || ''));
+                      if (!service) return;
+
+                      resolveServiceMaterialRowsForReservation(service, item).forEach((row) => {
+                        const rowProductId = String(row.productId || '').trim();
+                        const rowVariationId = normalizeVariationId(row.variationId || row.variation_id);
+                        if (rowProductId !== safeProductId || rowVariationId !== safeVariationId) return;
+
+                        total += (Number(item.quantity) || 0) * (Number(row.quantity) || 0);
+                      });
+                    });
+
+                    return total;
+                  };
+
                   const getAvailableForVariation = (product, variationId) => {
                     const normalizedVariation = normalizeVariationId(variationId);
                     const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizedVariation);
@@ -1298,7 +1656,10 @@
                     const inCart = getCartQuantityForVariation(product.id, normalizedVariation);
                     const syncedReserved = syncedReservedQuantityForVariation(product.id, normalizedVariation);
                     const pendingReservation = Math.max(0, inCart - syncedReserved);
-                    return Math.max(0, baseAvailable - pendingReservation);
+                    const inCartPrintMaterial = getCartQuantityForPrintMaterialVariation(product.id, normalizedVariation);
+                    const syncedReservedPrintMaterial = syncedReservedQuantityForPrintMaterialVariation(product.id, normalizedVariation);
+                    const pendingPrintMaterialReservation = Math.max(0, inCartPrintMaterial - syncedReservedPrintMaterial);
+                    return Math.max(0, baseAvailable - pendingReservation - pendingPrintMaterialReservation);
                   };
 
                   const getAvailableTotal = (product) => {
@@ -1306,7 +1667,12 @@
                     const inCart = getCartQuantityForProduct(product.id);
                     const syncedReserved = syncedReservedQuantityForProduct(product.id);
                     const pendingReservation = Math.max(0, inCart - syncedReserved);
-                    return Math.max(0, baseTotal - pendingReservation);
+
+                    const inCartPrintMaterial = getCartQuantityForPrintMaterialProduct(product.id);
+                    const syncedReservedPrintMaterial = syncedReservedQuantityForPrintMaterialProduct(product.id);
+                    const pendingPrintMaterialReservation = Math.max(0, inCartPrintMaterial - syncedReservedPrintMaterial);
+
+                    return Math.max(0, baseTotal - pendingReservation - pendingPrintMaterialReservation);
                   };
 
                   const buildProductCardVariationsHtml = (product) => {
@@ -1677,28 +2043,12 @@
                   initSearchTabs();
 
                   const renderTotals = () => {
-                    let subtotalBase = 0;
                     const vatMode = getVatMode();
-
-                    cart.forEach((item) => {
-                      const itemType = item.itemType || 'product';
-                      if (itemType === 'service') {
-                        const service = servicesById.get(String(item.serviceId));
-                        if (!service) return;
-                        const pricing = computeServicePricing(service, item);
-                        if (!(pricing.unitDisplay > 0)) return;
-                        subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
-                        return;
-                      }
-
-                      const product = productsById.get(String(item.productId));
-                      if (!product) return;
-                      const pricing = computePricing(product.price_usd, item.quantity);
-                      subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
-                    });
-
-                    const vatBase = vatMode === 'none' ? 0 : roundTo(subtotalBase * vatRate, 2);
-                    const totalBase = roundTo(subtotalBase + vatBase, 2);
+                    const totals = calculateCartTotals();
+                    const subtotalBase = totals.taxableSubtotalBase;
+                    const exentoBase = totals.exentoSubtotalBase;
+                    const vatBase = totals.vatBase;
+                    const totalBase = totals.totalBase;
 
                     const setText = (id, value) => {
                       const el = document.getElementById(id);
@@ -1707,6 +2057,8 @@
 
                     setText('ventas-subtotal-usd', formatBaseMoney(subtotalBase));
                     setText('ventas-subtotal-bs', formatAltFromBase(subtotalBase));
+                    setText('ventas-exento-usd', formatBaseMoney(exentoBase));
+                    setText('ventas-exento-bs', formatAltFromBase(exentoBase));
                     setText('ventas-iva-usd', formatBaseMoney(vatBase));
                     setText('ventas-iva-bs', formatAltFromBase(vatBase));
                     setText('ventas-total-usd', formatBaseMoney(totalBase));
@@ -1758,9 +2110,21 @@
                         if (!service) return '';
                         const pricing = computeServicePricing(service, item);
                         if (!(pricing.unitDisplay > 0)) return '';
-                        const displayName = service.system_name
-                          ? `${service.name} · ${service.system_name}`.trim()
-                          : service.name;
+                        const saleBaseName = String(service.sale_display_name || service.name || 'Servicio').trim();
+                        const displayName = saleBaseName;
+                        const deliveryLabel = item.delivery_presentation === 'physical'
+                          ? 'Entrega fisica'
+                          : (item.delivery_presentation === 'digital' ? 'Entrega digital' : null);
+                        const materialLabels = normalizeServiceMaterialRowsForCart(item.selected_print_material_rows)
+                          .map((row) => String(row.label || '').trim())
+                          .filter((label, index, array) => label.length > 0 && array.indexOf(label) === index);
+                        const materialLabel = materialLabels.length > 0
+                          ? ` · Materiales: ${escapeHtml(materialLabels.join(' / '))}`
+                          : '';
+                        const physicalPrinting = service?.physical_printing;
+                        const physicalPrintingLabel = item.delivery_presentation === 'physical' && physicalPrinting?.enabled
+                          ? ` · Impresion: ${formatCurrencyValue(Number(physicalPrinting.cost_bs || 0), 'VES')}`
+                          : '';
                         const agreedReference = service.price_on_request && item.agreed_reference_name
                           ? ` · ${escapeHtml(item.agreed_reference_name)}`
                           : '';
@@ -1773,7 +2137,7 @@
                             <div class="flex items-start justify-between gap-2">
                               <div class="min-w-0 flex-1">
                                 <p class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(displayName)}</p>
-                                <p class="mt-1 text-[11px] text-slate-400">Servicio${service.price_on_request ? ` (a convenir${agreedReference})` : ''} · Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}${agreedDisplay}</p>
+                                  <p class="mt-1 text-[11px] text-slate-400">Servicio${service.price_on_request ? ` (a convenir${agreedReference})` : ''}${deliveryLabel ? ` · ${deliveryLabel}` : ''}${materialLabel} · Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}${physicalPrintingLabel}${agreedDisplay}</p>
                               </div>
                               <button type="button" class="text-slate-300 hover:text-red-500" data-cart-action="remove" data-cart-key="${key}">
                                 <i data-lucide="x" class="w-4 h-4"></i>
@@ -1797,17 +2161,18 @@
                       const product = productsById.get(String(item.productId));
                       if (!product) return '';
 
-                      const pricing = computePricing(product.price_usd, item.quantity);
+                      const pricing = computePricing(product.price_usd, item.quantity, { exento: Boolean(product.exento) });
                       const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizeVariationId(item.variationId));
                       const variationName = variation ? variation.name : 'Unica';
                       const displayName = `${product.name} ${variationName}`.trim();
+                      const exentoLabel = product.exento ? ' · Exento IVA' : '';
 
                       return `
                         <div class="rounded-xl border border-slate-200 bg-white px-3 py-3" data-cart-key="${key}">
                           <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0 flex-1">
                               <p class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(displayName)}</p>
-                              <p class="mt-1 text-[11px] text-slate-400">Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}</p>
+                              <p class="mt-1 text-[11px] text-slate-400">Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}${exentoLabel}</p>
                             </div>
                             <button type="button" class="text-slate-300 hover:text-red-500" data-cart-action="remove" data-cart-key="${key}">
                               <i data-lucide="x" class="w-4 h-4"></i>
@@ -1871,12 +2236,918 @@
                     renderCart();
                   };
 
-                  const addServiceToCart = (serviceId, quantity) => {
+                  const resolveServiceDeliveryOptions = (service) => {
+                    if (!service) return [];
+
+                    const options = [];
+                    const physicalEnabled = Boolean(service.delivery_physical_enabled) || Boolean(service.physical_printing?.enabled);
+                    const digitalEnabled = Boolean(service.delivery_digital_enabled);
+
+                    if (physicalEnabled) options.push({ value: 'physical', label: 'Fisico' });
+                    if (digitalEnabled) options.push({ value: 'digital', label: 'Digital' });
+                    return options;
+                  };
+
+                  const resolveConfiguredPhysicalMaterials = (service, deliveryPresentation) => {
+                    if (!service || String(deliveryPresentation || '').toLowerCase() !== 'physical') return null;
+
+                    const configuredRows = Array.isArray(service?.physical_printing?.material_rows)
+                      ? service.physical_printing.material_rows
+                      : [];
+
+                    const normalizedRows = configuredRows
+                      .map((row) => {
+                        const surchargeId = String(row?.surcharge_id || '').trim();
+                        const productId = String(row?.product_id || '').trim();
+                        const label = String(row?.label || '').trim();
+                        const quantity = Number.parseInt(String(row?.quantity || '1').replace(/\D/g, ''), 10);
+                        if (!surchargeId || !productId) return null;
+
+                        return {
+                          surchargeId,
+                          productId,
+                          label: label || null,
+                          quantity: Number.isInteger(quantity) && quantity > 0 ? quantity : 1,
+                        };
+                      })
+                      .filter(Boolean);
+
+                    if (normalizedRows.length > 0) return normalizedRows;
+
+                    const fallback = service?.physical_printing?.material;
+                    const surchargeId = String(fallback?.surcharge_id || '').trim();
+                    const productId = String(fallback?.product_id || '').trim();
+                    const label = String(fallback?.label || '').trim();
+                    if (!surchargeId || !productId) return null;
+
+                    return [{ surchargeId, productId, label: label || null, quantity: 1 }];
+                  };
+
+                  const resolveConfiguredPhysicalDeliveryExtraRows = (service, deliveryPresentation) => {
+                    if (!service || String(deliveryPresentation || '').toLowerCase() !== 'physical') return [];
+
+                    const configuredRows = Array.isArray(service?.physical_printing?.extra_products)
+                      ? service.physical_printing.extra_products
+                      : [];
+
+                    return configuredRows
+                      .map((row) => {
+                        const productId = String(row?.product_id || '').trim();
+                        const productName = String(row?.product_name || '').trim();
+                        const variationId = normalizeVariationId(row?.variation_id);
+                        const variationName = String(row?.variation_name || '').trim();
+                        const quantity = parseMaterialQuantity(row?.quantity || '1', 1);
+                        if (!productId || !variationId || !(quantity > 0)) return null;
+
+                        return {
+                          surchargeId: `physical-extra-${productId}-${variationId}`,
+                          productId,
+                          label: productName || 'Producto adicional de entrega',
+                          variationId,
+                          variationName: variationName || null,
+                          quantity,
+                          requestedQuantity: quantity,
+                          optionalDeliveryExtra: true,
+                          breakdownInInvoice: Boolean(row?.breakdown_in_invoice),
+                        };
+                      })
+                      .filter(Boolean);
+                  };
+
+                  const resolvePhysicalExtraRowsWithAvailability = async ({ service, extraRows, serviceUnits }) => {
+                    const normalizedRows = normalizeServiceMaterialRowsForCart(extraRows);
+                    if (normalizedRows.length === 0) return [];
+
+                    const safeUnits = parseMaterialQuantity(serviceUnits, 1);
+                    const adjustedRows = [];
+                    const stockRows = [];
+
+                    normalizedRows.forEach((row) => {
+                      const product = productsById.get(String(row.productId || ''));
+                      const available = product
+                        ? (row.variationId
+                          ? Math.max(0, Number(getAvailableForVariation(product, row.variationId)) || 0)
+                          : Math.max(0, Number(getAvailableTotal(product)) || 0))
+                        : 0;
+                      const requiredTotal = roundTo(parseMaterialQuantity(row.quantity, 1) * safeUnits, 2);
+                      const includedTotal = roundTo(Math.min(requiredTotal, available), 2);
+                      const missingTotal = roundTo(Math.max(0, requiredTotal - includedTotal), 2);
+                      const includedPerService = safeUnits > 0 ? roundTo(includedTotal / safeUnits, 2) : 0;
+                      const requestedPerService = parseMaterialQuantity(row.quantity, 1);
+                      const variationLabel = String(row.variationName || '').trim();
+                      const displayBase = String(product?.name || row.label || 'Producto adicional').trim();
+                      const displayLabel = variationLabel ? `${displayBase} (${variationLabel})` : displayBase;
+
+                      if (includedPerService > 0) {
+                        adjustedRows.push({
+                          ...row,
+                          label: displayLabel,
+                          quantity: includedPerService,
+                          requestedQuantity: requestedPerService,
+                        });
+                      }
+
+                      const hasNoneAvailable = available <= 0;
+                      const hasPartialAvailability = available > 0 && missingTotal > 0;
+
+                      stockRows.push({
+                        label: displayLabel,
+                        required: requiredTotal,
+                        available: roundTo(available, 2),
+                        included: includedTotal,
+                        missing: missingTotal,
+                        status: hasNoneAvailable ? 'none' : (hasPartialAvailability ? 'partial' : 'full'),
+                        statusLabel: hasNoneAvailable
+                          ? 'Sin disponibilidad'
+                          : (hasPartialAvailability ? 'Stock insuficiente' : 'Disponible completo'),
+                      });
+                    });
+
+                    if (!window.Swal) return adjustedRows;
+
+                    const serviceName = String(service?.name || service?.sale_display_name || 'Servicio').trim();
+                    const serviceSystemName = String(service?.system_name || '').trim();
+                    const serviceLabel = escapeHtml(
+                      serviceSystemName.length > 0 ? `${serviceName} (${serviceSystemName})` : serviceName
+                    );
+                    const hasMissingRows = stockRows.some((row) => row.missing > 0);
+                    const hasNoStockRows = stockRows.some((row) => row.status === 'none');
+                    const hasDeliverableRows = stockRows.some((row) => row.status === 'partial' || row.status === 'full');
+                    const title = hasMissingRows
+                      ? (hasNoStockRows ? 'Productos adicionales con faltantes de stock' : 'Productos adicionales con stock insuficiente')
+                      : 'Productos adicionales en presentacion fisica';
+                    const icon = hasMissingRows ? (hasNoStockRows ? 'error' : 'warning') : 'info';
+
+                    const rowsHtml = stockRows.map((row) => {
+                      const colorClasses = row.status === 'none'
+                        ? 'border-red-200 bg-red-50 text-red-800'
+                        : (row.status === 'partial'
+                          ? 'border-amber-200 bg-amber-50 text-amber-800'
+                          : 'border-emerald-200 bg-emerald-50 text-emerald-800');
+
+                      return `
+                      <li class="rounded-lg border px-3 py-2 text-left ${colorClasses}">
+                        <p class="text-sm font-semibold">${escapeHtml(row.label)}</p>
+                        <p class="text-xs">Estado: ${escapeHtml(row.statusLabel)}</p>
+                        <p class="text-xs">Requerido: ${formatNumber(row.required, 2)} · Disponible: ${formatNumber(row.available, 2)} · Se incluira: ${formatNumber(row.included, 2)} · Faltan: ${formatNumber(row.missing, 2)}</p>
+                      </li>
+                    `;
+                    }).join('');
+
+                    const result = await window.Swal.fire({
+                      icon,
+                      title,
+                      html: `
+                        <div class="space-y-3 text-left">
+                          <p class="text-sm text-slate-600">La venta de este servicio incluye en la presentacion de entrega los siguientes productos.</p>
+                          <p class="text-sm text-slate-600"><strong>${serviceLabel}</strong></p>
+                          <ul class="space-y-2">${rowsHtml}</ul>
+                          ${hasDeliverableRows ? '<p class="text-xs font-semibold text-amber-700">No olvides entregar los productos adicionales disponibles junto con la entrega del servicio.</p>' : ''}
+                          <p class="text-xs text-slate-500">Si continuas, solo se descontara el stock disponible. Nunca se dejara stock negativo.</p>
+                        </div>
+                      `,
+                      showCancelButton: true,
+                      confirmButtonText: 'Continuar',
+                      cancelButtonText: 'Cancelar',
+                      heightAuto: false,
+                    });
+
+                    if (!result.isConfirmed) return false;
+                    return adjustedRows;
+                  };
+
+                  const resolveConfiguredLaminationMaterials = (service) => {
+                    if (!service?.lamination_type_service) return null;
+
+                    const configuredRows = Array.isArray(service?.print_material_options)
+                      ? service.print_material_options
+                      : [];
+
+                    const normalizedRows = configuredRows
+                      .map((row) => {
+                        const surchargeId = String(row?.id || '').trim();
+                        const productId = String(row?.product_id || '').trim();
+                        const label = String(row?.label || '').trim();
+                        const quantity = parseMaterialQuantity(row?.quantity || row?.required_quantity || '1', 1);
+                        if (!surchargeId || !productId) return null;
+
+                        return {
+                          surchargeId,
+                          productId,
+                          label: label || null,
+                          quantity,
+                        };
+                      })
+                      .filter(Boolean);
+
+                    return normalizedRows.length > 0 ? normalizedRows : null;
+                  };
+
+                  const resolveConfiguredRequiredMaterials = (service, deliveryPresentation) => {
+                    if (!service) return null;
+
+                    if (service.lamination_type_service) {
+                      return resolveConfiguredLaminationMaterials(service);
+                    }
+
+                    return resolveConfiguredPhysicalMaterials(service, deliveryPresentation);
+                  };
+
+                  const promptServiceDeliveryPresentation = async (service) => {
+                    const options = resolveServiceDeliveryOptions(service);
+                    if (options.length === 0) {
+                      if (window.Swal) {
+                        await window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Presentacion no configurada',
+                          text: 'Este servicio no tiene presentacion de entrega (fisico o digital).',
+                          heightAuto: false,
+                        });
+                      }
+                      return null;
+                    }
+                    if (options.length === 1) return options[0].value;
+
+                    if (!window.Swal) return options[0].value;
+
+                    const selectId = `delivery-presentation-${service.id}`;
+                    const html = `
+                      <div class="space-y-2 text-left">
+                        <p class="text-sm text-slate-500">Selecciona como se entregara este servicio:</p>
+                        <select id="${selectId}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                          ${options.map((row) => `<option value="${row.value}">${row.label}</option>`).join('')}
+                        </select>
+                      </div>
+                    `;
+
+                    const result = await window.Swal.fire({
+                      title: 'Presentacion de entrega',
+                      html,
+                      showCancelButton: true,
+                      confirmButtonText: 'Continuar',
+                      cancelButtonText: 'Cancelar',
+                      heightAuto: false,
+                      preConfirm: () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        const selected = dialog?.querySelector(`#${selectId}`)?.value || '';
+                        if (!selected) {
+                          window.Swal.showValidationMessage('Selecciona una presentacion para continuar.');
+                          return null;
+                        }
+                        return selected;
+                      },
+                    });
+
+                    if (!result.isConfirmed) return null;
+                    return String(result.value || '').trim() || null;
+                  };
+
+                  const promptPrintingMaterialSelection = async (service) => {
+                    const options = Array.isArray(service?.print_material_options)
+                      ? service.print_material_options.filter((row) => String(row?.label || '').trim().length > 0)
+                      : [];
+
+                    if (!service?.printing_type_service || options.length === 0) return null;
+
+                    if (options.length === 1) {
+                      return {
+                        id: String(options[0].id || ''),
+                        label: String(options[0].label || '').trim(),
+                      };
+                    }
+
+                    if (!window.Swal) {
+                      return {
+                        id: String(options[0].id || ''),
+                        label: String(options[0].label || '').trim(),
+                      };
+                    }
+
+                    const selectId = `printing-material-${service.id}`;
+                    const html = `
+                      <div class="space-y-2 text-left">
+                        <p class="text-sm text-slate-500">Selecciona el material para esta impresion:</p>
+                        <select id="${selectId}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                          ${options.map((row) => `<option value="${String(row.id || '')}">${escapeHtml(String(row.label || '').trim())}</option>`).join('')}
+                        </select>
+                      </div>
+                    `;
+
+                    const result = await window.Swal.fire({
+                      title: 'Material de impresion',
+                      html,
+                      showCancelButton: true,
+                      confirmButtonText: 'Continuar',
+                      cancelButtonText: 'Cancelar',
+                      heightAuto: false,
+                      preConfirm: () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        const selectedId = dialog?.querySelector(`#${selectId}`)?.value || '';
+                        const selected = options.find((row) => String(row.id || '') === String(selectedId || ''));
+                        if (!selected) {
+                          window.Swal.showValidationMessage('Selecciona un material para continuar.');
+                          return null;
+                        }
+
+                        return {
+                          id: String(selected.id || ''),
+                          label: String(selected.label || '').trim(),
+                        };
+                      },
+                    });
+
+                    if (!result.isConfirmed) return false;
+                    return result.value || null;
+                  };
+
+                  const promptPrintingRowsSelection = async (service) => {
+                    const coverageOptions = Array.isArray(service?.print_coverage_options)
+                      ? service.print_coverage_options.filter((row) => Number(row?.price_bs) > 0)
+                      : [];
+                    const materialOptions = Array.isArray(service?.print_material_options)
+                      ? service.print_material_options.filter((row) => String(row?.label || '').trim().length > 0)
+                      : [];
+
+                    if (coverageOptions.length === 0 || materialOptions.length === 0) {
+                      if (window.Swal) {
+                        await window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Configura impresion',
+                          text: 'Este servicio de impresion requiere coberturas y materiales configurados.',
+                          heightAuto: false,
+                        });
+                      }
+                      return null;
+                    }
+
+                    if (!window.Swal) {
+                      const fallbackCoverage = coverageOptions[0];
+                      const fallbackMaterial = materialOptions[0];
+                      return [{
+                        coverageId: String(fallbackCoverage.id || ''),
+                        coveragePercent: Number(fallbackCoverage.coverage_percent) || 0,
+                        coveragePriceBs: Number(fallbackCoverage.price_bs) || 0,
+                        materialId: String(fallbackMaterial.id || ''),
+                        materialLabel: String(fallbackMaterial.label || '').trim(),
+                        materialProductId: String(fallbackMaterial.product_id || '').trim(),
+                        surchargePercent: Number(fallbackMaterial.surcharge_percent) || 0,
+                        includeProductPriceInSale: Boolean(fallbackMaterial.include_product_price_in_sale),
+                        productPriceUsd: Number(fallbackMaterial.product_price_usd) || 0,
+                        quantity: 1,
+                      }];
+                    }
+
+                    const rowsContainerId = `printing-rows-${service.id}`;
+                    const addButtonId = `printing-rows-add-${service.id}`;
+
+                    const coverageOptionsHtml = coverageOptions
+                      .map((row) => {
+                        const id = String(row.id || '');
+                        const percent = Number(row.coverage_percent) || 0;
+                        const priceBs = Number(row.price_bs) || 0;
+                        return `<option value="${id}" data-coverage-percent="${percent}" data-price-bs="${priceBs}">${escapeHtml(`${formatCurrencyValue(priceBs, 'VES')} - ${formatNumber(percent, 0)}%`)}</option>`;
+                      })
+                      .join('');
+
+                    const materialOptionsHtml = materialOptions
+                      .map((row) => {
+                        const id = String(row.id || '');
+                        const label = String(row.label || '').trim();
+                        const productId = String(row.product_id || '').trim();
+                        const surcharge = Number(row.surcharge_percent) || 0;
+                        const includeProductPrice = Boolean(row.include_product_price_in_sale);
+                        const productPriceUsd = Number(row.product_price_usd) || 0;
+                        return `<option value="${id}" data-material-label="${escapeHtml(label)}" data-product-id="${productId}" data-surcharge-percent="${surcharge}" data-include-product-price="${includeProductPrice}" data-product-price-usd="${productPriceUsd}">${escapeHtml(`${label} (+${formatNumber(surcharge, 2)}%)`)}</option>`;
+                      })
+                      .join('');
+
+                    const buildRowHtml = () => `
+                      <div class="printing-row grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-12" data-printing-row>
+                        <div class="sm:col-span-4">
+                          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio</label>
+                          <select class="printing-coverage w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700">${coverageOptionsHtml}</select>
+                        </div>
+                        <div class="sm:col-span-4">
+                          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Material</label>
+                          <select class="printing-material w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-700">${materialOptionsHtml}</select>
+                          <p class="mt-1 text-right text-[11px] font-semibold text-slate-500" data-printing-material-availability>0 disponibles</p>
+                        </div>
+                        <div class="sm:col-span-3">
+                          <label class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cantidad</label>
+                          <div class="flex items-center gap-2">
+                            <button type="button" class="printing-qty-minus h-8 w-8 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100">-</button>
+                            <input type="number" min="1" step="1" value="1" class="printing-qty w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-center text-sm font-semibold text-slate-700">
+                            <button type="button" class="printing-qty-plus h-8 w-8 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100">+</button>
+                          </div>
+                        </div>
+                        <div class="sm:col-span-1 flex items-end justify-end">
+                          <button type="button" class="printing-remove-row h-8 w-8 rounded-full border border-rose-200 bg-rose-50 text-rose-600 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-700" title="Eliminar fila">×</button>
+                        </div>
+                        <div class="sm:col-span-12 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <span class="text-slate-500">Unitario: <strong class="text-slate-700" data-printing-unit-bs>Bs 0,00</strong> <span class="text-slate-400" data-printing-unit-usd></span></span>
+                            <span class="text-slate-500">Subtotal: <strong class="text-slate-700" data-printing-total-bs>Bs 0,00</strong> <span class="text-slate-400" data-printing-total-usd></span></span>
+                          </div>
+                        </div>
+                      </div>
+                    `;
+
+                    const result = await window.Swal.fire({
+                      title: `${escapeHtml(String(service.name || service.sale_display_name || 'Servicio'))}`,
+                      html: `
+                        <div class="space-y-3 text-left">
+                          <p class="text-sm text-slate-500">Agrega una o varias lineas de impresion. Cada cobertura solo puede usarse una vez.</p>
+                          <div id="${rowsContainerId}" class="space-y-2"></div>
+                          <button id="${addButtonId}" type="button" class="inline-flex items-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-cyan-700 shadow-sm transition-colors hover:bg-cyan-100">Agregar</button>
+                        </div>
+                      `,
+                      width: 820,
+                      showCancelButton: true,
+                      confirmButtonText: 'Agregar al carrito',
+                      cancelButtonText: 'Cancelar',
+                      heightAuto: false,
+                      didOpen: () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        const rowsContainer = dialog?.querySelector(`#${rowsContainerId}`);
+                        const addButton = dialog?.querySelector(`#${addButtonId}`);
+                        if (!rowsContainer || !addButton) return;
+
+                        const refreshCoverageLocks = () => {
+                          const rows = Array.from(rowsContainer.querySelectorAll('[data-printing-row]'));
+                          const selectedIds = rows
+                            .map((row) => row.querySelector('.printing-coverage')?.value || '')
+                            .filter((value) => value.length > 0);
+
+                          rows.forEach((row) => {
+                            const coverageSelect = row.querySelector('.printing-coverage');
+                            if (!coverageSelect) return;
+                            const currentValue = coverageSelect.value;
+                            Array.from(coverageSelect.options).forEach((option) => {
+                              const isTaken = selectedIds.includes(option.value) && option.value !== currentValue;
+                              option.disabled = isTaken;
+                            });
+                          });
+                        };
+
+                        const baseAvailableForMaterialProductId = (productId) => {
+                          const safeProductId = String(productId || '').trim();
+                          if (!safeProductId) return 0;
+
+                          const product = productsById.get(safeProductId);
+                          if (!product) return 0;
+
+                          return Math.max(0, Math.floor(getAvailableTotal(product)));
+                        };
+
+                        const selectedMaterialProductIdForRow = (rowEl) => {
+                          const selectedMaterialOption = rowEl?.querySelector('.printing-material')?.selectedOptions?.[0];
+                          return String(selectedMaterialOption?.dataset.productId || '').trim();
+                        };
+
+                        const selectedQtyForRow = (rowEl) => {
+                          const qtyInput = rowEl?.querySelector('.printing-qty');
+                          if (!qtyInput || qtyInput.disabled) return 0;
+
+                          const parsed = Number.parseInt(String(qtyInput.value || '').replace(/\D/g, ''), 10);
+                          return Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+                        };
+
+                        const requestedQtyByRowsForMaterialProduct = (productId, { excludeRow = null } = {}) => {
+                          const safeProductId = String(productId || '').trim();
+                          if (!safeProductId) return 0;
+
+                          let total = 0;
+                          Array.from(rowsContainer.querySelectorAll('[data-printing-row]')).forEach((candidateRow) => {
+                            if (excludeRow && candidateRow === excludeRow) return;
+                            if (selectedMaterialProductIdForRow(candidateRow) !== safeProductId) return;
+                            total += selectedQtyForRow(candidateRow);
+                          });
+
+                          return total;
+                        };
+
+                        const availablePrintsForMaterialOption = (materialOption, { rowEl = null } = {}) => {
+                          const productId = String(materialOption?.dataset.productId || '').trim();
+                          if (!productId) return 0;
+
+                          const baseAvailable = baseAvailableForMaterialProductId(productId);
+                          const reservedByOtherRows = requestedQtyByRowsForMaterialProduct(productId, { excludeRow: rowEl });
+                          return Math.max(0, baseAvailable - reservedByOtherRows);
+                        };
+
+                        const availabilityTextFor = (available) => {
+                          const safeAvailable = Number.isFinite(available) ? Math.max(0, Math.floor(available)) : 0;
+                          if (safeAvailable >= 1000) return '+1000 disponibles';
+                          return `${safeAvailable} disponibles`;
+                        };
+
+                        const applyMaterialAvailabilityState = (rowEl) => {
+                          if (!rowEl) return;
+
+                          const materialSelect = rowEl.querySelector('.printing-material');
+                          const qtyInput = rowEl.querySelector('.printing-qty');
+                          const minusButton = rowEl.querySelector('.printing-qty-minus');
+                          const plusButton = rowEl.querySelector('.printing-qty-plus');
+                          const availabilityEl = rowEl.querySelector('[data-printing-material-availability]');
+                          const selectedMaterialOption = materialSelect?.selectedOptions?.[0];
+                          const availablePrints = availablePrintsForMaterialOption(selectedMaterialOption, { rowEl });
+
+                          if (!qtyInput) return;
+
+                          let appliedQty = 0;
+
+                          if (availablePrints > 0) {
+                            const parsedQty = Number.parseInt(String(qtyInput.value || '').replace(/\D/g, ''), 10);
+                            const safeQty = Number.isInteger(parsedQty) && parsedQty > 0 ? parsedQty : 1;
+                            qtyInput.disabled = false;
+                            qtyInput.min = '1';
+                            qtyInput.max = String(availablePrints);
+                            qtyInput.value = String(Math.min(safeQty, availablePrints));
+                            appliedQty = Number.parseInt(String(qtyInput.value || '0'), 10) || 0;
+                            if (minusButton) minusButton.disabled = false;
+                            if (plusButton) plusButton.disabled = false;
+                          } else {
+                            qtyInput.disabled = true;
+                            qtyInput.min = '0';
+                            qtyInput.removeAttribute('max');
+                            qtyInput.value = '0';
+                            appliedQty = 0;
+                            if (minusButton) minusButton.disabled = true;
+                            if (plusButton) plusButton.disabled = true;
+                          }
+
+                          if (availabilityEl) {
+                            const remainingAfterSelection = Math.max(0, availablePrints - appliedQty);
+                            availabilityEl.textContent = availabilityTextFor(remainingAfterSelection);
+                            availabilityEl.classList.toggle('text-rose-600', remainingAfterSelection <= 0);
+                            availabilityEl.classList.toggle('text-emerald-600', remainingAfterSelection > 0);
+                            availabilityEl.classList.toggle('text-slate-500', false);
+                          }
+                        };
+
+                        const updateRowPricingSummary = (rowEl) => {
+                          if (!rowEl) return;
+
+                          const coverageOption = rowEl.querySelector('.printing-coverage')?.selectedOptions?.[0];
+                          const materialOption = rowEl.querySelector('.printing-material')?.selectedOptions?.[0];
+                          const qtyInput = rowEl.querySelector('.printing-qty');
+                          const unitBsEl = rowEl.querySelector('[data-printing-unit-bs]');
+                          const unitUsdEl = rowEl.querySelector('[data-printing-unit-usd]');
+                          const totalBsEl = rowEl.querySelector('[data-printing-total-bs]');
+                          const totalUsdEl = rowEl.querySelector('[data-printing-total-usd]');
+
+                          const coveragePriceBs = Number(coverageOption?.dataset.priceBs);
+                          const surchargePercent = Number(materialOption?.dataset.surchargePercent);
+                          const includeProductPrice = String(materialOption?.dataset.includeProductPrice || '').toLowerCase() === 'true';
+                          const productPriceUsd = Number(materialOption?.dataset.productPriceUsd);
+                          const quantity = Number.parseInt(String(qtyInput?.value || '').replace(/\D/g, ''), 10);
+                          const safeQuantity = qtyInput?.disabled
+                            ? 0
+                            : (Number.isInteger(quantity) && quantity > 0 ? quantity : 1);
+                          const safeCoveragePriceBs = Number.isFinite(coveragePriceBs) ? coveragePriceBs : 0;
+                          const safeSurchargePercent = Number.isFinite(surchargePercent) ? surchargePercent : 0;
+                          const materialUnitBs = includeProductPrice && Number.isFinite(productPriceUsd) && productPriceUsd > 0 && bcvRate > 0
+                            ? roundTo(productPriceUsd * bcvRate, 2)
+                            : 0;
+                          const unitBs = roundTo((safeCoveragePriceBs * (1 + (safeSurchargePercent / 100))) + materialUnitBs, 2);
+                          const totalBs = roundTo(unitBs * safeQuantity, 2);
+                          const unitUsd = bcvRate > 0 ? roundTo(unitBs / bcvRate, 2) : null;
+                          const totalUsd = bcvRate > 0 ? roundTo(totalBs / bcvRate, 2) : null;
+
+                          if (unitBsEl) unitBsEl.textContent = formatCurrencyValue(unitBs, 'VES');
+                          if (totalBsEl) totalBsEl.textContent = formatCurrencyValue(totalBs, 'VES');
+                          if (unitUsdEl) unitUsdEl.textContent = unitUsd != null ? `· ${formatCurrencyValue(unitUsd, 'USD')}` : '';
+                          if (totalUsdEl) totalUsdEl.textContent = totalUsd != null ? `· ${formatCurrencyValue(totalUsd, 'USD')}` : '';
+                        };
+
+                        const refreshAllMaterialAvailability = () => {
+                          const rows = Array.from(rowsContainer.querySelectorAll('[data-printing-row]'));
+                          rows.forEach((row) => applyMaterialAvailabilityState(row));
+                          rows.forEach((row) => updateRowPricingSummary(row));
+                        };
+
+                        const bindRow = (rowEl) => {
+                          const qtyInput = rowEl.querySelector('.printing-qty');
+                          const minus = rowEl.querySelector('.printing-qty-minus');
+                          const plus = rowEl.querySelector('.printing-qty-plus');
+                          const remove = rowEl.querySelector('.printing-remove-row');
+                          const coverageSelect = rowEl.querySelector('.printing-coverage');
+                          const materialSelect = rowEl.querySelector('.printing-material');
+
+                          const sanitizeQty = () => {
+                            applyMaterialAvailabilityState(rowEl);
+
+                            if (qtyInput?.disabled) {
+                              qtyInput.value = '0';
+                              updateRowPricingSummary(rowEl);
+                              return;
+                            }
+
+                            const parsed = Number.parseInt(String(qtyInput?.value || '').replace(/\D/g, ''), 10);
+                            const normalized = Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+                            const maxAllowed = Number.parseInt(String(qtyInput?.max || '').trim(), 10);
+                            const hasMax = Number.isInteger(maxAllowed) && maxAllowed > 0;
+                            const clamped = hasMax ? Math.min(normalized, maxAllowed) : normalized;
+                            qtyInput.value = String(clamped);
+                            refreshAllMaterialAvailability();
+                            updateRowPricingSummary(rowEl);
+                          };
+
+                          minus?.addEventListener('click', () => {
+                            if (qtyInput?.disabled) return;
+                            sanitizeQty();
+                            qtyInput.value = String(Math.max(1, Number.parseInt(qtyInput.value, 10) - 1));
+                            refreshAllMaterialAvailability();
+                            updateRowPricingSummary(rowEl);
+                          });
+                          plus?.addEventListener('click', () => {
+                            if (qtyInput?.disabled) return;
+                            sanitizeQty();
+                            const maxAllowed = Number.parseInt(String(qtyInput?.max || '').trim(), 10);
+                            const hasMax = Number.isInteger(maxAllowed) && maxAllowed > 0;
+                            const current = Number.parseInt(String(qtyInput.value || '1'), 10);
+                            const nextValue = hasMax ? Math.min(current + 1, maxAllowed) : (current + 1);
+                            qtyInput.value = String(nextValue);
+                            refreshAllMaterialAvailability();
+                            updateRowPricingSummary(rowEl);
+                          });
+                          qtyInput?.addEventListener('change', sanitizeQty);
+                          qtyInput?.addEventListener('input', sanitizeQty);
+
+                          coverageSelect?.addEventListener('change', () => {
+                            refreshCoverageLocks();
+                            updateRowPricingSummary(rowEl);
+                          });
+                          materialSelect?.addEventListener('change', () => {
+                            applyMaterialAvailabilityState(rowEl);
+                            sanitizeQty();
+                            refreshAllMaterialAvailability();
+                            updateRowPricingSummary(rowEl);
+                          });
+
+                          remove?.addEventListener('click', () => {
+                            const rows = rowsContainer.querySelectorAll('[data-printing-row]');
+                            if (rows.length <= 1) {
+                              applyMaterialAvailabilityState(rowEl);
+                              sanitizeQty();
+                              return;
+                            }
+                            rowEl.remove();
+                            refreshCoverageLocks();
+                            refreshAllMaterialAvailability();
+                          });
+
+                            applyMaterialAvailabilityState(rowEl);
+                            sanitizeQty();
+                            refreshAllMaterialAvailability();
+                            updateRowPricingSummary(rowEl);
+                        };
+
+                        const appendRow = () => {
+                          rowsContainer.insertAdjacentHTML('beforeend', buildRowHtml());
+                          const row = rowsContainer.lastElementChild;
+                          if (!row) return;
+                          bindRow(row);
+                          refreshCoverageLocks();
+                          refreshAllMaterialAvailability();
+                          updateRowPricingSummary(row);
+                        };
+
+                        addButton.addEventListener('click', appendRow);
+                        appendRow();
+                      },
+                      preConfirm: () => {
+                        const dialog = window.Swal.getHtmlContainer();
+                        const rows = Array.from(dialog?.querySelectorAll('[data-printing-row]') || []);
+                        if (rows.length === 0) {
+                          window.Swal.showValidationMessage('Agrega al menos una linea de impresion.');
+                          return null;
+                        }
+
+                        const seenCoverageIds = new Set();
+                        const materialQuantityByProductId = new Map();
+                        const parsedRows = [];
+
+                        for (const row of rows) {
+                          const coverageSelect = row.querySelector('.printing-coverage');
+                          const materialSelect = row.querySelector('.printing-material');
+                          const qtyInput = row.querySelector('.printing-qty');
+
+                          const coverageId = String(coverageSelect?.value || '').trim();
+                          const materialId = String(materialSelect?.value || '').trim();
+                          const quantity = Number.parseInt(String(qtyInput?.value || '').replace(/\D/g, ''), 10);
+
+                          if (!coverageId || !materialId || !(Number.isInteger(quantity) && quantity > 0)) {
+                            window.Swal.showValidationMessage('Completa cobertura, material y cantidad en cada fila.');
+                            return null;
+                          }
+
+                          if (seenCoverageIds.has(coverageId)) {
+                            window.Swal.showValidationMessage('No puedes repetir la misma cobertura en otra fila.');
+                            return null;
+                          }
+                          seenCoverageIds.add(coverageId);
+
+                          const coverageOption = coverageSelect?.selectedOptions?.[0];
+                          const materialOption = materialSelect?.selectedOptions?.[0];
+                          const coveragePercent = Number(coverageOption?.dataset.coveragePercent);
+                          const coveragePriceBs = Number(coverageOption?.dataset.priceBs);
+                          const surchargePercent = Number(materialOption?.dataset.surchargePercent);
+                          const includeProductPriceInSale = String(materialOption?.dataset.includeProductPrice || '').toLowerCase() === 'true';
+                          const productPriceUsd = Number(materialOption?.dataset.productPriceUsd);
+                          const materialProductId = String(materialOption?.dataset.productId || '').trim();
+                          const materialLabel = String(materialOption?.dataset.materialLabel || materialOption?.textContent || '').trim();
+
+                          if (!(Number.isFinite(coveragePriceBs) && coveragePriceBs > 0)) {
+                            window.Swal.showValidationMessage('La cobertura seleccionada no tiene monto Bs valido.');
+                            return null;
+                          }
+
+                          const availablePrints = materialProductId
+                            ? Math.max(0, Math.floor(getAvailableTotal({ id: materialProductId, available_total: productsById.get(materialProductId)?.available_total })))
+                            : 0;
+                          if (availablePrints <= 0) {
+                            window.Swal.showValidationMessage(`El material ${materialLabel || 'seleccionado'} no tiene stock disponible para impresion.`);
+                            return null;
+                          }
+
+                          if (quantity > availablePrints) {
+                            window.Swal.showValidationMessage(`La cantidad para ${materialLabel || 'el material'} no puede superar ${availablePrints} impresion(es) disponibles.`);
+                            return null;
+                          }
+
+                          const alreadyRequested = Number(materialQuantityByProductId.get(materialProductId) || 0);
+                          const accumulated = alreadyRequested + quantity;
+                          if (accumulated > availablePrints) {
+                            window.Swal.showValidationMessage(`La suma de filas para ${materialLabel || 'el material'} excede el stock disponible (${availablePrints} impresion(es)).`);
+                            return null;
+                          }
+                          materialQuantityByProductId.set(materialProductId, accumulated);
+
+                          parsedRows.push({
+                            coverageId,
+                            coveragePercent: Number.isFinite(coveragePercent) ? coveragePercent : 0,
+                            coveragePriceBs,
+                            materialId,
+                            materialLabel,
+                            materialProductId,
+                            surchargePercent: Number.isFinite(surchargePercent) ? surchargePercent : 0,
+                            includeProductPriceInSale,
+                            productPriceUsd: Number.isFinite(productPriceUsd) ? productPriceUsd : 0,
+                            quantity,
+                          });
+                        }
+
+                        return parsedRows;
+                      },
+                    });
+
+                    if (!result.isConfirmed) return false;
+                    return Array.isArray(result.value) ? result.value : [];
+                  };
+
+                  const addPrintingServiceRowsToCart = async (service, rows) => {
+                    if (!service || !Array.isArray(rows) || rows.length === 0) return;
+                    if (!(bcvRate > 0)) {
+                      if (window.Swal) {
+                        await window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Tasa BCV no disponible',
+                          text: 'No se puede calcular el precio USD de impresion sin tasa BCV.',
+                          heightAuto: false,
+                        });
+                      }
+                      return;
+                    }
+
+                    rows.forEach((row) => {
+                      const surchargeMultiplier = 1 + ((Number(row.surchargePercent) || 0) / 100);
+                      const baseUnitPriceBs = roundTo((Number(row.coveragePriceBs) || 0) * surchargeMultiplier, 2);
+                      const materialPriceUsd = row.includeProductPriceInSale ? (Number(row.productPriceUsd) || 0) : 0;
+                      const materialPriceBs = materialPriceUsd > 0 ? roundTo(materialPriceUsd * bcvRate, 2) : 0;
+                      const unitPriceBs = roundTo(baseUnitPriceBs + materialPriceBs, 2);
+                      const unitPriceUsd = roundTo((unitPriceBs / bcvRate), 6);
+                      if (!(unitPriceUsd > 0)) return;
+
+                      const keyParts = [
+                        `print-coverage-${row.coverageId}`,
+                        `print-material-${row.materialId}`,
+                        `print-unit-bs-${unitPriceBs.toFixed(2)}`,
+                      ];
+                      const key = buildKey('service', service.id, keyParts.join('|'));
+                      const existing = cart.get(key) || {
+                        itemType: 'service',
+                        serviceId: String(service.id),
+                        delivery_presentation: null,
+                        selected_print_coverage_id: row.coverageId,
+                        selected_print_coverage_percent: String(roundTo(Number(row.coveragePercent) || 0, 2)),
+                        selected_print_price_bs: roundTo(Number(row.coveragePriceBs) || 0, 2),
+                        selected_print_surcharge_percent: roundTo(Number(row.surchargePercent) || 0, 4),
+                        selected_print_unit_price_bs: unitPriceBs,
+                        selected_print_material_surcharge_id: row.materialId,
+                        selected_print_material_label: String(row.materialLabel || '').trim() || null,
+                        selected_print_material_product_id: String(row.materialProductId || '').trim() || null,
+                        quantity: 0,
+                        unit_price_usd: unitPriceUsd,
+                        unit_price_base_amount: baseCurrency === 'ves' ? unitPriceBs : roundTo(unitPriceUsd, 2),
+                        unit_price_base_currency: baseCurrency === 'ves' ? 'VES' : 'USD',
+                        consumable_decisions: [],
+                      };
+
+                      existing.delivery_presentation = null;
+                      existing.selected_print_coverage_id = row.coverageId;
+                      existing.selected_print_coverage_percent = String(roundTo(Number(row.coveragePercent) || 0, 2));
+                      existing.selected_print_price_bs = roundTo(Number(row.coveragePriceBs) || 0, 2);
+                      existing.selected_print_surcharge_percent = roundTo(Number(row.surchargePercent) || 0, 4);
+                      existing.selected_print_unit_price_bs = unitPriceBs;
+                      existing.selected_print_material_surcharge_id = row.materialId;
+                      existing.selected_print_material_label = String(row.materialLabel || '').trim() || existing.selected_print_material_label;
+                      existing.selected_print_material_product_id = String(row.materialProductId || '').trim() || existing.selected_print_material_product_id;
+                      existing.unit_price_usd = unitPriceUsd;
+                      existing.unit_price_base_amount = baseCurrency === 'ves' ? unitPriceBs : roundTo(unitPriceUsd, 2);
+                      existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
+                      existing.quantity += Number(row.quantity) || 0;
+                      if (!Array.isArray(existing.consumable_decisions)) existing.consumable_decisions = [];
+
+                      cart.set(key, existing);
+                    });
+
+                    renderCart();
+                  };
+
+                  const toServiceMaterialRowsPayload = (rows) => normalizeServiceMaterialRowsForCart(rows).map((row) => ({
+                    surcharge_id: row.surchargeId,
+                    product_id: row.productId,
+                    label: row.label,
+                    variation_id: row.variationId,
+                    quantity: row.quantity,
+                    breakdown_in_invoice: row.breakdownInInvoice === true,
+                    optional_delivery_extra: row.optionalDeliveryExtra === true,
+                    requested_quantity: row.requestedQuantity,
+                  }));
+
+                  const addServiceToCart = async (serviceId, quantity) => {
                     const service = servicesById.get(String(serviceId));
                     if (!service) return;
 
+                    if (service.printing_type_service) {
+                      const rows = await promptPrintingRowsSelection(service);
+                      if (rows === false || !Array.isArray(rows) || rows.length === 0) return;
+                      await addPrintingServiceRowsToCart(service, rows);
+                      return;
+                    }
+
+                    const isLaminationService = Boolean(service.lamination_type_service);
+                    const deliveryPresentation = isLaminationService ? null : await promptServiceDeliveryPresentation(service);
+                    if (!isLaminationService && !deliveryPresentation) return;
+
+                    const configuredPhysicalMaterials = resolveConfiguredRequiredMaterials(service, deliveryPresentation);
+                    if (configuredPhysicalMaterials === null) {
+                      if (isLaminationService && window.Swal) {
+                        await window.Swal.fire({
+                          icon: 'warning',
+                          title: 'Configura materiales de plastificacion',
+                          text: 'Este servicio requiere materiales configurados en el formulario del servicio.',
+                          heightAuto: false,
+                        });
+                      }
+                      return;
+                    }
+
+                    const normalizedMaterialRows = normalizeServiceMaterialRowsForCart(configuredPhysicalMaterials);
+                    if (isLaminationService && normalizedMaterialRows.length === 0) return;
+
+                    const configuredPhysicalExtraRows = isLaminationService
+                      ? []
+                      : resolveConfiguredPhysicalDeliveryExtraRows(service, deliveryPresentation);
+                    const resolvedPhysicalExtraRows = await resolvePhysicalExtraRowsWithAvailability({
+                      service,
+                      extraRows: configuredPhysicalExtraRows,
+                      serviceUnits: quantity,
+                    });
+                    if (resolvedPhysicalExtraRows === false) return;
+
+                    const hasMaterialStock = await ensureServiceMaterialsAvailability({
+                      service,
+                      materialRows: normalizedMaterialRows,
+                      serviceUnits: quantity,
+                      materialContext: {
+                        sourceLabel: isLaminationService ? 'Plastificacion directa' : 'Presentacion fisica',
+                      },
+                    });
+                    if (!hasMaterialStock) return;
+
+                    const selectedMaterialRows = normalizeServiceMaterialRowsForCart([
+                      ...normalizedMaterialRows,
+                      ...(Array.isArray(resolvedPhysicalExtraRows) ? resolvedPhysicalExtraRows : []),
+                    ]);
+
+                    const firstConfiguredMaterial = selectedMaterialRows[0] || null;
+
                     const resolvedUnitPriceUsd = resolveServiceUnitPriceUsd(service, {
                       unit_price_usd: service.price_usd,
+                    }, {
+                      preferBsReference: isLaminationService,
                     });
 
                     if (!(resolvedUnitPriceUsd > 0)) {
@@ -1893,22 +3164,56 @@
                       return;
                     }
 
-                    const key = buildKey('service', serviceId, null);
+                    const keyParts = [];
+                    if (deliveryPresentation) keyParts.push(`delivery-${deliveryPresentation}`);
+                    if (firstConfiguredMaterial?.surchargeId) keyParts.push(`print-material-${firstConfiguredMaterial.surchargeId}`);
+                    const materialSetToken = materialRowsSignatureToken(selectedMaterialRows);
+                    if (materialSetToken) keyParts.push(materialSetToken);
+                    const key = buildKey('service', serviceId, keyParts.join('|'));
                     const existing = cart.get(key) || {
                       itemType: 'service',
                       serviceId: String(serviceId),
+                      delivery_presentation: deliveryPresentation,
+                      selected_print_material_surcharge_id: firstConfiguredMaterial?.surchargeId || null,
+                      selected_print_material_label: firstConfiguredMaterial?.label || null,
+                      selected_print_material_product_id: firstConfiguredMaterial?.productId || null,
+                      selected_print_material_rows: toServiceMaterialRowsPayload(selectedMaterialRows),
                       quantity: 0,
                       unit_price_usd: resolvedUnitPriceUsd,
-                      nested_agreements: [],
+                      unit_price_base_amount: null,
+                      unit_price_base_currency: null,
                       consumable_decisions: [],
                     };
 
-                    if (!Array.isArray(existing.nested_agreements)) existing.nested_agreements = [];
                     if (!Array.isArray(existing.consumable_decisions)) existing.consumable_decisions = [];
+                    existing.delivery_presentation = deliveryPresentation;
+                    existing.selected_print_material_surcharge_id = firstConfiguredMaterial?.surchargeId || existing.selected_print_material_surcharge_id;
+                    existing.selected_print_material_label = firstConfiguredMaterial?.label || existing.selected_print_material_label;
+                    existing.selected_print_material_product_id = firstConfiguredMaterial?.productId || existing.selected_print_material_product_id;
+                    existing.selected_print_material_rows = selectedMaterialRows.length > 0
+                      ? toServiceMaterialRowsPayload(selectedMaterialRows)
+                      : (existing.selected_print_material_rows || []);
                     existing.unit_price_usd = resolvedUnitPriceUsd;
+                    const resolvedUnitPriceBaseAmount = resolveServiceUnitPriceBaseAmount(service, {
+                      preferBsReference: isLaminationService,
+                    });
+                    existing.unit_price_base_amount = resolvedUnitPriceBaseAmount > 0 ? resolvedUnitPriceBaseAmount : existing.unit_price_base_amount;
+                    existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
                     existing.quantity += quantity;
                     cart.set(key, existing);
                     renderCart();
+                  };
+
+                  const serviceUsesCostDebit = (service) => {
+                    if (!service) return false;
+
+                    return Boolean(service.cost_enabled);
+                  };
+
+                  const serviceSkipsCheckoutPrompts = (service) => {
+                    if (!service) return false;
+
+                    return Boolean(service.has_manager_or_variable_expense);
                   };
 
                   const promptServicePriceOnRequest = async (service) => {
@@ -2040,113 +3345,9 @@
                     return result.value || null;
                   };
 
-                  const promptNestedToAgreeCostsForItem = async (item, service) => {
-                    const rows = Array.isArray(service?.nested_to_agree_costs) ? service.nested_to_agree_costs : [];
-
-                    if (rows.length === 0) {
-                      item.nested_agreements = [];
-                      return true;
-                    }
-
-                    const existingByExpenseId = new Map(
-                      (Array.isArray(item.nested_agreements) ? item.nested_agreements : [])
-                        .map((row) => [String(row.nested_expense_id || ''), row])
-                    );
-
-                    if (!window.Swal) {
-                      item.nested_agreements = rows.map((row) => {
-                        const expenseId = String(row.expense_id || '');
-                        const existing = existingByExpenseId.get(expenseId) || {};
-                        return {
-                          nested_expense_id: expenseId,
-                          amount_reference: Number(existing.amount_reference) > 0
-                            ? Number(existing.amount_reference)
-                            : Number(row.default_amount_reference || 0),
-                          currency_reference: String(existing.currency_reference || row.reference_name || 'Bs'),
-                        };
-                      }).filter((row) => row.nested_expense_id && Number(row.amount_reference) > 0);
-                      return item.nested_agreements.length === rows.length;
-                    }
-
-                    const title = service?.name ? `Costos a convenir (${service.name})` : 'Costos a convenir anidados';
-
-                    const html = rows.map((row, index) => {
-                      const expenseId = String(row.expense_id || '');
-                      const amountId = `nested-agree-${expenseId || index}`;
-                      const existing = existingByExpenseId.get(expenseId) || {};
-                      const defaultAmount = Number(existing.amount_reference) > 0
-                        ? Number(existing.amount_reference)
-                        : Number(row.default_amount_reference || 0);
-                      const quantityMultiplier = roundTo((Number(item.quantity || 0) || 0) * (Number(row.quantity || 0) || 0), 2);
-                      const referenceSymbol = String(row.reference_symbol || '$');
-                      const nestedName = escapeHtml(String(row.nested_service_name || 'Servicio anidado'));
-                      const structureName = escapeHtml(String(row.structure_name || 'Sin estructura'));
-                      const referenceName = escapeHtml(String(row.reference_name || 'Bs'));
-                      return `
-                        <div class="rounded-xl border border-cyan-200 bg-cyan-50/70 p-3 text-left" data-nested-agree-row="${escapeHtml(expenseId)}">
-                          <p class="text-xs font-semibold text-cyan-700">${structureName}</p>
-                          <p class="text-sm font-semibold text-slate-800">${nestedName}</p>
-                          <p class="text-xs text-slate-500">Cantidad aplicada en esta venta: ${formatNumber(quantityMultiplier, 2)} · Referencia: ${referenceName}</p>
-                          <input id="${amountId}" type="text" inputmode="decimal" autocomplete="off"
-                            class="mt-2 w-full rounded-lg border border-cyan-200 bg-white px-3 py-2 text-sm text-slate-700"
-                            placeholder="${escapeHtml(referenceSymbol)} 0,00"
-                            value="${defaultAmount > 0 ? formatCurrencyValue(defaultAmount, 'USD').replace('$', referenceSymbol).trim() : ''}"
-                            data-money-mask="true" data-money-symbol="${escapeHtml(referenceSymbol)}" data-nested-agree-input="${escapeHtml(expenseId)}">
-                        </div>
-                      `;
-                    }).join('');
-
-                    const result = await window.Swal.fire({
-                      title,
-                      html: `<div class="space-y-2">${html}</div>`,
-                      showCancelButton: true,
-                      confirmButtonText: 'Guardar costos',
-                      cancelButtonText: 'Cancelar',
-                      heightAuto: false,
-                      didOpen: () => {
-                        const dialog = window.Swal.getHtmlContainer();
-                        if (!dialog) return;
-                        initMoneyMasks(dialog);
-                      },
-                      preConfirm: () => {
-                        const dialog = window.Swal.getHtmlContainer();
-                        if (!dialog) return null;
-
-                        const collected = [];
-                        let hasError = false;
-
-                        rows.forEach((row, index) => {
-                          if (hasError) return;
-                          const expenseId = String(row.expense_id || '');
-                          const amountId = `nested-agree-${expenseId || index}`;
-                          const input = dialog.querySelector(`#${amountId}`);
-                          const amount = parseMoneyInput(input);
-                          if (!(amount > 0)) {
-                            hasError = true;
-                            window.Swal.showValidationMessage('Indica un monto valido mayor a 0 para cada servicio anidado a convenir.');
-                            return;
-                          }
-
-                          collected.push({
-                            nested_expense_id: expenseId,
-                            amount_reference: roundTo(amount, 2),
-                            currency_reference: String(row.reference_name || 'Bs'),
-                          });
-                        });
-
-                        if (hasError) return null;
-                        return collected;
-                      },
-                    });
-
-                    if (!result.isConfirmed) return false;
-
-                    item.nested_agreements = Array.isArray(result.value) ? result.value : [];
-                    return true;
-                  };
-
                   const promptConsumableDeliveryForItem = async (item, service) => {
-                    const rows = Array.isArray(service?.consumable_costs) ? service.consumable_costs : [];
+                    const rows = (Array.isArray(service?.consumable_costs) ? service.consumable_costs : [])
+                      .filter((row) => row?.breakdown_in_invoice === true);
 
                     if (rows.length === 0) {
                       item.consumable_decisions = [];
@@ -2243,10 +3444,13 @@
 
                     for (const [key, item] of serviceEntries) {
                       const service = servicesById.get(String(item.serviceId));
-                      if (!service || !service.auto_cost_stock_discount) continue;
+                      if (!serviceUsesCostDebit(service)) continue;
 
-                      const nestedReady = await promptNestedToAgreeCostsForItem(item, service);
-                      if (!nestedReady) return false;
+                      if (serviceSkipsCheckoutPrompts(service)) {
+                        item.consumable_decisions = [];
+                        cart.set(key, item);
+                        continue;
+                      }
 
                       const consumableReady = await promptConsumableDeliveryForItem(item, service);
                       if (!consumableReady) return false;
@@ -2474,15 +3678,50 @@
                     });
                   };
 
-                  const buildVentaPayload = (payments, change, creditSale = null, serviceCostPayments = []) => {
+                  const buildVentaPayload = (payments, change, creditSale = null) => {
                     const items = Array.from(cart.entries()).map(([cartKey, item]) => {
                       if (item.itemType === 'service') {
                         const signatureFromKey = String(cartKey || '').split('::')[1] || '';
-                        const normalizedSignature = signatureFromKey && signatureFromKey !== 'none' ? signatureFromKey : (item.price_signature || null);
+                        const signatureTokens = signatureFromKey && signatureFromKey !== 'none'
+                          ? String(signatureFromKey).split('|').filter(Boolean)
+                          : [];
+
+                        const deliveryFromKey = signatureTokens
+                          .find((token) => token.startsWith('delivery-'))
+                          ?.replace('delivery-', '') || null;
+
+                        const materialFromKey = signatureTokens
+                          .find((token) => token.startsWith('print-material-'))
+                          ?.replace('print-material-', '') || null;
+
+                        const coverageFromKey = signatureTokens
+                          .find((token) => token.startsWith('print-coverage-'))
+                          ?.replace('print-coverage-', '') || null;
+
+                        const normalizedSignature = signatureTokens
+                          .filter((token) =>
+                            !token.startsWith('delivery-')
+                            && !token.startsWith('print-material-')
+                            && !token.startsWith('print-coverage-')
+                            && !token.startsWith('print-unit-bs-')
+                          )
+                          .join('|') || (item.price_signature || null);
+
+                        const deliveryPresentation = String(item.delivery_presentation || deliveryFromKey || '').trim().toLowerCase() || null;
 
                         return {
                           item_type: 'service',
                           service_id: item.serviceId,
+                          delivery_presentation: deliveryPresentation,
+                          selected_print_coverage_id: String(item.selected_print_coverage_id || coverageFromKey || '').trim() || null,
+                          selected_print_coverage_percent: String(item.selected_print_coverage_percent || '').trim() || null,
+                          selected_print_price_bs: item.selected_print_price_bs,
+                          selected_print_surcharge_percent: item.selected_print_surcharge_percent,
+                          selected_print_unit_price_bs: item.selected_print_unit_price_bs,
+                          selected_print_material_surcharge_id: String(item.selected_print_material_surcharge_id || materialFromKey || '').trim() || null,
+                          selected_print_material_product_id: String(item.selected_print_material_product_id || '').trim() || null,
+                          selected_print_material_label: String(item.selected_print_material_label || '').trim() || null,
+                          selected_print_material_rows: toServiceMaterialRowsPayload(item.selected_print_material_rows),
                           quantity: item.quantity,
                           unit_price_usd: item.unit_price_usd,
                           unit_price_base_amount: item.unit_price_base_amount,
@@ -2492,7 +3731,6 @@
                           agreed_reference_amount: item.agreed_reference_amount,
                           agreed_reference_symbol: item.agreed_reference_symbol,
                           price_signature: normalizedSignature,
-                          nested_agreements: Array.isArray(item.nested_agreements) ? item.nested_agreements : [],
                           consumable_decisions: Array.isArray(item.consumable_decisions) ? item.consumable_decisions : [],
                         };
                       }
@@ -2519,11 +3757,6 @@
                     const changeEntries = Array.isArray(change) ? change : (change ? [change] : []);
                     if (changeEntries.length > 0) payload.change = changeEntries;
 
-                    const serviceCostEntries = Array.isArray(serviceCostPayments)
-                      ? serviceCostPayments
-                      : (serviceCostPayments ? [serviceCostPayments] : []);
-                    if (serviceCostEntries.length > 0) payload.service_cost_payments = serviceCostEntries;
-
                     if (creditSale && creditSale.enabled) {
                       payload.credit_sale = {
                         enabled: true,
@@ -2534,7 +3767,7 @@
                     return payload;
                   };
 
-                  const submitVenta = async (payments, change, creditSale = null, serviceCostPayments = []) => {
+                  const submitVenta = async (payments, change, creditSale = null) => {
                     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
                     if (!csrfToken) {
                       if (window.Swal) {
@@ -2548,7 +3781,7 @@
                       return;
                     }
 
-                    const payload = buildVentaPayload(payments, change, creditSale, serviceCostPayments);
+                    const payload = buildVentaPayload(payments, change, creditSale);
 
                     if (window.Swal) {
                       window.Swal.fire({
@@ -2696,14 +3929,76 @@
                         return;
                       }
 
+                      if (service.printing_type_service) {
+                        await addServiceToCart(serviceId, 1);
+                        return;
+                      }
+
                       if (service.price_on_request) {
                         const agreedPricing = await promptServicePriceOnRequest(service);
                         if (!agreedPricing) return;
 
-                        const key = buildKey('service', serviceId, agreedPricing.priceSignature);
+                        const isLaminationService = Boolean(service.lamination_type_service);
+                        const deliveryPresentation = isLaminationService ? null : await promptServiceDeliveryPresentation(service);
+                        if (!isLaminationService && !deliveryPresentation) return;
+
+                        const configuredPhysicalMaterials = resolveConfiguredRequiredMaterials(service, deliveryPresentation);
+                        if (configuredPhysicalMaterials === null) {
+                          if (isLaminationService && window.Swal) {
+                            await window.Swal.fire({
+                              icon: 'warning',
+                              title: 'Configura materiales de plastificacion',
+                              text: 'Este servicio requiere materiales configurados en el formulario del servicio.',
+                              heightAuto: false,
+                            });
+                          }
+                          return;
+                        }
+
+                        const normalizedMaterialRows = normalizeServiceMaterialRowsForCart(configuredPhysicalMaterials);
+                        if (isLaminationService && normalizedMaterialRows.length === 0) return;
+
+                        const configuredPhysicalExtraRows = isLaminationService
+                          ? []
+                          : resolveConfiguredPhysicalDeliveryExtraRows(service, deliveryPresentation);
+                        const resolvedPhysicalExtraRows = await resolvePhysicalExtraRowsWithAvailability({
+                          service,
+                          extraRows: configuredPhysicalExtraRows,
+                          serviceUnits: agreedPricing.quantity,
+                        });
+                        if (resolvedPhysicalExtraRows === false) return;
+
+                        const hasMaterialStock = await ensureServiceMaterialsAvailability({
+                          service,
+                          materialRows: normalizedMaterialRows,
+                          serviceUnits: agreedPricing.quantity,
+                          materialContext: {
+                            sourceLabel: isLaminationService ? 'Plastificacion directa' : 'Presentacion fisica',
+                          },
+                        });
+                        if (!hasMaterialStock) return;
+
+                        const selectedMaterialRows = normalizeServiceMaterialRowsForCart([
+                          ...normalizedMaterialRows,
+                          ...(Array.isArray(resolvedPhysicalExtraRows) ? resolvedPhysicalExtraRows : []),
+                        ]);
+
+                        const firstConfiguredMaterial = selectedMaterialRows[0] || null;
+
+                        const keyParts = [`${agreedPricing.priceSignature || 'agree'}`];
+                        if (deliveryPresentation) keyParts.push(`delivery-${deliveryPresentation}`);
+                        if (firstConfiguredMaterial?.surchargeId) keyParts.push(`print-material-${firstConfiguredMaterial.surchargeId}`);
+                        const materialSetToken = materialRowsSignatureToken(selectedMaterialRows);
+                        if (materialSetToken) keyParts.push(materialSetToken);
+                        const key = buildKey('service', serviceId, keyParts.join('|'));
                         const existing = cart.get(key) || {
                           itemType: 'service',
                           serviceId: String(serviceId),
+                          delivery_presentation: deliveryPresentation,
+                          selected_print_material_surcharge_id: firstConfiguredMaterial?.surchargeId || null,
+                          selected_print_material_label: firstConfiguredMaterial?.label || null,
+                          selected_print_material_product_id: firstConfiguredMaterial?.productId || null,
+                          selected_print_material_rows: toServiceMaterialRowsPayload(selectedMaterialRows),
                           quantity: 0,
                           unit_price_usd: agreedPricing.unitPriceUsd,
                           unit_price_base_amount: agreedPricing.invoiceUnitAmount,
@@ -2712,12 +4007,17 @@
                           agreed_reference_name: agreedPricing.referenceName,
                           agreed_reference_amount: agreedPricing.referenceAmount,
                           agreed_reference_symbol: agreedPricing.referenceSymbol,
-                          nested_agreements: [],
                           consumable_decisions: [],
                         };
 
-                        if (!Array.isArray(existing.nested_agreements)) existing.nested_agreements = [];
                         if (!Array.isArray(existing.consumable_decisions)) existing.consumable_decisions = [];
+                        existing.delivery_presentation = deliveryPresentation;
+                        existing.selected_print_material_surcharge_id = firstConfiguredMaterial?.surchargeId || existing.selected_print_material_surcharge_id;
+                        existing.selected_print_material_label = firstConfiguredMaterial?.label || existing.selected_print_material_label;
+                        existing.selected_print_material_product_id = firstConfiguredMaterial?.productId || existing.selected_print_material_product_id;
+                        existing.selected_print_material_rows = selectedMaterialRows.length > 0
+                          ? toServiceMaterialRowsPayload(selectedMaterialRows)
+                          : (existing.selected_print_material_rows || []);
                         existing.unit_price_usd = agreedPricing.unitPriceUsd;
                         existing.unit_price_base_amount = agreedPricing.invoiceUnitAmount;
                         existing.unit_price_base_currency = agreedPricing.invoiceCurrencyCode;
@@ -2731,7 +4031,7 @@
                         return;
                       }
 
-                      addServiceToCart(serviceId, 1);
+                      await addServiceToCart(serviceId, 1);
                     });
                   }
 
@@ -2795,30 +4095,12 @@
                         return;
                       }
 
-                      const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
-                      if (!checkoutDecisionsReady) return;
-
-                      let subtotalBase = 0;
-                      cart.forEach((item) => {
-                        const itemType = item.itemType || 'product';
-                        if (itemType === 'service') {
-                          const service = servicesById.get(String(item.serviceId));
-                          if (!service) return;
-                          const pricing = computeServicePricing(service, item);
-                          if (!(pricing.unitDisplay > 0)) return;
-                          subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
-                          return;
-                        }
-
-                        const product = productsById.get(String(item.productId));
-                        if (!product) return;
-                        const pricing = computePricing(product.price_usd, item.quantity);
-                        subtotalBase = roundTo(subtotalBase + pricing.lineNet, 2);
-                      });
-
                       const vatMode = getVatMode();
-                      const vatBase = vatMode === 'none' ? 0 : roundTo(subtotalBase * vatRate, 2);
-                      const totalBase = roundTo(subtotalBase + vatBase, 2);
+                      const totals = calculateCartTotals();
+                      const subtotalBase = totals.taxableSubtotalBase;
+                      const exentoBase = totals.exentoSubtotalBase;
+                      const vatBase = totals.vatBase;
+                      const totalBase = totals.totalBase;
 
                       if (!window.Swal) {
                         return;
@@ -2954,26 +4236,12 @@
                           };
                         });
 
-                        const serviceCostPayments = Array.from(dialog.querySelectorAll('[data-service-cost-row]')).map((row) => {
-                          const serviceId = row.dataset.serviceCostRow;
-                          return {
-                            serviceId: String(serviceId || ''),
-                            checked: Boolean(row.querySelector(`[data-service-cost-toggle="${serviceId}"]`)?.checked),
-                            accountId: row.querySelector(`[data-service-cost-account="${serviceId}"]`)?.value || '',
-                            amount: row.querySelector(`[data-service-cost-amount="${serviceId}"]`)?.value || '',
-                            method: row.querySelector(`[data-service-cost-method="${serviceId}"]`)?.value || '',
-                            reference: row.querySelector(`[data-service-cost-reference="${serviceId}"]`)?.value || '',
-                            paymentDate: row.querySelector(`[data-service-cost-date="${serviceId}"]`)?.value || '',
-                          };
-                        });
-
                         const showExtraBankAccounts = Array.from(dialog.querySelectorAll('[data-bank-extra="true"]'))
                           .some((row) => !row.classList.contains('hidden'));
 
                         return {
                           payments,
                           change,
-                          serviceCostPayments,
                           changeEnabled: Boolean(changeToggle?.checked),
                           creditEnabled: Boolean(creditToggle?.checked),
                           creditDueOn: creditDueOnInput?.value || '',
@@ -3160,102 +4428,6 @@
                       const changeRowsHtml = orderedAccountsForChange.map((account) => buildChangeRow(account)).join('');
                       const vatLabel = vatMode === 'none' ? 'Sin IVA' : (vatMode === 'add' ? 'IVA agregado' : 'IVA invertido');
 
-                      const serviceCostGrouped = new Map();
-                      cart.forEach((item) => {
-                        const itemType = item.itemType || 'product';
-                        if (itemType !== 'service') return;
-
-                        const service = servicesById.get(String(item.serviceId));
-                        if (!service || !service.auto_cost_stock_discount) return;
-
-                        const quantity = Number(item.quantity || 0);
-                        const unitCostUsd = Number(service.unit_cost_usd || 0);
-                        if (!(quantity > 0) || !(unitCostUsd > 0)) return;
-
-                        const serviceId = String(service.id);
-                        const existing = serviceCostGrouped.get(serviceId) || {
-                          serviceId,
-                          serviceName: service.name || `Servicio #${serviceId}`,
-                          quantity: 0,
-                          unitCostUsd,
-                        };
-
-                        existing.quantity += quantity;
-                        existing.unitCostUsd = unitCostUsd;
-                        serviceCostGrouped.set(serviceId, existing);
-                      });
-
-                      const serviceCostRows = Array.from(serviceCostGrouped.values()).map((row) => {
-                        const totalCostUsd = roundTo(Number(row.unitCostUsd || 0) * Number(row.quantity || 0), 2);
-                        return {
-                          ...row,
-                          totalCostUsd,
-                        };
-                      }).filter((row) => row.totalCostUsd > 0);
-
-                      const totalServiceCostUsd = roundTo(
-                        serviceCostRows.reduce((sum, row) => sum + Number(row.totalCostUsd || 0), 0),
-                        2
-                      );
-
-                      const accountOptionsForServiceCost = orderedAccounts
-                        .map((account) => `
-                          <option
-                            value="${account.id}"
-                            data-account-type="${escapeHtml(account.account_type || '')}"
-                            data-account-currency="${escapeHtml(account.currency || '')}"
-                          >${escapeHtml(account.name)} (${escapeHtml(account.currency || '')})</option>
-                        `)
-                        .join('');
-
-                      const buildServiceCostRow = (row) => {
-                        return `
-                          <div class="rounded-2xl border border-cyan-200 bg-white/95 p-3.5 shadow-sm" data-service-cost-row="${row.serviceId}" data-service-cost-total-usd="${row.totalCostUsd}">
-                            <div class="flex flex-wrap items-start justify-between gap-3">
-                              <div>
-                                <p class="text-sm font-semibold text-slate-800">${escapeHtml(row.serviceName)}</p>
-                                <p class="mt-1 text-xs text-slate-500">Costo estimado: ${formatCurrencyValue(row.totalCostUsd, 'USD')} · Cantidad: ${formatNumber(row.quantity, 2)}</p>
-                              </div>
-                              <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-cyan-700">
-                                <input type="checkbox" class="h-4 w-4 cursor-pointer text-cyan-600" data-service-cost-toggle="${row.serviceId}">
-                                Pagar ahora
-                              </label>
-                            </div>
-                            <div class="mt-3 grid gap-2 md:grid-cols-2 hidden" data-service-cost-fields="${row.serviceId}">
-                              <select class="ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700" data-service-cost-account="${row.serviceId}">
-                                <option value="">Cuenta para costo</option>
-                                ${accountOptionsForServiceCost}
-                              </select>
-                              <input type="text" inputmode="decimal" autocomplete="off" placeholder="Monto" class="ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700" data-service-cost-amount="${row.serviceId}" data-money-mask="true" data-money-symbol="$">
-                              <select class="ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 hidden" data-service-cost-method="${row.serviceId}">
-                                <option value="">Metodo</option>
-                                <option value="transfer">Transferencia</option>
-                                <option value="mobile">Pago movil</option>
-                              </select>
-                              <input type="text" class="ventas-payment-modal-field js-materialize-datepicker materialize-datepicker-input w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 hidden" placeholder="dd-mm-aaaa" data-service-cost-date="${row.serviceId}" value="${todayPaymentDate}">
-                              <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 hidden md:col-span-2" placeholder="Ultimos 6 digitos" data-service-cost-reference="${row.serviceId}">
-                            </div>
-                            <p class="mt-2 text-xs font-medium text-slate-500" data-service-cost-equivalent="${row.serviceId}"></p>
-                          </div>
-                        `;
-                      };
-
-                      const serviceCostRowsHtml = serviceCostRows.map((row) => buildServiceCostRow(row)).join('');
-                      const serviceCostSectionHtml = serviceCostRows.length > 0
-                        ? `
-                          <div class="rounded-2xl border border-cyan-200 bg-cyan-50/70 p-3.5 space-y-3">
-                            <div class="flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <p class="text-sm font-semibold text-cyan-700">Costos automaticos de servicios</p>
-                                <p class="text-xs text-cyan-700">Puedes registrar pago inmediato o dejar saldo pendiente por pagar.</p>
-                              </div>
-                              <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-200">Total estimado: ${formatCurrencyValue(totalServiceCostUsd, 'USD')}</span>
-                            </div>
-                            <div class="space-y-2">${serviceCostRowsHtml}</div>
-                          </div>
-                        `
-                        : '';
-
                       const paymentHtml = `
                         <div class="space-y-4 text-left">
                           <div class="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-4 shadow-sm">
@@ -3271,7 +4443,8 @@
                               </div>
                             </div>
                             <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                              <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Subtotal: <span class="font-semibold text-slate-700">${formatBaseMoney(subtotalBase)}</span></div>
+                              <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Subtotal gravado: <span class="font-semibold text-slate-700">${formatBaseMoney(subtotalBase)}</span></div>
+                              <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Exento: <span class="font-semibold text-slate-700">${formatBaseMoney(exentoBase)}</span></div>
                               <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">IVA: <span class="font-semibold text-slate-700">${formatBaseMoney(vatBase)}</span></div>
                             </div>
                           </div>
@@ -3282,7 +4455,6 @@
                             </div>
                             <div class="mt-3 space-y-2">${paymentRowsHtml}</div>
                           </div>
-                          ${serviceCostSectionHtml}
                           <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 space-y-3">
                             <div class="flex items-center justify-between gap-2">
                               <span class="text-sm font-semibold text-emerald-700">Saldo a credito (opcional)</span>
@@ -3362,7 +4534,6 @@
                             const creditToggle = dialog.querySelector('[data-credit-toggle]');
                             const creditFields = dialog.querySelector('[data-credit-fields]');
                             const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
-                            const serviceCostRowsInModal = Array.from(dialog.querySelectorAll('[data-service-cost-row]'));
 
                             const syncMethodSelectTone = (select) => {
                               if (!select) return;
@@ -3510,96 +4681,6 @@
                               }
                             };
 
-                            const syncServiceCostBankFields = (serviceId, isBankAccount) => {
-                              const methodSelect = dialog.querySelector(`[data-service-cost-method="${serviceId}"]`);
-                              const dateInput = dialog.querySelector(`[data-service-cost-date="${serviceId}"]`);
-                              const referenceInput = dialog.querySelector(`[data-service-cost-reference="${serviceId}"]`);
-
-                              if (methodSelect) {
-                                methodSelect.classList.toggle('hidden', !isBankAccount);
-                                if (!isBankAccount) methodSelect.value = '';
-                              }
-                              if (dateInput) {
-                                dateInput.classList.toggle('hidden', !isBankAccount);
-                                if (!isBankAccount) {
-                                  dateInput.value = '';
-                                } else if (String(dateInput.value || '').trim() === '') {
-                                  dateInput.value = todayPaymentDate;
-                                }
-                              }
-                              if (referenceInput) {
-                                referenceInput.classList.toggle('hidden', !isBankAccount);
-                                if (!isBankAccount) referenceInput.value = '';
-                              }
-                            };
-
-                            const setServiceCostFieldsEnabled = (serviceId, enabled) => {
-                              const fieldsContainer = dialog.querySelector(`[data-service-cost-fields="${serviceId}"]`);
-                              if (!fieldsContainer) return;
-
-                              fieldsContainer.classList.toggle('hidden', !enabled);
-
-                              const accountSelect = dialog.querySelector(`[data-service-cost-account="${serviceId}"]`);
-                              const amountInput = dialog.querySelector(`[data-service-cost-amount="${serviceId}"]`);
-                              const methodSelect = dialog.querySelector(`[data-service-cost-method="${serviceId}"]`);
-                              const dateInput = dialog.querySelector(`[data-service-cost-date="${serviceId}"]`);
-                              const referenceInput = dialog.querySelector(`[data-service-cost-reference="${serviceId}"]`);
-
-                              [accountSelect, amountInput, methodSelect, dateInput, referenceInput].forEach((field) => {
-                                if (!field) return;
-                                field.disabled = !enabled;
-                                if (!enabled) field.value = '';
-                              });
-
-                              if (!enabled) {
-                                syncServiceCostBankFields(serviceId, false);
-                              }
-                            };
-
-                            const updateServiceCostEquivalents = () => {
-                              serviceCostRowsInModal.forEach((row) => {
-                                const serviceId = row.dataset.serviceCostRow;
-                                if (!serviceId) return;
-
-                                const equivalentEl = row.querySelector(`[data-service-cost-equivalent="${serviceId}"]`);
-                                const accountSelect = row.querySelector(`[data-service-cost-account="${serviceId}"]`);
-                                const amountInput = row.querySelector(`[data-service-cost-amount="${serviceId}"]`);
-                                const totalCostUsd = Number(row.dataset.serviceCostTotalUsd || 0);
-                                const account = accountSelect ? accountsById.get(String(accountSelect.value || '')) : null;
-                                const amount = parseMoneyInput(amountInput);
-
-                                if (!equivalentEl) return;
-
-                                if (!account || !(amount > 0)) {
-                                  equivalentEl.textContent = '';
-                                  equivalentEl.classList.remove('text-rose-600', 'text-emerald-700');
-                                  return;
-                                }
-
-                                const amountUsd = convertAmount(amount, account.currency, 'USD');
-                                if (amountUsd === null) {
-                                  equivalentEl.textContent = 'Sin tasa de conversion disponible';
-                                  equivalentEl.classList.remove('text-emerald-700');
-                                  equivalentEl.classList.add('text-rose-600');
-                                  return;
-                                }
-
-                                const pendingUsd = roundTo(totalCostUsd - amountUsd, 2);
-                                if (pendingUsd > paymentTolerance) {
-                                  equivalentEl.textContent = `Pagas ${formatCurrencyValue(amountUsd, 'USD')} · Pendiente ${formatCurrencyValue(Math.abs(pendingUsd), 'USD')}`;
-                                  equivalentEl.classList.remove('text-rose-600');
-                                  equivalentEl.classList.add('text-emerald-700');
-                                } else if (pendingUsd < -paymentTolerance) {
-                                  equivalentEl.textContent = `El monto supera el costo estimado (${formatCurrencyValue(totalCostUsd, 'USD')})`;
-                                  equivalentEl.classList.remove('text-emerald-700');
-                                  equivalentEl.classList.add('text-rose-600');
-                                } else {
-                                  equivalentEl.textContent = `Costo cubierto: ${formatCurrencyValue(totalCostUsd, 'USD')}`;
-                                  equivalentEl.classList.remove('text-rose-600');
-                                  equivalentEl.classList.add('text-emerald-700');
-                                }
-                              });
-                            };
 
                             const updateRemaining = () => {
                             let paidBase = 0;
@@ -3877,73 +4958,6 @@
                               });
                             }
 
-                            serviceCostRowsInModal.forEach((row) => {
-                              const serviceId = row.dataset.serviceCostRow;
-                              if (!serviceId) return;
-
-                              const toggle = row.querySelector(`[data-service-cost-toggle="${serviceId}"]`);
-                              const accountSelect = row.querySelector(`[data-service-cost-account="${serviceId}"]`);
-                              const amountInput = row.querySelector(`[data-service-cost-amount="${serviceId}"]`);
-                              const methodSelect = row.querySelector(`[data-service-cost-method="${serviceId}"]`);
-                              const dateInput = row.querySelector(`[data-service-cost-date="${serviceId}"]`);
-                              const referenceInput = row.querySelector(`[data-service-cost-reference="${serviceId}"]`);
-
-                              const syncSelectedAccount = () => {
-                                const account = accountSelect ? accountsById.get(String(accountSelect.value || '')) : null;
-                                const isBank = Boolean(account && account.account_type === 'bank_account');
-                                syncServiceCostBankFields(serviceId, isBank);
-
-                                if (amountInput && account) {
-                                  amountInput.dataset.moneySymbol = account.currency_symbol || account.currency || '$';
-                                }
-
-                                if (!isBank && methodSelect) methodSelect.value = '';
-                              };
-
-                              if (toggle) {
-                                toggle.addEventListener('change', () => {
-                                  setServiceCostFieldsEnabled(serviceId, toggle.checked);
-                                  if (toggle.checked) syncSelectedAccount();
-                                  updateServiceCostEquivalents();
-                                });
-                              }
-
-                              if (accountSelect) {
-                                accountSelect.addEventListener('change', () => {
-                                  syncSelectedAccount();
-                                  updateServiceCostEquivalents();
-                                });
-                              }
-
-                              if (amountInput) {
-                                amountInput.addEventListener('input', () => {
-                                  updateServiceCostEquivalents();
-                                });
-                              }
-
-                              if (methodSelect) {
-                                methodSelect.addEventListener('change', () => {
-                                  updateServiceCostEquivalents();
-                                });
-                              }
-
-                              if (referenceInput) {
-                                referenceInput.addEventListener('input', () => {
-                                  updateServiceCostEquivalents();
-                                });
-                              }
-
-                              if (dateInput) {
-                                dateInput.addEventListener('change', () => {
-                                  const normalized = normalizePaymentDateInput(dateInput.value);
-                                  dateInput.value = normalized ? normalized.display : '';
-                                  updateServiceCostEquivalents();
-                                });
-                              }
-
-                              setServiceCostFieldsEnabled(serviceId, Boolean(toggle?.checked));
-                              if (toggle?.checked) syncSelectedAccount();
-                            });
 
                             dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
                               const accountId = row.dataset.payRow;
@@ -4057,48 +5071,11 @@
                                 }
                               });
 
-                              (initialState.serviceCostPayments || []).forEach((entry) => {
-                                const serviceId = String(entry.serviceId || '');
-                                const toggle = dialog.querySelector(`[data-service-cost-toggle="${serviceId}"]`);
-                                if (!toggle) return;
-
-                                toggle.checked = Boolean(entry.checked);
-                                toggle.dispatchEvent(new Event('change'));
-
-                                const accountSelect = dialog.querySelector(`[data-service-cost-account="${serviceId}"]`);
-                                if (accountSelect && typeof entry.accountId === 'string') {
-                                  accountSelect.value = entry.accountId;
-                                  accountSelect.dispatchEvent(new Event('change'));
-                                }
-
-                                const amountInput = dialog.querySelector(`[data-service-cost-amount="${serviceId}"]`);
-                                if (amountInput && typeof entry.amount === 'string') {
-                                  amountInput.value = entry.amount;
-                                  amountInput.dispatchEvent(new Event('input'));
-                                }
-
-                                const methodSelect = dialog.querySelector(`[data-service-cost-method="${serviceId}"]`);
-                                if (methodSelect && typeof entry.method === 'string') {
-                                  methodSelect.value = entry.method;
-                                }
-
-                                const paymentDateInput = dialog.querySelector(`[data-service-cost-date="${serviceId}"]`);
-                                if (paymentDateInput && typeof entry.paymentDate === 'string') {
-                                  const normalizedDate = normalizePaymentDateInput(entry.paymentDate);
-                                  paymentDateInput.value = normalizedDate ? normalizedDate.display : '';
-                                }
-
-                                const referenceInput = dialog.querySelector(`[data-service-cost-reference="${serviceId}"]`);
-                                if (referenceInput && typeof entry.reference === 'string') {
-                                  referenceInput.value = entry.reference;
-                                }
-                              });
                             } else {
                               setCreditFieldsEnabled(false);
                             }
 
                             updateRemaining();
-                            updateServiceCostEquivalents();
                           },
                           preConfirm: () => {
                             const dialog = window.Swal.getHtmlContainer();
@@ -4208,6 +5185,11 @@
                               return null;
                             }
 
+                            if (creditEnabled && String(selectedClient?.phone || '').trim().length === 0) {
+                              window.Swal.showValidationMessage('El cliente registrado no posee numero de telefono, ese dato es obligatorio.');
+                              return null;
+                            }
+
                             if (creditEnabled && creditDueOn && !normalizedCreditDueOn) {
                               window.Swal.showValidationMessage('La fecha de vencimiento del credito es invalida.');
                               return null;
@@ -4310,144 +5292,9 @@
                               }
                             }
 
-                            const serviceCostPayments = [];
-                            let missingServiceCostAccount = false;
-                            let missingServiceCostAmount = false;
-                            let missingServiceCostMethod = false;
-                            let missingServiceCostReference = false;
-                            let missingServiceCostDate = false;
-                            let missingServiceCostConversion = false;
-                            let serviceCostAmountExceeded = false;
-
-                            dialog.querySelectorAll('[data-service-cost-row]').forEach((row) => {
-                              const serviceId = row.dataset.serviceCostRow;
-                              if (!serviceId) return;
-
-                              const payNowToggle = row.querySelector(`[data-service-cost-toggle="${serviceId}"]`);
-                              const payNow = Boolean(payNowToggle?.checked);
-                              if (!payNow) {
-                                serviceCostPayments.push({
-                                  service_id: serviceId,
-                                  pay_now: false,
-                                });
-                                return;
-                              }
-
-                              const accountSelect = row.querySelector(`[data-service-cost-account="${serviceId}"]`);
-                              const accountId = String(accountSelect?.value || '').trim();
-                              const account = accountsById.get(accountId);
-                              if (!account) {
-                                missingServiceCostAccount = true;
-                                return;
-                              }
-
-                              const amountInput = row.querySelector(`[data-service-cost-amount="${serviceId}"]`);
-                              const amount = parseMoneyInput(amountInput);
-                              if (!(amount > 0)) {
-                                missingServiceCostAmount = true;
-                                return;
-                              }
-
-                              let method = '';
-                              if (account.account_type === 'bank_account') {
-                                const methodSelect = row.querySelector(`[data-service-cost-method="${serviceId}"]`);
-                                method = methodSelect?.value || '';
-                                if (!method) missingServiceCostMethod = true;
-                              } else if (account.account_type === 'cash_box') {
-                                method = 'cash';
-                              } else if (account.account_type === 'card') {
-                                method = 'card';
-                              } else if (account.account_type === 'pos') {
-                                method = 'pos';
-                              } else if (account.account_type === 'biopago') {
-                                method = 'biopago';
-                              } else if (account.account_type === 'cashea') {
-                                method = 'cashea';
-                              } else if (account.account_type === 'digital_wallet') {
-                                method = 'wallet';
-                              } else if (account.account_type === 'crypto_wallet') {
-                                method = 'crypto';
-                              }
-
-                              const amountUsd = convertAmount(amount, account.currency, 'USD');
-                              if (amountUsd === null) {
-                                missingServiceCostConversion = true;
-                                return;
-                              }
-
-                              const totalCostUsd = Number(row.dataset.serviceCostTotalUsd || 0);
-                              if (amountUsd > totalCostUsd + paymentTolerance) {
-                                serviceCostAmountExceeded = true;
-                                return;
-                              }
-
-                              const referenceInput = row.querySelector(`[data-service-cost-reference="${serviceId}"]`);
-                              const reference = String(referenceInput?.value || '').trim();
-                              const dateInput = row.querySelector(`[data-service-cost-date="${serviceId}"]`);
-                              const normalizedServiceCostDate = normalizePaymentDateInput(dateInput?.value || '');
-                              const paymentDate = normalizedServiceCostDate?.iso || '';
-
-                              if (account.account_type === 'bank_account') {
-                                if (!/^\d{6}$/.test(reference)) {
-                                  missingServiceCostReference = true;
-                                }
-
-                                if (!normalizedServiceCostDate) {
-                                  missingServiceCostDate = true;
-                                }
-                              }
-
-                              serviceCostPayments.push({
-                                service_id: serviceId,
-                                pay_now: true,
-                                account_id: accountId,
-                                amount: amount,
-                                currency: account.currency,
-                                payment_method: method,
-                                reference,
-                                payment_date: paymentDate,
-                              });
-                            });
-
-                            if (missingServiceCostAccount) {
-                              window.Swal.showValidationMessage('Selecciona una cuenta para pagar costos de servicio.');
-                              return null;
-                            }
-
-                            if (missingServiceCostAmount) {
-                              window.Swal.showValidationMessage('Indica un monto valido para el pago inmediato del costo de servicio.');
-                              return null;
-                            }
-
-                            if (missingServiceCostMethod) {
-                              window.Swal.showValidationMessage('Selecciona metodo bancario para el pago de costos de servicio.');
-                              return null;
-                            }
-
-                            if (missingServiceCostReference) {
-                              window.Swal.showValidationMessage('La referencia del pago de costo debe tener 6 digitos.');
-                              return null;
-                            }
-
-                            if (missingServiceCostDate) {
-                              window.Swal.showValidationMessage('Debes indicar fecha del pago para costos bancarios de servicio.');
-                              return null;
-                            }
-
-                            if (missingServiceCostConversion) {
-                              window.Swal.showValidationMessage('Hay pagos de costo de servicio sin tasa de conversion disponible.');
-                              return null;
-                            }
-
-                            if (serviceCostAmountExceeded) {
-                              window.Swal.showValidationMessage('El pago inmediato de costo excede el costo estimado de al menos un servicio.');
-                              return null;
-                            }
-
                             return {
                               payments,
                               change: changeEntries,
-                              service_cost_payments: serviceCostPayments,
                               credit_sale: {
                                 enabled: creditCoversPendingBalance,
                                 due_on: creditCoversPendingBalance ? (normalizedCreditDueOn?.iso || '') : '',
@@ -4487,11 +5334,16 @@
                             }
                           }
 
+                          const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
+                          if (!checkoutDecisionsReady) {
+                            openPaymentModal(payload.modalState || null);
+                            return;
+                          }
+
                           submitVenta(
                             payload.payments || [],
                             payload.change || [],
-                            payload.credit_sale || null,
-                            payload.service_cost_payments || []
+                            payload.credit_sale || null
                           );
                         });
                       };
@@ -4549,7 +5401,7 @@
                     const rows = clients
                       .map((client) => {
                         return `
-                          <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${escapeHtml(client.name)}" data-client-doc="${escapeHtml(client.document || '')}">
+                          <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${escapeHtml(client.name)}" data-client-doc="${escapeHtml(client.document || '')}" data-client-phone="${escapeHtml(client.phone || '')}">
                             <span>${escapeHtml(client.name)}</span>
                             <span class="text-xs text-slate-400">${escapeHtml(client.document || '')}</span>
                           </button>
@@ -4983,7 +5835,7 @@
                           queueActiveDraftSync();
                         }
                       }
-                    }, 450);
+                    }, 120);
                   };
 
                   const clearWorkingSale = async ({ silent = false } = {}) => {
@@ -5132,6 +5984,16 @@
                         const service = servicesById.get(serviceId);
                         if (!service) return;
 
+                        const deliveryPresentation = String(entry.delivery_presentation || '').trim().toLowerCase();
+                        const selectedPrintMaterialId = String(entry.selected_print_material_surcharge_id || '').trim();
+                        const selectedPrintMaterialProductId = String(entry.selected_print_material_product_id || '').trim();
+                        const selectedPrintMaterialLabel = String(entry.selected_print_material_label || '').trim();
+                        const selectedPrintMaterialRows = normalizeServiceMaterialRowsForCart(entry.selected_print_material_rows);
+                        const selectedPrintCoverageId = String(entry.selected_print_coverage_id || '').trim();
+                        const selectedPrintCoveragePercent = String(entry.selected_print_coverage_percent || '').trim();
+                        const selectedPrintPriceBs = Number(entry.selected_print_price_bs);
+                        const selectedPrintSurchargePercent = Number(entry.selected_print_surcharge_percent);
+                        const selectedPrintUnitPriceBs = Number(entry.selected_print_unit_price_bs);
                         let signature = String(entry.price_signature || '').trim();
                         const baseAmount = Number(entry.unit_price_base_amount);
                         const baseCurrencyCode = normalizeCurrencyCode(entry.unit_price_base_currency);
@@ -5139,12 +6001,31 @@
                           signature = `${baseCurrencyCode}:${roundTo(baseAmount, 2).toFixed(2)}`;
                         }
 
-                        const key = buildKey('service', serviceId, signature || null);
-                        const nestedAgreements = Array.isArray(entry.nested_agreements) ? entry.nested_agreements : [];
+                        const signatureWithDelivery = [
+                          signature || null,
+                          deliveryPresentation ? `delivery-${deliveryPresentation}` : null,
+                          selectedPrintCoverageId ? `print-coverage-${selectedPrintCoverageId}` : null,
+                          selectedPrintMaterialId ? `print-material-${selectedPrintMaterialId}` : null,
+                          materialRowsSignatureToken(selectedPrintMaterialRows)
+                        ]
+                          .filter(Boolean)
+                          .join('|') || null;
+
+                        const key = buildKey('service', serviceId, signatureWithDelivery);
                         const consumableDecisions = Array.isArray(entry.consumable_decisions) ? entry.consumable_decisions : [];
                         const existing = cart.get(key) || {
                           itemType: 'service',
                           serviceId,
+                          delivery_presentation: deliveryPresentation || null,
+                          selected_print_coverage_id: selectedPrintCoverageId || null,
+                          selected_print_coverage_percent: selectedPrintCoveragePercent || null,
+                          selected_print_price_bs: Number.isFinite(selectedPrintPriceBs) ? roundTo(selectedPrintPriceBs, 2) : null,
+                          selected_print_surcharge_percent: Number.isFinite(selectedPrintSurchargePercent) ? roundTo(selectedPrintSurchargePercent, 4) : null,
+                          selected_print_unit_price_bs: Number.isFinite(selectedPrintUnitPriceBs) ? roundTo(selectedPrintUnitPriceBs, 2) : null,
+                          selected_print_material_surcharge_id: selectedPrintMaterialId || null,
+                          selected_print_material_product_id: selectedPrintMaterialProductId || null,
+                          selected_print_material_label: selectedPrintMaterialLabel || null,
+                          selected_print_material_rows: toServiceMaterialRowsPayload(selectedPrintMaterialRows),
                           quantity: 0,
                           unit_price_usd: Number(entry.unit_price_usd) || Number(service.price_usd) || 0,
                           unit_price_base_amount: Number.isFinite(baseAmount) ? roundTo(baseAmount, 2) : null,
@@ -5154,11 +6035,28 @@
                           agreed_reference_amount: Number(entry.agreed_reference_amount) || null,
                           agreed_reference_symbol: entry.agreed_reference_symbol || null,
                           price_signature: signature || null,
-                          nested_agreements: nestedAgreements,
                           consumable_decisions: consumableDecisions,
                         };
 
                         existing.quantity += quantity;
+                        existing.delivery_presentation = deliveryPresentation || existing.delivery_presentation;
+                        existing.selected_print_coverage_id = selectedPrintCoverageId || existing.selected_print_coverage_id;
+                        existing.selected_print_coverage_percent = selectedPrintCoveragePercent || existing.selected_print_coverage_percent;
+                        existing.selected_print_price_bs = Number.isFinite(selectedPrintPriceBs)
+                          ? roundTo(selectedPrintPriceBs, 2)
+                          : existing.selected_print_price_bs;
+                        existing.selected_print_surcharge_percent = Number.isFinite(selectedPrintSurchargePercent)
+                          ? roundTo(selectedPrintSurchargePercent, 4)
+                          : existing.selected_print_surcharge_percent;
+                        existing.selected_print_unit_price_bs = Number.isFinite(selectedPrintUnitPriceBs)
+                          ? roundTo(selectedPrintUnitPriceBs, 2)
+                          : existing.selected_print_unit_price_bs;
+                        existing.selected_print_material_surcharge_id = selectedPrintMaterialId || existing.selected_print_material_surcharge_id;
+                        existing.selected_print_material_product_id = selectedPrintMaterialProductId || existing.selected_print_material_product_id;
+                        existing.selected_print_material_label = selectedPrintMaterialLabel || existing.selected_print_material_label;
+                        existing.selected_print_material_rows = selectedPrintMaterialRows.length > 0
+                          ? toServiceMaterialRowsPayload(selectedPrintMaterialRows)
+                          : (existing.selected_print_material_rows || []);
                         existing.unit_price_usd = Number(entry.unit_price_usd) || existing.unit_price_usd;
                         existing.unit_price_base_amount = Number.isFinite(baseAmount) ? roundTo(baseAmount, 2) : existing.unit_price_base_amount;
                         existing.unit_price_base_currency = baseCurrencyCode || existing.unit_price_base_currency;
@@ -5167,7 +6065,6 @@
                         existing.agreed_reference_amount = Number(entry.agreed_reference_amount) || existing.agreed_reference_amount;
                         existing.agreed_reference_symbol = entry.agreed_reference_symbol || existing.agreed_reference_symbol;
                         existing.price_signature = signature || existing.price_signature;
-                        existing.nested_agreements = nestedAgreements.length > 0 ? nestedAgreements : (existing.nested_agreements || []);
                         existing.consumable_decisions = consumableDecisions.length > 0 ? consumableDecisions : (existing.consumable_decisions || []);
 
                         cart.set(key, existing);
@@ -5223,6 +6120,7 @@
                           id: draftClient.id,
                           name: draftClient.name,
                           document: draftClient.document,
+                          phone: draftClient.phone || '',
                         });
                       } else {
                         setSelectedClient(null);
@@ -5302,6 +6200,7 @@
                         id: button.dataset.clientId,
                         name: button.dataset.clientName,
                         document: button.dataset.clientDoc,
+                        phone: button.dataset.clientPhone || '',
                       });
                       hideClientResults();
                     });

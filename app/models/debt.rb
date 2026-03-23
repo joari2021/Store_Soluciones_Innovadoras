@@ -15,6 +15,10 @@ class Debt < ApplicationRecord
   belongs_to :service, optional: true
   has_many :debt_payments, dependent: :destroy
 
+  scope :excluding_service_cost_records, lambda {
+    where('description NOT LIKE ?', '%[SERVICE_COST]%')
+  }
+
   validates :name, presence: true
   validates :debt_kind, presence: true, inclusion: { in: DEBT_KINDS.keys }
   validates :amount, presence: true, numericality: { greater_than: 0 }
@@ -158,13 +162,24 @@ class Debt < ApplicationRecord
     'pending'
   end
 
+  def service_cost_record?
+    description.to_s.include?('[SERVICE_COST]')
+  end
+
   private
 
   def normalize_service_cost_line(raw_line)
     line = raw_line.is_a?(Hash) ? raw_line.deep_stringify_keys : {}
 
+    classification = line['classification'].to_s
+    payable_line = !%w[nested_expense product_expense].include?(classification)
+
     amount_usd = line['amount_usd'].to_d.round(2)
-    paid_usd = line['paid_usd'].to_d.round(2)
+    paid_usd = if payable_line
+                 line['paid_usd'].to_d.round(2)
+               else
+                 amount_usd
+               end
     paid_usd = amount_usd if paid_usd > amount_usd
 
     pending_usd = (amount_usd - paid_usd).round(2)
@@ -182,7 +197,8 @@ class Debt < ApplicationRecord
       'amount_usd' => amount_usd.to_f,
       'paid_usd' => paid_usd.to_f,
       'pending_usd' => pending_usd.to_f,
-      'status' => status
+      'status' => status,
+      'payable_line' => payable_line
     )
   end
 

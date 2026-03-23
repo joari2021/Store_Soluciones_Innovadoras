@@ -20,6 +20,11 @@ class TasaCambio < ApplicationRecord
 
   scope :latest_first, -> { order(fecha_referencia: :desc, created_at: :desc) }
 
+  scope :latest_distinct_by_description, lambda {
+    select('DISTINCT ON (description) tasa_cambios.*')
+      .order(Arel.sql('description ASC, fecha_referencia DESC, created_at DESC'))
+  }
+
   def self.latest_for(description)
     where(description: description).latest_first.first
   end

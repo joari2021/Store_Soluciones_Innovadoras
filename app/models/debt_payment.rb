@@ -7,7 +7,7 @@ class DebtPayment < ApplicationRecord
   belongs_to :debt
   belongs_to :account
 
-  attr_accessor :skip_account_movement, :movement_amount_override
+  attr_accessor :skip_account_movement, :movement_amount_override, :movement_occurred_at_override
 
   before_validation :sync_currency_from_account
   before_validation :sync_conversion_values
@@ -110,12 +110,13 @@ class DebtPayment < ApplicationRecord
 
     override_amount = movement_amount_override.to_d
     movement_amount = override_amount.positive? ? override_amount : amount
+    movement_occurred_at = movement_occurred_at_override.presence || occurred_at
 
     movement_attrs = {
       movement_kind: debt.receivable? ? 'income' : 'expense',
       amount: movement_amount,
       description: build_movement_description,
-      occurred_at: occurred_at
+      occurred_at: movement_occurred_at
     }
 
     if account.account_type == 'bank_account' && payment_method.present?
@@ -126,6 +127,14 @@ class DebtPayment < ApplicationRecord
   end
 
   def build_movement_description
+    if debt.service_cost_record?
+      service_cost_description = build_service_cost_movement_description
+      base = "#{service_cost_description} [DEBT:#{debt.id}] [DP:#{id}]"
+      return base if reference.blank?
+
+      return "#{base} - Ref #{reference}"
+    end
+
     action = debt.receivable? ? 'Cobro de deuda' : 'Pago de deuda'
     debt_description = excess_payment? ? 'Excedente' : (debt.description.to_s.strip.presence || 'Deuda sin descripcion')
     cliente_name = debt.counterparty_display_name
@@ -133,6 +142,42 @@ class DebtPayment < ApplicationRecord
     return base if reference.blank?
 
     "#{base} - Ref #{reference}"
+  end
+
+  def build_service_cost_movement_description
+    service_name = debt.service_cost_details_hash['service_name'].to_s.strip.presence ||
+                   debt.service&.description.to_s.strip.presence ||
+                   'Servicio'
+    service_name = service_name_with_system_service(service_name)
+
+    line = service_cost_line_from_notes
+    return "Pago de costo por servicio #{service_name}" if line.blank?
+
+    source_name = line['source_name'].to_s.strip.presence || 'clasificacion'
+
+    case line['classification'].to_s
+    when 'manager_expense'
+      "Pago #{source_name} por servicio #{service_name}"
+    when 'variable_expense'
+      "Pago de #{source_name} por servicio de #{service_name}"
+    else
+      "Pago de costo por servicio #{service_name}"
+    end
+  end
+
+  def service_name_with_system_service(base_service_name)
+    service = debt.service || Service.includes(:system_service).find_by(id: debt.service_id)
+    system_service_name = service&.system_service&.name.to_s.strip
+    return base_service_name if system_service_name.blank?
+
+    "#{base_service_name} (#{system_service_name})"
+  end
+
+  def service_cost_line_from_notes
+    line_id = notes.to_s[/\[LINE:([^\]]+)\]/, 1].to_s.strip
+    return nil if line_id.blank?
+
+    debt.service_cost_lines.find { |line| line['line_id'].to_s == line_id }
   end
 
   def normalize_account_movement_method(method)

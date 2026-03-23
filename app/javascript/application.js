@@ -599,6 +599,11 @@ document.addEventListener(
         title: "¿Eliminar venta?",
         text: "Esta accion eliminara la venta y todo lo asociado: items, pagos, movimientos y reposicion de stock.",
       },
+      logout: {
+        title: "¿Cerrar sesion?",
+        text: "Tu sesion actual se cerrara en este dispositivo.",
+        confirmButtonText: "Si, cerrar sesion",
+      },
     };
 
     if (!window.Swal) {
@@ -713,6 +718,7 @@ document.addEventListener(
     const config = messages[deleteType] || {
       title: "¿Eliminar registro?",
       text: "Esta acción no se puede deshacer.",
+      confirmButtonText: "Sí, eliminar",
     };
 
     Swal.fire({
@@ -720,7 +726,7 @@ document.addEventListener(
       text: config.text,
       icon: "warning",
       showCancelButton: true,
-      confirmButtonText: "Sí, eliminar",
+      confirmButtonText: config.confirmButtonText || "Sí, eliminar",
       cancelButtonText: "Cancelar",
       confirmButtonColor: "#dc2626",
       cancelButtonColor: "#64748b",

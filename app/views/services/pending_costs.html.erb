@@ -16,11 +16,16 @@
       </div>
     </div>
   </div>
-  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+  <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
     <div class="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Servicios listados</p>
       <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @pending_cost_total_rows %></p>
       <p class="mt-1 text-xs text-slate-500">Directos y anidados segun filtros.</p>
+    </div>
+    <div class="rounded-2xl border border-indigo-200 bg-indigo-50/80 p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Cantidad total listada</p>
+      <p class="mt-2 text-2xl font-extrabold text-indigo-800"><%= format_quantity(@pending_cost_total_quantity, precision: 2) %></p>
+      <p class="mt-1 text-xs text-indigo-700">Suma de cantidades de servicios filtrados.</p>
     </div>
     <div class="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">Con deuda</p>
@@ -45,7 +50,7 @@
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <%= form_with url: pending_costs_services_path, method: :get, local: true, class: "space-y-3" do %>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <div class="xl:col-span-2">
           <%= label_tag :query_text, "Nombre / venta", class: "block text-[11px] font-semibold uppercase tracking-wide text-slate-500" %>
           <%= text_field_tag :query_text, @pending_cost_filters[:query_text], placeholder: "Servicio, anidado o #venta", class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" %>
@@ -63,16 +68,6 @@
                              @pending_cost_filters[:fecha_hasta]&.strftime("%d-%m-%Y"),
                              placeholder: "dd-mm-aaaa",
                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" %>
-        </div>
-        <div>
-          <%= label_tag :automatico, "Automatico", class: "block text-[11px] font-semibold uppercase tracking-wide text-slate-500" %>
-          <%= select_tag :automatico,
-                         options_for_select([
-                           ["Todos", "all"],
-                           ["Automaticos", "automaticos"],
-                           ["No automaticos", "no_automaticos"]
-                         ], @pending_cost_filters[:automatico]),
-                         class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" %>
         </div>
         <div>
           <%= label_tag :system_service_id, "Sistema", class: "block text-[11px] font-semibold uppercase tracking-wide text-slate-500" %>
@@ -118,14 +113,26 @@
               <th class="px-4 py-3 text-left font-bold">Sistema</th>
               <th class="px-4 py-3 text-center font-bold">Cantidad</th>
               <th class="px-4 py-3 text-right font-bold">Precio venta (USD)</th>
-              <th class="px-4 py-3 text-right font-bold">Precio a convenir (USD)</th>
               <th class="px-4 py-3 text-center font-bold">Estado costo</th>
               <th class="px-4 py-3 text-right font-bold">Accion</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             <% @pending_cost_rows.each do |row| %>
-              <% nested_badge_class = row[:nested_sale] ? "bg-violet-100 text-violet-700 ring-violet-200" : "bg-sky-100 text-sky-700 ring-sky-200" %>
+              <% sale_badge_label = if row[:printing_sale]
+                                      'Impresion'
+                                    elsif row[:nested_sale]
+                                      'Anidado'
+                                    else
+                                      'Directo'
+                                    end %>
+              <% nested_badge_class = if row[:printing_sale]
+                                        "bg-cyan-100 text-cyan-700 ring-cyan-200"
+                                      elsif row[:nested_sale]
+                                        "bg-violet-100 text-violet-700 ring-violet-200"
+                                      else
+                                        "bg-sky-100 text-sky-700 ring-sky-200"
+                                      end %>
               <tr class="hover:bg-slate-50/60">
                 <td class="px-4 py-3 whitespace-nowrap text-xs text-slate-600">
                   <%= row[:sold_at]&.in_time_zone("America/Caracas")&.strftime("%d/%m/%Y %H:%M") || "--" %>
@@ -137,24 +144,22 @@
                   <div class="flex flex-col gap-1">
                     <span class="font-semibold text-slate-800"><%= row[:service_name] %></span>
                     <div class="flex flex-wrap items-center gap-1.5">
-                      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 <%= nested_badge_class %>"><%= row[:nested_sale] ? "Anidado" : "Directo" %></span>
-                      <% if row[:nested_sale] && row[:parent_service_name].present? %>
-                        <span class="text-[11px] text-slate-500">Desde: <span class="font-semibold text-slate-600"><%= row[:parent_service_name] %></span></span>
+                      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 <%= nested_badge_class %>"><%= sale_badge_label %></span>
+                      <% if (row[:nested_sale] || row[:printing_sale]) && row[:parent_service_name].present? %>
+                        <% parent_system_name = row[:parent_service_system_name].to_s.strip %>
+                        <% parent_context_label = if parent_system_name.present?
+                                                    "#{row[:parent_service_name]} (#{parent_system_name})"
+                                                  else
+                                                    row[:parent_service_name]
+                                                  end %>
+                        <span class="text-[11px] text-slate-500">Desde: <span class="font-semibold text-slate-600"><%= parent_context_label %></span></span>
                       <% end %>
-                      <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200"><%= row[:automatic_cost] ? "Automatico" : "No automatico" %></span>
                     </div>
                   </div>
                 </td>
                 <td class="px-4 py-3 text-xs text-slate-600"><%= row[:service_system_name].presence || "--" %></td>
                 <td class="px-4 py-3 text-center font-semibold text-slate-700"><%= format_quantity(row[:quantity], precision: 2) %></td>
                 <td class="px-4 py-3 text-right font-semibold text-slate-800"><%= format_money(row[:sale_unit_price_usd], unit: "$ ") %></td>
-                <td class="px-4 py-3 text-right font-semibold text-slate-800">
-                  <% if row[:agreed_price_usd].to_d.positive? %>
-                    <%= format_money(row[:agreed_price_usd], unit: "$ ") %>
-                  <% else %>
-                    <span class="text-slate-400">--</span>
-                  <% end %>
-                </td>
                 <td class="px-4 py-3 text-center">
                   <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 <%= row[:cost_status_class] %>"><%= row[:cost_status_label] %></span>
                 </td>

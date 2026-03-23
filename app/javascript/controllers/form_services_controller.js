@@ -719,13 +719,34 @@ export default class extends Controller {
     if (selectedText.length > 0) {
       searchInput.value = selectedText;
       label.textContent = `Seleccionado: ${selectedText}`;
+      this.syncProductOldestCostDisplay(row, selectedOption);
       this.syncProductVariationRow(row);
       return;
     }
 
     searchInput.value = "";
     label.textContent = "Sin producto seleccionado";
+    this.syncProductOldestCostDisplay(row, null);
     this.syncProductVariationRow(row);
+  }
+
+  syncProductOldestCostDisplay(row, selectedOption) {
+    if (!row) return;
+
+    const target = row.querySelector("[data-product-oldest-cost]");
+    if (!target) return;
+
+    const usd = Number.parseFloat(
+      selectedOption?.dataset?.oldestLotCostUsd || "0",
+    );
+    const bs = Number.parseFloat(
+      selectedOption?.dataset?.oldestLotCostBs || "0",
+    );
+
+    const safeUsd = Number.isFinite(usd) && usd > 0 ? usd : 0;
+    const safeBs = Number.isFinite(bs) && bs > 0 ? bs : 0;
+
+    target.value = `${this.formatMoney(safeUsd, "$")} · ${this.formatMoney(safeBs, "Bs")}`;
   }
 
   syncProductVariationRow(row) {
@@ -871,7 +892,9 @@ export default class extends Controller {
   }
 
   applyProductSelection(resultOption) {
-    const row = resultOption.closest("[data-nested-row]");
+    const row = resultOption.closest(
+      "[data-nested-row], [data-print-material-surcharge-row], [data-lamination-material-row]",
+    );
     const select = row?.querySelector("[data-product-select]");
     const searchInput = row?.querySelector("[data-product-search]");
     const label = row?.querySelector("[data-product-selected-label]");

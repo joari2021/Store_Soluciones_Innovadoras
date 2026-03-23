@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_22_142000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -135,6 +135,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "theme_profile", default: "neon_blue", null: false
+    t.boolean "hide_initial_inventory_button", default: false, null: false
+    t.string "phone"
+    t.text "address"
+    t.string "rif"
+    t.string "city"
+    t.string "state"
     t.index ["name"], name: "index_businesses_on_name"
     t.index ["theme_profile"], name: "index_businesses_on_theme_profile"
   end
@@ -294,7 +300,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.datetime "updated_at", null: false
     t.string "supplier_name"
     t.bigint "business_id", null: false
+    t.string "invoice_kind", default: "purchase", null: false
     t.index ["business_id"], name: "index_facturas_on_business_id"
+    t.index ["business_id"], name: "index_facturas_unique_initial_inventory_per_business", unique: true, where: "((invoice_kind)::text = 'initial_inventory'::text)"
+    t.index ["invoice_kind"], name: "index_facturas_on_invoice_kind"
   end
 
   create_table "generos", force: :cascade do |t|
@@ -410,6 +419,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.bigint "business_id", null: false
     t.bigint "categoria_id", null: false
     t.bigint "profit_margin_preset_id"
+    t.boolean "exento", default: false, null: false
     t.index ["business_id"], name: "index_productos_on_business_id"
     t.index ["categoria_id"], name: "index_productos_on_categoria_id"
     t.index ["profit_margin_preset_id"], name: "index_productos_on_profit_margin_preset_id"
@@ -524,6 +534,32 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.index ["service_expense_structure_id"], name: "index_service_nested_expenses_on_service_expense_structure_id"
   end
 
+  create_table "service_print_coverage_prices", force: :cascade do |t|
+    t.bigint "service_id", null: false
+    t.decimal "coverage_percent", precision: 5, scale: 2, null: false
+    t.decimal "price_bs", precision: 14, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_id", "coverage_percent"], name: "idx_print_coverage_unique", unique: true
+    t.index ["service_id"], name: "index_service_print_coverage_prices_on_service_id"
+  end
+
+  create_table "service_print_material_surcharges", force: :cascade do |t|
+    t.bigint "service_id", null: false
+    t.bigint "producto_id", null: false
+    t.decimal "surcharge_percent", precision: 7, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "description"
+    t.boolean "include_product_price_in_sale", default: false, null: false
+    t.decimal "required_quantity", precision: 12, scale: 2, default: "1.0", null: false
+    t.index ["description"], name: "index_service_print_material_surcharges_on_description"
+    t.index ["include_product_price_in_sale"], name: "idx_print_material_include_product_price"
+    t.index ["producto_id"], name: "index_service_print_material_surcharges_on_producto_id"
+    t.index ["service_id", "producto_id"], name: "idx_service_print_material_surcharges_unique", unique: true
+    t.index ["service_id"], name: "index_service_print_material_surcharges_on_service_id"
+  end
+
   create_table "service_product_expenses", force: :cascade do |t|
     t.bigint "service_expense_structure_id", null: false
     t.bigint "producto_id", null: false
@@ -531,6 +567,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "product_variation_id"
+    t.boolean "breakdown_in_invoice", default: false, null: false
+    t.index ["breakdown_in_invoice"], name: "index_service_product_expenses_on_breakdown_in_invoice"
     t.index ["product_variation_id"], name: "index_service_product_expenses_on_product_variation_id"
     t.index ["producto_id"], name: "index_service_product_expenses_on_producto_id"
     t.index ["service_expense_structure_id"], name: "index_service_product_expenses_on_service_expense_structure_id"
@@ -571,11 +609,23 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.boolean "caution_service", default: false, null: false
     t.boolean "restricted_service", default: false, null: false
     t.boolean "auto_cost_stock_discount", default: false, null: false
+    t.boolean "post_sale_cost_debit", default: false, null: false
+    t.boolean "delivery_physical_enabled", default: false, null: false
+    t.boolean "delivery_digital_enabled", default: false, null: false
+    t.bigint "print_delivery_service_id"
+    t.jsonb "print_delivery_pages", default: [], null: false
+    t.string "print_sale_description"
+    t.bigint "print_delivery_material_surcharge_id"
+    t.jsonb "print_delivery_extra_products", default: [], null: false
     t.index ["auto_cost_stock_discount"], name: "index_services_on_auto_cost_stock_discount"
     t.index ["business_id"], name: "index_services_on_business_id"
     t.index ["caution_service"], name: "index_services_on_caution_service"
     t.index ["nested_available"], name: "index_services_on_nested_available"
+    t.index ["post_sale_cost_debit"], name: "index_services_on_post_sale_cost_debit"
     t.index ["pricing_mode"], name: "index_services_on_pricing_mode"
+    t.index ["print_delivery_material_surcharge_id"], name: "index_services_on_print_delivery_material_surcharge_id"
+    t.index ["print_delivery_service_id"], name: "index_services_on_print_delivery_service_id"
+    t.index ["print_sale_description"], name: "index_services_on_print_sale_description"
     t.index ["restricted_service"], name: "index_services_on_restricted_service"
     t.index ["system_service_id"], name: "index_services_on_system_service_id"
   end
@@ -604,6 +654,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "supplier_name"
+    t.string "description"
+    t.index ["description"], name: "index_stock_lots_on_description"
     t.index ["factura_item_id"], name: "index_stock_lots_on_factura_item_id", unique: true
     t.index ["producto_id", "purchased_at"], name: "index_stock_lots_on_producto_id_and_purchased_at"
     t.index ["producto_id"], name: "index_stock_lots_on_producto_id"
@@ -684,8 +736,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
     t.decimal "subtotal_usd", precision: 14, scale: 2, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "unit_price_base_amount", precision: 14, scale: 2
+    t.string "unit_price_base_currency"
+    t.boolean "exento", default: false, null: false
     t.index ["product_variation_id"], name: "index_venta_items_on_product_variation_id"
     t.index ["producto_id"], name: "index_venta_items_on_producto_id"
+    t.index ["unit_price_base_currency"], name: "index_venta_items_on_unit_price_base_currency"
     t.index ["venta_id"], name: "index_venta_items_on_venta_id"
   end
 
@@ -800,11 +856,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_20_000002) do
   add_foreign_key "service_managers", "services"
   add_foreign_key "service_nested_expenses", "service_expense_structures"
   add_foreign_key "service_nested_expenses", "services", column: "nested_service_id"
+  add_foreign_key "service_print_coverage_prices", "services"
+  add_foreign_key "service_print_material_surcharges", "productos"
+  add_foreign_key "service_print_material_surcharges", "services"
   add_foreign_key "service_product_expenses", "product_variations"
   add_foreign_key "service_product_expenses", "productos"
   add_foreign_key "service_product_expenses", "service_expense_structures"
   add_foreign_key "service_variable_expenses", "service_expense_structures"
   add_foreign_key "services", "businesses"
+  add_foreign_key "services", "service_print_material_surcharges", column: "print_delivery_material_surcharge_id"
+  add_foreign_key "services", "services", column: "print_delivery_service_id"
   add_foreign_key "services", "system_services"
   add_foreign_key "stock_lot_variations", "product_variations"
   add_foreign_key "stock_lot_variations", "stock_lots"

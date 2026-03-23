@@ -132,6 +132,13 @@
       <input type="text" name="precio_venta_bs" id="precio_venta_bs_visual" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Bs 0,00">
     </div>
   </div>
+  <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
+    <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-amber-800">
+      <%= form.check_box :exento, class: "h-4 w-4 cursor-pointer rounded border-amber-300 text-amber-600 focus:ring-amber-500" %>
+      Producto exento de IVA en la venta
+    </label>
+    <p class="mt-1 text-xs text-amber-700">Si esta activo, este producto no suma IVA y no se recalcula en IVA invertido.</p>
+  </div>
   <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
   <div class="mt-2">
     <div class="flex items-center justify-between">

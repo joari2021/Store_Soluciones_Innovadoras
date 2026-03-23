@@ -59,6 +59,17 @@ class BusinessesController < ApplicationController
   end
 
   def business_params
-    params.require(:business).permit(:name, :theme_profile, :logo, :banner)
+    params.require(:business).permit(
+      :name,
+      :theme_profile,
+      :phone,
+      :city,
+      :state,
+      :address,
+      :rif,
+      :logo,
+      :banner,
+      :hide_initial_inventory_button
+    )
   end
 end

@@ -7,10 +7,10 @@ class VentasController < ApplicationController
 
   def index
     @productos = current_business
-      .productos
-      .with_attached_foto
-      .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
-      .order(:descripcion)
+                 .productos
+                 .with_attached_foto
+                 .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
+                 .order(:descripcion)
 
     @accounts = current_business.accounts.with_attached_payment_method_image.where(active: true).order(:name)
     @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
@@ -32,7 +32,7 @@ class VentasController < ApplicationController
         {
           id: variation.id,
           name: variation.description.to_s,
-          available: available.to_f,
+          available: available.to_f
         }
       end
 
@@ -40,8 +40,9 @@ class VentasController < ApplicationController
         id: producto.id,
         name: producto.descripcion.to_s,
         price_usd: producto.precio_venta_usd.to_f,
+        exento: producto.respond_to?(:exento?) ? producto.exento? : false,
         available_total: total_units.to_f,
-        variations: variations_payload,
+        variations: variations_payload
       }
     end
 
@@ -49,75 +50,56 @@ class VentasController < ApplicationController
 
     tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil
     unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
-    effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value("Dolar BCV").to_d
+    effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
 
     @services = current_business
-      .services
-      .includes(
-        :system_service,
-        service_expense_structures: [
-          :service_manager_expenses,
-          :service_variable_expenses,
-          { service_nested_expenses: :nested_service },
-          { service_product_expenses: [:product_variation, { producto: :product_variations }] },
-        ],
-      )
-      .where(available: true)
-      .visible_for_user(Current.user)
-      .order("system_services.name ASC, services.description ASC")
+                .services
+                .includes(
+                  :system_service,
+                  :print_delivery_material_surcharge,
+                  :service_print_coverage_prices,
+                  { service_print_material_surcharges: :producto },
+                  service_expense_structures: [
+                    :service_manager_expenses,
+                    :service_variable_expenses,
+                    { service_product_expenses: [:product_variation, { producto: :product_variations }] }
+                  ]
+                )
+                .where(available: true)
+                .visible_for_user(Current.user)
+                .order('system_services.name ASC, services.description ASC')
     @services_payload = @services.map do |service|
       unit_price_usd = service.fixed? ? service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
-      unit_cost_usd = if service.auto_cost_stock_discount?
-          service.total_expense_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi, active_only: true)
-        end
+      unit_price_bs = service.fixed? ? service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
+      unit_cost_usd = if service_cost_debit_enabled?(service)
+                        service.total_expense_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi, active_only: true)
+                      end
       currency_base_reference = service.currency_base_price.to_s.strip.presence || Service::DEFAULT_REFERENCE
       currency_base_reference = Service::DEFAULT_REFERENCE if currency_base_reference == Service::LEGACY_USD_REFERENCE
 
       reference_rate_bs = case currency_base_reference
-        when Service::BOLIVAR_REFERENCE
-          1.to_d
-        when Service::DEFAULT_REFERENCE
-          effective_bcv_rate
-        else
-          TasaCambio.latest_value(currency_base_reference).to_d
-        end
+                          when Service::BOLIVAR_REFERENCE
+                            1.to_d
+                          when Service::DEFAULT_REFERENCE
+                            effective_bcv_rate
+                          else
+                            TasaCambio.latest_value(currency_base_reference).to_d
+                          end
 
       currency_symbol = TasaCambio.latest_symbol(currency_base_reference).presence ||
                         TasaCambio::DEFAULT_SYMBOLS[currency_base_reference] ||
-                        (currency_base_reference == Service::BOLIVAR_REFERENCE ? "Bs" : "$")
+                        (currency_base_reference == Service::BOLIVAR_REFERENCE ? 'Bs' : '$')
 
-      nested_to_agree_costs = []
       consumable_costs = []
+      has_manager_or_variable_expense = false
+      physical_printing_payload = build_service_physical_printing_payload(service: service,
+                                                                          tasa_dolar: effective_bcv_rate)
 
       service.active_expense_structures_for_sales.each do |structure|
-        structure_label = structure.description.to_s.strip.presence || "Sin estructura"
+        structure_label = structure.description.to_s.strip.presence || 'Sin estructura'
 
-        structure.service_nested_expenses.each do |expense|
-          nested_service = expense.nested_service
-          next unless nested_service&.to_agree?
-
-          reference_name = expense.currency_reference.to_s.strip.presence || "Bs"
-          reference_rate_bs = if reference_name == "Bs"
-              1.to_d
-            else
-              TasaCambio.latest_value(reference_name).to_d
-            end
-
-          nested_to_agree_costs << {
-            expense_id: expense.id,
-            structure_id: structure.id,
-            structure_name: structure_label,
-            nested_service_id: nested_service.id,
-            nested_service_name: nested_service.description.to_s,
-            reference_name: reference_name,
-            reference_symbol: TasaCambio.latest_symbol(reference_name).presence ||
-                              TasaCambio::DEFAULT_SYMBOLS[reference_name] ||
-                              (reference_name == "Bs" ? "Bs" : "$"),
-            reference_rate_bs: reference_rate_bs.positive? ? reference_rate_bs.to_f : nil,
-            default_amount_reference: expense.amount_reference.to_d.to_f,
-            quantity: expense.quantity.to_d.to_f,
-          }
-        end
+        has_manager_or_variable_expense ||= structure.service_manager_expenses.any?
+        has_manager_or_variable_expense ||= structure.service_variable_expenses.any?
 
         structure.service_product_expenses.each do |expense|
           product = expense.producto
@@ -136,6 +118,7 @@ class VentasController < ApplicationController
             variation_name: variation.description.to_s,
             quantity: expense.quantity.to_d.to_f,
             unit_price_usd: product.precio_venta_usd.to_d.to_f,
+            breakdown_in_invoice: expense.breakdown_in_invoice?
           }
         end
       end
@@ -143,17 +126,48 @@ class VentasController < ApplicationController
       {
         id: service.id,
         name: service.description.to_s,
+        sale_display_name: service.print_sale_display_name.to_s,
         system_name: service.system_service&.name.to_s,
+        printing_type_service: service.printing_type_service?,
+        lamination_type_service: service.lamination_type_service?,
         price_usd: unit_price_usd&.to_f,
+        price_bs: unit_price_bs&.to_f,
         price_on_request: service.to_agree?,
         pricing_mode: service.pricing_mode,
-        auto_cost_stock_discount: service.auto_cost_stock_discount?,
+        delivery_physical_enabled: service.delivery_physical_enabled?,
+        delivery_digital_enabled: service.delivery_digital_enabled?,
+        cost_enabled: service.cost?,
         unit_cost_usd: unit_cost_usd&.to_f,
         currency_base_price: currency_base_reference,
         currency_symbol: currency_symbol,
         reference_rate_bs: reference_rate_bs.positive? ? reference_rate_bs.to_f : nil,
-        nested_to_agree_costs: nested_to_agree_costs,
-        consumable_costs: consumable_costs,
+        has_manager_or_variable_expense: has_manager_or_variable_expense,
+        physical_printing: physical_printing_payload,
+        print_coverage_options: service.service_print_coverage_prices
+                                .sort_by { |row| [row.price_bs.to_d, row.coverage_percent.to_d, row.id.to_i] }
+                                       .map do |row|
+                                         {
+                                           id: row.id,
+                                           coverage_percent: row.coverage_percent.to_d.to_f,
+                                           price_bs: row.price_bs.to_d.to_f
+                                         }
+                                       end,
+        print_material_options: service.service_print_material_surcharges
+                                .sort_by { |row| [row.created_at || Time.at(0), row.id.to_i] }
+                                       .map do |row|
+          required_quantity = row.respond_to?(:required_quantity) ? row.required_quantity.to_d : 1.to_d
+          {
+            id: row.id,
+            product_id: row.producto_id,
+            label: row.display_label.to_s,
+            product_name: row.producto&.descripcion.to_s,
+            required_quantity: required_quantity.to_f,
+            surcharge_percent: row.surcharge_percent.to_d.to_f,
+            include_product_price_in_sale: row.include_product_price_in_sale?,
+            product_price_usd: row.producto&.precio_venta_usd.to_d.to_f
+          }
+        end,
+        consumable_costs: consumable_costs
       }
     end
     @services_payload_by_id = @services_payload.index_by { |row| row[:id] }
@@ -165,9 +179,9 @@ class VentasController < ApplicationController
         account_type: account.account_type,
         currency: account.currency,
         currency_symbol: account.currency_symbol,
-        is_bank: account.account_type == "bank_account",
+        is_bank: account.account_type == 'bank_account',
         is_primary: account.is_primary,
-        payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
+        payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?)
       }
     end
 
@@ -182,7 +196,7 @@ class VentasController < ApplicationController
     render json: {
       products: products_payload_for_business,
       drafts: drafts_payload,
-      generated_at: Time.current.to_i,
+      generated_at: Time.current.to_i
     }
   end
 
@@ -190,10 +204,10 @@ class VentasController < ApplicationController
     render json: {
       draft: draft_summary_payload(@draft_venta).merge(
         state: draft_state_payload(@draft_venta),
-        client: draft_client_payload(@draft_venta),
+        client: draft_client_payload(@draft_venta)
       ),
       drafts: drafts_payload,
-      products: products_payload_for_business,
+      products: products_payload_for_business
     }
   end
 
@@ -214,14 +228,14 @@ class VentasController < ApplicationController
     render json: {
       success: true,
       drafts: drafts_payload,
-      products: products_payload_for_business,
+      products: products_payload_for_business
     }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
-    render json: { error: e.message.presence || "No se pudo eliminar el borrador." }, status: :unprocessable_entity
+    render json: { error: e.message.presence || 'No se pudo eliminar el borrador.' }, status: :unprocessable_entity
   end
 
   def historial
-    @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(80)
+    @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
     filtered_scope = apply_historial_filters(current_business.ventas)
 
@@ -229,8 +243,8 @@ class VentasController < ApplicationController
     @sales_with_client = filtered_scope.where.not(cliente_id: nil).count
 
     summary_sales = filtered_scope
-      .select(:id, :created_at, :base_currency, :total_usd, :total_bs, :tasa_dolar)
-      .to_a
+                    .select(:id, :created_at, :base_currency, :total_usd, :total_bs, :tasa_dolar)
+                    .to_a
     summary_reference_service = SaleCurrencyReferenceService.new(summary_sales)
 
     summary_totals = summary_reference_service.totals_by_sale_id.values
@@ -238,8 +252,8 @@ class VentasController < ApplicationController
     @total_ves = summary_totals.sum { |row| row[:ves_total].to_d }.round(2)
 
     ventas_scope = filtered_scope
-      .includes(:cliente, :user, :venta_payments)
-      .order(created_at: :desc)
+                   .includes(:cliente, :user, :venta_payments)
+                   .order(created_at: :desc)
 
     @pagy, @ventas = pagy_countless(ventas_scope, items: 24)
     load_sales_reference_data!(sales: @ventas)
@@ -248,13 +262,34 @@ class VentasController < ApplicationController
 
   def show
     @venta = current_business
-      .ventas
-      .includes(:cliente, :user, venta_items: %i[producto product_variation], venta_payments: :account)
-      .find(params[:id])
+             .ventas
+             .includes(:cliente, :user, venta_items: %i[producto product_variation], venta_payments: :account)
+             .find(params[:id])
 
     @sale_reference = SaleCurrencyReferenceService.new([@venta]).totals_by_sale_id[@venta.id] || {}
     load_sale_credit_context!
     @sale_item_masked_names = sale_item_masked_names_for_view(@venta)
+    load_sale_service_cost_breakdown_context!
+  end
+
+  def delivery_note
+    @venta = current_business
+             .ventas
+             .includes(:cliente, :user, venta_items: %i[producto product_variation])
+             .find(params[:id])
+
+    if @venta.vat_mode != 'none'
+      return redirect_to venta_path(@venta), alert: 'La nota de entrega solo puede generarse para facturas sin IVA.'
+    end
+
+    @sale_reference = SaleCurrencyReferenceService.new([@venta]).totals_by_sale_id[@venta.id] || {}
+    @sale_item_masked_names = sale_item_masked_names_for_view(@venta)
+    load_sale_service_cost_breakdown_context!
+    @business = current_business
+    @delivery_print_date = Time.current
+    @print_title = "Nota de Entrega Nro-#{@venta.id}"
+
+    render :delivery_note, layout: 'print'
   end
 
   def destroy
@@ -266,10 +301,10 @@ class VentasController < ApplicationController
     end
 
     redirect_to historial_ventas_path,
-                notice: "Venta eliminada exitosamente junto con sus registros asociados."
+                notice: 'Venta eliminada exitosamente junto con sus registros asociados.'
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to historial_ventas_path,
-                alert: e.message.presence || "No se pudo eliminar la venta."
+                alert: e.message.presence || 'No se pudo eliminar la venta.'
   end
 
   def create
@@ -277,10 +312,10 @@ class VentasController < ApplicationController
     draft_id = payload[:draft_id].presence
     source_draft = nil
     if draft_id
-      source_draft = current_business.ventas.where(status: "draft").includes(:venta_items,
+      source_draft = current_business.ventas.where(status: 'draft').includes(:venta_items,
                                                                              :cliente).find_by(id: draft_id)
       unless source_draft
-        return render json: { error: "No se encontro el borrador seleccionado." },
+        return render json: { error: 'No se encontro el borrador seleccionado.' },
                       status: :unprocessable_entity
       end
     end
@@ -289,46 +324,46 @@ class VentasController < ApplicationController
     payments = Array(payload[:payments])
     raw_change = payload[:change]
     change_entries = if raw_change.is_a?(Array)
-        raw_change
-      elsif raw_change.present?
-        [raw_change]
-      else
-        []
-      end
+                       raw_change
+                     elsif raw_change.present?
+                       [raw_change]
+                     else
+                       []
+                     end
     credit_sale = normalize_credit_sale_payload(payload[:credit_sale])
     credit_sale_due_on = parse_payment_date(credit_sale[:due_on])
     service_cost_payment_entries = Array(payload[:service_cost_payments])
     if credit_sale[:due_on].present? && credit_sale_due_on.blank?
-      return render json: { error: "La fecha de vencimiento del credito es invalida." },
+      return render json: { error: 'La fecha de vencimiento del credito es invalida.' },
                     status: :unprocessable_entity
     end
 
     if items.empty?
-      return render json: { error: "Agrega productos o servicios antes de cobrar." },
+      return render json: { error: 'Agrega productos o servicios antes de cobrar.' },
                     status: :unprocessable_entity
     end
 
     open_cash_shift = current_business.cash_shifts.open.first
     if open_cash_shift.blank?
-      return render json: { error: "Debes abrir un turno antes de facturar." },
+      return render json: { error: 'Debes abrir un turno antes de facturar.' },
                     status: :unprocessable_entity
     end
 
     vat_mode = payload[:vat_mode].to_s
-    vat_mode = "none" unless Venta::VAT_MODES.key?(vat_mode)
+    vat_mode = 'none' unless Venta::VAT_MODES.key?(vat_mode)
     vat_rate = parse_decimal(payload[:vat_rate], default: 0.16).round(2)
-    tasa_dolar = parse_decimal(payload[:tasa_dolar], default: TasaCambio.latest_value("Dolar BCV")).round(2)
-    base_currency = normalize_currency(payload[:base_currency], default: "USD")
-    base_currency = "USD" unless Venta::BASE_CURRENCIES.key?(base_currency)
+    tasa_dolar = parse_decimal(payload[:tasa_dolar], default: TasaCambio.latest_value('Dolar BCV')).round(2)
+    base_currency = normalize_currency(payload[:base_currency], default: 'USD')
+    base_currency = 'USD' unless Venta::BASE_CURRENCIES.key?(base_currency)
 
     venta = current_business.ventas.new(
-      status: "draft",
+      status: 'draft',
       vat_mode: vat_mode,
       vat_rate: vat_rate,
       tasa_dolar: tasa_dolar,
       base_currency: base_currency,
       cash_shift: open_cash_shift,
-      user: Current.user,
+      user: Current.user
     )
 
     if payload[:cliente_id].present?
@@ -340,44 +375,53 @@ class VentasController < ApplicationController
 
     items.each do |item|
       item_type = item[:item_type].to_s
-      if item_type == "service" || item[:service_id].present?
+      if item_type == 'service' || item[:service_id].present?
         service_id = item[:service_id]
         service = current_business
-          .services
-          .includes(:system_service,
-                    service_expense_structures: %i[service_product_expenses
-                                                   service_nested_expenses])
-          .find_by(id: service_id)
+                  .services
+                  .includes(:system_service,
+                            :service_print_coverage_prices,
+                            :service_print_material_surcharges,
+                            service_expense_structures: %i[service_product_expenses])
+                  .find_by(id: service_id)
         next unless service
 
         quantity = parse_decimal(item[:quantity], default: 0)
         next unless quantity.positive?
 
         unit_price_usd = if service.to_agree?
-            parse_decimal(item[:unit_price_usd], default: 0)
-          else
-            service_unit_price_usd(service, tasa_dolar)
-          end
+                           parse_decimal(item[:unit_price_usd], default: 0)
+                         else
+                           service_unit_price_usd(service, tasa_dolar)
+                         end
+        unit_price_usd /= (1 + vat_rate) if vat_mode == 'included' && vat_rate.positive?
 
         if unit_price_usd.nil? || unit_price_usd.to_d <= 0
-          message = service.to_agree? ? "Debes indicar el precio acordado del servicio." : "No se pudo calcular el precio del servicio."
+          message = service.to_agree? ? 'Debes indicar el precio acordado del servicio.' : 'No se pudo calcular el precio del servicio.'
           return render json: { error: message }, status: :unprocessable_entity
         end
 
         line_subtotal = (unit_price_usd.to_d * quantity.to_d).round(2)
+        unit_price_base_amount = parse_decimal(item[:unit_price_base_amount], default: 0).round(2)
+        if unit_price_base_amount.positive? && vat_mode == 'included' && vat_rate.positive?
+          unit_price_base_amount /= (1 + vat_rate)
+        end
+        unit_price_base_currency = normalize_currency(item[:unit_price_base_currency], default: base_currency)
 
         venta.venta_items.build(
-          product_name: service.description.to_s,
-          variation_name: service.system_service&.name.presence || "Servicio",
+          product_name: service_sale_display_name(service: service, payload: item),
+          variation_name: service.system_service&.name.presence || 'Servicio',
           quantity: quantity,
           unit_price_usd: unit_price_usd,
           subtotal_usd: line_subtotal,
+          unit_price_base_amount: (unit_price_base_amount.positive? ? unit_price_base_amount : nil),
+          unit_price_base_currency: unit_price_base_currency
         )
 
         service_item_rows << {
           service: service,
           quantity: quantity,
-          payload: item.to_h,
+          payload: item.to_h
         }
         next
       end
@@ -385,6 +429,8 @@ class VentasController < ApplicationController
       product_id = item[:product_id]
       product = current_business.productos.includes(:product_variations).find_by(id: product_id)
       next unless product
+
+      product_exento = product.respond_to?(:exento?) ? product.exento? : false
 
       quantity = parse_decimal(item[:quantity], default: 0)
       next unless quantity.positive?
@@ -394,34 +440,50 @@ class VentasController < ApplicationController
       next unless variation
 
       unit_price = product.precio_venta_usd.to_d
-      unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive?
+      unit_price /= (1 + vat_rate) if vat_mode == 'included' && vat_rate.positive? && !product_exento
       line_subtotal = (unit_price.to_d * quantity.to_d).round(2)
+      product_unit_base_amount = 0.to_d
+      if base_currency == 'VES' && tasa_dolar.to_d.positive?
+        gross_unit_base = (product.precio_venta_usd.to_d * tasa_dolar.to_d).round(2)
+        product_unit_base_amount = if vat_mode == 'included' && vat_rate.positive? && !product_exento
+                                     (gross_unit_base / (1 + vat_rate)).round(2)
+                                   else
+                                     gross_unit_base
+                                   end
+      elsif base_currency == 'USD'
+        product_unit_base_amount = unit_price.to_d.round(2)
+      end
 
-      venta.venta_items.build(
+      product_item_attrs = {
         producto: product,
         product_variation: variation,
         quantity: quantity,
         unit_price_usd: unit_price,
         subtotal_usd: line_subtotal,
-      )
+        unit_price_base_amount: (product_unit_base_amount.positive? ? product_unit_base_amount : nil),
+        unit_price_base_currency: base_currency
+      }
+      product_item_attrs[:exento] = product_exento if VentaItem.column_names.include?('exento')
+
+      venta.venta_items.build(product_item_attrs)
     end
 
     if venta.venta_items.empty?
-      return render json: { error: "No hay items validos en la venta." }, status: :unprocessable_entity
+      return render json: { error: 'No hay items validos en la venta.' }, status: :unprocessable_entity
     end
 
     venta.valid?
 
     service_cost_obligations, service_cost_error = build_service_cost_obligations(
       service_item_rows: service_item_rows,
-      tasa_dolar: tasa_dolar,
+      tasa_dolar: tasa_dolar
     )
     return render json: { error: service_cost_error }, status: :unprocessable_entity if service_cost_error.present?
 
     service_cost_settlements, service_cost_error = build_service_cost_settlements(
       obligations: service_cost_obligations,
       raw_rows: service_cost_payment_entries,
-      tasa_dolar: tasa_dolar,
+      tasa_dolar: tasa_dolar
     )
     return render json: { error: service_cost_error }, status: :unprocessable_entity if service_cost_error.present?
 
@@ -432,55 +494,55 @@ class VentasController < ApplicationController
       next unless raw_amount.positive?
 
       account = current_business.accounts.find_by(id: payment[:account_id])
-      return render json: { error: "Cuenta de pago no encontrada." }, status: :unprocessable_entity if account.nil?
+      return render json: { error: 'Cuenta de pago no encontrada.' }, status: :unprocessable_entity if account.nil?
 
-      currency = normalize_currency(payment[:currency], default: account&.currency || "USD")
+      currency = normalize_currency(payment[:currency], default: account&.currency || 'USD')
       amount_usd = convert_payment_to_usd(raw_amount, currency, tasa_dolar)
       if amount_usd.nil?
-        return render json: { error: "Tasa dolar no disponible para pagos en VES." },
+        return render json: { error: 'Tasa dolar no disponible para pagos en VES.' },
                       status: :unprocessable_entity
       end
 
       method = payment[:method].to_s
-      return render json: { error: "Selecciona el metodo de pago." }, status: :unprocessable_entity if method.blank?
+      return render json: { error: 'Selecciona el metodo de pago.' }, status: :unprocessable_entity if method.blank?
 
       reference = payment[:reference].to_s.strip
       payment_date = parse_payment_date(payment[:payment_date])
-      if account.account_type == "bank_account"
+      if account.account_type == 'bank_account'
         unless %w[transfer mobile].include?(method)
-          return render json: { error: "Selecciona transferencia o pago movil para cuentas bancarias." },
+          return render json: { error: 'Selecciona transferencia o pago movil para cuentas bancarias.' },
                         status: :unprocessable_entity
         end
 
         unless valid_reference?(reference)
-          return render json: { error: "La referencia debe tener 6 digitos." }, status: :unprocessable_entity
+          return render json: { error: 'La referencia debe tener 6 digitos.' }, status: :unprocessable_entity
         end
 
         if payment_date.blank?
-          return render json: { error: "Debes indicar la fecha del pago para cuentas bancarias." },
+          return render json: { error: 'Debes indicar la fecha del pago para cuentas bancarias.' },
                         status: :unprocessable_entity
         end
 
         amount_signature = raw_amount.to_d.round(2)
-        duplicate_key = [account.id, payment_date.iso8601, amount_signature.to_s("F")].join("|")
+        duplicate_key = [account.id, payment_date.iso8601, amount_signature.to_s('F')].join('|')
         if bank_payment_keys_in_request.key?(duplicate_key)
           duplicate_info = duplicate_bank_payment_payload(
             account: account,
             payment_date: payment_date,
             amount_original: amount_signature,
-            existing_payment: nil,
+            existing_payment: nil
           )
 
           return render json: {
-                          error: duplicate_info[:message],
-                          duplicate_payment: duplicate_info.except(:message),
-                        }, status: :unprocessable_entity
+            error: duplicate_info[:message],
+            duplicate_payment: duplicate_info.except(:message)
+          }, status: :unprocessable_entity
         end
 
         duplicated_payment = find_duplicate_bank_payment(
           account_id: account.id,
           payment_date: payment_date,
-          amount_original: amount_signature,
+          amount_original: amount_signature
         )
 
         if duplicated_payment.present?
@@ -488,13 +550,13 @@ class VentasController < ApplicationController
             account: account,
             payment_date: payment_date,
             amount_original: amount_signature,
-            existing_payment: duplicated_payment,
+            existing_payment: duplicated_payment
           )
 
           return render json: {
-                          error: duplicate_info[:message],
-                          duplicate_payment: duplicate_info.except(:message),
-                        }, status: :unprocessable_entity
+            error: duplicate_info[:message],
+            duplicate_payment: duplicate_info.except(:message)
+          }, status: :unprocessable_entity
         end
 
         bank_payment_keys_in_request[duplicate_key] = true
@@ -508,7 +570,7 @@ class VentasController < ApplicationController
         currency: currency,
         reference: reference.presence,
         payment_date: payment_date,
-        payment_kind: "in",
+        payment_kind: 'in'
       }
     end
 
@@ -519,28 +581,28 @@ class VentasController < ApplicationController
 
       change_account = current_business.accounts.find_by(id: change_entry[:account_id])
       if change_account.nil?
-        return render json: { error: "Cuenta para vuelto no encontrada." },
+        return render json: { error: 'Cuenta para vuelto no encontrada.' },
                       status: :unprocessable_entity
       end
 
-      change_currency = normalize_currency(change_entry[:currency], default: change_account&.currency || "USD")
+      change_currency = normalize_currency(change_entry[:currency], default: change_account&.currency || 'USD')
       change_usd = convert_payment_to_usd(change_amount, change_currency, tasa_dolar)
       if change_usd.nil?
-        return render json: { error: "Tasa dolar no disponible para vuelto en VES." }, status: :unprocessable_entity
+        return render json: { error: 'Tasa dolar no disponible para vuelto en VES.' }, status: :unprocessable_entity
       end
 
       change_method = change_entry[:method].to_s
       change_method = default_method_for_account(change_account) if change_method.blank?
 
       change_reference = change_entry[:reference].to_s.strip
-      if change_account.account_type == "bank_account"
+      if change_account.account_type == 'bank_account'
         unless %w[transfer mobile].include?(change_method)
-          return render json: { error: "Selecciona transferencia o pago movil para cuentas bancarias." },
+          return render json: { error: 'Selecciona transferencia o pago movil para cuentas bancarias.' },
                         status: :unprocessable_entity
         end
 
         unless valid_reference?(change_reference)
-          return render json: { error: "La referencia del vuelto debe tener 6 digitos." }, status: :unprocessable_entity
+          return render json: { error: 'La referencia del vuelto debe tener 6 digitos.' }, status: :unprocessable_entity
         end
       end
 
@@ -551,19 +613,19 @@ class VentasController < ApplicationController
         amount_original: change_amount,
         currency: change_currency,
         reference: change_reference.presence,
-        payment_kind: "out",
+        payment_kind: 'out'
       }
     end
 
     comparison_currency = base_currency
-    comparison_currency = "USD" if comparison_currency == "VES" && tasa_dolar.to_d <= 0
+    comparison_currency = 'USD' if comparison_currency == 'VES' && tasa_dolar.to_d <= 0
     total_due = total_due_in_currency(venta, comparison_currency, tasa_dolar)
     paid_total = 0.to_d
 
     payment_rows.each do |row|
       converted = convert_payment_to_currency(row[:amount_original], row[:currency], comparison_currency, tasa_dolar)
       if converted.nil?
-        return render json: { error: "Tasa dolar no disponible para convertir pagos." },
+        return render json: { error: 'Tasa dolar no disponible para convertir pagos.' },
                       status: :unprocessable_entity
       end
       paid_total += converted
@@ -580,7 +642,12 @@ class VentasController < ApplicationController
     end
 
     if remaining_credit_amount.positive? && venta.cliente.blank?
-      return render json: { error: "Debes seleccionar un cliente para registrar saldo en deuda por cobrar." },
+      return render json: { error: 'Debes seleccionar un cliente para registrar saldo en deuda por cobrar.' },
+                    status: :unprocessable_entity
+    end
+
+    if remaining_credit_amount.positive? && venta.cliente.present? && venta.cliente.phone.to_s.strip.blank?
+      return render json: { error: 'El cliente registrado no posee numero de telefono, ese dato es obligatorio.' },
                     status: :unprocessable_entity
     end
 
@@ -590,10 +657,10 @@ class VentasController < ApplicationController
     change_rows.each { |row| venta.venta_payments.build(row) }
 
     if payment_rows.empty? && !remaining_credit_amount.positive?
-      return render json: { error: "Debes registrar al menos un metodo de pago." }, status: :unprocessable_entity
+      return render json: { error: 'Debes registrar al menos un metodo de pago.' }, status: :unprocessable_entity
     end
 
-    venta.status = "paid"
+    venta.status = 'paid'
 
     begin
       Venta.transaction do
@@ -607,10 +674,14 @@ class VentasController < ApplicationController
         reserve_product_stock_for_sale!(venta)
         reserved_service_products = reserve_service_product_expenses_for_items!(service_item_rows, venta: venta)
         notes_payload = parse_notes_payload(venta.notes)
-        notes_payload.delete("draft_state")
-        notes_payload["reserved_product_items"] = reserved_product_items_payload_for_sale(venta)
-        notes_payload["reserved_service_products"] = reserved_service_products
-        notes_payload["service_cost_settlements"] = service_cost_settlements_payload_for_notes(service_cost_settlements)
+        notes_payload.delete('draft_state')
+        notes_payload['reserved_product_items'] = reserved_product_items_payload_for_sale(venta)
+        notes_payload['reserved_service_products'] = reserved_service_products
+        notes_payload['service_cost_settlements'] = service_cost_settlements_payload_for_notes(service_cost_settlements)
+        notes_payload['sold_service_printings'] = sold_service_printings_payload_for_notes(
+          service_item_rows: service_item_rows,
+          tasa_dolar: tasa_dolar
+        )
         venta.update!(notes: serialize_notes_payload(notes_payload))
 
         payment_rows.each do |row|
@@ -618,12 +689,12 @@ class VentasController < ApplicationController
           next unless account
 
           movement_attrs = {
-            movement_kind: "income",
+            movement_kind: 'income',
             amount: row[:amount_original].to_d,
-            description: build_movement_description(venta, row, "Ingreso"),
-            occurred_at: Time.current,
+            description: build_movement_description(venta, row, 'Ingreso'),
+            occurred_at: Time.current
           }
-          if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
+          if account.account_type == 'bank_account' && %w[transfer mobile].include?(row[:payment_method])
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
           end
 
@@ -635,35 +706,35 @@ class VentasController < ApplicationController
           next unless account
 
           movement_attrs = {
-            movement_kind: "expense",
+            movement_kind: 'expense',
             amount: row[:amount_original].to_d,
-            description: build_movement_description(venta, row, "Vuelto"),
-            occurred_at: Time.current,
+            description: build_movement_description(venta, row, 'Vuelto'),
+            occurred_at: Time.current
           }
-          if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
+          if account.account_type == 'bank_account' && %w[transfer mobile].include?(row[:payment_method])
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
           end
 
           account.account_movements.create!(movement_attrs)
 
-          next unless account.account_type == "bank_account" && row[:payment_method] == "mobile"
+          next unless account.account_type == 'bank_account' && row[:payment_method] == 'mobile'
 
           commission_amount = (row[:amount_original].to_d * 0.003).round(2)
           next unless commission_amount.positive?
 
           commission_attrs = {
-            movement_kind: "expense",
+            movement_kind: 'expense',
             amount: commission_amount,
-            description: build_movement_description(venta, row, "Comision pago movil"),
+            description: build_movement_description(venta, row, 'Comision pago movil'),
             occurred_at: Time.current,
-            payment_method: normalize_account_movement_method("mobile"),
+            payment_method: normalize_account_movement_method('mobile')
           }
           account.account_movements.create!(commission_attrs)
         end
 
         register_service_cost_settlements_for_sale!(
           venta: venta,
-          settlements: service_cost_settlements,
+          settlements: service_cost_settlements
         )
 
         if remaining_credit_amount.positive?
@@ -671,7 +742,7 @@ class VentasController < ApplicationController
             venta: venta,
             amount: remaining_credit_amount,
             currency: comparison_currency,
-            due_on: credit_sale_due_on,
+            due_on: credit_sale_due_on
           )
         end
       end
@@ -684,7 +755,7 @@ class VentasController < ApplicationController
       total_usd: venta.total_usd,
       total_bs: venta.total_bs,
       drafts: drafts_payload,
-      products: products_payload_for_business,
+      products: products_payload_for_business
     }, status: :created
   end
 
@@ -692,17 +763,17 @@ class VentasController < ApplicationController
 
   def set_venta
     @venta = current_business
-      .ventas
-      .includes(venta_items: %i[producto product_variation])
-      .find(params[:id])
+             .ventas
+             .includes(venta_items: %i[producto product_variation])
+             .find(params[:id])
   end
 
   def set_draft_venta
     @draft_venta = current_business
-      .ventas
-      .where(status: "draft")
-      .includes(:cliente, :venta_items)
-      .find(params[:id])
+                   .ventas
+                   .where(status: 'draft')
+                   .includes(:cliente, :venta_items)
+                   .find(params[:id])
   end
 
   def sale_item_masked_names_for_view(venta)
@@ -717,13 +788,13 @@ class VentasController < ApplicationController
       candidates = service_visibility_candidates_for_item(
         item: item,
         by_key: by_key,
-        by_description: by_description,
+        by_description: by_description
       )
 
       next if candidates.empty?
       next unless candidates.any? { |service| service.restricted_service? || service.caution_service? }
 
-      masked_names[item.id] = "Servicio de internet"
+      masked_names[item.id] = 'Servicio de internet'
     end
   end
 
@@ -735,9 +806,9 @@ class VentasController < ApplicationController
     return [by_key, by_description] if descriptions.empty?
 
     services = current_business
-      .services
-      .includes(:system_service)
-      .where(description: descriptions)
+               .services
+               .includes(:system_service)
+               .where(description: descriptions)
 
     services.each do |service|
       description_key = normalized_service_snapshot_value(service.description)
@@ -784,19 +855,19 @@ class VentasController < ApplicationController
       @selected_cash_shift_id,
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip,
-      params[:fecha].to_s.strip,
+      params[:fecha].to_s.strip
     ].any?(&:present?)
 
-    filtered_scope = scope
+    filtered_scope = scope.where.not(status: 'draft')
 
     if @cliente_query.present?
       query_value = "%#{ActiveRecord::Base.sanitize_sql_like(@cliente_query)}%"
       filtered_scope = filtered_scope
-        .joins(:cliente)
-        .where(
-          "clientes.name ILIKE :query OR clientes.document_number ILIKE :query OR clientes.document_type ILIKE :query",
-          query: query_value,
-        )
+                       .joins(:cliente)
+                       .where(
+                         'clientes.name ILIKE :query OR clientes.document_number ILIKE :query OR clientes.document_type ILIKE :query',
+                         query: query_value
+                       )
     end
 
     if @selected_cash_shift_id.present?
@@ -808,11 +879,11 @@ class VentasController < ApplicationController
     end
 
     if @selected_fecha_desde.present?
-      filtered_scope = filtered_scope.where("created_at >= ?", @selected_fecha_desde.in_time_zone.beginning_of_day)
+      filtered_scope = filtered_scope.where('created_at >= ?', @selected_fecha_desde.in_time_zone.beginning_of_day)
     end
 
     if @selected_fecha_hasta.present?
-      filtered_scope = filtered_scope.where("created_at <= ?", @selected_fecha_hasta.in_time_zone.end_of_day)
+      filtered_scope = filtered_scope.where('created_at <= ?', @selected_fecha_hasta.in_time_zone.end_of_day)
     end
 
     @selected_fecha_desde = nil unless filters_explicitly_present || @selected_fecha_desde.present?
@@ -826,7 +897,7 @@ class VentasController < ApplicationController
     return nil if raw_value.blank?
 
     normalized = raw_value.to_s.strip
-    return Date.strptime(normalized.tr("/", "-"), "%d-%m-%Y") if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
 
     return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 
@@ -839,7 +910,7 @@ class VentasController < ApplicationController
     return nil if raw_value.blank?
 
     normalized = raw_value.to_s.strip
-    return Date.strptime(normalized.tr("/", "-"), "%d-%m-%Y") if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
 
     return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 
@@ -858,31 +929,31 @@ class VentasController < ApplicationController
       .joins(:venta)
       .where(
         account_id: account_id,
-        payment_kind: "in",
+        payment_kind: 'in',
         payment_date: payment_date,
-        amount_original: normalized_amount,
+        amount_original: normalized_amount
       )
       .where(ventas: { business_id: current_business.id })
-      .order("ventas.created_at DESC")
+      .order('ventas.created_at DESC')
       .first
   end
 
   def duplicate_bank_payment_payload(account:, payment_date:, amount_original:, existing_payment: nil)
     venta_id = existing_payment&.venta_id
     venta_url = venta_id.present? ? venta_path(venta_id) : nil
-    date_label = payment_date.strftime("%d/%m/%Y")
+    date_label = payment_date.strftime('%d/%m/%Y')
     normalized_amount = amount_original.to_d.round(2)
 
     {
       account_id: account.id,
       account_name: account.name,
       payment_date: date_label,
-      amount: normalized_amount.to_s("F"),
+      amount: normalized_amount.to_s('F'),
       currency: account.currency,
       currency_symbol: account.currency_symbol,
       venta_id: venta_id,
       venta_url: venta_url,
-      message: "Ya existe un pago registrado en #{account.name} con monto #{normalized_amount.to_s("F")} #{account.currency} para la fecha #{date_label}.",
+      message: "Ya existe un pago registrado en #{account.name} con monto #{normalized_amount.to_s('F')} #{account.currency} para la fecha #{date_label}."
     }
   end
 
@@ -896,7 +967,7 @@ class VentasController < ApplicationController
   end
 
   def format_historial_date(date)
-    date.strftime("%d-%m-%Y")
+    date.strftime('%d-%m-%Y')
   end
 
   def load_sales_reference_data!(sales:)
@@ -916,12 +987,12 @@ class VentasController < ApplicationController
     end
     return if sale_ids.empty?
 
-    sale_ids_pattern = sale_ids.join("|")
+    sale_ids_pattern = sale_ids.join('|')
     linked_debts = current_business
-      .debts
-      .includes(:debt_payments)
-      .where(debt_kind: "receivable")
-      .where("description ~ ?", "\\[VENTA:(#{sale_ids_pattern})\\]")
+                   .debts
+                   .includes(:debt_payments)
+                   .where(debt_kind: 'receivable')
+                   .where('description ~ ?', "\\[VENTA:(#{sale_ids_pattern})\\]")
 
     debts_by_sale_id = Hash.new { |hash, key| hash[key] = [] }
 
@@ -941,13 +1012,13 @@ class VentasController < ApplicationController
       balance = debts.sum { |debt| debt.balance.to_d }
 
       sale = sales_by_id[sale_id]
-      has_payments = sale&.venta_payments&.any? { |payment| payment.payment_kind == "in" }
+      has_payments = sale&.venta_payments&.any? { |payment| payment.payment_kind == 'in' }
 
       @invoice_statuses_by_sale_id[sale_id] = sale_credit_status_for(
         total: total,
         paid: paid,
         balance: balance,
-        has_payments: has_payments,
+        has_payments: has_payments
       )
     end
   end
@@ -965,7 +1036,7 @@ class VentasController < ApplicationController
         producto_id: producto_id,
         variation_id: variation_id,
         quantity_units: quantity_units,
-        venta: venta,
+        venta: venta
       )
     end
 
@@ -1009,7 +1080,7 @@ class VentasController < ApplicationController
     AccountMovement
       .joins(:account)
       .where(accounts: { business_id: current_business.id })
-      .where("account_movements.description LIKE ?", pattern)
+      .where('account_movements.description LIKE ?', pattern)
       .find_each(&:destroy!)
   end
 
@@ -1025,27 +1096,27 @@ class VentasController < ApplicationController
     items = Array(payload[:items])
 
     if items.empty?
-      return render json: { error: "Agrega al menos un producto o servicio para guardar el borrador." },
+      return render json: { error: 'Agrega al menos un producto o servicio para guardar el borrador.' },
                     status: :unprocessable_entity
     end
 
     vat_mode = payload[:vat_mode].to_s
-    vat_mode = "none" unless Venta::VAT_MODES.key?(vat_mode)
+    vat_mode = 'none' unless Venta::VAT_MODES.key?(vat_mode)
     vat_rate = parse_decimal(payload[:vat_rate], default: 0.16).round(2)
-    tasa_dolar = parse_decimal(payload[:tasa_dolar], default: TasaCambio.latest_value("Dolar BCV")).round(2)
-    base_currency = normalize_currency(payload[:base_currency], default: "USD")
-    base_currency = "USD" unless Venta::BASE_CURRENCIES.key?(base_currency)
+    tasa_dolar = parse_decimal(payload[:tasa_dolar], default: TasaCambio.latest_value('Dolar BCV')).round(2)
+    base_currency = normalize_currency(payload[:base_currency], default: 'USD')
+    base_currency = 'USD' unless Venta::BASE_CURRENCIES.key?(base_currency)
 
     draft = existing_draft
     if draft.nil? && payload[:draft_id].present?
-      draft = current_business.ventas.where(status: "draft").includes(:cliente,
+      draft = current_business.ventas.where(status: 'draft').includes(:cliente,
                                                                       :venta_items).find_by(id: payload[:draft_id])
       unless draft
-        return render json: { error: "No se encontro el borrador a actualizar." },
+        return render json: { error: 'No se encontro el borrador a actualizar.' },
                       status: :unprocessable_entity
       end
     end
-    draft ||= current_business.ventas.new(status: "draft")
+    draft ||= current_business.ventas.new(status: 'draft')
     requested_visibility = normalize_draft_visibility(payload[:draft_visibility], default: draft_visibility(draft))
 
     service_item_rows = []
@@ -1059,11 +1130,11 @@ class VentasController < ApplicationController
         end
 
         draft.assign_attributes(
-          status: "draft",
+          status: 'draft',
           vat_mode: vat_mode,
           vat_rate: vat_rate,
           tasa_dolar: tasa_dolar,
-          base_currency: base_currency,
+          base_currency: base_currency
         )
 
         if payload[:cliente_id].present?
@@ -1075,40 +1146,49 @@ class VentasController < ApplicationController
 
         items.each do |item|
           item_type = item[:item_type].to_s
-          if item_type == "service" || item[:service_id].present?
+          if item_type == 'service' || item[:service_id].present?
             service = current_business
-              .services
-              .includes(:system_service,
-                        service_expense_structures: %i[service_product_expenses
-                                                       service_nested_expenses])
-              .find_by(id: item[:service_id])
+                      .services
+                      .includes(:system_service,
+                                :service_print_coverage_prices,
+                                :service_print_material_surcharges,
+                                service_expense_structures: %i[service_product_expenses])
+                      .find_by(id: item[:service_id])
             next unless service
 
             quantity = parse_decimal(item[:quantity], default: 0)
             next unless quantity.positive?
 
             unit_price_usd = if service.to_agree?
-                parse_decimal(item[:unit_price_usd], default: 0)
-              else
-                service_unit_price_usd(service, tasa_dolar)
-              end
+                               parse_decimal(item[:unit_price_usd], default: 0)
+                             else
+                               service_unit_price_usd(service, tasa_dolar)
+                             end
+            unit_price_usd /= (1 + vat_rate) if vat_mode == 'included' && vat_rate.positive?
 
             if unit_price_usd.nil? || unit_price_usd.to_d <= 0
-              message = service.to_agree? ? "Debes indicar el precio acordado del servicio." : "No se pudo calcular el precio del servicio."
+              message = service.to_agree? ? 'Debes indicar el precio acordado del servicio.' : 'No se pudo calcular el precio del servicio.'
               raise ActiveRecord::RecordInvalid.new(draft), message
             end
 
+            unit_price_base_amount = parse_decimal(item[:unit_price_base_amount], default: 0).round(2)
+            if unit_price_base_amount.positive? && vat_mode == 'included' && vat_rate.positive?
+              unit_price_base_amount /= (1 + vat_rate)
+            end
+
             draft.venta_items.build(
-              product_name: service.description.to_s,
-              variation_name: service.system_service&.name.presence || "Servicio",
+              product_name: service_sale_display_name(service: service, payload: item),
+              variation_name: service.system_service&.name.presence || 'Servicio',
               quantity: quantity,
               unit_price_usd: unit_price_usd,
+              unit_price_base_amount: (unit_price_base_amount.positive? ? unit_price_base_amount : nil),
+              unit_price_base_currency: normalize_currency(item[:unit_price_base_currency], default: base_currency)
             )
 
             service_item_rows << {
               service: service,
               quantity: quantity,
-              payload: item.to_h,
+              payload: item.to_h
             }
 
             next
@@ -1116,6 +1196,8 @@ class VentasController < ApplicationController
 
           product = current_business.productos.includes(:product_variations).find_by(id: item[:product_id])
           next unless product
+
+          product_exento = product.respond_to?(:exento?) ? product.exento? : false
 
           quantity = parse_decimal(item[:quantity], default: 0)
           next unless quantity.positive?
@@ -1125,18 +1207,34 @@ class VentasController < ApplicationController
           next unless variation
 
           unit_price = product.precio_venta_usd.to_d
-          unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive?
+          unit_price /= (1 + vat_rate) if vat_mode == 'included' && vat_rate.positive? && !product_exento
+          product_unit_base_amount = 0.to_d
+          if base_currency == 'VES' && tasa_dolar.to_d.positive?
+            gross_unit_base = (product.precio_venta_usd.to_d * tasa_dolar.to_d).round(2)
+            product_unit_base_amount = if vat_mode == 'included' && vat_rate.positive? && !product_exento
+                                         (gross_unit_base / (1 + vat_rate)).round(2)
+                                       else
+                                         gross_unit_base
+                                       end
+          elsif base_currency == 'USD'
+            product_unit_base_amount = unit_price.to_d.round(2)
+          end
 
-          draft.venta_items.build(
+          draft_item_attrs = {
             producto: product,
             product_variation: variation,
             quantity: quantity,
             unit_price_usd: unit_price,
-          )
+            unit_price_base_amount: (product_unit_base_amount.positive? ? product_unit_base_amount : nil),
+            unit_price_base_currency: base_currency
+          }
+          draft_item_attrs[:exento] = product_exento if VentaItem.column_names.include?('exento')
+
+          draft.venta_items.build(draft_item_attrs)
         end
 
         if draft.venta_items.empty?
-          raise ActiveRecord::RecordInvalid.new(draft), "No hay items validos para guardar el borrador."
+          raise ActiveRecord::RecordInvalid.new(draft), 'No hay items validos para guardar el borrador.'
         end
 
         draft.save!
@@ -1145,51 +1243,51 @@ class VentasController < ApplicationController
         reserved_service_products = reserve_service_product_expenses_for_items!(service_item_rows, venta: draft)
 
         notes_payload = parse_notes_payload(draft.notes)
-        notes_payload["draft_state"] = {
-          "vat_mode" => draft.vat_mode,
-          "vat_rate" => draft.vat_rate.to_d.to_f,
-          "tasa_dolar" => draft.tasa_dolar.to_d.to_f,
-          "base_currency" => draft.base_currency,
-          "cliente_id" => draft.cliente_id,
-          "items" => items.map { |entry| normalize_item_payload(entry) },
+        notes_payload['draft_state'] = {
+          'vat_mode' => draft.vat_mode,
+          'vat_rate' => draft.vat_rate.to_d.to_f,
+          'tasa_dolar' => draft.tasa_dolar.to_d.to_f,
+          'base_currency' => draft.base_currency,
+          'cliente_id' => draft.cliente_id,
+          'items' => items.map { |entry| normalize_item_payload(entry) }
         }
-        notes_payload["draft_visibility"] = requested_visibility
-        notes_payload["reserved_product_items"] = reserved_product_items_payload_for_sale(draft)
-        notes_payload["reserved_service_products"] = reserved_service_products
+        notes_payload['draft_visibility'] = requested_visibility
+        notes_payload['reserved_product_items'] = reserved_product_items_payload_for_sale(draft)
+        notes_payload['reserved_service_products'] = reserved_service_products
         draft.update!(notes: serialize_notes_payload(notes_payload))
       end
     rescue ActiveRecord::RecordInvalid => e
-      return render json: { error: e.message.presence || "No se pudo guardar el borrador." },
+      return render json: { error: e.message.presence || 'No se pudo guardar el borrador.' },
                     status: :unprocessable_entity
     end
 
     render json: {
       draft: draft_summary_payload(draft).merge(
         state: draft_state_payload(draft),
-        client: draft_client_payload(draft),
+        client: draft_client_payload(draft)
       ),
       drafts: drafts_payload,
-      products: products_payload_for_business,
+      products: products_payload_for_business
     }
   end
 
   def normalize_item_payload(entry)
     raw_hash = if entry.respond_to?(:to_unsafe_h)
-        entry.to_unsafe_h
-      elsif entry.respond_to?(:to_h)
-        entry.to_h
-      else
-        {}
-      end
+                 entry.to_unsafe_h
+               elsif entry.respond_to?(:to_h)
+                 entry.to_h
+               else
+                 {}
+               end
 
     raw_hash.deep_stringify_keys
   end
 
   def products_payload_for_business
     productos = current_business
-      .productos
-      .includes(:product_variations, :stock_lot_variations, :stock_lots)
-      .order(:descripcion)
+                .productos
+                .includes(:product_variations, :stock_lot_variations, :stock_lots)
+                .order(:descripcion)
 
     build_products_payload(productos)
   end
@@ -1212,7 +1310,7 @@ class VentasController < ApplicationController
         {
           id: variation.id,
           name: variation.description.to_s,
-          available: available.to_f,
+          available: available.to_f
         }
       end
 
@@ -1220,8 +1318,9 @@ class VentasController < ApplicationController
         id: producto.id,
         name: producto.descripcion.to_s,
         price_usd: producto.precio_venta_usd.to_f,
+        exento: producto.respond_to?(:exento?) ? producto.exento? : false,
         available_total: total_units.to_f,
-        variations: variations_payload,
+        variations: variations_payload
       }
     end
   end
@@ -1229,7 +1328,7 @@ class VentasController < ApplicationController
   def drafts_payload
     current_business
       .ventas
-      .where(status: "draft")
+      .where(status: 'draft')
       .includes(:cliente, :venta_items)
       .order(updated_at: :desc)
       .limit(120)
@@ -1246,7 +1345,7 @@ class VentasController < ApplicationController
       total_usd: venta.total_usd.to_d.to_f,
       total_bs: venta.total_bs.to_d.to_f,
       updated_at: venta.updated_at&.iso8601,
-      visibility: draft_visibility(venta),
+      visibility: draft_visibility(venta)
     }
   end
 
@@ -1254,44 +1353,45 @@ class VentasController < ApplicationController
     cliente = venta.cliente
     return nil unless cliente
 
-    document = [cliente.document_type.to_s.strip, cliente.document_number.to_s.strip].reject(&:blank?).join("-")
+    document = [cliente.document_type.to_s.strip, cliente.document_number.to_s.strip].reject(&:blank?).join('-')
 
     {
       id: cliente.id,
       name: cliente.name.to_s,
       document: document,
+      phone: cliente.phone.to_s
     }
   end
 
   def draft_state_payload(venta)
     notes_payload = parse_notes_payload(venta.notes)
-    state = notes_payload["draft_state"]
+    state = notes_payload['draft_state']
     return state if state.is_a?(Hash)
 
     {
-      "vat_mode" => venta.vat_mode,
-      "vat_rate" => venta.vat_rate.to_d.to_f,
-      "tasa_dolar" => venta.tasa_dolar.to_d.to_f,
-      "base_currency" => venta.base_currency,
-      "cliente_id" => venta.cliente_id,
-      "items" => venta.venta_items.map do |item|
+      'vat_mode' => venta.vat_mode,
+      'vat_rate' => venta.vat_rate.to_d.to_f,
+      'tasa_dolar' => venta.tasa_dolar.to_d.to_f,
+      'base_currency' => venta.base_currency,
+      'cliente_id' => venta.cliente_id,
+      'items' => venta.venta_items.map do |item|
         if item.producto_id.present?
           {
-            "item_type" => "product",
-            "product_id" => item.producto_id,
-            "variation_id" => item.product_variation_id,
-            "quantity" => item.quantity.to_d.to_f,
-            "unit_price_usd" => item.unit_price_usd.to_d.to_f,
+            'item_type' => 'product',
+            'product_id' => item.producto_id,
+            'variation_id' => item.product_variation_id,
+            'quantity' => item.quantity.to_d.to_f,
+            'unit_price_usd' => item.unit_price_usd.to_d.to_f
           }
         else
           {
-            "item_type" => "service",
-            "service_id" => nil,
-            "quantity" => item.quantity.to_d.to_f,
-            "unit_price_usd" => item.unit_price_usd.to_d.to_f,
+            'item_type' => 'service',
+            'service_id' => nil,
+            'quantity' => item.quantity.to_d.to_f,
+            'unit_price_usd' => item.unit_price_usd.to_d.to_f
           }
         end
-      end,
+      end
     }
   end
 
@@ -1334,7 +1434,15 @@ class VentasController < ApplicationController
       service = entry[:service]
       quantity_multiplier = entry[:quantity].to_d
       next unless service && quantity_multiplier.positive?
-      next unless service.auto_cost_stock_discount?
+
+      collect_print_material_consumption!(
+        service: service,
+        payload: entry[:payload],
+        multiplier: quantity_multiplier,
+        grouped: grouped
+      )
+
+      next unless service_cost_debit_enabled?(service)
 
       consumable_decisions = normalize_service_product_decisions(entry[:payload])
 
@@ -1343,7 +1451,7 @@ class VentasController < ApplicationController
         multiplier: quantity_multiplier,
         grouped: grouped,
         visited_service_ids: [],
-        consumable_decisions: consumable_decisions,
+        consumable_decisions: consumable_decisions
       )
     end
 
@@ -1356,9 +1464,9 @@ class VentasController < ApplicationController
 
       producto.consume_variation_stock!(variation_id: variation_id, quantity_units: quantity_units)
       reservations << {
-        "product_id" => producto_id,
-        "variation_id" => variation_id,
-        "quantity" => quantity_units.to_d.to_f,
+        'product_id' => producto_id,
+        'variation_id' => variation_id,
+        'quantity' => quantity_units.to_d.to_f
       }
     end
 
@@ -1381,24 +1489,23 @@ class VentasController < ApplicationController
 
     service.service_expense_structures.where(active_for_sales: true).includes(
       {
-        service_product_expenses: [:product_variation, { producto: :product_variations }],
-      },
-      { service_nested_expenses: :nested_service }
+        service_product_expenses: [:product_variation, { producto: :product_variations }]
+      }
     ).each do |structure|
       structure.service_product_expenses.each do |expense|
         decision = consumable_decisions[expense.id.to_s] || {}
-        delivered = if decision.key?("delivered")
-            ActiveModel::Type::Boolean.new.cast(decision["delivered"])
-          else
-            true
-          end
+        delivered = if decision.key?('delivered')
+                      ActiveModel::Type::Boolean.new.cast(decision['delivered'])
+                    else
+                      true
+                    end
         next unless delivered
 
         producto = expense.producto
         next unless producto
         next if producto.business_id != current_business.id
 
-        variation_override_id = decision["product_variation_id"]
+        variation_override_id = decision['product_variation_id']
         variation = producto.product_variations.find_by(id: variation_override_id) if variation_override_id.present?
         variation ||= expense.product_variation
         variation = nil if variation.present? && variation.producto_id != producto.id
@@ -1411,40 +1518,104 @@ class VentasController < ApplicationController
 
         grouped[[producto.id, variation_id]] += required_units
       end
-
-      structure.service_nested_expenses.each do |nested|
-        nested_service = nested.nested_service
-        next unless nested_service
-        next if nested_service.business_id.present? && nested_service.business_id != current_business.id
-
-        nested_multiplier = multiplier.to_d * nested.quantity.to_d
-        next unless nested_multiplier.positive?
-
-        collect_service_product_consumptions!(
-          service: nested_service,
-          multiplier: nested_multiplier,
-          grouped: grouped,
-          visited_service_ids: next_visited,
-          consumable_decisions: {},
-        )
-      end
     end
+  end
+
+  def collect_print_material_consumption!(service:, payload:, multiplier:, grouped:)
+    return if service.blank?
+
+    source = payload.respond_to?(:to_h) ? payload.to_h : {}
+    delivery_presentation = (source['delivery_presentation'] || source[:delivery_presentation]).to_s.strip.downcase
+
+    if service.printing_type_service?
+      # Para servicios de impresion, cada fila representa impresion fisica y siempre consume material.
+    elsif service.lamination_type_service?
+      # Para servicios de plastificacion vendidos directamente, el material se selecciona en el POS.
+    else
+      return unless delivery_presentation == 'physical'
+    end
+
+    return unless multiplier.to_d.positive?
+
+    material_rows = source['selected_print_material_rows'] || source[:selected_print_material_rows]
+    consumed_from_rows = false
+
+    if material_rows.is_a?(Array)
+      material_rows.each do |raw_row|
+        row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
+        row_product_id = row['product_id'] || row[:product_id]
+        row_variation_id = row['variation_id'] || row[:variation_id]
+        row_quantity = parse_decimal(row['quantity'] || row[:quantity], default: 0)
+        next unless row_product_id.present? && row_quantity.positive?
+
+        product = current_business.productos.includes(:product_variations).find_by(id: row_product_id)
+        next if product.blank? || product.business_id != current_business.id
+
+        variation = (product.product_variations.find_by(id: row_variation_id) if row_variation_id.present?)
+        variation ||= product.product_variations.to_a.min_by(&:id)
+        next unless variation
+
+        grouped[[product.id, variation.id]] += (multiplier.to_d * row_quantity.to_d)
+        consumed_from_rows = true
+      end
+
+      return if consumed_from_rows
+    end
+
+    if service.lamination_type_service?
+      service.service_print_material_surcharges.includes(:producto).find_each do |surcharge|
+        product = surcharge.producto
+        next if product.blank? || product.business_id != current_business.id
+
+        variation = product.product_variations.to_a.min_by(&:id)
+        next unless variation
+
+        required_quantity = surcharge.respond_to?(:required_quantity) ? surcharge.required_quantity.to_d : 1.to_d
+        grouped[[product.id, variation.id]] += (multiplier.to_d * required_quantity)
+      end
+
+      return
+    end
+
+    material_product_id = source['selected_print_material_product_id'] || source[:selected_print_material_product_id]
+    product = nil
+
+    if material_product_id.present?
+      product = current_business.productos.includes(:product_variations).find_by(id: material_product_id)
+    end
+
+    if product.nil?
+      surcharge_id = source['selected_print_material_surcharge_id'] || source[:selected_print_material_surcharge_id]
+      return if surcharge_id.blank?
+
+      surcharge = service.service_print_material_surcharges.find_by(id: surcharge_id)
+      return unless surcharge&.producto
+
+      product = surcharge.producto
+    end
+
+    return if product.business_id != current_business.id
+
+    variation = product.product_variations.to_a.min_by(&:id)
+    return unless variation
+
+    grouped[[product.id, variation.id]] += multiplier.to_d
   end
 
   def restore_reserved_service_stock_from_notes!(venta)
     notes_payload = parse_notes_payload(venta.notes)
-    rows = Array(notes_payload["reserved_service_products"])
+    rows = Array(notes_payload['reserved_service_products'])
     rows.each do |row|
-      producto_id = row["product_id"] || row[:product_id]
-      variation_id = row["variation_id"] || row[:variation_id]
-      quantity_units = parse_decimal(row["quantity"] || row[:quantity], default: 0)
+      producto_id = row['product_id'] || row[:product_id]
+      variation_id = row['variation_id'] || row[:variation_id]
+      quantity_units = parse_decimal(row['quantity'] || row[:quantity], default: 0)
       next if producto_id.blank? || variation_id.blank? || !quantity_units.positive?
 
       restore_product_variation_units!(
         producto_id: producto_id,
         variation_id: variation_id,
         quantity_units: quantity_units,
-        venta: venta,
+        venta: venta
       )
     end
   end
@@ -1471,9 +1642,19 @@ class VentasController < ApplicationController
         :agreed_reference_name,
         :agreed_reference_amount,
         :agreed_reference_symbol,
+        :delivery_presentation,
+        :selected_print_coverage_id,
+        :selected_print_coverage_percent,
+        :selected_print_price_bs,
+        :selected_print_surcharge_percent,
+        :selected_print_unit_price_bs,
+        :selected_print_material_surcharge_id,
+        :selected_print_material_product_id,
+        :selected_print_material_label,
+        { selected_print_material_rows: %i[surcharge_id product_id label quantity breakdown_in_invoice
+                                           optional_delivery_extra requested_quantity variation_id] },
         :price_signature,
-        { nested_agreements: %i[nested_expense_id amount_reference currency_reference] },
-        { consumable_decisions: %i[service_product_expense_id delivered product_variation_id] },
+        { consumable_decisions: %i[service_product_expense_id delivered product_variation_id] }
       ],
       payments: %i[method amount account_id currency reference payment_date],
       change: %i[method amount account_id currency reference],
@@ -1487,25 +1668,25 @@ class VentasController < ApplicationController
         payment_method
         reference
         payment_date
-      ],
+      ]
     )
   end
 
   def draft_visibility(venta)
-    return "visible" unless venta
+    return 'visible' unless venta
 
     notes_payload = parse_notes_payload(venta.notes)
-    normalize_draft_visibility(notes_payload["draft_visibility"], default: "visible")
+    normalize_draft_visibility(notes_payload['draft_visibility'], default: 'visible')
   end
 
-  def normalize_draft_visibility(value, default: "visible")
+  def normalize_draft_visibility(value, default: 'visible')
     normalized = value.to_s.strip.downcase
     return normalized if %w[visible hidden].include?(normalized)
 
     fallback = default.to_s.strip.downcase
     return fallback if %w[visible hidden].include?(fallback)
 
-    "visible"
+    'visible'
   end
 
   def reserved_product_items_payload_for_sale(venta)
@@ -1515,12 +1696,12 @@ class VentasController < ApplicationController
       .group_by { |item| [item.producto_id, item.product_variation_id] }
       .map do |(producto_id, variation_id), grouped_items|
       {
-        "product_id" => producto_id,
-        "variation_id" => variation_id,
-        "quantity" => grouped_items.sum { |row| row.quantity.to_d }.to_d.to_f,
+        'product_id' => producto_id,
+        'variation_id' => variation_id,
+        'quantity' => grouped_items.sum { |row| row.quantity.to_d }.to_d.to_f
       }
     end
-      .select { |row| row["quantity"].to_d.positive? }
+      .select { |row| row['quantity'].to_d.positive? }
   end
 
   def service_cost_settlements_payload_for_notes(settlements)
@@ -1528,16 +1709,181 @@ class VentasController < ApplicationController
       service = row[:service]
 
       {
-        "service_id" => service&.id,
-        "service_name" => service&.description.to_s,
-        "quantity" => row[:quantity].to_d.to_f,
-        "unit_cost_usd" => row[:unit_cost_usd].to_d.to_f,
-        "total_cost_usd" => row[:total_cost_usd].to_d.to_f,
-        "paid_cost_usd" => row[:paid_cost_usd].to_d.to_f,
-        "pending_cost_usd" => row[:pending_cost_usd].to_d.to_f,
-        "detail_lines" => normalize_service_cost_lines_payload(row[:detail_lines]),
+        'service_id' => service&.id,
+        'service_name' => service&.description.to_s,
+        'delivery_presentation' => row[:delivery_presentation].to_s.presence,
+        'quantity' => row[:quantity].to_d.to_f,
+        'unit_cost_usd' => row[:unit_cost_usd].to_d.to_f,
+        'total_cost_usd' => row[:total_cost_usd].to_d.to_f,
+        'paid_cost_usd' => row[:paid_cost_usd].to_d.to_f,
+        'pending_cost_usd' => row[:pending_cost_usd].to_d.to_f,
+        'detail_lines' => normalize_service_cost_lines_payload(row[:detail_lines])
       }
     end
+  end
+
+  def sold_service_printings_payload_for_notes(service_item_rows:, tasa_dolar:)
+    rows = []
+    unidad_vi = parse_decimal(@unidad_VI, default: TasaCambio.latest_value('Unidad VI'))
+
+    Array(service_item_rows).each do |entry|
+      service = entry[:service]
+      quantity = entry[:quantity].to_d
+      payload_hash = entry[:payload].respond_to?(:to_h) ? entry[:payload].to_h : {}
+
+      next if service.blank? || quantity <= 0
+
+      delivery_presentation = normalize_service_delivery_presentation(
+        payload_hash['delivery_presentation'] || payload_hash[:delivery_presentation],
+        service: service
+      )
+      next unless delivery_presentation == 'physical'
+      next unless service.delivery_physical_enabled?
+      next if service.printing_type_service?
+
+      printing_payload = build_service_physical_printing_payload(service: service, tasa_dolar: tasa_dolar)
+      next unless printing_payload[:enabled]
+
+      printing_service_id = Array(printing_payload[:pages])
+                            .filter_map do |row|
+        row[:print_type_service_id].to_i if row[:print_type_service_id].to_i.positive?
+      end
+                            .first
+      if printing_service_id.to_i.positive?
+        printing_service = current_business.services.find_by(id: printing_service_id)
+      end
+      material_labels = Array(printing_payload[:pages])
+                        .filter_map { |row| row[:material_label].to_s.strip.presence }
+                        .uniq
+      child_service_label = printing_service&.print_sale_display_name.to_s.strip.presence || 'Impresion'
+      child_service_label = [child_service_label, material_labels.join(' / ')].reject(&:blank?).join(' ').squish
+
+      unit_sale_price_bs = printing_payload[:cost_bs].to_d.round(2)
+      next unless unit_sale_price_bs.positive?
+
+      unit_sale_price_usd = printing_payload[:cost_usd].to_d.round(2)
+      next unless unit_sale_price_usd.positive?
+
+      total_sale_price_bs = (unit_sale_price_bs * quantity).round(2)
+      next unless total_sale_price_bs.positive?
+
+      total_sale_price_usd = (unit_sale_price_usd * quantity).round(2)
+      next unless total_sale_price_usd.positive?
+
+      parent_service_name = service_sale_display_name(service: service, payload: payload_hash)
+
+      rows << {
+        'classification' => 'printing_service',
+        'classification_label' => 'Servicio de impresion',
+        'service_id' => service.id,
+        'printing_service_id' => (printing_service_id if printing_service_id.to_i.positive?),
+        'parent_service_name' => parent_service_name,
+        'source_name' => child_service_label,
+        'quantity' => quantity.to_f,
+        'unit_sale_price_bs' => unit_sale_price_bs.to_f,
+        'total_sale_price_bs' => total_sale_price_bs.to_f,
+        'unit_sale_price_usd' => unit_sale_price_usd.to_f,
+        'total_sale_price_usd' => total_sale_price_usd.to_f
+      }
+
+      Array(printing_payload[:lamination_rows]).each do |lamination_row|
+        lamination_service_id = lamination_row[:service_id].to_i
+        next unless lamination_service_id.positive?
+
+        lamination_service = current_business.services.find_by(id: lamination_service_id)
+        next if lamination_service.blank?
+
+        child_quantity = (lamination_row[:quantity].to_d * quantity).round(2)
+        next unless child_quantity.positive?
+
+        child_unit_price_bs = lamination_service.unit_price_bs(tasa_dolar: tasa_dolar,
+                                                               unidad_vi: unidad_vi).to_d.round(2)
+        child_unit_price_usd = lamination_service.unit_price_usd(tasa_dolar: tasa_dolar,
+                                                                 unidad_vi: unidad_vi).to_d.round(2)
+
+        if !child_unit_price_bs.positive? && child_unit_price_usd.positive? && tasa_dolar.to_d.positive?
+          child_unit_price_bs = (child_unit_price_usd * tasa_dolar.to_d).round(2)
+        end
+        if !child_unit_price_usd.positive? && child_unit_price_bs.positive? && tasa_dolar.to_d.positive?
+          child_unit_price_usd = (child_unit_price_bs / tasa_dolar.to_d).round(2)
+        end
+
+        next unless child_unit_price_bs.positive? || child_unit_price_usd.positive?
+
+        child_total_price_bs = (child_unit_price_bs * child_quantity).round(2)
+        child_total_price_usd = (child_unit_price_usd * child_quantity).round(2)
+
+        child_material_labels = Array(lamination_row[:material_rows])
+                                .filter_map { |row| row[:label].to_s.strip.presence }
+                                .uniq
+        child_source_name = lamination_service.print_sale_display_name.to_s.strip.presence || 'Plastificacion'
+        child_source_name = [child_source_name, child_material_labels.join(' / ')].reject(&:blank?).join(' ').squish
+
+        rows << {
+          'classification' => 'lamination_service',
+          'classification_label' => 'Servicio de plastificacion',
+          'service_id' => service.id,
+          'printing_service_id' => lamination_service.id,
+          'parent_service_name' => parent_service_name,
+          'source_name' => child_source_name,
+          'quantity' => child_quantity.to_f,
+          'unit_sale_price_bs' => child_unit_price_bs.to_f,
+          'total_sale_price_bs' => child_total_price_bs.to_f,
+          'unit_sale_price_usd' => child_unit_price_usd.to_f,
+          'total_sale_price_usd' => child_total_price_usd.to_f
+        }
+      end
+
+      additional_delivery_rows = Array(payload_hash['selected_print_material_rows'] || payload_hash[:selected_print_material_rows]).filter_map do |raw_row|
+        row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
+        optional_delivery_extra = ActiveModel::Type::Boolean.new.cast(row['optional_delivery_extra'] || row[:optional_delivery_extra])
+        breakdown_in_invoice = ActiveModel::Type::Boolean.new.cast(row['breakdown_in_invoice'] || row[:breakdown_in_invoice])
+        next unless optional_delivery_extra && breakdown_in_invoice
+
+        product_id = row['product_id'] || row[:product_id]
+        variation_id = row['variation_id'] || row[:variation_id]
+        per_service_quantity = parse_decimal(row['quantity'] || row[:quantity], default: 0)
+        next if product_id.blank? || per_service_quantity <= 0
+
+        product = current_business.productos.find_by(id: product_id)
+        next if product.blank?
+
+        total_quantity = (per_service_quantity.to_d * quantity).round(2)
+        next unless total_quantity.positive?
+
+        source_label = row['label'] || row[:label]
+        source_label = source_label.to_s.strip.presence || product.descripcion.to_s
+
+        unit_sale_price_usd = product.precio_venta_usd.to_d.round(2)
+        unit_sale_price_bs = if tasa_dolar.to_d.positive?
+                               (unit_sale_price_usd * tasa_dolar.to_d).round(2)
+                             else
+                               0.to_d
+                             end
+        total_sale_price_usd = (unit_sale_price_usd * total_quantity).round(2)
+        total_sale_price_bs = (unit_sale_price_bs * total_quantity).round(2)
+
+        {
+          'classification' => 'physical_delivery_extra_product',
+          'classification_label' => 'Producto adicional de entrega',
+          'service_id' => service.id,
+          'parent_service_name' => parent_service_name,
+          'source_name' => source_label,
+          'product_id' => product.id,
+          'variation_id' => variation_id.to_i.positive? ? variation_id.to_i : nil,
+          'quantity' => total_quantity.to_f,
+          'unit_sale_price_bs' => unit_sale_price_bs.to_f,
+          'total_sale_price_bs' => total_sale_price_bs.to_f,
+          'unit_sale_price_usd' => unit_sale_price_usd.to_f,
+          'total_sale_price_usd' => total_sale_price_usd.to_f,
+          'invoice_breakdown_only' => true
+        }
+      end
+
+      rows.concat(additional_delivery_rows)
+    end
+
+    rows
   end
 
   def build_service_cost_obligations(service_item_rows:, tasa_dolar:)
@@ -1545,8 +1891,8 @@ class VentasController < ApplicationController
       hash[key] = {
         service: nil,
         quantity: 0.to_d,
-        nested_overrides: {},
-        consumable_decisions: {},
+        delivery_presentation: nil,
+        consumable_decisions: {}
       }
     end
 
@@ -1556,21 +1902,26 @@ class VentasController < ApplicationController
       next unless service
       next unless service.id.present?
       next unless quantity.positive?
-      next unless service.auto_cost_stock_discount?
+      next unless service_cost_debit_enabled?(service)
 
-      grouped_rows[service.id][:service] = service
-      grouped_rows[service.id][:quantity] += quantity
+      payload_hash = entry[:payload].respond_to?(:to_h) ? entry[:payload].to_h : {}
+      delivery_presentation = normalize_service_delivery_presentation(
+        payload_hash['delivery_presentation'] || payload_hash[:delivery_presentation],
+        service: service
+      )
 
-      normalize_nested_cost_overrides(entry[:payload]).each do |expense_id, override_row|
-        grouped_rows[service.id][:nested_overrides][expense_id.to_s] = override_row
-      end
+      group_key = [service.id, delivery_presentation.presence || 'none'].join(':')
+
+      grouped_rows[group_key][:service] = service
+      grouped_rows[group_key][:quantity] += quantity
+      grouped_rows[group_key][:delivery_presentation] = delivery_presentation
 
       normalize_service_product_decisions(entry[:payload]).each do |expense_id, decision_row|
-        grouped_rows[service.id][:consumable_decisions][expense_id.to_s] = decision_row
+        grouped_rows[group_key][:consumable_decisions][expense_id.to_s] = decision_row
       end
     end
 
-    unidad_vi = parse_decimal(@unidad_VI, default: TasaCambio.latest_value("Unidad VI"))
+    unidad_vi = parse_decimal(@unidad_VI, default: TasaCambio.latest_value('Unidad VI'))
     obligations = []
 
     grouped_rows.each_value do |row|
@@ -1579,90 +1930,35 @@ class VentasController < ApplicationController
       next unless service
       next unless quantity.positive?
 
-      unit_cost_usd = service.total_expense_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi, active_only: true).to_d.round(2)
-      next unless unit_cost_usd.positive?
-
-      total_cost_usd = (unit_cost_usd * quantity).round(2)
-      next unless total_cost_usd.positive?
-
       detail_lines = build_service_cost_detail_lines(
         service: service,
         multiplier: quantity,
         tasa_dolar: tasa_dolar,
         unidad_vi: unidad_vi,
-        nested_overrides: row[:nested_overrides],
-        consumable_decisions: row[:consumable_decisions],
+        delivery_presentation: row[:delivery_presentation],
+        consumable_decisions: row[:consumable_decisions]
       )
 
-      if detail_lines.empty?
-        detail_lines << {
-          "line_id" => "service-#{service.id}-generic",
-          "service_id" => service.id,
-          "service_name" => service.description.to_s,
-          "structure_id" => nil,
-          "structure_description" => "Estructura general",
-          "classification" => "general",
-          "classification_label" => "Costo general",
-          "source_type" => nil,
-          "source_id" => nil,
-          "source_name" => service.description.to_s,
-          "quantity" => quantity.to_d.to_f,
-          "amount_usd" => total_cost_usd.to_d.to_f,
-          "paid_usd" => 0.0,
-          "pending_usd" => total_cost_usd.to_d.to_f,
-          "status" => "pending",
-          "source_updatable" => false,
-          "source_currency_reference" => nil,
-        }
-      else
-        lines_total_usd = detail_lines.sum { |line| line["amount_usd"].to_d }.round(2)
-        difference = (total_cost_usd - lines_total_usd).round(2)
+      total_cost_usd = detail_lines.sum { |line| line['amount_usd'].to_d }.round(2)
+      next unless total_cost_usd.positive?
 
-        if difference.abs > 0.01.to_d
-          last_line = detail_lines.last
-          adjusted_amount = (last_line["amount_usd"].to_d + difference).round(2)
-
-          if adjusted_amount.positive?
-            last_line["amount_usd"] = adjusted_amount.to_f
-            last_line["pending_usd"] = adjusted_amount.to_f
-          else
-            detail_lines << {
-              "line_id" => "service-#{service.id}-adjustment",
-              "service_id" => service.id,
-              "service_name" => service.description.to_s,
-              "structure_id" => nil,
-              "structure_description" => "Ajuste de redondeo",
-              "classification" => "adjustment",
-              "classification_label" => "Ajuste",
-              "source_type" => nil,
-              "source_id" => nil,
-              "source_name" => "Ajuste de redondeo",
-              "quantity" => 1.0,
-              "amount_usd" => difference.to_d.abs.to_f,
-              "paid_usd" => 0.0,
-              "pending_usd" => difference.to_d.abs.to_f,
-              "status" => "pending",
-              "source_updatable" => false,
-              "source_currency_reference" => nil,
-            }
-          end
-        end
-      end
+      unit_cost_usd = (total_cost_usd / quantity).round(2)
 
       obligations << {
         service: service,
         service_id: service.id,
         quantity: quantity,
+        delivery_presentation: row[:delivery_presentation],
         unit_cost_usd: unit_cost_usd,
         total_cost_usd: total_cost_usd,
-        detail_lines: detail_lines,
+        detail_lines: detail_lines
       }
     end
 
     [obligations, nil]
   end
 
-  def build_service_cost_detail_lines(service:, multiplier:, tasa_dolar:, unidad_vi:, nested_overrides: {},
+  def build_service_cost_detail_lines(service:, multiplier:, tasa_dolar:, unidad_vi:, delivery_presentation: nil,
                                       consumable_decisions: {})
     return [] unless service
 
@@ -1672,7 +1968,6 @@ class VentasController < ApplicationController
     service.service_expense_structures.where(active_for_sales: true).includes(
       { service_manager_expenses: :manager },
       :service_variable_expenses,
-      { service_nested_expenses: :nested_service },
       { service_product_expenses: %i[producto product_variation] }
     ).each do |structure|
       structure_label = structure.description.to_s.strip.presence || "Estructura ##{structure.id}"
@@ -1680,144 +1975,157 @@ class VentasController < ApplicationController
       structure.service_manager_expenses.each do |expense|
         amount_usd = (expense.current_amount_usd(tasa_dolar: tasa_dolar).to_d * multiplier.to_d).round(2)
         next unless amount_usd.positive?
+
         reference_unit_amount = expense.amount_reference.to_d.round(2)
         reference_total_amount = (reference_unit_amount * multiplier.to_d).round(2)
 
         line_sequence += 1
         lines << {
-          "line_id" => "service-#{service.id}-line-#{line_sequence}",
-          "service_id" => service.id,
-          "service_name" => service.description.to_s,
-          "structure_id" => structure.id,
-          "structure_description" => structure_label,
-          "classification" => "manager_expense",
-          "classification_label" => "Gestor",
-          "source_type" => "ServiceManagerExpense",
-          "source_id" => expense.id,
-          "source_name" => expense.manager&.name.to_s.strip.presence || "Gestor",
-          "quantity" => multiplier.to_d.to_f,
-          "amount_usd" => amount_usd.to_d.to_f,
-          "paid_usd" => 0.0,
-          "pending_usd" => amount_usd.to_d.to_f,
-          "status" => "pending",
-          "source_updatable" => true,
-          "source_currency_reference" => expense.currency_reference.to_s,
-          "source_amount_reference_unit" => reference_unit_amount.to_f,
-          "source_amount_reference_total" => reference_total_amount.to_f,
+          'line_id' => "service-#{service.id}-line-#{line_sequence}",
+          'service_id' => service.id,
+          'service_name' => service.description.to_s,
+          'structure_id' => structure.id,
+          'structure_description' => structure_label,
+          'classification' => 'manager_expense',
+          'classification_label' => 'Gestor',
+          'source_type' => 'ServiceManagerExpense',
+          'source_id' => expense.id,
+          'source_name' => expense.manager&.name.to_s.strip.presence || 'Gestor',
+          'quantity' => multiplier.to_d.to_f,
+          'amount_usd' => amount_usd.to_d.to_f,
+          'paid_usd' => 0.0,
+          'pending_usd' => amount_usd.to_d.to_f,
+          'status' => 'pending',
+          'source_updatable' => true,
+          'source_currency_reference' => expense.currency_reference.to_s,
+          'source_amount_reference_unit' => reference_unit_amount.to_f,
+          'source_amount_reference_total' => reference_total_amount.to_f
         }
       end
 
       structure.service_variable_expenses.each do |expense|
         amount_usd = (expense.current_amount_usd(tasa_dolar: tasa_dolar).to_d * multiplier.to_d).round(2)
         next unless amount_usd.positive?
+
         reference_unit_amount = expense.amount_reference.to_d.round(2)
         reference_total_amount = (reference_unit_amount * multiplier.to_d).round(2)
 
         line_sequence += 1
         lines << {
-          "line_id" => "service-#{service.id}-line-#{line_sequence}",
-          "service_id" => service.id,
-          "service_name" => service.description.to_s,
-          "structure_id" => structure.id,
-          "structure_description" => structure_label,
-          "classification" => "variable_expense",
-          "classification_label" => "Gasto variable",
-          "source_type" => "ServiceVariableExpense",
-          "source_id" => expense.id,
-          "source_name" => expense.description.to_s.strip.presence || "Gasto variable",
-          "quantity" => multiplier.to_d.to_f,
-          "amount_usd" => amount_usd.to_d.to_f,
-          "paid_usd" => 0.0,
-          "pending_usd" => amount_usd.to_d.to_f,
-          "status" => "pending",
-          "source_updatable" => true,
-          "source_currency_reference" => expense.currency_reference.to_s,
-          "source_amount_reference_unit" => reference_unit_amount.to_f,
-          "source_amount_reference_total" => reference_total_amount.to_f,
-        }
-      end
-
-      structure.service_nested_expenses.each do |expense|
-        override = nested_overrides[expense.id.to_s] || {}
-        selected_reference = override["currency_reference"].to_s.strip.presence || expense.currency_reference.to_s
-        selected_reference_amount = parse_decimal(
-          override["amount_reference"],
-          default: expense.amount_reference,
-        ).round(2)
-
-        amount_usd = if expense.nested_service&.to_agree? && override.present?
-            selected_unit_usd = reference_amount_to_usd(
-              amount_reference: selected_reference_amount,
-              reference: selected_reference,
-              tasa_dolar: tasa_dolar,
-            )
-            (selected_unit_usd.to_d * multiplier.to_d).round(2)
-          else
-            (expense.total_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi).to_d * multiplier.to_d).round(2)
-          end
-        next unless amount_usd.positive?
-
-        line_sequence += 1
-        nested_name = expense.nested_service&.description.to_s.strip.presence || "Servicio anidado"
-        lines << {
-          "line_id" => "service-#{service.id}-line-#{line_sequence}",
-          "service_id" => service.id,
-          "service_name" => service.description.to_s,
-          "structure_id" => structure.id,
-          "structure_description" => structure_label,
-          "classification" => "nested_expense",
-          "classification_label" => "Servicio anidado",
-          "source_type" => "ServiceNestedExpense",
-          "source_id" => expense.id,
-          "source_name" => nested_name,
-          "quantity" => (expense.quantity.to_d * multiplier.to_d).to_f,
-          "amount_usd" => amount_usd.to_d.to_f,
-          "paid_usd" => 0.0,
-          "pending_usd" => amount_usd.to_d.to_f,
-          "status" => "pending",
-          "source_updatable" => false,
-          "source_currency_reference" => selected_reference,
-          "source_amount_reference_unit" => selected_reference_amount.to_f,
-          "source_amount_reference_total" => (selected_reference_amount.to_d * multiplier.to_d).round(2).to_f,
+          'line_id' => "service-#{service.id}-line-#{line_sequence}",
+          'service_id' => service.id,
+          'service_name' => service.description.to_s,
+          'structure_id' => structure.id,
+          'structure_description' => structure_label,
+          'classification' => 'variable_expense',
+          'classification_label' => 'Gasto variable',
+          'source_type' => 'ServiceVariableExpense',
+          'source_id' => expense.id,
+          'source_name' => expense.description.to_s.strip.presence || 'Gasto variable',
+          'quantity' => multiplier.to_d.to_f,
+          'amount_usd' => amount_usd.to_d.to_f,
+          'paid_usd' => 0.0,
+          'pending_usd' => amount_usd.to_d.to_f,
+          'status' => 'pending',
+          'source_updatable' => true,
+          'source_currency_reference' => expense.currency_reference.to_s,
+          'source_amount_reference_unit' => reference_unit_amount.to_f,
+          'source_amount_reference_total' => reference_total_amount.to_f
         }
       end
 
       structure.service_product_expenses.each do |expense|
         decision = consumable_decisions[expense.id.to_s] || {}
-        delivered = if decision.key?("delivered")
-            ActiveModel::Type::Boolean.new.cast(decision["delivered"])
-          else
-            true
-          end
+        delivered = if decision.key?('delivered')
+                      ActiveModel::Type::Boolean.new.cast(decision['delivered'])
+                    else
+                      true
+                    end
         next unless delivered
 
         amount_usd = (expense.total_usd.to_d * multiplier.to_d).round(2)
         next unless amount_usd.positive?
 
         line_sequence += 1
-        product_name = expense.producto&.descripcion.to_s.strip.presence || "Producto"
+        product_name = expense.producto&.descripcion.to_s.strip.presence || 'Producto'
         variation_name = expense.product_variation&.description.to_s.strip.presence
 
         lines << {
-          "line_id" => "service-#{service.id}-line-#{line_sequence}",
-          "service_id" => service.id,
-          "service_name" => service.description.to_s,
-          "structure_id" => structure.id,
-          "structure_description" => structure_label,
-          "classification" => "product_expense",
-          "classification_label" => "Consumible",
-          "source_type" => "ServiceProductExpense",
-          "source_id" => expense.id,
-          "source_name" => variation_name.present? ? "#{product_name} (#{variation_name})" : product_name,
-          "quantity" => (expense.quantity.to_d * multiplier.to_d).to_f,
-          "amount_usd" => amount_usd.to_d.to_f,
-          "paid_usd" => 0.0,
-          "pending_usd" => amount_usd.to_d.to_f,
-          "status" => "pending",
-          "source_updatable" => false,
-          "source_currency_reference" => nil,
+          'line_id' => "service-#{service.id}-line-#{line_sequence}",
+          'service_id' => service.id,
+          'service_name' => service.description.to_s,
+          'structure_id' => structure.id,
+          'structure_description' => structure_label,
+          'classification' => 'product_expense',
+          'classification_label' => 'Consumible',
+          'source_type' => 'ServiceProductExpense',
+          'source_id' => expense.id,
+          'source_name' => variation_name.present? ? "#{product_name} (#{variation_name})" : product_name,
+          'quantity' => (expense.quantity.to_d * multiplier.to_d).to_f,
+          'amount_usd' => amount_usd.to_d.to_f,
+          'paid_usd' => 0.0,
+          'pending_usd' => amount_usd.to_d.to_f,
+          'status' => 'pending',
+          'source_updatable' => false,
+          'source_currency_reference' => nil,
+          'breakdown_in_invoice' => expense.breakdown_in_invoice?
         }
       end
+
+      next unless delivery_presentation.to_s == 'physical' && service.delivery_physical_enabled?
+
+      pages = normalize_print_delivery_pages_for_sale(service)
+      next unless pages.present?
+
+      type_service_ids = pages.map { |page_row| page_row['print_type_service_id'].to_i }.uniq
+      type_services_by_id = current_business
+                            .services
+                            .includes(:service_print_coverage_prices)
+                            .where(id: type_service_ids)
+                            .index_by(&:id)
+
+      unit_printing_bs = pages.sum do |page_row|
+        type_service = type_services_by_id[page_row['print_type_service_id'].to_i]
+        next 0.to_d if type_service.blank?
+
+        prices = type_service.service_print_coverage_prices.ordered_by_coverage.to_a
+        next 0.to_d if prices.empty?
+
+        resolve_printing_price_bs_for_coverage(
+          coverage_percent: page_row['coverage_percent'].to_d,
+          prices: prices
+        )
+      end
+
+      next unless unit_printing_bs.to_d.positive?
+
+      total_printing_bs = (unit_printing_bs.to_d * multiplier.to_d).round(2)
+      next unless total_printing_bs.positive? && tasa_dolar.to_d.positive?
+
+      total_printing_usd = (total_printing_bs / tasa_dolar.to_d).round(2)
+
+      line_sequence += 1
+      lines << {
+        'line_id' => "service-#{service.id}-line-#{line_sequence}",
+        'service_id' => service.id,
+        'service_name' => service.description.to_s,
+        'structure_id' => structure.id,
+        'structure_description' => structure_label,
+        'classification' => 'printing_expense',
+        'classification_label' => 'Impresion fisica',
+        'source_type' => 'PrintCoverageService',
+        'source_id' => type_service_ids.first,
+        'source_name' => "Impresion fisica (#{pages.size} pagina(s))",
+        'quantity' => multiplier.to_d.to_f,
+        'amount_usd' => total_printing_usd.to_f,
+        'paid_usd' => 0.0,
+        'pending_usd' => total_printing_usd.to_f,
+        'status' => 'pending',
+        'source_updatable' => false,
+        'source_currency_reference' => 'Bs',
+        'source_amount_reference_unit' => unit_printing_bs.to_d.round(2).to_f,
+        'source_amount_reference_total' => total_printing_bs.to_f
+      }
     end
 
     lines
@@ -1825,61 +2133,46 @@ class VentasController < ApplicationController
 
   def normalize_service_product_decisions(payload)
     source = payload.respond_to?(:to_h) ? payload.to_h : {}
-    rows = source["consumable_decisions"] || source[:consumable_decisions]
+    rows = source['consumable_decisions'] || source[:consumable_decisions]
 
     Array(rows).each_with_object({}) do |raw_row, hash|
       row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
-      expense_id = (row["service_product_expense_id"] || row[:service_product_expense_id]).to_s.strip
+      expense_id = (row['service_product_expense_id'] || row[:service_product_expense_id]).to_s.strip
       next if expense_id.blank?
 
-      delivered = ActiveModel::Type::Boolean.new.cast(row["delivered"] || row[:delivered])
-      variation_id = row["product_variation_id"] || row[:product_variation_id]
+      delivered = ActiveModel::Type::Boolean.new.cast(row['delivered'] || row[:delivered])
+      variation_id = row['product_variation_id'] || row[:product_variation_id]
 
       hash[expense_id] = {
-        "service_product_expense_id" => expense_id,
-        "delivered" => delivered,
-        "product_variation_id" => variation_id,
+        'service_product_expense_id' => expense_id,
+        'delivered' => delivered,
+        'product_variation_id' => variation_id
       }
     end
   end
 
-  def normalize_nested_cost_overrides(payload)
-    source = payload.respond_to?(:to_h) ? payload.to_h : {}
-    rows = source["nested_agreements"] || source[:nested_agreements]
+  def service_sale_display_name(service:, payload:)
+    base_name = service&.print_sale_display_name.to_s.strip
+    base_name = service&.description.to_s.strip if base_name.blank?
+    base_name = 'Servicio' if base_name.blank?
 
-    Array(rows).each_with_object({}) do |raw_row, hash|
-      row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
-      nested_expense_id = (row["nested_expense_id"] || row[:nested_expense_id]).to_s.strip
-      next if nested_expense_id.blank?
-
-      amount_reference = parse_decimal(row["amount_reference"] || row[:amount_reference], default: 0)
-      next unless amount_reference.positive?
-
-      currency_reference = (row["currency_reference"] || row[:currency_reference]).to_s.strip
-      currency_reference = "Bs" if currency_reference.blank?
-
-      hash[nested_expense_id] = {
-        "nested_expense_id" => nested_expense_id,
-        "amount_reference" => amount_reference.to_d.to_f,
-        "currency_reference" => currency_reference,
-      }
-    end
+    base_name
   end
 
   def reference_amount_to_usd(amount_reference:, reference:, tasa_dolar:)
     reference_amount_decimal = amount_reference.to_d
     return 0.to_d unless reference_amount_decimal.positive?
 
-    reference_name = reference.to_s.strip.presence || "Bs"
-    reference_rate_bs = if reference_name == "Bs"
-        1.to_d
-      else
-        TasaCambio.latest_value(reference_name).to_d
-      end
+    reference_name = reference.to_s.strip.presence || 'Bs'
+    reference_rate_bs = if reference_name == 'Bs'
+                          1.to_d
+                        else
+                          TasaCambio.latest_value(reference_name).to_d
+                        end
     return 0.to_d unless reference_rate_bs.positive?
 
     bcv_rate = tasa_dolar.to_d
-    bcv_rate = TasaCambio.latest_value("Dolar BCV").to_d unless bcv_rate.positive?
+    bcv_rate = TasaCambio.latest_value('Dolar BCV').to_d unless bcv_rate.positive?
     return 0.to_d unless bcv_rate.positive?
 
     ((reference_amount_decimal * reference_rate_bs) / bcv_rate).round(2)
@@ -1888,27 +2181,27 @@ class VentasController < ApplicationController
   def normalize_service_cost_lines_payload(lines)
     Array(lines).map do |raw_line|
       line = raw_line.is_a?(Hash) ? raw_line.deep_stringify_keys : {}
-      amount_usd = parse_decimal(line["amount_usd"], default: 0).round(2)
-      paid_usd = parse_decimal(line["paid_usd"], default: 0).round(2)
+      amount_usd = parse_decimal(line['amount_usd'], default: 0).round(2)
+      paid_usd = parse_decimal(line['paid_usd'], default: 0).round(2)
       paid_usd = amount_usd if paid_usd > amount_usd
 
       pending_usd = (amount_usd - paid_usd).round(2)
       pending_usd = 0.to_d if pending_usd.abs <= 0.01.to_d
 
       status = if pending_usd <= 0
-          "paid"
-        elsif paid_usd.positive?
-          "partial"
-        else
-          "pending"
-        end
+                 'paid'
+               elsif paid_usd.positive?
+                 'partial'
+               else
+                 'pending'
+               end
 
       line.merge(
-        "line_id" => line["line_id"].to_s.presence || "line-#{SecureRandom.hex(4)}",
-        "amount_usd" => amount_usd.to_f,
-        "paid_usd" => paid_usd.to_f,
-        "pending_usd" => pending_usd.to_f,
-        "status" => status,
+        'line_id' => line['line_id'].to_s.presence || "line-#{SecureRandom.hex(4)}",
+        'amount_usd' => amount_usd.to_f,
+        'paid_usd' => paid_usd.to_f,
+        'pending_usd' => pending_usd.to_f,
+        'status' => status
       )
     end
   end
@@ -1918,38 +2211,38 @@ class VentasController < ApplicationController
 
     rows_by_service_id = Array(raw_rows).each_with_object({}) do |raw_row, hash|
       source = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
-      service_id = source["service_id"] || source[:service_id]
+      service_id = source['service_id'] || source[:service_id]
       next if service_id.blank?
 
       hash[service_id.to_s] = source
     end
 
     settlements = []
-    today = Time.use_zone("America/Caracas") { Time.zone.today }
+    today = Time.use_zone('America/Caracas') { Time.zone.today }
 
     obligations.each do |obligation|
       service = obligation[:service]
       service_label = service&.description.to_s.presence || "##{obligation[:service_id]}"
       raw_row = rows_by_service_id[obligation[:service_id].to_s] || {}
 
-      pay_now = ActiveModel::Type::Boolean.new.cast(raw_row["pay_now"] || raw_row[:pay_now])
+      pay_now = ActiveModel::Type::Boolean.new.cast(raw_row['pay_now'] || raw_row[:pay_now])
       paid_cost_usd = 0.to_d
       payment_row = nil
 
       if pay_now
-        account_id = raw_row["account_id"] || raw_row[:account_id]
+        account_id = raw_row['account_id'] || raw_row[:account_id]
         account = current_business.accounts.find_by(id: account_id)
         if account.blank?
           return [nil,
                   "Selecciona una cuenta para registrar el pago inmediato del costo de #{service_label}."]
         end
 
-        amount_original = parse_decimal(raw_row["amount"] || raw_row[:amount], default: 0).round(2)
+        amount_original = parse_decimal(raw_row['amount'] || raw_row[:amount], default: 0).round(2)
         unless amount_original.positive?
           return [nil, "Indica un monto valido para el pago inmediato del costo de #{service_label}."]
         end
 
-        currency = normalize_currency(raw_row["currency"] || raw_row[:currency], default: account.currency || "USD")
+        currency = normalize_currency(raw_row['currency'] || raw_row[:currency], default: account.currency || 'USD')
         amount_usd = convert_payment_to_usd(amount_original, currency, tasa_dolar)
         return [nil, "No se pudo convertir el pago inmediato del costo de #{service_label} a USD."] if amount_usd.nil?
 
@@ -1958,14 +2251,14 @@ class VentasController < ApplicationController
           return [nil, "El pago inmediato del costo de #{service_label} excede el costo estimado."]
         end
 
-        payment_method = (raw_row["payment_method"] || raw_row[:payment_method]).to_s.strip
+        payment_method = (raw_row['payment_method'] || raw_row[:payment_method]).to_s.strip
         payment_method = default_method_for_account(account) if payment_method.blank?
 
-        reference = (raw_row["reference"] || raw_row[:reference]).to_s.strip
-        payment_date_raw = raw_row["payment_date"] || raw_row[:payment_date]
+        reference = (raw_row['reference'] || raw_row[:reference]).to_s.strip
+        payment_date_raw = raw_row['payment_date'] || raw_row[:payment_date]
         payment_date = parse_payment_date(payment_date_raw)
 
-        if account.account_type == "bank_account"
+        if account.account_type == 'bank_account'
           unless %w[transfer mobile].include?(payment_method)
             return [nil, "Selecciona transferencia o pago movil para el costo de #{service_label}."]
           end
@@ -1986,9 +2279,9 @@ class VentasController < ApplicationController
           amount_usd: paid_cost_usd,
           currency: currency,
           payment_method: payment_method,
-          debt_payment_method: (account.account_type == "bank_account" ? payment_method : nil),
+          debt_payment_method: (account.account_type == 'bank_account' ? payment_method : nil),
           reference: reference.presence,
-          payment_date: payment_date,
+          payment_date: payment_date
         }
       end
 
@@ -1999,7 +2292,7 @@ class VentasController < ApplicationController
         pay_now: pay_now,
         paid_cost_usd: paid_cost_usd,
         pending_cost_usd: pending_cost_usd,
-        payment_row: payment_row,
+        payment_row: payment_row
       )
     end
 
@@ -2009,7 +2302,7 @@ class VentasController < ApplicationController
   def register_service_cost_settlements_for_sale!(venta:, settlements:)
     return if settlements.blank?
 
-    issued_on = Time.use_zone("America/Caracas") { Time.zone.today }
+    issued_on = Time.use_zone('America/Caracas') { Time.zone.today }
 
     settlements.each do |settlement|
       service = settlement[:service]
@@ -2021,14 +2314,14 @@ class VentasController < ApplicationController
       detail_lines = normalize_service_cost_lines_payload(settlement[:detail_lines])
       detail_lines = apply_paid_amount_to_service_cost_lines(
         lines: detail_lines,
-        paid_amount_usd: paid_cost_usd,
+        paid_amount_usd: paid_cost_usd
       )
 
       details_payload = build_service_cost_details_payload_for_debt(
         settlement: settlement,
-        lines: detail_lines,
+        lines: detail_lines
       )
-      pending_cost_usd = details_payload["pending_usd"].to_d.round(2)
+      pending_cost_usd = details_payload['pending_usd'].to_d.round(2)
 
       next unless total_cost_usd.positive?
 
@@ -2036,14 +2329,14 @@ class VentasController < ApplicationController
         debt = current_business.debts.create!(
           name: "Costo servicio ##{service.id} - Venta ##{venta.id}",
           description: "Costo pendiente servicio #{service.description} [SERVICE:#{service.id}] [VENTA:#{venta.id}] [SERVICE_COST]",
-          debt_kind: "payable",
+          debt_kind: 'payable',
           amount: total_cost_usd,
-          currency: "USD",
+          currency: 'USD',
           issued_on: issued_on,
           venta: venta,
           service: service,
           service_cost_pending: true,
-          service_cost_details: details_payload,
+          service_cost_details: details_payload
         )
 
         if paid_cost_usd.positive? && payment_row.present?
@@ -2054,7 +2347,7 @@ class VentasController < ApplicationController
             payment_method: payment_row[:debt_payment_method],
             reference: payment_row[:reference],
             occurred_at: payment_row[:payment_date],
-            notes: "Pago inicial costo servicio venta ##{venta.id} [VENTA:#{venta.id}] [SERVICE:#{service.id}] [SERVICE_COST]",
+            notes: "Pago inicial costo servicio venta ##{venta.id} [VENTA:#{venta.id}] [SERVICE:#{service.id}] [SERVICE_COST]"
           )
         end
 
@@ -2064,14 +2357,14 @@ class VentasController < ApplicationController
       next unless paid_cost_usd.positive? && payment_row.present?
 
       movement_attrs = {
-        movement_kind: "expense",
+        movement_kind: 'expense',
         amount: payment_row[:amount_original].to_d,
         description: build_service_cost_movement_description(venta: venta, service: service,
                                                              reference: payment_row[:reference]),
-        occurred_at: payment_row[:payment_date].in_time_zone("America/Caracas").end_of_day,
+        occurred_at: payment_row[:payment_date].in_time_zone('America/Caracas').end_of_day
       }
 
-      if payment_row[:account].account_type == "bank_account" && %w[transfer
+      if payment_row[:account].account_type == 'bank_account' && %w[transfer
                                                                     mobile].include?(payment_row[:payment_method])
         movement_attrs[:payment_method] = normalize_account_movement_method(payment_row[:payment_method])
       end
@@ -2087,19 +2380,19 @@ class VentasController < ApplicationController
     normalized_lines.each do |line|
       break if remaining_paid <= 0
 
-      pending_usd = line["pending_usd"].to_d
+      pending_usd = line['pending_usd'].to_d
       next unless pending_usd.positive?
 
       allocation = [remaining_paid, pending_usd].min.round(2)
       next unless allocation.positive?
 
-      paid_usd = (line["paid_usd"].to_d + allocation).round(2)
-      pending_usd = (line["amount_usd"].to_d - paid_usd).round(2)
+      paid_usd = (line['paid_usd'].to_d + allocation).round(2)
+      pending_usd = (line['amount_usd'].to_d - paid_usd).round(2)
       pending_usd = 0.to_d if pending_usd.abs <= 0.01.to_d
 
-      line["paid_usd"] = paid_usd.to_f
-      line["pending_usd"] = pending_usd.to_f
-      line["status"] = pending_usd <= 0 ? "paid" : "partial"
+      line['paid_usd'] = paid_usd.to_f
+      line['pending_usd'] = pending_usd.to_f
+      line['status'] = pending_usd <= 0 ? 'paid' : 'partial'
 
       remaining_paid = (remaining_paid - allocation).round(2)
     end
@@ -2110,26 +2403,26 @@ class VentasController < ApplicationController
   def build_service_cost_details_payload_for_debt(settlement:, lines:)
     normalized_lines = normalize_service_cost_lines_payload(lines)
     total_usd = settlement[:total_cost_usd].to_d.round(2)
-    paid_usd = normalized_lines.sum { |line| line["paid_usd"].to_d }.round(2)
-    pending_usd = normalized_lines.sum { |line| line["pending_usd"].to_d }.round(2)
+    paid_usd = normalized_lines.sum { |line| line['paid_usd'].to_d }.round(2)
+    pending_usd = normalized_lines.sum { |line| line['pending_usd'].to_d }.round(2)
 
     status = if pending_usd <= 0.01.to_d
-        "paid"
-      elsif paid_usd.positive?
-        "partial"
-      else
-        "pending"
-      end
+               'paid'
+             elsif paid_usd.positive?
+               'partial'
+             else
+               'pending'
+             end
 
     {
-      "version" => 1,
-      "service_id" => settlement[:service_id],
-      "service_name" => settlement[:service]&.description.to_s,
-      "total_usd" => total_usd.to_f,
-      "paid_usd" => paid_usd.to_f,
-      "pending_usd" => pending_usd.to_f,
-      "status" => status,
-      "lines" => normalized_lines,
+      'version' => 1,
+      'service_id' => settlement[:service_id],
+      'service_name' => settlement[:service]&.description.to_s,
+      'total_usd' => total_usd.to_f,
+      'paid_usd' => paid_usd.to_f,
+      'pending_usd' => pending_usd.to_f,
+      'status' => status,
+      'lines' => normalized_lines
     }
   end
 
@@ -2150,13 +2443,13 @@ class VentasController < ApplicationController
     return default.to_d if value.nil?
     return value.to_d if value.is_a?(Numeric)
 
-    cleaned = value.to_s.strip.tr(",", ".")
+    cleaned = value.to_s.strip.tr(',', '.')
     BigDecimal(cleaned)
   rescue ArgumentError
     default.to_d
   end
 
-  def normalize_currency(value, default: "USD")
+  def normalize_currency(value, default: 'USD')
     normalized = value.to_s.strip.upcase
     return default if normalized.blank?
 
@@ -2166,7 +2459,7 @@ class VentasController < ApplicationController
   def convert_payment_to_usd(amount, currency, tasa_dolar)
     return amount.to_d.round(2) if %w[USD USDT].include?(currency)
 
-    if currency == "VES"
+    if currency == 'VES'
       rate = tasa_dolar.to_d
       return nil unless rate.positive?
 
@@ -2178,17 +2471,17 @@ class VentasController < ApplicationController
 
   def convert_payment_to_currency(amount, currency, target_currency, tasa_dolar)
     from_currency = normalize_currency(currency, default: target_currency)
-    to_currency = normalize_currency(target_currency, default: "USD")
+    to_currency = normalize_currency(target_currency, default: 'USD')
     return amount.to_d.round(2) if from_currency == to_currency
 
     rate = tasa_dolar.to_d
-    if from_currency == "VES" && %w[USD USDT].include?(to_currency)
+    if from_currency == 'VES' && %w[USD USDT].include?(to_currency)
       return nil unless rate.positive?
 
       return (amount.to_d / rate).round(2)
     end
 
-    if %w[USD USDT].include?(from_currency) && to_currency == "VES"
+    if %w[USD USDT].include?(from_currency) && to_currency == 'VES'
       return nil unless rate.positive?
 
       return (amount.to_d * rate).round(2)
@@ -2198,7 +2491,7 @@ class VentasController < ApplicationController
   end
 
   def total_due_in_currency(venta, currency, tasa_dolar)
-    return venta.total_usd.to_d.round(2) unless currency == "VES"
+    return venta.total_usd.to_d.round(2) unless currency == 'VES'
 
     rate = tasa_dolar.to_d
     return 0.to_d unless rate.positive?
@@ -2220,31 +2513,31 @@ class VentasController < ApplicationController
   end
 
   def normalize_account_movement_method(method)
-    return "mobile_payment" if method.to_s == "mobile"
+    return 'mobile_payment' if method.to_s == 'mobile'
 
     method.to_s
   end
 
   def normalize_credit_sale_payload(raw_payload)
     source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
-    enabled_value = source["enabled"] || source[:enabled]
-    due_on_value = source["due_on"] || source[:due_on]
+    enabled_value = source['enabled'] || source[:enabled]
+    due_on_value = source['due_on'] || source[:due_on]
 
     {
       enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
-      due_on: due_on_value.to_s.strip.presence,
+      due_on: due_on_value.to_s.strip.presence
     }
   end
 
   def load_sale_credit_context!
     sale_tag = "[VENTA:#{@venta.id}]"
     linked_debts = current_business
-      .debts
-      .includes(:debt_payments)
-      .where(debt_kind: "receivable")
-      .where("description LIKE ?", "%#{sale_tag}%")
-      .order(created_at: :desc)
-      .to_a
+                   .debts
+                   .includes(:debt_payments)
+                   .where(debt_kind: 'receivable')
+                   .where('description LIKE ?', "%#{sale_tag}%")
+                   .order(created_at: :desc)
+                   .to_a
 
     @sale_linked_debts = linked_debts
     @sale_linked_debt = linked_debts.first
@@ -2260,28 +2553,262 @@ class VentasController < ApplicationController
       currency: debt_currency,
       total: debt_total,
       paid: debt_paid,
-      balance: debt_balance,
+      balance: debt_balance
     }
 
-    has_sale_payments = @venta.venta_payments.any? { |payment| payment.payment_kind == "in" }
+    has_sale_payments = @venta.venta_payments.any? { |payment| payment.payment_kind == 'in' }
     @sale_credit_status = sale_credit_status_for(
       total: debt_total,
       paid: debt_paid,
       balance: debt_balance,
-      has_payments: has_sale_payments,
+      has_payments: has_sale_payments
     )
 
     @invoice_status = if @sale_linked_debt.present?
-        @sale_credit_status
-      else
-        sale_credit_status_for(total: 0, paid: 0, balance: 0)
-      end
+                        @sale_credit_status
+                      else
+                        sale_credit_status_for(total: 0, paid: 0, balance: 0)
+                      end
 
     @sale_credit_display = build_sale_credit_display(
       totals: @sale_credit_totals,
       base_currency: @venta.base_currency,
-      rate: @sale_reference[:effective_usd_rate].to_d,
+      rate: @sale_reference[:effective_usd_rate].to_d
     )
+  end
+
+  def load_sale_service_cost_breakdown_context!
+    notes_rows = sale_service_cost_rows_from_notes(@venta)
+    debt_rows = sale_service_cost_rows_from_debts(@venta)
+    printing_rows = sale_service_printing_rows_from_notes(@venta)
+
+    notes_by_name = notes_rows.group_by { |row| normalized_sale_service_cost_row_key(row['service_name']) }
+    debt_by_name = debt_rows.group_by { |row| normalized_sale_service_cost_row_key(row['service_name']) }
+
+    merged_rows = []
+    (notes_by_name.keys | debt_by_name.keys).each do |key|
+      rows = debt_by_name[key].presence || notes_by_name[key] || []
+      merged_rows.concat(rows)
+    end
+
+    hydrate_invoice_breakdown_visibility!(rows: merged_rows)
+
+    @sale_service_cost_rows_by_name = merged_rows.each_with_object(Hash.new { |hash, k| hash[k] = [] }) do |row, hash|
+      key = normalized_sale_service_cost_row_key(row['service_name'])
+      next if key.blank?
+
+      hash[key] << row
+    end
+
+    @sale_service_printings_by_parent_name = printing_rows.each_with_object(Hash.new do |hash, k|
+      hash[k] = []
+    end) do |row, hash|
+      key = normalized_sale_service_cost_row_key(row['parent_service_name'])
+      next if key.blank?
+
+      hash[key] << row
+    end
+  end
+
+  def sale_service_cost_rows_from_notes(venta)
+    notes_payload = parse_notes_payload(venta.notes)
+    Array(notes_payload['service_cost_settlements']).filter_map do |row|
+      next unless row.is_a?(Hash)
+
+      normalized = row.deep_stringify_keys
+      normalized['detail_lines'] = normalize_service_cost_lines_payload(normalized['detail_lines'])
+      normalized
+    end
+  end
+
+  def sale_service_printing_rows_from_notes(venta)
+    notes_payload = parse_notes_payload(venta.notes)
+    Array(notes_payload['sold_service_printings']).filter_map do |row|
+      next unless row.is_a?(Hash)
+
+      normalized = row.deep_stringify_keys
+      invoice_breakdown_only = ActiveModel::Type::Boolean.new.cast(normalized['invoice_breakdown_only'])
+      total_sale_price_usd = normalized['total_sale_price_usd'].to_d.round(2)
+      next unless total_sale_price_usd.positive? || invoice_breakdown_only
+
+      quantity = normalized['quantity'].to_d.round(2)
+      quantity = 1.to_d unless quantity.positive?
+
+      rate = @sale_reference[:effective_usd_rate].to_d
+      rate = venta.tasa_dolar.to_d unless rate.positive?
+
+      unit_sale_price_bs = normalized['unit_sale_price_bs'].to_d.round(2)
+      total_sale_price_bs = normalized['total_sale_price_bs'].to_d.round(2)
+
+      if normalized['classification'].to_s == 'physical_delivery_extra_product' &&
+         !total_sale_price_usd.positive? &&
+         normalized['product_id'].to_i.positive?
+        product = current_business.productos.find_by(id: normalized['product_id'].to_i)
+        if product
+          unit_sale_price_usd = product.precio_venta_usd.to_d.round(2)
+          total_sale_price_usd = (unit_sale_price_usd * quantity).round(2)
+          unit_sale_price_bs = (unit_sale_price_usd * rate).round(2) if rate.positive?
+          total_sale_price_bs = (total_sale_price_usd * rate).round(2) if rate.positive?
+        end
+      end
+
+      if !unit_sale_price_bs.positive? && rate.positive?
+        unit_sale_price_bs = ((total_sale_price_usd / quantity) * rate).round(2)
+      end
+
+      total_sale_price_bs = (total_sale_price_usd * rate).round(2) if !total_sale_price_bs.positive? && rate.positive?
+
+      normalized.merge(
+        'classification' => normalized['classification'].to_s.presence || (invoice_breakdown_only ? 'physical_delivery_extra_product' : 'printing_service'),
+        'classification_label' => normalized['classification_label'].to_s.presence || (invoice_breakdown_only ? 'Producto adicional de entrega' : 'Servicio de impresion'),
+        'quantity' => quantity.to_f,
+        'unit_sale_price_bs' => unit_sale_price_bs.to_f,
+        'total_sale_price_bs' => total_sale_price_bs.to_f,
+        'unit_sale_price_usd' => (total_sale_price_usd.positive? ? (total_sale_price_usd / quantity).round(2) : normalized['unit_sale_price_usd'].to_d.round(2)).to_f,
+        'total_sale_price_usd' => total_sale_price_usd.to_f
+      )
+    end
+  end
+
+  def sale_service_cost_rows_from_debts(venta)
+    debts = current_business
+            .debts
+            .where(venta_id: venta.id, debt_kind: 'payable')
+            .where('description LIKE ?', '%[SERVICE_COST]%')
+            .includes(service: [
+                        { service_expense_structures: [{ service_manager_expenses: :manager }] },
+                        { service_expense_structures: :service_variable_expenses },
+                        { service_expense_structures: { service_product_expenses: %i[producto product_variation] } }
+                      ])
+            .order(:id)
+
+    debts.map do |debt|
+      details = debt.service_cost_details_hash
+      {
+        'service_id' => debt.service_id,
+        'service_name' => details['service_name'].to_s.strip.presence || debt.service&.description.to_s,
+        'detail_lines' => sale_service_cost_lines_for_invoice(debt: debt)
+      }
+    end
+  end
+
+  def sale_service_cost_lines_for_invoice(debt:)
+    stored_lines = debt.service_cost_lines
+    return stored_lines unless debt.service_cost_pending?
+    return stored_lines if debt.service.blank?
+
+    live_lines = build_live_service_cost_lines_for_invoice(debt: debt)
+    return stored_lines if live_lines.blank?
+
+    apply_paid_amounts_to_live_sale_service_cost_lines(
+      live_lines: live_lines,
+      stored_lines: stored_lines
+    )
+  end
+
+  def build_live_service_cost_lines_for_invoice(debt:)
+    service = debt.service
+    return [] if service.blank?
+
+    quantity = debt.service_cost_details_hash['quantity'].to_d
+    quantity = 1.to_d unless quantity.positive?
+
+    tasa_dolar = TasaCambio.latest_value('Dolar BCV').to_d
+    unidad_vi = TasaCambio.latest_value('Unidad VI').to_d
+
+    normalize_service_cost_lines_payload(
+      build_service_cost_detail_lines(
+        service: service,
+        multiplier: quantity,
+        tasa_dolar: tasa_dolar,
+        unidad_vi: unidad_vi,
+        consumable_decisions: {}
+      )
+    )
+  end
+
+  def apply_paid_amounts_to_live_sale_service_cost_lines(live_lines:, stored_lines:)
+    stored_by_source = Array(stored_lines).each_with_object({}) do |raw_line, hash|
+      line = raw_line.deep_stringify_keys
+      key = sale_service_cost_line_source_key(line)
+      next if key.blank?
+
+      hash[key] ||= []
+      hash[key] << line
+    end
+
+    Array(live_lines).map do |raw_line|
+      line = raw_line.deep_stringify_keys
+      key = sale_service_cost_line_source_key(line)
+      stored_line = key.present? ? stored_by_source[key]&.shift : nil
+
+      amount_usd = line['amount_usd'].to_d.round(2)
+      paid_usd = stored_line.to_h['paid_usd'].to_d.round(2)
+      paid_usd = amount_usd if paid_usd > amount_usd
+
+      pending_usd = (amount_usd - paid_usd).round(2)
+      pending_usd = 0.to_d if pending_usd.abs <= 0.01.to_d
+
+      line['paid_usd'] = paid_usd.to_f
+      line['pending_usd'] = pending_usd.to_f
+      line['status'] = if pending_usd <= 0
+                         'paid'
+                       elsif paid_usd.positive?
+                         'partial'
+                       else
+                         'pending'
+                       end
+
+      line
+    end
+  end
+
+  def sale_service_cost_line_source_key(line)
+    source_type = line['source_type'].to_s
+    source_id = line['source_id'].to_s
+    return '' if source_type.blank? || source_id.blank?
+
+    "#{source_type}:#{source_id}"
+  end
+
+  def normalized_sale_service_cost_row_key(service_name)
+    service_name.to_s.strip.downcase
+  end
+
+  def hydrate_invoice_breakdown_visibility!(rows:)
+    source_ids = Array(rows).flat_map do |row|
+      Array(row['detail_lines']).filter_map do |line|
+        next unless line.is_a?(Hash)
+        next unless line['classification'].to_s == 'product_expense'
+        next unless line['source_type'].to_s == 'ServiceProductExpense'
+
+        source_id = line['source_id'].to_i
+        source_id if source_id.positive?
+      end
+    end.uniq
+
+    breakdown_by_id = if source_ids.empty?
+                        {}
+                      else
+                        ServiceProductExpense.where(id: source_ids).pluck(:id, :breakdown_in_invoice).to_h
+                      end
+
+    Array(rows).each do |row|
+      Array(row['detail_lines']).each do |line|
+        next unless line.is_a?(Hash)
+        next unless line['classification'].to_s == 'product_expense'
+
+        explicit_flag = line['breakdown_in_invoice']
+        visible = if explicit_flag.nil?
+                    source_id = line['source_id'].to_i
+                    source_id.positive? ? ActiveModel::Type::Boolean.new.cast(breakdown_by_id[source_id]) : false
+                  else
+                    ActiveModel::Type::Boolean.new.cast(explicit_flag)
+                  end
+
+        line['breakdown_in_invoice'] = visible
+      end
+    end
   end
 
   def sale_credit_status_for(total:, paid:, balance:, has_payments: false)
@@ -2291,21 +2818,21 @@ class VentasController < ApplicationController
 
     if total_value <= 0 || balance_value <= 0
       {
-        key: "paid",
-        label: "Pagada",
-        badge_class: "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200",
+        key: 'paid',
+        label: 'Pagada',
+        badge_class: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
       }
     elsif paid_value.positive? || has_payments
       {
-        key: "partial",
-        label: "Parcial",
-        badge_class: "bg-amber-100 text-amber-700 ring-1 ring-amber-200",
+        key: 'partial',
+        label: 'Parcial',
+        badge_class: 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
       }
     else
       {
-        key: "pending",
-        label: "Pendiente",
-        badge_class: "bg-rose-100 text-rose-700 ring-1 ring-rose-200",
+        key: 'pending',
+        label: 'Pendiente',
+        badge_class: 'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
       }
     end
   end
@@ -2313,7 +2840,7 @@ class VentasController < ApplicationController
   def build_sale_credit_display(totals:, base_currency:, rate:)
     debt_currency = totals[:currency].to_s.upcase
     base_currency_code = base_currency.to_s.upcase
-    alt_currency_code = base_currency_code == "VES" ? "USD" : "VES"
+    alt_currency_code = base_currency_code == 'VES' ? 'USD' : 'VES'
 
     {
       currency: debt_currency,
@@ -2331,7 +2858,7 @@ class VentasController < ApplicationController
       paid_alt: convert_sale_amount(totals[:paid], from_currency: debt_currency, to_currency: alt_currency_code,
                                                    rate: rate),
       balance_alt: convert_sale_amount(totals[:balance], from_currency: debt_currency,
-                                                         to_currency: alt_currency_code, rate: rate),
+                                                         to_currency: alt_currency_code, rate: rate)
     }
   end
 
@@ -2346,42 +2873,292 @@ class VentasController < ApplicationController
 
     usd_aliases = %w[USD USDT]
 
-    return (value / normalized_rate).round(2) if source_currency == "VES" && usd_aliases.include?(target_currency)
+    return (value / normalized_rate).round(2) if source_currency == 'VES' && usd_aliases.include?(target_currency)
 
-    return (value * normalized_rate).round(2) if usd_aliases.include?(source_currency) && target_currency == "VES"
+    return (value * normalized_rate).round(2) if usd_aliases.include?(source_currency) && target_currency == 'VES'
 
     nil
   end
 
   def create_receivable_debt_for_sale!(venta:, amount:, currency:, due_on: nil)
-    issued_on = Time.use_zone("America/Caracas") { Time.zone.today }
+    issued_on = Time.use_zone('America/Caracas') { Time.zone.today }
 
     current_business.debts.create!(
       name: "Saldo venta ##{venta.id}",
       description: "Saldo pendiente venta ##{venta.id} [VENTA:#{venta.id}]",
-      debt_kind: "receivable",
+      debt_kind: 'receivable',
       amount: amount.to_d.round(2),
       currency: currency.to_s.upcase,
       issued_on: issued_on,
       due_on: due_on,
-      cliente: venta.cliente,
+      cliente: venta.cliente
     )
   end
 
+  def service_cost_debit_enabled?(service)
+    return false unless service
+
+    service.cost?
+  end
+
   def default_method_for_account(account)
-    return "" unless account
+    return '' unless account
 
     case account.account_type
-    when "cash_box"
-      "cash"
-    when "card"
-      "card"
-    when "digital_wallet"
-      "wallet"
-    when "crypto_wallet"
-      "crypto"
+    when 'cash_box'
+      'cash'
+    when 'card'
+      'card'
+    when 'digital_wallet'
+      'wallet'
+    when 'crypto_wallet'
+      'crypto'
     else
-      ""
+      ''
     end
   end
+end
+
+def normalize_service_delivery_presentation(value, service: nil)
+  normalized = value.to_s.strip.downcase
+  return normalized if %w[physical digital].include?(normalized)
+
+  return 'physical' if service&.delivery_physical_enabled? && !service&.delivery_digital_enabled?
+
+  return 'digital' if service&.delivery_digital_enabled? && !service&.delivery_physical_enabled?
+
+  nil
+end
+
+def normalize_print_delivery_pages_for_sale(service)
+  Array(service&.print_delivery_pages).filter_map do |raw_page|
+    row = raw_page.is_a?(Hash) ? raw_page.deep_stringify_keys : {}
+    coverage = row['coverage_percent'].to_d.round(2)
+    next unless coverage.positive?
+
+    print_type_service_id = row['print_type_service_id'].to_i
+    if print_type_service_id <= 0 && service&.print_delivery_service_id.present?
+      print_type_service_id = service&.print_delivery_service_id.to_i
+    end
+
+    material_surcharge_id = row['material_surcharge_id'].to_i
+    if material_surcharge_id <= 0 && service&.print_delivery_material_surcharge_id.present?
+      material_surcharge_id = service&.print_delivery_material_surcharge_id.to_i
+    end
+    next unless print_type_service_id.positive? && material_surcharge_id.positive?
+
+    includes_lamination = ActiveModel::Type::Boolean.new.cast(row['includes_lamination'])
+    lamination_service_id = row['lamination_service_id'].to_i
+    lamination_service_id = nil unless includes_lamination && lamination_service_id.positive?
+
+    {
+      'page_number' => row['page_number'].to_i.positive? ? row['page_number'].to_i : 1,
+      'coverage_percent' => coverage,
+      'print_type_service_id' => print_type_service_id,
+      'material_surcharge_id' => material_surcharge_id,
+      'includes_lamination' => includes_lamination,
+      'lamination_service_id' => lamination_service_id
+    }
+  end.sort_by { |row| row['page_number'].to_i }
+end
+
+def normalize_print_delivery_extra_products_for_sale(service)
+  return [] unless service&.delivery_physical_enabled?
+  return [] unless service.respond_to?(:normalized_print_delivery_extra_products)
+
+  rows = service.normalized_print_delivery_extra_products
+  return [] unless rows.is_a?(Array)
+
+  product_ids = rows.filter_map do |row|
+    product_id = row.is_a?(Hash) ? row['product_id'].to_i : 0
+    product_id if product_id.positive?
+  end.uniq
+
+  products_by_id = current_business
+                   .productos
+                   .where(id: product_ids)
+                   .index_by(&:id)
+
+  rows.filter_map do |raw_row|
+    row = raw_row.is_a?(Hash) ? raw_row.deep_stringify_keys : {}
+    product_id = row['product_id'].to_i
+    variation_id = row['variation_id'].to_i
+    quantity = row['quantity'].to_d.round(2)
+    next unless product_id.positive? && quantity.positive?
+
+    product = products_by_id[product_id]
+    next unless product
+
+    variation = product.product_variations.find { |item| item.id == variation_id }
+    variation ||= product.product_variations.min_by(&:id)
+    next unless variation
+
+    {
+      product_id: product.id,
+      product_name: product.descripcion.to_s,
+      variation_id: variation.id,
+      variation_name: variation.description.to_s,
+      quantity: quantity.to_f,
+      breakdown_in_invoice: ActiveModel::Type::Boolean.new.cast(row['breakdown_in_invoice'])
+    }
+  end
+end
+
+def resolve_printing_price_bs_for_coverage(coverage_percent:, prices:)
+  sorted = Array(prices).sort_by { |row| row.coverage_percent.to_d }
+  return 0.to_d if sorted.empty?
+
+  match = sorted.find { |row| row.coverage_percent.to_d >= coverage_percent.to_d }
+  match ||= sorted.last
+  match&.price_bs.to_d
+end
+
+def build_service_physical_printing_payload(service:, tasa_dolar:)
+  return { enabled: false } unless service.delivery_physical_enabled?
+
+  pages = normalize_print_delivery_pages_for_sale(service)
+  return { enabled: false } if pages.empty?
+
+  type_service_ids = pages.map { |row| row['print_type_service_id'].to_i }.uniq
+  material_ids = pages.map { |row| row['material_surcharge_id'].to_i }.uniq
+  lamination_ids = pages.filter_map do |row|
+    row['lamination_service_id'].to_i if row['lamination_service_id'].to_i.positive?
+  end.uniq
+
+  type_services_by_id = current_business
+                        .services
+                        .includes(:service_print_coverage_prices)
+                        .where(id: type_service_ids)
+                        .index_by(&:id)
+  material_rows_by_id = ServicePrintMaterialSurcharge
+                        .includes(:producto)
+                        .where(id: material_ids)
+                        .index_by(&:id)
+  lamination_services_by_id = current_business
+                              .services
+                              .includes(service_print_material_surcharges: :producto)
+                              .where(id: lamination_ids)
+                              .index_by(&:id)
+
+  lamination_material_ids = lamination_services_by_id.values.flat_map do |lamination_service|
+    lamination_service.service_print_material_surcharges.map(&:id)
+  end
+  if lamination_material_ids.any?
+    material_rows_by_id.merge!(
+      ServicePrintMaterialSurcharge
+        .includes(:producto)
+        .where(id: lamination_material_ids)
+        .index_by(&:id)
+    )
+  end
+
+  normalized_pages = []
+  grouped_material_usage = Hash.new(0)
+  grouped_lamination_usage = Hash.new(0)
+  cost_bs = 0.to_d
+
+  pages.each do |row|
+    type_service = type_services_by_id[row['print_type_service_id'].to_i]
+    next if type_service.blank?
+
+    prices = type_service.service_print_coverage_prices.ordered_by_coverage.to_a
+    next if prices.empty?
+
+    material_row = material_rows_by_id[row['material_surcharge_id'].to_i]
+    next if material_row.blank? || material_row.service_id != type_service.id || material_row.producto.blank?
+
+    page_cost_bs = resolve_printing_price_bs_for_coverage(coverage_percent: row['coverage_percent'].to_d,
+                                                          prices: prices)
+    cost_bs += page_cost_bs.to_d
+
+    grouped_material_usage[material_row.id] += 1
+
+    if ActiveModel::Type::Boolean.new.cast(row['includes_lamination'])
+      lamination_service = lamination_services_by_id[row['lamination_service_id'].to_i]
+      if lamination_service.present?
+        grouped_lamination_usage[lamination_service.id] += 1
+        lamination_service.service_print_material_surcharges.each do |lamination_material_row|
+          next if lamination_material_row.producto.blank?
+
+          required_quantity = lamination_material_row.respond_to?(:required_quantity) ? lamination_material_row.required_quantity.to_d : 1.to_d
+          grouped_material_usage[lamination_material_row.id] += required_quantity
+        end
+      end
+    end
+
+    normalized_pages << {
+      page_number: row['page_number'].to_i,
+      coverage_percent: row['coverage_percent'].to_d.to_f,
+      print_type_service_id: type_service.id,
+      print_type_service_name: type_service.description.to_s,
+      material_surcharge_id: material_row.id,
+      material_label: material_row.display_label.to_s,
+      material_product_id: material_row.producto_id,
+      material_product_name: material_row.producto&.descripcion.to_s,
+      includes_lamination: ActiveModel::Type::Boolean.new.cast(row['includes_lamination']),
+      lamination_service_id: row['lamination_service_id'].to_i.positive? ? row['lamination_service_id'].to_i : nil,
+      lamination_service_name: lamination_services_by_id[row['lamination_service_id'].to_i]&.description.to_s,
+      page_cost_bs: page_cost_bs.to_d.round(2).to_f
+    }
+  end
+
+  return { enabled: false } if normalized_pages.empty?
+
+  cost_bs = cost_bs.round(2)
+  cost_usd = if tasa_dolar.to_d.positive?
+               (cost_bs / tasa_dolar.to_d).round(2)
+             else
+               0.to_d
+             end
+
+  material_rows = grouped_material_usage.filter_map do |surcharge_id, quantity|
+    row = material_rows_by_id[surcharge_id]
+    next if row.blank? || row.producto.blank?
+
+    {
+      surcharge_id: row.id,
+      label: row.display_label.to_s,
+      product_id: row.producto_id,
+      product_name: row.producto&.descripcion.to_s,
+      quantity: quantity.to_i
+    }
+  end
+
+  lamination_rows = grouped_lamination_usage.filter_map do |lamination_service_id, quantity|
+    lamination_service = lamination_services_by_id[lamination_service_id]
+    next if lamination_service.blank?
+
+    {
+      service_id: lamination_service.id,
+      service_name: lamination_service.print_sale_display_name.to_s.presence || lamination_service.description.to_s,
+      quantity: quantity.to_i,
+      material_rows: lamination_service.service_print_material_surcharges.filter_map do |row|
+        next if row.producto.blank?
+
+        required_quantity = row.respond_to?(:required_quantity) ? row.required_quantity.to_d : 1.to_d
+
+        {
+          surcharge_id: row.id,
+          label: row.display_label.to_s,
+          product_id: row.producto_id,
+          product_name: row.producto&.descripcion.to_s,
+          quantity: required_quantity.to_f
+        }
+      end
+    }
+  end
+
+  first_material = material_rows.first
+  extra_products = normalize_print_delivery_extra_products_for_sale(service)
+
+  {
+    enabled: cost_bs.positive?,
+    pages: normalized_pages,
+    material_rows: material_rows,
+    extra_products: extra_products,
+    lamination_rows: lamination_rows,
+    material: first_material,
+    cost_bs: cost_bs.to_f,
+    cost_usd: cost_usd.to_f
+  }
 end

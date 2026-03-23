@@ -1,0 +1,70 @@
+<div class="relative rounded-xl border border-slate-200 bg-white p-3 pr-12" data-lamination-material-row data-nested-row>
+  <%= f.hidden_field :_destroy, data: { destroy_input: true } %>
+  <%= f.hidden_field :id %>
+  <%= f.hidden_field :description %>
+  <%= f.hidden_field :surcharge_percent, value: 0 %>
+  <%= f.hidden_field :include_product_price_in_sale, value: false %>
+  <%= f.select :producto_id,
+               products_options_for_select(
+                 products: products,
+                 bcv_rate: bcv_rate,
+                 selected_id: f.object.producto_id
+               ),
+               { include_blank: 'Selecciona material' },
+               class: 'hidden',
+               data: { product_select: true } %>
+  <div class="grid gap-3 md:grid-cols-[minmax(0,1.2fr)_170px_110px] md:items-start">
+    <div>
+      <% selected_product_name = f.object.producto&.descripcion.to_s.strip %>
+      <%= f.label :producto_id, 'Material', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+      <div class="relative mt-1">
+        <input type="search"
+               class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+               placeholder="Buscar material"
+               autocomplete="off"
+               value="<%= selected_product_name %>"
+               data-product-search>
+        <div class="absolute z-30 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" data-product-results></div>
+      </div>
+      <p class="mt-2 text-xs text-slate-500" data-product-selected-label>
+        <%= selected_product_name.present? ? "Seleccionado: #{selected_product_name}" : 'Sin material seleccionado' %>
+      </p>
+    </div>
+    <div>
+      <% selected_oldest_cost_usd = f.object.producto&.stock_lots&.ordered_fifo&.find { |lot| lot.quantity_remaining.to_d.positive? }&.unit_cost_usd.to_d %>
+      <% selected_oldest_cost_bs = bcv_rate.to_d.positive? ? (selected_oldest_cost_usd * bcv_rate.to_d).round(2) : 0.to_d %>
+      <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Costo lote mas viejo</label>
+      <input type="text"
+             readonly
+             class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700"
+             value="<%= format_money(selected_oldest_cost_usd, unit: '$') %> · <%= format_money(selected_oldest_cost_bs, unit: 'Bs') %>"
+             data-product-oldest-cost>
+      <p class="mt-1 text-xs text-slate-500">Solo visual, no se usa en calculos.</p>
+    </div>
+    <div>
+      <%= f.label :required_quantity, 'Cantidad', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+      <% if f.object.respond_to?(:required_quantity) %>
+        <% required_quantity_value = f.object.required_quantity.to_d.positive? ? f.object.required_quantity.to_d : 1.to_d %>
+        <%= f.number_field :required_quantity,
+                           value: (required_quantity_value.frac.zero? ? required_quantity_value.to_i.to_s : required_quantity_value.to_s('F')),
+                           step: 0.01,
+                           min: 0.01,
+                           class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        <p class="mt-1 text-xs text-slate-500">Cantidad requerida por unidad de servicio.</p>
+      <% else %>
+        <input type="number"
+               value="1"
+               min="1"
+               step="1"
+               readonly
+               class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-700">
+        <p class="mt-1 text-xs text-slate-500">Reinicia el servidor para habilitar este campo tras migrar.</p>
+      <% end %>
+    </div>
+  </div>
+  <button type="button"
+          class="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
+          data-remove-lamination-material-row>
+    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+  </button>
+</div>

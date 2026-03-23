@@ -61,13 +61,27 @@ class Venta < ApplicationRecord
   end
 
   def base_unit_price(item)
+    snapshot_amount = item.unit_price_base_amount.to_d
+    snapshot_currency = item.unit_price_base_currency.to_s.upcase
+
+    return snapshot_amount.round(2) if snapshot_amount.positive? && snapshot_currency == base_currency.to_s.upcase
+
     unit_usd = item.unit_price_usd.to_d
     return unit_usd unless base_currency_ves?
 
     rate = base_rate
     return 0.to_d unless rate.positive?
 
-    if vat_mode == 'included'
+    # Legacy fallback for rows without base snapshot.
+    # For products with IVA incluido, prefer product gross USD so Bs net matches POS formula.
+    return (unit_usd * rate).round(2) if item_exento_for_vat?(item)
+
+    if vat_mode == 'included' && vat_rate.to_d.positive?
+      if item.producto.present?
+        gross_product_usd = item.producto.precio_venta_usd.to_d
+        return ((gross_product_usd * rate) / (1 + vat_rate.to_d)).round(2) if gross_product_usd.positive?
+      end
+
       gross_usd = (unit_usd * (1 + vat_rate.to_d)).round(4)
       gross_base = (gross_usd * rate).round(2)
       (gross_base / (1 + vat_rate.to_d)).round(2)
@@ -82,10 +96,40 @@ class Venta < ApplicationRecord
     (base_unit_price(item) * item.quantity.to_d).round(2)
   end
 
-  def base_subtotal
-    return subtotal_usd.to_d.round(2) unless base_currency_ves?
+  def taxable_subtotal_usd
+    active_items = venta_items.reject(&:marked_for_destruction?)
+    active_items.reject { |item| item_exento_for_vat?(item) }
+                .sum { |item| item.subtotal_usd.to_d }
+                .round(2)
+  end
 
-    venta_items.reject(&:marked_for_destruction?).sum { |item| base_line_subtotal(item) }.round(2)
+  def exento_subtotal_usd
+    active_items = venta_items.reject(&:marked_for_destruction?)
+    active_items.select { |item| item_exento_for_vat?(item) }
+                .sum { |item| item.subtotal_usd.to_d }
+                .round(2)
+  end
+
+  def taxable_base_subtotal
+    return taxable_subtotal_usd unless base_currency_ves?
+
+    active_items = venta_items.reject(&:marked_for_destruction?)
+    active_items.reject { |item| item_exento_for_vat?(item) }
+                .sum { |item| base_line_subtotal(item) }
+                .round(2)
+  end
+
+  def exento_base_subtotal
+    return exento_subtotal_usd unless base_currency_ves?
+
+    active_items = venta_items.reject(&:marked_for_destruction?)
+    active_items.select { |item| item_exento_for_vat?(item) }
+                .sum { |item| base_line_subtotal(item) }
+                .round(2)
+  end
+
+  def base_subtotal
+    taxable_base_subtotal
   end
 
   def base_vat
@@ -98,7 +142,7 @@ class Venta < ApplicationRecord
   def base_total
     return total_usd.to_d.round(2) unless base_currency_ves?
 
-    (base_subtotal + base_vat).round(2)
+    (base_subtotal + exento_base_subtotal + base_vat).round(2)
   end
 
   private
@@ -111,13 +155,16 @@ class Venta < ApplicationRecord
 
   def calculate_totals
     active_items = venta_items.reject(&:marked_for_destruction?)
-    subtotal = active_items.sum { |item| item.subtotal_usd.to_d }
+    taxable_subtotal = active_items.reject { |item| item_exento_for_vat?(item) }
+                                   .sum { |item| item.subtotal_usd.to_d }
+    exento_subtotal = active_items.select { |item| item_exento_for_vat?(item) }
+                                  .sum { |item| item.subtotal_usd.to_d }
     rate = vat_rate.to_d
-    vat_value = vat_mode == 'none' ? 0.to_d : subtotal * rate
+    vat_value = vat_mode == 'none' ? 0.to_d : taxable_subtotal * rate
 
-    self.subtotal_usd = subtotal.round(2)
+    self.subtotal_usd = taxable_subtotal.round(2)
     self.vat_usd = vat_value.round(2)
-    self.total_usd = (subtotal + vat_value).round(2)
+    self.total_usd = (taxable_subtotal + exento_subtotal + vat_value).round(2)
 
     exchange_rate = tasa_dolar.to_d
     self.total_bs = if base_currency_ves?
@@ -125,5 +172,13 @@ class Venta < ApplicationRecord
                     else
                       exchange_rate.positive? ? (total_usd * exchange_rate).round(2) : 0
                     end
+  end
+
+  def item_exento_for_vat?(item)
+    if item.respond_to?(:exento) && !item.exento.nil?
+      ActiveModel::Type::Boolean.new.cast(item.exento)
+    else
+      item.producto.present? && item.producto.respond_to?(:exento?) && item.producto.exento?
+    end
   end
 end

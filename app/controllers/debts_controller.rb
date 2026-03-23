@@ -14,6 +14,7 @@ class DebtsController < ApplicationController
 
     scope = current_business
             .debts
+            .excluding_service_cost_records
             .includes(:cliente, :debt_payments)
 
     if @search_query.present?
@@ -326,7 +327,7 @@ class DebtsController < ApplicationController
   end
 
   def set_debt
-    @debt = current_business.debts.find(params[:id])
+    @debt = current_business.debts.excluding_service_cost_records.find(params[:id])
   end
 
   def load_parties
@@ -572,9 +573,7 @@ class DebtsController < ApplicationController
 
     total_value = amount.to_d.round(2)
     primary_payment = payments_to_persist.first&.last
-    if primary_payment && total_value.positive?
-      primary_payment.movement_amount_override = total_value
-    end
+    primary_payment.movement_amount_override = total_value if primary_payment && total_value.positive?
     payments_to_persist.drop(1).each do |_debt, payment|
       payment.skip_account_movement = true
     end

@@ -4,6 +4,11 @@
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0 flex-1">
       <h3 class="truncate text-base font-bold text-slate-800">Factura #<%= purchase_invoice.id %></h3>
+      <% if purchase_invoice.initial_inventory? %>
+        <p class="mt-1">
+          <span class="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-700">Inventario inicial</span>
+        </p>
+      <% end %>
       <p class="mt-1 text-sm text-slate-600"><span class="font-semibold text-slate-700">Proveedor:</span> <%= purchase_invoice.supplier_display_name %></p>
       <p class="mt-2">
         <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold <%= invoice_payment_status_badge_class(status_key) %>"><%= status_label %></span>

@@ -22,6 +22,10 @@
       </div>
       <div class="flex flex-wrap gap-2">
         <% if Current.user&.admin? %>
+          <%= link_to printing_prices_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm transition-colors hover:bg-cyan-100", data: { turbo_frame: "_top" } do %>
+            <i data-lucide="printer" class="h-4 w-4"></i>
+            Precios de Impresiones
+          <% end %>
           <%= link_to pending_costs_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition-colors hover:bg-rose-100", data: { turbo_frame: "_top" } do %>
             <i data-lucide="wallet" class="h-4 w-4"></i>
             Costos pendientes
@@ -119,9 +123,6 @@
                   <% end %>
                   <% if service.restricted_service? %>
                     <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700">Restringido</span>
-                  <% end %>
-                  <% if service.auto_cost_stock_discount? %>
-                    <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-700">Costo/stock auto</span>
                   <% end %>
                 </div>
               </div>

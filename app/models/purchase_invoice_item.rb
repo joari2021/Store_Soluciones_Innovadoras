@@ -18,7 +18,28 @@ class PurchaseInvoiceItem < ApplicationRecord
   end
 
   def calcular_subtotal
-    self.subtotal = (costo_mayor || 0) * (cantidad || 0)
+    if purchase_invoice&.initial_inventory?
+      unit_cost_usd = resolved_unit_cost_usd
+      self.subtotal = unit_cost_usd * cantidad.to_d
+    else
+      self.subtotal = (costo_mayor || 0) * (cantidad || 0)
+    end
+  end
+
+  def line_subtotal_usd
+    return subtotal.to_d unless purchase_invoice&.initial_inventory?
+
+    resolved_unit_cost_usd * cantidad.to_d
+  end
+
+  def line_subtotal_bs
+    return costo_mayor_bs.to_d * cantidad.to_d unless purchase_invoice&.initial_inventory?
+
+    rate = purchase_invoice&.tasa_dolar.to_d
+    unit_cost_usd_rounded = resolved_unit_cost_usd.round(2)
+    unit_cost_bs = unit_cost_usd_rounded * rate
+
+    unit_cost_bs * cantidad.to_d
   end
 
   private
@@ -111,9 +132,15 @@ class PurchaseInvoiceItem < ApplicationRecord
     return stock_lot&.destroy if producto_id.blank?
 
     lot = stock_lot || build_stock_lot
+    initial_inventory = purchase_invoice&.initial_inventory?
     lot.producto_id = producto_id
-    lot.supplier_id = purchase_invoice&.supplier_id
-    lot.supplier_name = purchase_invoice&.supplier_name.presence || purchase_invoice&.supplier&.nombre || lot.supplier_name
+    lot.supplier_id = initial_inventory ? nil : purchase_invoice&.supplier_id
+    lot.supplier_name = if initial_inventory
+                          'Inventario inicial'
+                        else
+                          purchase_invoice&.supplier_name.presence || purchase_invoice&.supplier&.nombre || lot.supplier_name
+                        end
+    lot.description = initial_inventory ? 'inventario inicial' : nil
     lot.unit_cost_usd = costo_menor || 0
     lot.quantity_in = cantidad || 0
     lot.quantity_remaining = cantidad || 0 if lot.new_record?
@@ -167,8 +194,7 @@ class PurchaseInvoiceItem < ApplicationRecord
   end
 
   def build_variation_stock_rows
-    units_per_pack = unid_x_pack.to_d
-    total_units = cantidad.to_d * (units_per_pack.positive? ? units_per_pack : 1)
+    total_units = total_units_for_variation_breakdown
     rows = []
     single_variation = single_product_variation
 
@@ -185,7 +211,9 @@ class PurchaseInvoiceItem < ApplicationRecord
         variation_id = single_variation&.id if variation_id.blank? && single_variation.present?
 
         variation_description = (entry['description'] || entry[:description]).to_s.strip
-        variation_description = single_variation&.description.to_s.strip if variation_description.blank? && single_variation.present?
+        if variation_description.blank? && single_variation.present?
+          variation_description = single_variation&.description.to_s.strip
+        end
 
         {
           product_variation_id: variation_id,
@@ -230,7 +258,16 @@ class PurchaseInvoiceItem < ApplicationRecord
   end
 
   def total_units_for_variation_breakdown
+    return cantidad.to_d if purchase_invoice&.initial_inventory?
+
     units_per_pack = unid_x_pack.to_d
     cantidad.to_d * (units_per_pack.positive? ? units_per_pack : 1)
+  end
+
+  def resolved_unit_cost_usd
+    units_per_pack = unid_x_pack.to_d
+    return costo_mayor.to_d if units_per_pack <= 0
+
+    costo_mayor.to_d / units_per_pack
   end
 end

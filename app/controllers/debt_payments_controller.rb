@@ -119,7 +119,7 @@ class DebtPaymentsController < ApplicationController
   private
 
   def set_debt
-    current_debt = current_business.debts.find(params[:debt_id])
+    current_debt = current_business.debts.excluding_service_cost_records.find(params[:debt_id])
     @debt = group_root_for(current_debt)
     grouped_debts = debts_in_same_group(@debt)
     @grouped_debts = sort_debts([@debt] + grouped_debts.reject { |item| item.id == @debt.id })

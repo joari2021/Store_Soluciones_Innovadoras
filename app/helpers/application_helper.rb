@@ -37,7 +37,10 @@ module ApplicationHelper
     formatted_debt_description = normalize_debt_movement_description(description)
     return formatted_debt_description if formatted_debt_description.present?
 
-    cleaned = description.gsub(/\s*\[(?:DEBT|DP|VENTA|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO):\d+\]/i, '')
+    cleaned = description
+              .gsub(/\s*\[(?:DEBT|DP|VENTA|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM):\d+\]/i, '')
+              .gsub(/\s*\[LINE:[^\]]+\]/i, '')
+              .gsub(/\s*\[COMMISSION\]/i, '')
     cleaned.gsub(/\s{2,}/, ' ').strip
   end
 
@@ -45,9 +48,38 @@ module ApplicationHelper
     description = movement.description.to_s
     return nil if description.blank?
 
+    if (related_movement_id = extract_movement_source_id(description, 'AM')).present?
+      related_movement = AccountMovement
+                         .joins(:account)
+                         .where(id: related_movement_id, accounts: { business_id: current_business&.id })
+                         .select(:id, :account_id)
+                         .first
+
+      if related_movement.present?
+        return {
+          label: 'Ver movimiento relacionado',
+          path: account_path(related_movement.account_id, movement_id: related_movement.id)
+        }
+      end
+    end
+
+    if (related_account_id = extract_movement_source_id(description, 'ACCOUNT')).present?
+      related_account = current_business&.accounts&.select(:id)&.find_by(id: related_account_id)
+      return { label: 'Ver cuenta relacionada', path: account_path(related_account) } if related_account.present?
+    end
+
     if (debt_id = debt_source_id_for_description(description)).present?
-      debt = current_business&.debts&.select(:id)&.find_by(id: debt_id)
-      return { label: 'Ver registro de deuda', path: debt_path(debt) } if debt.present?
+      debt = current_business&.debts&.find_by(id: debt_id)
+      if debt.present?
+        if debt.service_cost_record? || description.match?(/\[SERVICE_COST\]/i)
+          return {
+            label: 'Ver registro de costo',
+            path: pending_cost_detail_services_path(debt_id: debt.id)
+          }
+        end
+
+        return { label: 'Ver registro de deuda', path: debt_path(debt) }
+      end
     end
 
     if (sale_id = extract_movement_source_id(description, 'VENTA')).present?
