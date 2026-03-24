@@ -13,11 +13,11 @@ class VentasController < ApplicationController
     @productos = paginate_scope(products_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
     @products_next_page = next_page_for(total_count: @productos_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
 
-    @product_categories = products_scope
-                          .joins(:categoria)
-                          .group('categorias.nombre')
-                          .count
-                          .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
+    @product_categories = current_business.productos
+                .joins(:categoria)
+                .group('categorias.nombre')
+                .count
+                .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
     @accounts = current_business.accounts.with_attached_payment_method_image.where(active: true).order(:name)
     @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
@@ -35,11 +35,13 @@ class VentasController < ApplicationController
     @services = paginate_scope(services_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
     @services_next_page = next_page_for(total_count: @services_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
 
-    @service_systems = services_scope
-                       .joins(:system_service)
-                       .group('system_services.name')
-                       .count
-                       .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
+    @service_systems = current_business.services
+               .where(available: true)
+               .visible_for_user(Current.user)
+               .joins(:system_service)
+               .group('system_services.name')
+               .count
+               .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
     @services_payload = build_services_payload(
       @services,
