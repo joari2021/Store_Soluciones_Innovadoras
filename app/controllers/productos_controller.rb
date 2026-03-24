@@ -1,25 +1,23 @@
 class ProductosController < ApplicationController
   before_action :set_producto, only: %i[show edit update destroy]
-  before_action :require_admin, except: [:index, :show]
+  before_action :require_admin, except: %i[index show]
 
   def index
     @productos = Producto.all.order(descripcion: :asc)
-    #@productos = Producto.all.with_attached_poster
+    # @productos = Producto.all.with_attached_poster
     availability_sql = Producto.availability_true_sql
 
-    if params[:query_text].present?
-      @productos = @productos.whose_name_starts_with(params[:query_text])
-    end
+    @productos = @productos.whose_name_starts_with(params[:query_text]) if params[:query_text].present?
 
     # Mapeo de nivel_ganancia a valores numéricos
     @nivel_ganancia_map = {
-      "Baja" => 15,
-      "Justa" => 23,
-      "Media" => 30,
-      "Alta" => 50
+      'Baja' => 15,
+      'Justa' => 23,
+      'Media' => 30,
+      'Alta' => 50
     }
     # Filtrar productos con alerta de precio si el filtro está activado
-    if params[:filter] == "alerta"
+    if params[:filter] == 'alerta'
       @productos = @productos.where(
         "(#{availability_sql} AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
           WHEN 'Baja' THEN 15
@@ -62,19 +60,18 @@ class ProductosController < ApplicationController
   def create
     @producto = Producto.new(producto_params)
     if @producto.save
-      redirect_to productos_path, notice: "Producto creado exitosamente."
+      redirect_to productos_path, notice: 'Producto creado exitosamente.'
     else
       render :new
     end
   end
 
-  def show;end
+  def show; end
 
   def export_excel
     productos = Producto.order(descripcion: :asc)
 
-    lines = []
-    lines << [
+    headers = [
       'ID',
       'Descripcion',
       'Precio costo',
@@ -88,30 +85,50 @@ class ProductosController < ApplicationController
       'Disponible',
       'Creado en',
       'Actualizado en'
-    ].join("\t")
+    ]
 
-    productos.find_each do |producto|
-      lines << [
+    table_head = headers.map { |header| "<th>#{sanitize_excel_cell(header)}</th>" }.join
+    table_body = productos.map do |producto|
+      values = [
         producto.id,
-        sanitize_excel_cell(producto.descripcion),
+        producto.descripcion,
         producto.precio_costo,
         producto.precio_venta_usd,
         producto.precio_venta_bs,
         producto.cant_unidades,
-        sanitize_excel_cell(producto.nivel_ganancia),
-        sanitize_excel_cell(producto.moneda_base_precio),
+        producto.nivel_ganancia,
+        producto.moneda_base_precio,
         producto.min_stock,
         producto.max_stock,
         producto.available? ? 'Si' : 'No',
         producto.created_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S'),
         producto.updated_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S')
-      ].join("\t")
-    end
+      ]
 
-    rows = lines.join("\n")
+      cells = values.map { |value| "<td>#{sanitize_excel_cell(value)}</td>" }.join
+      "<tr>#{cells}</tr>"
+    end.join
+
+    rows = <<~HTML
+      <html>
+        <head>
+          <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+        </head>
+        <body>
+          <table border="1">
+            <thead>
+              <tr>#{table_head}</tr>
+            </thead>
+            <tbody>
+              #{table_body}
+            </tbody>
+          </table>
+        </body>
+      </html>
+    HTML
 
     filename = "productos_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xls"
-    send_data "\uFEFF#{rows}",
+    send_data rows,
               filename: filename,
               type: 'application/vnd.ms-excel; charset=utf-8',
               disposition: 'attachment'
@@ -122,7 +139,7 @@ class ProductosController < ApplicationController
 
   def update
     if @producto.update(producto_params)
-      redirect_to productos_path, notice: "Producto actualizado exitosamente."
+      redirect_to productos_path, notice: 'Producto actualizado exitosamente.'
     else
       render :edit, status: :unprocessable_entity
     end
@@ -130,16 +147,16 @@ class ProductosController < ApplicationController
 
   def destroy
     if @producto.destroy
-      redirect_to productos_path, notice: "Producto eliminado exitosamente."
+      redirect_to productos_path, notice: 'Producto eliminado exitosamente.'
     else
-      redirect_to productos_path, alert: "No se pudo eliminar el producto."
+      redirect_to productos_path, alert: 'No se pudo eliminar el producto.'
     end
   end
 
   private
 
   def sanitize_excel_cell(value)
-    value.to_s.gsub(/[\t\r\n]/, ' ').strip
+    ERB::Util.html_escape(value.to_s.gsub(/[\r\n]/, ' ').strip)
   end
 
   def set_producto
