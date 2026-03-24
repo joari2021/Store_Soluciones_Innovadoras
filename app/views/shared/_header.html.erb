@@ -99,6 +99,14 @@
         </span>
       <% end %>
     <% end %>
+    <% if Rails.env.development? && current_user_admin? %>
+      <%= link_to sandbox_mercantil_c2p_search_path,
+                  class: 'hidden lg:inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-violet-100',
+                  data: { turbo_frame: '_top' } do %>
+        <i data-lucide="flask-conical" class="h-4 w-4"></i>
+        Sandbox C2P
+      <% end %>
+    <% end %>
     <div id="rates-tooltip" class="relative">
       <button id="rates-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-200/85 text-slate-700 shadow-sm ring-1 ring-slate-300 transition-colors hover:bg-slate-300 hover:text-slate-900 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver tasas">
         <i data-lucide="line-chart" class="w-5 h-5"></i>

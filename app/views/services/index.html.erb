@@ -21,7 +21,13 @@
         <p class="mt-1 text-sm text-slate-500">Organiza planes, precios y disponibilidad con una vista clara para ventas.</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <% if Current.user&.admin? %>
+        <% if current_user_admin? %>
+          <% if Rails.env.development? %>
+            <%= link_to sandbox_mercantil_c2p_search_path, class: "inline-flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 shadow-sm transition-colors hover:bg-violet-100", data: { turbo_frame: "_top" } do %>
+              <i data-lucide="flask-conical" class="h-4 w-4"></i>
+              Sandbox C2P Search
+            <% end %>
+          <% end %>
           <%= link_to printing_prices_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm transition-colors hover:bg-cyan-100", data: { turbo_frame: "_top" } do %>
             <i data-lucide="printer" class="h-4 w-4"></i>
             Precios de Impresiones

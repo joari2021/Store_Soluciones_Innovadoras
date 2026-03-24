@@ -116,6 +116,11 @@ Rails.application.routes.draw do
     resources :appointments, only: %i[index new create]
   end
 
+  if Rails.env.development?
+    get 'sandbox/mercantil-c2p-search', to: 'mercantil_c2p_sandbox#index', as: :sandbox_mercantil_c2p_search
+    post 'sandbox/mercantil-c2p-search', to: 'mercantil_c2p_sandbox#create'
+  end
+
   resources :appointments, except: %i[index new create]
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
