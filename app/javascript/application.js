@@ -445,10 +445,15 @@ const initializeMoneyMasks = () => {
   window.MoneyInputMask?.init(document);
 };
 
-const initializeLucideIcons = () => {
+const initializeLucideIcons = (attemptsRemaining = 20) => {
   if (window.lucide && typeof window.lucide.createIcons === "function") {
     window.lucide.createIcons();
+    return;
   }
+
+  if (attemptsRemaining <= 0) return;
+
+  window.setTimeout(() => initializeLucideIcons(attemptsRemaining - 1), 150);
 };
 
 document.addEventListener("turbo:load", () =>

@@ -1248,6 +1248,20 @@ class VentasController < ApplicationController
         rows.sum { |row| row.quantity_remaining.to_d }
       end
 
+      # Compatibilidad: algunos lotes historicos o importaciones antiguas pueden
+      # guardar stock con product_variation_id nil para productos que hoy tienen
+      # una sola variacion activa (por ejemplo, "Unica"). En ese caso, atribuimos
+      # ese stock a la unica variacion para que ventas lo reconozca correctamente.
+      if producto.product_variations.size == 1
+        unique_variation_id = producto.product_variations.first.id
+        nil_variation_total = variation_totals[nil].to_d
+
+        if nil_variation_total.positive?
+          variation_totals[unique_variation_id] = variation_totals[unique_variation_id].to_d + nil_variation_total
+          variation_totals.delete(nil)
+        end
+      end
+
       total_units = variation_totals.values.sum
       total_units = producto.stock_lots.to_a.sum { |lot| lot.quantity_remaining.to_d } if total_units.zero?
 

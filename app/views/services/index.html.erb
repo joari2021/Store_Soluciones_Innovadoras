@@ -362,6 +362,16 @@
       });
     });
 
+    if (searchInput.dataset.frameFilterBound !== "true") {
+      searchInput.dataset.frameFilterBound = "true";
+      document.addEventListener("turbo:frame-load", (event) => {
+        const frameId = String(event?.target?.id || "");
+        if (!frameId.startsWith("services-")) return;
+
+        applyFilter();
+      });
+    }
+
     updateServiceSystemFilterStyles();
     updateServiceStatusFilterStyles();
     applyFilter();
