@@ -1,0 +1,70 @@
+<% selected_nested_service = nested_services.find { |nested_service| nested_service.id == f.object.nested_service_id } %>
+<% to_agree_selected = selected_nested_service&.to_agree? %>
+<% nested_reference = f.object.currency_reference.to_s.strip.presence || 'Bs' %>
+<% nested_reference_symbol = currency_symbol_for_reference(nested_reference, rows: expense_currency_rows, fallback: 'Bs') %>
+<% nested_reference_amount = f.object.amount_reference.to_d %>
+<div class="rounded-xl border border-slate-200 bg-white p-3" data-nested-row data-nested-persisted="<%= f.object.persisted? %>">
+  <%= f.hidden_field :_destroy, data: { destroy_input: true } %>
+  <div class="grid gap-3 md:grid-cols-6">
+    <div class="md:col-span-2">
+      <%= f.label :nested_service_id, "Servicio anidado", class: "block text-xs font-semibold uppercase tracking-wide text-slate-500" %>
+      <%= f.select :nested_service_id,
+                   nested_services_options_for_select(
+                     services: nested_services,
+                     bcv_rate: bcv_rate,
+                     selected_id: f.object.nested_service_id
+                   ),
+                   { include_blank: "Selecciona servicio" },
+                   class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                   data: { nested_service_select: true } %>
+    </div>
+    <div data-nested-qty-wrapper>
+      <%= f.label :quantity, "Cantidad", class: "block text-xs font-semibold uppercase tracking-wide text-slate-500" %>
+      <%= f.number_field :quantity,
+                         step: "0.01",
+                         min: "0.01",
+                         value: plain_decimal_input_value(f.object.quantity, default: 1),
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { nested_qty: true, disable_number_steppers: true } %>
+    </div>
+    <div class="<%= to_agree_selected ? '' : 'hidden' %>" data-nested-agree-currency-wrapper>
+      <%= f.label :currency_reference, "Tasa preferencia", class: "block text-xs font-semibold uppercase tracking-wide text-slate-500" %>
+      <%= f.select :currency_reference,
+                   currency_reference_options_for_select(rows: expense_currency_rows, selected: nested_reference),
+                   { selected: nested_reference },
+                   class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                   data: { nested_agree_currency_select: true } %>
+    </div>
+    <div class="<%= to_agree_selected ? '' : 'hidden' %>" data-nested-agree-amount-wrapper>
+      <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500" data-nested-agree-amount-label>
+        Monto <%= nested_reference %>
+      </label>
+      <%= f.text_field :amount_reference,
+                       value: format_money(nested_reference_amount, unit: nested_reference_symbol),
+                       autocomplete: "off",
+                       class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                       data: {
+                         money_mask: true,
+                         money_symbol: nested_reference_symbol,
+                         nested_agree_amount: true
+                       } %>
+    </div>
+    <div>
+      <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Equivalente $ BCV</label>
+      <input type="text"
+             value="$ 0,00"
+             class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 shadow-sm"
+             readonly
+             tabindex="-1"
+             data-line-total-usd
+             data-money-mask="true"
+             data-money-symbol="$"
+             autocomplete="off">
+    </div>
+  </div>
+  <div class="mt-3 flex justify-end">
+    <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100" data-remove-nested-row>
+      Eliminar
+    </button>
+  </div>
+</div>

@@ -1,0 +1,288 @@
+<% can_manage_products = can_manage_action?(:manage_products) %>
+<% table_total_columns = can_manage_products ? 8 : 7 %>
+<% productos.each do |producto| %>
+  <% variations = producto.product_variations.to_a.sort_by { |variation| variation.description.to_s.downcase } %>
+  <% sorted_lots = producto.stock_lots.to_a.sort_by { |lot| [lot.purchased_at || lot.created_at, lot.created_at] }.reverse %>
+  <% variation_groups = variations.index_with { { lots: [], total: 0.to_d, total_value: 0.to_d } } %>
+  <% variation_lookup_by_id = variations.index_by(&:id) %>
+  <% variation_lookup_by_description = variations.index_by { |variation| variation.description.to_s.strip.downcase } %>
+  <% sorted_lots.each do |lot| %>
+    <% item = lot.purchase_invoice_item %>
+    <% invoice = item&.purchase_invoice %>
+    <% invoice_ref = invoice.present? ? "Factura ##{invoice.id}" : "Lote ##{lot.id}" %>
+    <% lot_date = (invoice&.fecha_emision || lot.purchased_at || lot.created_at)&.to_date %>
+    <% lot_date_label = lot_date.present? ? lot_date.strftime('%d/%m/%Y') : '-' %>
+    <% units_per_pack = item&.unid_x_pack.to_d %>
+    <% lot_variation_rows = lot.stock_lot_variations.to_a %>
+    <% if lot_variation_rows.any? %>
+      <% lot_variation_rows.each do |entry| %>
+        <% linked_variation = if entry.product_variation_id.present?
+                                variation_lookup_by_id[entry.product_variation_id]
+                              else
+                                variation_lookup_by_description[entry.variation_description.to_s.strip.downcase]
+                              end %>
+        <% linked_variation ||= variations.first if linked_variation.blank? && variations.one? %>
+        <% next unless linked_variation %>
+        <% quantity_remaining = entry.quantity_remaining.to_d %>
+        <% next unless quantity_remaining.positive? %>
+        <% quantity_in = entry.quantity_in.to_d %>
+        <% lot_total_value = (lot.unit_cost_usd.to_d * quantity_remaining).round(2) %>
+        <% variation_groups[linked_variation][:total] += quantity_remaining %>
+        <% variation_groups[linked_variation][:total_value] += lot_total_value %>
+        <% variation_groups[linked_variation][:lots] << {
+             variation_lot_id: entry.id,
+             lot_id: lot.id,
+             invoice_ref: invoice_ref,
+             invoice_id: invoice&.id,
+             factura_item_id: item&.id,
+             lot_date_label: lot_date_label,
+             unit_cost_usd: lot.unit_cost_usd,
+             supplier_display_name: lot.supplier_display_name,
+             quantity_remaining: quantity_remaining,
+             quantity_in: quantity_in,
+             total_value_usd: lot_total_value
+           } %>
+      <% end %>
+    <% else %>
+      <% legacy_rows = item&.variation_breakdown.is_a?(Array) ? item.variation_breakdown : [] %>
+      <% if legacy_rows.any? %>
+        <% legacy_rows.each do |entry| %>
+          <% legacy_variation_id = (entry['variation_id'] || entry[:variation_id]).presence %>
+          <% legacy_description = (entry['description'] || entry[:description]).to_s.strip.downcase %>
+          <% linked_variation = if legacy_variation_id.present?
+                                  variation_lookup_by_id[legacy_variation_id.to_i]
+                                else
+                                  variation_lookup_by_description[legacy_description]
+                                end %>
+          <% linked_variation ||= variations.first if linked_variation.blank? && variations.one? %>
+          <% next unless linked_variation %>
+          <% quantity = (entry['quantity'] || entry[:quantity]).to_d %>
+          <% next unless quantity.positive? %>
+          <% lot_total_value = (lot.unit_cost_usd.to_d * quantity).round(2) %>
+          <% variation_groups[linked_variation][:total] += quantity %>
+          <% variation_groups[linked_variation][:total_value] += lot_total_value %>
+          <% variation_groups[linked_variation][:lots] << {
+            variation_lot_id: nil,
+               lot_id: lot.id,
+               invoice_ref: invoice_ref,
+               invoice_id: invoice&.id,
+               factura_item_id: item&.id,
+               lot_date_label: lot_date_label,
+               unit_cost_usd: lot.unit_cost_usd,
+               supplier_display_name: lot.supplier_display_name,
+               quantity_remaining: quantity,
+               quantity_in: quantity,
+               total_value_usd: lot_total_value
+             } %>
+        <% end %>
+      <% elsif variations.one? %>
+        <% lot_quantity_remaining_units = lot.quantity_remaining.to_d * (units_per_pack.positive? ? units_per_pack : 1) %>
+        <% next unless lot_quantity_remaining_units.positive? %>
+        <% lot_quantity_in_units = lot.quantity_in.to_d * (units_per_pack.positive? ? units_per_pack : 1) %>
+        <% lot_total_value = (lot.unit_cost_usd.to_d * lot_quantity_remaining_units).round(2) %>
+        <% linked_variation = variations.first %>
+        <% variation_groups[linked_variation][:total] += lot_quantity_remaining_units %>
+        <% variation_groups[linked_variation][:total_value] += lot_total_value %>
+        <% variation_groups[linked_variation][:lots] << {
+             variation_lot_id: nil,
+             lot_id: lot.id,
+             invoice_ref: invoice_ref,
+             invoice_id: invoice&.id,
+             factura_item_id: item&.id,
+             lot_date_label: lot_date_label,
+             unit_cost_usd: lot.unit_cost_usd,
+             supplier_display_name: lot.supplier_display_name,
+             quantity_remaining: lot_quantity_remaining_units,
+             quantity_in: lot_quantity_in_units,
+             total_value_usd: lot_total_value
+           } %>
+      <% end %>
+    <% end %>
+  <% end %>
+  <% can_expand = variations.any? %>
+  <% initial_cost_usd = sorted_lots.last&.unit_cost_usd %>
+  <% product_total_inventory_value = variation_groups.sum { |_variation, group| group[:total_value].to_d } %>
+  <% product_total_quantity = producto.total_quantity.to_d %>
+  <% product_sale_price_usd = producto.precio_venta_usd.to_d %>
+  <% product_total_sale_value = (product_total_quantity * product_sale_price_usd).round(2) %>
+  <% any_variation_below_safety_stock = variations.any? do |variation| %>
+    <% variation_safety_stock = variation.safety_stock.to_d %>
+    <% next false unless variation_safety_stock.positive? %>
+    <% variation_total_quantity = variation_groups.dig(variation, :total).to_d %>
+    <% variation_total_quantity < variation_safety_stock %>
+  <% end %>
+  <% product_stock_badge_class = if product_total_quantity.zero?
+                                  'bg-rose-100 text-rose-700'
+                                elsif any_variation_below_safety_stock
+                                  'bg-amber-100 text-amber-700'
+                                else
+                                  'bg-sky-100 text-sky-700'
+                                end %>
+  <tr class="group border-b border-slate-100 transition-colors hover:bg-sky-50/70" data-product-row-id="<%= producto.id %>">
+    <td class="px-6 py-4">
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="js-product-toggle-row inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+          data-product-id="<%= producto.id %>"
+          <%= can_expand ? '' : 'disabled' %>>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="js-product-toggle-icon h-4 w-4 transition-transform <%= can_expand ? '' : 'opacity-40' %>">
+          <path fill-rule="evenodd" d="M9.47 5.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L14.94 12 9.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <% if producto.foto.present? %>
+        <img src="<%= url_for(producto.foto) %>" alt="Imagen de <%= producto.descripcion %>" class="h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover" />
+      <% else %>
+        <%= image_tag 'default_image.jpeg', class: 'h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover', alt: 'Imagen por defecto' %>
+      <% end %>
+      <div class="min-w-0">
+        <p class="truncate text-sm font-semibold text-slate-800"><%= producto.descripcion %></p>
+        <p class="mt-0.5 text-xs text-slate-500"><%= variations.size == 1 ? '1 variacion' : "#{variations.size} variaciones" %></p>
+      </div>
+    </div>
+  </td>
+  <td class="px-6 py-4">
+    <% if producto.categoria.present? %>
+      <span class="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700"><%= producto.categoria.nombre %></span>
+    <% else %>
+      <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">Sin categoria</span>
+    <% end %>
+  </td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+    <%= initial_cost_usd.present? ? format_money(initial_cost_usd, unit: '$', precision: 2) : '—' %>
+  </td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+    <%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %>
+  </td>
+  <td class="px-6 py-4 text-right">
+    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= product_stock_badge_class %>"><%= format_quantity(product_total_quantity) %> disp.</span>
+  </td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-800"><%= format_money(product_total_inventory_value, unit: '$') %></td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-800"><%= format_money(product_total_sale_value, unit: '$') %></td>
+  <% if can_manage_products %>
+    <td class="px-6 py-4">
+      <div class="flex justify-end gap-2">
+        <%= link_to edit_producto_path(producto), remote: true, method: :get, class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-sky-50 p-2 text-sky-600 transition-colors hover:bg-sky-100', data: { turbo_frame: 'modal-productos' }, onclick: "openModal('productModal')" do %>
+          <i data-lucide="edit-3" class="h-4 w-4"></i>
+        <% end %>
+        <%= button_to producto_path(producto), method: :delete, form_class: 'delete-alertbox', class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-rose-50 p-2 text-rose-600 transition-colors hover:bg-rose-100' do %>
+          <i data-lucide="trash-2" class="h-4 w-4"></i>
+        <% end %>
+      </div>
+    </td>
+  <% end %>
+</tr>
+<% variations.each do |variation| %>
+  <% group = variation_groups[variation] || { lots: [], total: 0.to_d, total_value: 0.to_d } %>
+  <% total_variation_quantity = group[:total].to_d %>
+  <% total_variation_inventory_value = group[:total_value].to_d %>
+  <% total_variation_sale_value = (total_variation_quantity * product_sale_price_usd).round(2) %>
+  <% variation_safety_stock = variation.safety_stock.to_d %>
+  <% variation_stock_badge_class = if total_variation_quantity.zero?
+                                     'bg-rose-100 text-rose-700'
+                                   elsif variation_safety_stock.positive? && total_variation_quantity < variation_safety_stock
+                                     'bg-amber-100 text-amber-700'
+                                   else
+                                     'bg-sky-100 text-sky-700'
+                                   end %>
+  <% variation_key = variation.id.to_s %>
+  <tr class="js-product-variation-row hidden bg-sky-50/35 text-sm" data-product-detail-for="<%= producto.id %>" data-variation-key="<%= variation_key %>">
+    <td class="px-6 py-3 pl-16">
+      <button type="button" class="js-variation-toggle-row inline-flex cursor-pointer items-center gap-2 rounded-lg border border-sky-200 bg-white px-2.5 py-1.5 font-semibold text-sky-700 transition hover:bg-sky-50" data-product-id="<%= producto.id %>" data-variation-key="<%= variation_key %>">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="js-variation-toggle-icon h-4 w-4 transition-transform">
+          <path fill-rule="evenodd" d="M9.47 5.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L14.94 12 9.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>
+        <span><%= variation.description.presence || 'Unica' %></span>
+      </button>
+    </td>
+    <td class="px-6 py-3 font-medium text-slate-600">Total por variacion</td>
+    <td class="px-6 py-3 text-right text-slate-500">—</td>
+    <td class="px-6 py-3 text-right text-slate-500"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
+    <td class="px-6 py-3 text-right whitespace-nowrap">
+      <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= variation_stock_badge_class %>"><%= format_quantity(total_variation_quantity) %> disp.</span>
+    </td>
+    <% if can_manage_products %>
+      <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(total_variation_inventory_value, unit: '$') %></td>
+      <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(total_variation_sale_value, unit: '$') %></td>
+      <td class="px-6 py-3 text-right text-slate-500"><%= group[:lots].size == 1 ? '1 lote' : "#{group[:lots].size} lotes" %></td>
+    <% else %>
+      <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">
+        <span><%= format_money(total_variation_inventory_value, unit: '$') %></span>
+      </td>
+      <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">
+        <span><%= format_money(total_variation_sale_value, unit: '$') %></span>
+        <span class="ml-2 text-xs font-medium text-slate-500"><%= group[:lots].size == 1 ? '1 lote' : "#{group[:lots].size} lotes" %></span>
+      </td>
+    <% end %>
+  </tr>
+  <% if group[:lots].any? %>
+    <% group[:lots].each do |lot_entry| %>
+      <% lot_sale_total_value = (product_sale_price_usd * lot_entry[:quantity_remaining].to_d).round(2) %>
+      <tr class="js-product-lot-row hidden bg-white/90 text-sm" data-product-lot-for="<%= producto.id %>" data-variation-key="<%= variation_key %>">
+        <td class="px-6 py-3 pl-24 whitespace-normal align-top">
+          <span class="inline-flex items-start gap-2 text-slate-700">
+            <span class="text-slate-400">↳</span>
+            <span class="inline-flex flex-col">
+              <% if lot_entry[:variation_lot_id].present? %>
+                <span class="font-semibold">Lote variación #<%= lot_entry[:variation_lot_id] %></span>
+                <span class="text-xs text-slate-500">Origen: lote principal #<%= lot_entry[:lot_id] %></span>
+              <% else %>
+                <span class="font-semibold">Lote principal #<%= lot_entry[:lot_id] %></span>
+              <% end %>
+            </span>
+          </span>
+        </td>
+        <td class="px-6 py-3 text-slate-600 whitespace-normal break-words"><%= lot_entry[:invoice_ref] %> · <%= lot_entry[:lot_date_label] %> · <%= lot_entry[:supplier_display_name] %></td>
+        <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_entry[:unit_cost_usd], unit: '$', precision: 2) %></td>
+        <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
+        <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_quantity(lot_entry[:quantity_remaining]) %> / <%= format_quantity(lot_entry[:quantity_in]) %></td>
+        <% if can_manage_products %>
+          <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_entry[:total_value_usd], unit: '$') %></td>
+          <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_sale_total_value, unit: '$') %></td>
+          <td class="px-6 py-3 text-right">
+            <% if lot_entry[:invoice_id].present? && lot_entry[:factura_item_id].present? %>
+              <%= link_to purchase_invoice_path(lot_entry[:invoice_id], source: 'lot', highlighted_item_id: lot_entry[:factura_item_id]),
+                            class: 'inline-flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-300 hover:bg-emerald-100 hover:shadow',
+                            title: 'Ver factura',
+                            aria: { label: 'Ver factura' } do %>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" class="h-4 w-4 text-emerald-700">
+                  <path d="M1.5 12s3.75-7.5 10.5-7.5S22.5 12 22.5 12s-3.75 7.5-10.5 7.5S1.5 12 1.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+                  <circle cx="12" cy="12" r="3.2" fill="currentColor" />
+                  <circle cx="12" cy="12" r="1.1" fill="#ecfeff" />
+                </svg>
+                <span class="whitespace-nowrap">Ver factura</span>
+              <% end %>
+            <% else %>
+              <span class="text-slate-400">—</span>
+            <% end %>
+          </td>
+        <% else %>
+          <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">
+            <span><%= format_money(lot_entry[:total_value_usd], unit: '$') %></span>
+          </td>
+          <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">
+            <span><%= format_money(lot_sale_total_value, unit: '$') %></span>
+            <% if lot_entry[:invoice_id].present? && lot_entry[:factura_item_id].present? %>
+              <%= link_to purchase_invoice_path(lot_entry[:invoice_id], source: 'lot', highlighted_item_id: lot_entry[:factura_item_id]),
+                            class: 'ml-2 inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100',
+                            title: 'Ver factura',
+                            aria: { label: 'Ver factura' } do %>
+                <span class="whitespace-nowrap">Ver factura</span>
+              <% end %>
+            <% end %>
+          </td>
+        <% end %>
+      </tr>
+    <% end %>
+  <% else %>
+    <tr class="js-product-lot-row hidden bg-slate-50/70 text-sm" data-product-lot-for="<%= producto.id %>" data-variation-key="<%= variation_key %>">
+      <td class="px-6 py-3 pl-24 text-slate-500" colspan="<%= table_total_columns %>">Sin lotes disponibles para esta variacion.</td>
+    </tr>
+  <% end %>
+<% end %>
+<% if variations.empty? %>
+  <tr class="js-product-empty-row hidden bg-slate-50/70" data-product-empty-for="<%= producto.id %>">
+    <td class="px-6 py-3 pl-16 text-sm text-slate-500" colspan="<%= table_total_columns %>">Sin variaciones o lotes asociados todavia.</td>
+  </tr>
+<% end %>
+<% end %>

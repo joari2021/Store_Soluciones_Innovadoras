@@ -1,0 +1,11 @@
+<%= turbo_frame_tag "modal-facturas" %>
+<script>
+  document.addEventListener('turbo:frame-load', (e) => {
+    if (!e || !e.target || e.target.id !== 'modal-facturas') return;
+    const modal = document.getElementById('facturaModal');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  });
+</script>

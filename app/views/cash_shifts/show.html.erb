@@ -1,0 +1,791 @@
+<% sales_reference_by_id = @sales_reference_by_id || {} %>
+<% shift_exchange_rate_rows = @shift_exchange_rate_rows || [] %>
+<% close_verification_rows = @close_verification_rows || [] %>
+<% closing_notes_text = @closing_notes_text.to_s.strip.presence %>
+<% inherited_cash_carryovers = close_verification_rows.select do |row|
+     row[:account_type].to_s == 'cash_box' && row[:carryover_from_previous].to_d.positive?
+   end %>
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Turno #<%= @cash_shift.id %></p>
+        <h1 class="mt-1 text-2xl font-extrabold tracking-tight text-slate-800">Resumen de jornada</h1>
+        <p class="mt-2 text-sm text-slate-500">Abierto por <strong><%= @cash_shift.opened_by&.display_name || 'Sin usuario' %></strong> el <%= l(@cash_shift.opened_at, format: :short) rescue @cash_shift.opened_at.strftime('%d/%m/%Y %H:%M') %>.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <% if @cash_shift.open? && @cash_shift.opened_by_id == Current.user&.id %>
+          <button
+            id="cash-shift-close-trigger"
+            type="button"
+            data-close-url="<%= close_cash_shift_path(@cash_shift) %>"
+            class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700"
+          >
+            Cerrar turno
+          </button>
+        <% end %>
+        <span class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold <%= @cash_shift.open? ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700' %>">
+          <%= @cash_shift.status_label %>
+        </span>
+        <%= link_to cash_shifts_path, class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50' do %>
+          Volver
+        <% end %>
+      </div>
+    </div>
+    <% if @cash_shift.open? && inherited_cash_carryovers.any? %>
+      <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 shadow-sm">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-amber-700">Arrastre heredado por caja</p>
+            <p class="mt-1 text-xs text-slate-600">Estos montos ya se suman al esperado en el modal de cierre.</p>
+          </div>
+          <span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+            <%= inherited_cash_carryovers.size %> caja(s) con arrastre
+          </span>
+        </div>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <% inherited_cash_carryovers.each do |row| %>
+            <% row_currency = row[:currency].to_s.upcase %>
+            <% row_symbol = row[:currency_symbol].to_s.presence || (row_currency == 'VES' ? 'Bs' : '$') %>
+            <span class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+              <%= row[:account_name] %>: <%= number_to_currency(row[:carryover_from_previous], unit: "#{row_symbol} ") %>
+            </span>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ventas registradas</p>
+      <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @sales_count %></p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total ventas USD</p>
+      <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= number_to_currency(@sales_total_usd, unit: '$ ') %></p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total ventas VES</p>
+      <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= number_to_currency(@sales_total_ves, unit: 'Bs ') %></p>
+    </div>
+  </div>
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Tasas del dia (BCV)</h2>
+      <span class="text-xs text-slate-500">USD y EUR por fecha del turno</span>
+    </div>
+    <% if shift_exchange_rate_rows.any? %>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <table class="min-w-full text-sm text-slate-700">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-3 py-2 text-left">Fecha</th>
+              <th class="px-3 py-2 text-right">Dolar BCV</th>
+              <th class="px-3 py-2 text-right">Euro BCV</th>
+              <th class="px-3 py-2 text-right">Ventas</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% shift_exchange_rate_rows.each do |row| %>
+              <tr>
+                <td class="px-3 py-2 font-medium text-slate-800"><%= row[:date].strftime('%d/%m/%Y') %></td>
+                <td class="px-3 py-2 text-right font-semibold text-slate-700">
+                  <%= row[:usd_rate].to_d.positive? ? number_to_currency(row[:usd_rate], unit: 'Bs ') : 'Sin registro' %>
+                </td>
+                <td class="px-3 py-2 text-right font-semibold text-slate-700">
+                  <%= row[:eur_rate].to_d.positive? ? number_to_currency(row[:eur_rate], unit: 'Bs ') : 'Sin registro' %>
+                </td>
+                <td class="px-3 py-2 text-right text-slate-600"><%= row[:sales_count] %></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p class="mt-4 text-sm text-slate-500">No hay fechas con tasas asociadas en este turno.</p>
+    <% end %>
+  </section>
+  <div class="grid gap-6 xl:grid-cols-2">
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Pagos por cuenta</h2>
+        <span class="text-xs text-slate-500"><%= @payments_summary.size %> cuentas</span>
+      </div>
+      <% if @payments_summary.any? %>
+        <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          <table class="min-w-full text-sm text-slate-700">
+            <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th class="px-3 py-2 text-left">Cuenta</th>
+                <th class="px-3 py-2 text-left">Moneda</th>
+                <th class="px-3 py-2 text-right">Ingresos</th>
+                <th class="px-3 py-2 text-right">Egresos</th>
+                <th class="px-3 py-2 text-right">Neto</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% @payments_summary.each do |row| %>
+                <% row_symbol = row[:currency_symbol].to_s.presence || Account::CURRENCIES.dig(row[:currency].to_s.upcase, :symbol) || row[:currency].to_s %>
+                <tr>
+                  <td class="px-3 py-2 font-medium text-slate-800"><%= row[:account_name] %></td>
+                  <td class="px-3 py-2"><%= row[:currency] %></td>
+                  <td class="px-3 py-2 text-right"><%= number_to_currency(row[:incoming], unit: "#{row_symbol} ") %></td>
+                  <td class="px-3 py-2 text-right"><%= number_to_currency(row[:outgoing], unit: "#{row_symbol} ") %></td>
+                  <td class="px-3 py-2 text-right font-semibold"><%= number_to_currency(row[:net], unit: "#{row_symbol} ") %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% else %>
+        <p class="mt-4 text-sm text-slate-500">Aun no hay pagos registrados en este turno.</p>
+      <% end %>
+    </section>
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Ventas por personal</h2>
+        <span class="text-xs text-slate-500"><%= @seller_summary.size %> usuarios</span>
+      </div>
+      <% if @seller_summary.any? %>
+        <div class="mt-4 space-y-2">
+          <% @seller_summary.each do |row| %>
+            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <p class="text-sm font-semibold text-slate-800"><%= row[:user_name] %></p>
+              <p class="mt-1 text-xs text-slate-500"><%= row[:sales_count] %> ventas</p>
+              <div class="mt-2 flex items-center gap-3 text-xs font-semibold">
+                <span class="rounded-full bg-sky-100 px-2.5 py-1 text-sky-700">USD: <%= number_to_currency(row[:total_usd], unit: '$ ') %></span>
+                <span class="rounded-full bg-cyan-100 px-2.5 py-1 text-cyan-700">VES: <%= number_to_currency(row[:total_ves], unit: 'Bs ') %></span>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% else %>
+        <p class="mt-4 text-sm text-slate-500">Sin ventas en este turno.</p>
+      <% end %>
+    </section>
+  </div>
+  <% if @cash_shift.open? && @cash_shift.opened_by_id != Current.user&.id %>
+    <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+      <h2 class="text-sm font-bold uppercase tracking-widest text-slate-600">Cierre restringido</h2>
+      <p class="mt-1 text-sm text-slate-600">
+        Este turno solo puede ser cerrado por
+        <strong><%= @cash_shift.opened_by&.display_name || 'el usuario que lo abrio' %></strong>.
+      </p>
+    </section>
+  <% end %>
+  <% if @cash_shift.closed? && (@closing_verification_report_rows.present? || closing_notes_text.present?) %>
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Verificacion de cierre</h2>
+        <span class="text-xs text-slate-500"><%= @closing_verification_report_rows.size %> cuenta(s)</span>
+      </div>
+      <% if closing_notes_text.present? %>
+        <div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Observaciones del cierre</p>
+          <p class="mt-1 text-sm text-slate-700"><%= closing_notes_text %></p>
+        </div>
+      <% end %>
+      <% if @closing_verification_report_rows.present? %>
+        <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          <table class="min-w-full text-sm text-slate-700">
+            <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th class="px-3 py-2 text-left">Cuenta</th>
+                <th class="px-3 py-2 text-right">Esperado</th>
+                <th class="px-3 py-2 text-right">Declarado</th>
+                <th class="px-3 py-2 text-right">Diferencia</th>
+                <th class="px-3 py-2 text-right">Retiro caja</th>
+                <th class="px-3 py-2 text-right">Arrastre</th>
+                <th class="px-3 py-2 text-center">Alerta</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% @closing_verification_report_rows.each do |row| %>
+                <% diff_kind = row[:difference_kind].to_s %>
+                <% diff_badge_class = case diff_kind
+                                     when 'surplus'
+                                       'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200'
+                                     when 'shortage'
+                                       'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
+                                     else
+                                       'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                                     end %>
+                <% diff_label = case diff_kind
+                                when 'surplus' then 'Sobrante'
+                                when 'shortage' then 'Faltante'
+                                else 'Cuadrado'
+                                end %>
+                <% symbol = row[:currency_symbol].to_s.presence || row[:currency].to_s %>
+                <tr>
+                  <td class="px-3 py-2">
+                    <p class="font-semibold text-slate-800"><%= row[:account_name] %></p>
+                    <p class="text-xs text-slate-500"><%= row[:account_type].to_s.humanize %> · <%= row[:currency] %></p>
+                  </td>
+                  <td class="px-3 py-2 text-right"><%= number_to_currency(row[:expected_amount], unit: "#{symbol} ") %></td>
+                  <td class="px-3 py-2 text-right font-semibold text-slate-800"><%= number_to_currency(row[:declared_amount], unit: "#{symbol} ") %></td>
+                  <td class="px-3 py-2 text-right"><%= number_to_currency(row[:difference_amount].abs, unit: "#{symbol} ") %></td>
+                  <td class="px-3 py-2 text-right">
+                    <% if row[:account_type] == 'cash_box' %>
+                      <%= number_to_currency(row[:withdrawn_amount], unit: "#{symbol} ") %>
+                    <% else %>
+                      --
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 text-right">
+                    <% if row[:account_type] == 'cash_box' %>
+                      <%= number_to_currency(row[:carryover_amount], unit: "#{symbol} ") %>
+                    <% else %>
+                      --
+                    <% end %>
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= diff_badge_class %>"><%= diff_label %></span>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
+    </section>
+  <% end %>
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex items-center justify-between">
+      <h2 class="text-sm font-bold uppercase tracking-widest text-slate-500">Transacciones del turno</h2>
+      <span class="text-xs text-slate-500"><%= @sales.size %> ventas</span>
+    </div>
+    <% if @sales.any? %>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <table class="min-w-full text-sm text-slate-700">
+          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-3 py-2 text-left">Venta</th>
+              <th class="px-3 py-2 text-left">Cliente</th>
+              <th class="px-3 py-2 text-left">Facturo</th>
+              <th class="px-3 py-2 text-right">USD</th>
+              <th class="px-3 py-2 text-right">VES</th>
+              <th class="px-3 py-2 text-center">Hora</th>
+              <th class="px-3 py-2 text-right">Accion</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @sales.each do |sale| %>
+              <% sale_reference = sales_reference_by_id[sale.id] || {} %>
+              <% sale_total_usd = sale_reference.fetch(:usd_total, sale.total_usd.to_d) %>
+              <% sale_total_ves = sale_reference.fetch(:ves_total, sale.total_bs.to_d) %>
+              <% sale_rate_date = sale_reference[:rate_date] %>
+              <tr>
+                <td class="px-3 py-2 font-semibold text-slate-800">#<%= sale.id %></td>
+                <td class="px-3 py-2"><%= sale.cliente_display_name %></td>
+                <td class="px-3 py-2"><%= sale.seller_display_name %></td>
+                <td class="px-3 py-2 text-right"><%= number_to_currency(sale_total_usd, unit: '$ ') %></td>
+                <td class="px-3 py-2 text-right"><%= number_to_currency(sale_total_ves, unit: 'Bs ') %></td>
+                <td class="px-3 py-2 text-center">
+                  <span><%= l(sale.created_at, format: :short) rescue sale.created_at.strftime('%d/%m/%Y %H:%M') %></span>
+                  <% if sale_rate_date.present? %>
+                    <p class="text-xs text-slate-500">Tasa: <%= sale_rate_date.strftime('%d/%m/%Y') %></p>
+                  <% end %>
+                </td>
+                <td class="px-3 py-2 text-right">
+                  <%= link_to venta_path(sale), class: 'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 to-cyan-50 px-3.5 py-2 text-xs font-semibold text-sky-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-sky-300 hover:from-sky-100 hover:to-cyan-100 hover:shadow-md active:translate-y-0' do %>
+                    <i data-lucide="arrow-up-right" class="h-3.5 w-3.5"></i>
+                    Ver venta
+                  <% end %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% else %>
+      <p class="mt-4 text-sm text-slate-500">No hay transacciones registradas en este turno.</p>
+    <% end %>
+  </section>
+</div>
+<% if @cash_shift.open? && @cash_shift.opened_by_id == Current.user&.id %>
+  <script type="application/json" id="cash-shift-close-rows-data">
+    <%= raw ERB::Util.json_escape(close_verification_rows.to_json) %>
+  </script>
+  <script>
+    (() => {
+      const initCashShiftCloseModal = () => {
+        const trigger = document.getElementById('cash-shift-close-trigger');
+        const rowsDataEl = document.getElementById('cash-shift-close-rows-data');
+        if (!trigger || !rowsDataEl || trigger.dataset.boundCloseModal === 'true') return;
+
+        trigger.dataset.boundCloseModal = 'true';
+
+        let rowsData = [];
+        try {
+          rowsData = JSON.parse(rowsDataEl.textContent || '[]');
+        } catch (error) {
+          rowsData = [];
+        }
+
+        const parseRawAmount = (rawValue) => {
+          const compact = String(rawValue || '').trim().replace(/\s/g, '');
+          if (compact.length === 0) return NaN;
+
+          let normalized = compact;
+          if (compact.includes(',') && compact.includes('.')) {
+            normalized = compact.replace(/\./g, '').replace(',', '.');
+          } else if (compact.includes(',')) {
+            normalized = compact.replace(',', '.');
+          }
+
+          const parsed = Number.parseFloat(normalized);
+          return Number.isFinite(parsed) ? parsed : NaN;
+        };
+
+        const parseAmountFromInput = (input) => {
+          if (!input) return NaN;
+
+          if (window.MoneyInputMask?.parseValue) {
+            const parsed = Number(window.MoneyInputMask.parseValue(input));
+            return Number.isFinite(parsed) ? parsed : NaN;
+          }
+
+          return parseRawAmount(input.value);
+        };
+
+        const formatAmount = (value) => Number(value || 0).toLocaleString('es-VE', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+        const formatMoney = (value, symbol) => `${symbol} ${formatAmount(value)}`;
+
+        const escapeHtml = (value) => String(value)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+
+        const accountTypeLabel = (type) => {
+          const labels = {
+            biopago: 'Biopago',
+            pos: 'Punto de Venta',
+            cash_box: 'Caja',
+          };
+          return labels[String(type || '').toLowerCase()] || 'Cuenta';
+        };
+
+        const differenceMeta = (difference) => {
+          const safeDifference = Number(difference || 0);
+          if (Math.abs(safeDifference) <= 0.009) {
+            return {
+              label: 'Cuadrado',
+              className: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200',
+            };
+          }
+
+          if (safeDifference > 0) {
+            return {
+              label: 'Sobrante',
+              className: 'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200',
+            };
+          }
+
+          return {
+            label: 'Faltante',
+            className: 'bg-rose-100 text-rose-700 ring-1 ring-rose-200',
+          };
+        };
+
+        const symbolForRow = (row) => {
+          const symbol = String(row.currency_symbol || '').trim();
+          if (symbol) return symbol;
+          return String(row.currency).toUpperCase() === 'VES' ? 'Bs' : '$';
+        };
+
+        const updateRealtimeSummary = (dialog) => {
+          if (!dialog) return { hasDifferences: false, totalsByCurrency: {} };
+
+          const totalsByCurrency = {};
+          let hasDifferences = false;
+
+          rowsData.forEach((row, index) => {
+            const currency = String(row.currency || '').toUpperCase();
+            const symbol = symbolForRow(row);
+            const expected = Number(row.expected_amount || 0);
+            const isCashBox = String(row.account_type || '') === 'cash_box';
+            const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
+            const declared = isCashBox ? parseAmountFromInput(declaredInput) : expected;
+            const normalizedDeclared = Number.isFinite(declared) ? declared : 0;
+            const difference = Number((normalizedDeclared - expected).toFixed(2));
+            const diffBadge = differenceMeta(difference);
+
+            if (!totalsByCurrency[currency]) {
+              totalsByCurrency[currency] = {
+                symbol,
+                expected: 0,
+                declared: 0,
+                difference: 0,
+              };
+            }
+
+            totalsByCurrency[currency].expected += expected;
+            totalsByCurrency[currency].declared += normalizedDeclared;
+            totalsByCurrency[currency].difference += difference;
+
+            if (Math.abs(difference) > 0.009) hasDifferences = true;
+
+            const diffLabel = dialog.querySelector(`[data-close-diff-label="${index}"]`);
+            if (diffLabel) {
+              diffLabel.innerHTML = `
+                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${diffBadge.className}">${diffBadge.label}</span>
+                <span class="text-xs font-semibold text-slate-600">Dif: ${formatMoney(Math.abs(difference), symbol)}${difference >= 0 ? '' : ' (faltante)'}</span>
+              `;
+            }
+
+            if (String(row.account_type || '') === 'cash_box') {
+              const withdrawnInput = dialog.querySelector(`[data-close-withdrawn="${index}"]`);
+              const withdrawn = parseAmountFromInput(withdrawnInput);
+              const normalizedWithdrawn = Number.isFinite(withdrawn) ? Math.max(withdrawn, 0) : 0;
+              const carryover = Math.max(normalizedDeclared - normalizedWithdrawn, 0);
+              const carryoverLabel = dialog.querySelector(`[data-close-carryover-label="${index}"]`);
+              if (carryoverLabel) {
+                carryoverLabel.textContent = `Arrastre al siguiente turno: ${formatMoney(carryover, symbol)}`;
+              }
+            }
+          });
+
+          const summaryList = dialog.querySelector('[data-close-summary-list]');
+          if (summaryList) {
+            const currencies = Object.keys(totalsByCurrency);
+            if (currencies.length === 0) {
+              summaryList.innerHTML = '<p class="text-xs text-slate-500">Sin datos para calcular diferencias.</p>';
+            } else {
+              summaryList.innerHTML = currencies.map((currency) => {
+                const totals = totalsByCurrency[currency];
+                const difference = Number(totals.difference || 0);
+                const diffMeta = differenceMeta(difference);
+
+                return `
+                  <div class="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <p class="text-xs font-semibold text-slate-600">${escapeHtml(currency)}</p>
+                      <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${diffMeta.className}">${diffMeta.label}</span>
+                    </div>
+                    <p class="mt-1 text-xs text-slate-500">Esperado: <span class="font-semibold text-slate-700">${formatMoney(totals.expected, totals.symbol)}</span></p>
+                    <p class="text-xs text-slate-500">Declarado: <span class="font-semibold text-slate-700">${formatMoney(totals.declared, totals.symbol)}</span></p>
+                    <p class="text-xs text-slate-500">Diferencia: <span class="font-semibold text-slate-700">${formatMoney(Math.abs(difference), totals.symbol)}</span></p>
+                  </div>
+                `;
+              }).join('');
+            }
+          }
+
+          const summaryNote = dialog.querySelector('[data-close-summary-note]');
+          if (summaryNote) {
+            summaryNote.className = hasDifferences
+              ? 'text-xs font-semibold text-amber-700'
+              : 'text-xs font-semibold text-emerald-700';
+            summaryNote.textContent = hasDifferences
+              ? 'Hay diferencias detectadas en tiempo real. Revisa faltantes/sobrantes antes de cerrar.'
+              : 'Cierre perfecto: todos los montos cuadran.';
+          }
+
+          return { hasDifferences, totalsByCurrency };
+        };
+
+        const buildPayloadRows = (dialog) => {
+          const payloadRows = [];
+          let hasDifferences = false;
+
+          for (let index = 0; index < rowsData.length; index += 1) {
+            const row = rowsData[index];
+            const isCashBox = String(row.account_type || '') === 'cash_box';
+            const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
+            let declaredAmount = isCashBox ? parseAmountFromInput(declaredInput) : Number(row.expected_amount || 0);
+
+            if (!Number.isFinite(declaredAmount) || declaredAmount < 0) {
+              window.Swal.showValidationMessage(`Monto declarado invalido para ${row.account_name}.`);
+              return null;
+            }
+
+            const expectedAmount = Number(row.expected_amount || 0);
+            const difference = Number((declaredAmount - expectedAmount).toFixed(2));
+            if (Math.abs(difference) > 0.009) hasDifferences = true;
+
+            let withdrawnAmount = 0;
+            let carryoverAmount = 0;
+
+            if (String(row.account_type || '') === 'cash_box') {
+              const withdrawnInput = dialog.querySelector(`[data-close-withdrawn="${index}"]`);
+              withdrawnAmount = parseAmountFromInput(withdrawnInput);
+
+              if (!Number.isFinite(withdrawnAmount) || withdrawnAmount < 0) {
+                window.Swal.showValidationMessage(`Retiro de efectivo invalido para ${row.account_name}.`);
+                return null;
+              }
+
+              if (withdrawnAmount > declaredAmount) {
+                window.Swal.showValidationMessage(`El retiro de ${row.account_name} no puede exceder el monto declarado.`);
+                return null;
+              }
+
+              carryoverAmount = Number((declaredAmount - withdrawnAmount).toFixed(2));
+            }
+
+            payloadRows.push({
+              account_id: row.account_id,
+              account_name: row.account_name,
+              account_type: row.account_type,
+              currency: String(row.currency || '').toUpperCase(),
+              expected_amount: Number(expectedAmount.toFixed(2)),
+              declared_amount: Number(declaredAmount.toFixed(2)),
+              withdrawn_amount: Number(withdrawnAmount.toFixed(2)),
+              carryover_amount: Number(carryoverAmount.toFixed(2)),
+            });
+          }
+
+          const notes = String(dialog.querySelector('[data-close-notes]')?.value || '').trim();
+          return { rows: payloadRows, notes, hasDifferences };
+        };
+
+        trigger.addEventListener('click', async () => {
+          if (!window.Swal) return;
+
+          const rowsHtml = rowsData.length > 0
+            ? rowsData.map((row, index) => {
+                const symbol = symbolForRow(row);
+                const isCashBox = String(row.account_type || '') === 'cash_box';
+                const carryoverFromPrevious = Number(row.carryover_from_previous || 0);
+
+                return `
+                  <div class="rounded-xl border border-slate-200 bg-white p-3" data-close-row="${index}">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p class="text-sm font-semibold text-slate-800">${escapeHtml(row.account_name)}</p>
+                        <p class="text-xs text-slate-500">${escapeHtml(accountTypeLabel(row.account_type))} · ${escapeHtml(String(row.currency || '').toUpperCase())}</p>
+                        ${carryoverFromPrevious > 0 ? `<p class="text-xs font-semibold text-amber-700">Arrastre previo: ${escapeHtml(formatMoney(carryoverFromPrevious, symbol))}</p>` : ''}
+                      </div>
+                      <p class="text-sm font-bold text-slate-700">Esperado: ${escapeHtml(formatMoney(row.expected_amount, symbol))}</p>
+                    </div>
+                    ${isCashBox ? `
+                      <div class="mt-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto total reportado</label>
+                        <input type="text" inputmode="decimal" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="${symbol} 0,00" data-close-declared="${index}" data-money-mask="true" data-money-symbol="${symbol}">
+                        <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
+                      </div>
+                    ` : `
+                      <div class="mt-2 rounded-lg border border-sky-200 bg-sky-50/70 p-2.5">
+                        <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">${String(row.account_type || '') === 'biopago' ? 'Total acumulado del dia' : 'Cierre de Puntos De Venta'}</p>
+                        <p class="mt-1 text-xs text-slate-600">${String(row.account_type || '') === 'biopago'
+                          ? 'verifique que en el sistema del Biopago el monto exacto del total coincida con el que esta viendo en el sistema. Sino coincide asegurese de verificar las ventas y registrar cualquier venta que se le haya pasado por alto o corregir alguna en la que se haya equivocado comunicandose con el Administrador, bajo ningun concepto debe hacer el cierre si estos montos no coinciden.'
+                          : 'verifique que en el monto total de los cierres generados del turno en curso, coincida con el que esta viendo en el sistema. Sino coincide asegurese de verificar las ventas y registrar cualquier venta que se le haya pasado por alto o corregir alguna en la que se haya equivocado comunicandose con el Administrador, bajo ningun concepto debe hacer el cierre si estos montos no coinciden.'}</p>
+                        <p class="mt-1 text-sm font-bold text-slate-800">${escapeHtml(formatMoney(row.expected_amount, symbol))}</p>
+                        <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
+                      </div>
+                    `}
+                    ${isCashBox ? `
+                      <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50/50 p-2.5">
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-amber-700">Retiro de efectivo</label>
+                        <input type="text" inputmode="decimal" class="mt-1 w-full rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="${symbol} 0,00" data-close-withdrawn="${index}" data-money-mask="true" data-money-symbol="${symbol}">
+                        <p class="mt-1 text-xs text-slate-500" data-close-carryover-label="${index}">Arrastre al siguiente turno: ${escapeHtml(formatMoney(0, symbol))}</p>
+                      </div>
+                    ` : ''}
+                  </div>
+                `;
+              }).join('')
+            : '<p class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No hay montos por verificar para cajas, POS o Biopago en este turno.</p>';
+
+          const result = await window.Swal.fire({
+            title: 'Cerrar turno',
+            html: `
+              <div class="space-y-3 text-left">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Verificacion de metodos</p>
+                <p class="text-sm text-slate-600">Confirma montos de caja. POS se registrara como cierre pendiente de procesamiento y Biopago permanecera pendiente para su cierre manual diario.</p>
+                <div class="space-y-2">${rowsHtml}</div>
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen de diferencias</p>
+                  <div class="mt-2 grid gap-2" data-close-summary-list></div>
+                  <p class="mt-2 text-xs" data-close-summary-note></p>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Notas de cierre (opcional)</label>
+                  <textarea rows="3" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Observaciones del cierre" data-close-notes></textarea>
+                </div>
+              </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Confirmar cierre',
+            cancelButtonText: 'Cancelar',
+            heightAuto: false,
+            didOpen: () => {
+              const dialog = window.Swal.getHtmlContainer();
+              if (!dialog) return;
+
+              window.MoneyInputMask?.init(dialog);
+
+              rowsData.forEach((row, index) => {
+                const symbol = symbolForRow(row);
+                const expected = Number(row.expected_amount || 0);
+                const initialAmount = String(row.account_type || '') === 'cash_box' ? 0 : expected;
+                const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
+
+                if (declaredInput) {
+                  if (window.MoneyInputMask?.setValue) {
+                    window.MoneyInputMask.setValue(declaredInput, initialAmount, symbol);
+                  } else {
+                    declaredInput.value = formatMoney(initialAmount, symbol);
+                  }
+                }
+
+                if (String(row.account_type || '') === 'cash_box') {
+                  const withdrawnInput = dialog.querySelector(`[data-close-withdrawn="${index}"]`);
+                  if (withdrawnInput) {
+                    if (window.MoneyInputMask?.setValue) {
+                      window.MoneyInputMask.setValue(withdrawnInput, initialAmount, symbol);
+                    } else {
+                      withdrawnInput.value = formatMoney(initialAmount, symbol);
+                    }
+                  }
+                }
+              });
+
+              dialog.querySelectorAll('[data-close-declared], [data-close-withdrawn]').forEach((input) => {
+                input.addEventListener('input', () => {
+                  updateRealtimeSummary(dialog);
+                });
+              });
+
+              updateRealtimeSummary(dialog);
+            },
+            preConfirm: () => {
+              const dialog = window.Swal.getHtmlContainer();
+              if (!dialog) return null;
+
+              return buildPayloadRows(dialog);
+            },
+          });
+
+          if (!result.isConfirmed) return;
+          if (!result.value) return;
+
+          const confirmation = result.value.hasDifferences
+            ? await window.Swal.fire({
+              icon: 'warning',
+              title: 'Cerrar con diferencias',
+              text: 'Se detectaron faltantes o sobrantes. ¿Deseas confirmar el cierre de turno?',
+              showCancelButton: true,
+              confirmButtonText: 'Si, cerrar turno',
+              cancelButtonText: 'Revisar nuevamente',
+              heightAuto: false,
+            })
+            : await window.Swal.fire({
+              icon: 'success',
+              title: 'Cierre perfecto',
+              text: 'Todos los montos cuadran. ¿Confirmas el cierre?',
+              showCancelButton: true,
+              confirmButtonText: 'Si, cerrar turno',
+              cancelButtonText: 'Cancelar',
+              heightAuto: false,
+            });
+
+          if (!confirmation.isConfirmed) return;
+
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+          if (!csrfToken) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'Token CSRF no disponible',
+              text: 'Recarga la pagina e intenta de nuevo.',
+              heightAuto: false,
+            });
+            return;
+          }
+
+          const rows = Array.isArray(result.value?.rows) ? result.value.rows : [];
+          const totals = rows.reduce((acc, row) => {
+            const amount = Number(row.declared_amount || 0);
+            if (String(row.currency).toUpperCase() === 'VES') {
+              acc.ves += amount;
+            } else if (['USD', 'USDT'].includes(String(row.currency).toUpperCase())) {
+              acc.usd += amount;
+            }
+            return acc;
+          }, { ves: 0, usd: 0 });
+
+          const requestPayload = {
+            cash_shift: {
+              declared_closing_ves: totals.ves.toFixed(2),
+              declared_closing_usd: totals.usd.toFixed(2),
+              closing_notes: String(result.value?.notes || ''),
+              close_verification_rows: rows,
+            },
+          };
+
+          try {
+            const response = await fetch(trigger.dataset.closeUrl, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+                'X-CSRF-Token': csrfToken,
+              },
+              body: JSON.stringify(requestPayload),
+              credentials: 'same-origin',
+            });
+
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(String(data.error || 'No se pudo cerrar el turno.'));
+            }
+
+            const closeSummary = data.close_summary || {};
+            const diffRows = Array.isArray(closeSummary.rows)
+              ? closeSummary.rows.filter((row) => Math.abs(Number(row.difference_amount || 0)) > 0.009)
+              : [];
+
+            if (closeSummary.has_differences && diffRows.length > 0) {
+              const diffHtml = diffRows.map((row) => {
+                const currency = String(row.currency || '').toUpperCase();
+                const symbol = currency === 'VES' ? 'Bs' : '$';
+                const differenceAmount = Math.abs(Number(row.difference_amount || 0));
+                const kind = Number(row.difference_amount || 0) >= 0 ? 'Sobrante' : 'Faltante';
+                return `<li><strong>${escapeHtml(String(row.account_name || 'Cuenta'))}:</strong> ${kind} ${escapeHtml(formatMoney(differenceAmount, symbol))}</li>`;
+              }).join('');
+
+              await window.Swal.fire({
+                icon: 'warning',
+                title: 'Turno cerrado con diferencias',
+                html: `<ul class="list-disc space-y-1 pl-5 text-left text-sm text-slate-600">${diffHtml}</ul>`,
+                confirmButtonText: 'Ver turno',
+                heightAuto: false,
+              });
+            } else {
+              await window.Swal.fire({
+                icon: 'success',
+                title: 'Cierre perfecto',
+                text: String(data.message || 'Turno cerrado correctamente.'),
+                confirmButtonText: 'Ver turno',
+                heightAuto: false,
+              });
+            }
+
+            const redirectUrl = String(data.redirect_url || '').trim();
+            if (redirectUrl) {
+              window.location.href = redirectUrl;
+            } else {
+              window.location.reload();
+            }
+          } catch (error) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'No se pudo cerrar el turno',
+              text: error.message,
+              heightAuto: false,
+            });
+            return;
+          }
+        });
+      };
+
+      document.addEventListener('turbo:load', initCashShiftCloseModal);
+      document.addEventListener('DOMContentLoaded', initCashShiftCloseModal);
+    })();
+  </script>
+<% end %>

@@ -1,0 +1,111 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Sandbox Mercantil - Search C2P</h1>
+        <p class="mt-1 text-sm text-slate-500">Modulo de pruebas para buscar pagos moviles C2P usando el endpoint sandbox oficial.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to services_path,
+                    class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+          Volver a servicios
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="grid gap-6 xl:grid-cols-2">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-bold text-slate-800">Datos de busqueda</h2>
+      <p class="mt-1 text-xs text-slate-500">Usa exactamente el formato del playground de Mercantil.</p>
+      <%= form_with url: sandbox_mercantil_c2p_search_path,
+                    method: :post,
+                    local: true,
+                    scope: :mercantil_c2p_search,
+                    class: 'mt-4 space-y-4' do |form| %>
+        <div>
+          <%= form.label :amount, 'Monto (VES)', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+          <%= form.text_field :amount,
+                              value: @form[:amount],
+                              required: true,
+                              placeholder: '1.00',
+                              class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Telefono destino</label>
+          <div class="mt-1 grid grid-cols-[92px_minmax(0,1fr)] gap-2">
+            <%= form.select :customer_phone_prefix,
+                            options_for_select([
+                              ['0414', '414'],
+                              ['0424', '424'],
+                              ['0412', '412'],
+                              ['0416', '416'],
+                              ['0426', '426']
+                            ], @form[:customer_phone_prefix]),
+                            {},
+                            class: 'block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+            <%= form.text_field :customer_phone_line,
+                                value: @form[:customer_phone_line],
+                                required: true,
+                                minlength: 7,
+                                maxlength: 7,
+                                inputmode: 'numeric',
+                                placeholder: '1234567',
+                                class: 'block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          </div>
+          <p class="mt-1 text-xs text-slate-500">Se envia cifrado como 58 + prefijo + numero.</p>
+        </div>
+        <div>
+          <%= form.label :payment_reference, 'Numero de referencia', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+          <%= form.text_field :payment_reference,
+                              value: @form[:payment_reference],
+                              required: true,
+                              placeholder: '123456',
+                              class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <%= form.label :transaction_date, 'Fecha de transaccion', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+          <%= form.date_field :transaction_date,
+                              value: @form[:transaction_date].to_s.tr('/', '-'),
+                              required: true,
+                              class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          <p class="mt-1 text-xs text-slate-500">En el request se transforma al formato YYYY/MM/DD.</p>
+        </div>
+        <button type="submit"
+                class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">
+          Probar busqueda C2P
+        </button>
+      <% end %>
+    </div>
+    <div class="space-y-4">
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-bold text-slate-800">Estado de la prueba</h2>
+        <% if @request_ok.nil? %>
+          <p class="mt-2 text-sm text-slate-500">Aun no se ha enviado una solicitud.</p>
+        <% elsif @request_ok %>
+          <p class="mt-2 inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Solicitud enviada. HTTP <%= @http_status %></p>
+        <% else %>
+          <p class="mt-2 inline-flex items-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">Fallo al procesar solicitud</p>
+          <% if @api_error.present? %>
+            <p class="mt-2 text-sm text-rose-700"><%= @api_error %></p>
+          <% end %>
+        <% end %>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-sm font-bold text-slate-800">Request enviado</h3>
+        <% if @request_payload.present? %>
+          <pre class="mt-2 max-h-72 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><%= JSON.pretty_generate(@request_payload) %></pre>
+        <% else %>
+          <p class="mt-2 text-sm text-slate-500">Sin request aun.</p>
+        <% end %>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-sm font-bold text-slate-800">Response recibido</h3>
+        <% if @api_response.present? %>
+          <pre class="mt-2 max-h-80 overflow-auto rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700"><%= JSON.pretty_generate(@api_response) %></pre>
+        <% else %>
+          <p class="mt-2 text-sm text-slate-500">Sin response aun.</p>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</div>

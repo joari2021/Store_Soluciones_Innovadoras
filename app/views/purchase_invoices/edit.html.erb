@@ -1,0 +1,19 @@
+<div class="space-y-6">
+  <% initial_inventory_mode = @purchase_invoice.initial_inventory? %>
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800"><%= initial_inventory_mode ? "Editar Inventario Inicial ##{@purchase_invoice.id}" : "Editar Factura ##{@purchase_invoice.id}" %></h1>
+        <p class="mt-1 text-sm text-slate-500"><%= initial_inventory_mode ? 'Actualiza la carga de inventario inicial del negocio.' : 'Actualiza proveedor, tasa y detalle de productos.' %></p>
+      </div>
+      <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300' %>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <%= render 'form', factura: @purchase_invoice %>
+  </div>
+  <div class="flex flex-wrap items-center gap-3">
+    <%= link_to 'Cancelar', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300' %>
+    <button type="submit" form="purchase_invoice_form" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300"><%= initial_inventory_mode ? 'Actualizar inventario inicial' : 'Actualizar factura' %></button>
+  </div>
+</div>

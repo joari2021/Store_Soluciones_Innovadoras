@@ -1,0 +1,558 @@
+<% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
+<% currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+<% payment_account_options = @accounts.map do |account| %>
+  <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
+<% end %>
+<% selected_account = @accounts.find { |account| account.id == @debt_payment.account_id } %>
+<% selected_payment_currency = selected_account&.currency || @debt_payment.currency || @debt.currency %>
+<% selected_payment_symbol = currency_symbols[selected_payment_currency] || selected_payment_currency %>
+<% initial_converted_balance = @grouped_total_balance_in_selected_currency.to_d %>
+<% show_method = selected_account&.account_type == "bank_account" %>
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400"><%= action_label %></p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @debt.counterparty_display_name %></h1>
+        <p class="mt-1 text-sm text-slate-500">Puedes registrar un <%= @debt.receivable? ? 'cobro' : 'pago' %> sobre el total agrupado de las deudas asociadas.</p>
+        <p class="mt-1 text-xs text-slate-400">Saldo pendiente real total $ (BCV): <%= number_to_currency(@grouped_total_balance_usd_bcv, unit: "$ ") %></p>
+      </div>
+      <%= link_to debt_path(@debt), class: "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+        Volver
+      <% end %>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex items-center justify-between gap-3">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Deudas asociadas</p>
+      <span class="text-xs font-semibold text-slate-500"><%= @payment_rows.size %> deudas</span>
+    </div>
+    <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+      <table class="min-w-full text-sm text-slate-700">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-4 py-3 text-left">Emision</th>
+            <th class="px-4 py-3 text-left">Descripcion</th>
+            <th class="px-4 py-3 text-left">Moneda</th>
+            <th class="px-4 py-3 text-right">Monto original</th>
+            <th class="px-4 py-3 text-right">Pagado real $ (BCV)</th>
+            <th class="px-4 py-3 text-right">Saldo real $ (BCV)</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% @payment_rows.each do |row| %>
+            <% debt = row[:debt] %>
+            <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
+            <tr>
+              <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
+              <td class="px-4 py-3"><%= debt.description.to_s.strip.presence || "Deuda sin descripcion" %></td>
+              <td class="px-4 py-3"><%= debt.currency %></td>
+              <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount, unit: "#{debt_symbol} ") %></td>
+              <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %></td>
+              <td class="px-4 py-3 text-right"><%= number_to_currency(row[:balance_usd_bcv], unit: "$ ") %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <%= form_with model: [@debt, @debt_payment],
+                  local: true,
+                  class: "space-y-6",
+                  data: {
+                    debt_payment_form: true,
+                    debt_grouped_balances: @payment_rows.map { |row| { balance: row[:balance_usd_bcv].to_d.to_f, currency: 'USD' } }.to_json,
+                    debt_total_usd_bcv: @grouped_total_balance_usd_bcv.to_d.to_f,
+                    debt_rates_to_ves: @currency_rates_to_ves.to_json,
+                    currency_symbols: currency_symbols.to_json,
+                    debt_payment_rates_endpoint: rates_for_date_tasa_cambios_path,
+                    debt_payment_autofill_amount: (@debt_payment.errors.any? ? "false" : "true")
+                  } do |form| %>
+      <% if @debt_payment.errors.any? %>
+        <% balance_error_message = @debt_payment.errors.full_messages.find { |message| message.to_s.downcase.include?('saldo insuficiente') } %>
+        <% if balance_error_message.present? %>
+          <div
+            class="hidden"
+            data-balance-insufficient-alert="true"
+            data-balance-insufficient-message="<%= balance_error_message %>"
+          ></div>
+        <% end %>
+        <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold">No se pudo registrar el pago</h4>
+            <span class="text-xs font-medium"><%= pluralize(@debt_payment.errors.count, 'error') %></span>
+          </div>
+          <ul class="mt-2 list-disc pl-5 text-sm">
+            <% @debt_payment.errors.full_messages.each do |message| %>
+              <li><%= message %></li>
+            <% end %>
+          </ul>
+        </div>
+      <% end %>
+      <div class="grid gap-4 md:grid-cols-5">
+        <%= form.hidden_field :allow_overpayment, value: "0", data: { debt_payment_allow_overpayment: true } %>
+        <div>
+          <%= form.label :occurred_at, "Fecha del pago", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :occurred_at,
+                              value: form.object.occurred_at&.to_date&.strftime('%d-%m-%Y'),
+                              autocomplete: 'off',
+                              placeholder: 'dd-mm-aaaa',
+                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                              data: { debt_payment_date: true } %>
+        </div>
+        <div>
+          <%= form.label :account_id, "Cuenta", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :account_id,
+                          options_for_select(payment_account_options, form.object.account_id),
+                          { include_blank: "Selecciona una cuenta" },
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_payment_account: true } %>
+        </div>
+        <div class="<%= show_method ? '' : 'hidden' %>" data-debt-payment-method-wrapper="true">
+          <%= form.label :payment_method, "Metodo (solo banco)", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :payment_method,
+                          options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], form.object.payment_method),
+                          { include_blank: "Selecciona" },
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_payment_method: true } %>
+        </div>
+        <div>
+          <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.hidden_field :amount, data: { debt_payment_amount_hidden: true } %>
+          <%= text_field_tag :debt_payment_amount_masked,
+                             format_money(form.object.amount, unit: selected_payment_symbol),
+                             inputmode: "decimal",
+                             autocomplete: "off",
+                             placeholder: "#{selected_payment_symbol} 0,00",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: {
+                               money_mask: true,
+                               money_symbol: selected_payment_symbol,
+                               debt_payment_amount_masked: true
+                             } %>
+        </div>
+        <div>
+          <%= form.label :reference, "Referencia", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :reference,
+                              inputmode: "numeric",
+                              maxlength: 6,
+                              minlength: 6,
+                              pattern: "\\d{6}",
+                              autocomplete: "off",
+                              title: "La referencia debe tener exactamente 6 digitos",
+                              class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                              placeholder: "6 digitos",
+                              data: { debt_payment_reference: true } %>
+        </div>
+        <div class="md:col-span-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Resumen del cobro</p>
+          <div class="mt-3 grid gap-3 md:grid-cols-2">
+            <div>
+              <p class="text-xs text-slate-500">Saldo pendiente real total $ (BCV)</p>
+              <p class="text-sm font-semibold text-slate-800"><%= number_to_currency(@grouped_total_balance_usd_bcv, unit: "$ ") %></p>
+            </div>
+            <div>
+              <p class="text-xs text-slate-500">Falta por pagar total (moneda cuenta)</p>
+              <p class="text-sm font-semibold text-slate-800" data-debt-payment-converted-balance="true"><%= number_to_currency(initial_converted_balance, unit: "#{selected_payment_symbol} ") %></p>
+            </div>
+          </div>
+          <p class="mt-2 hidden text-xs font-semibold text-amber-700" data-debt-payment-conversion-warning="true">
+            No hay tasas suficientes para convertir todo el saldo pendiente del grupo a la moneda de la cuenta seleccionada en la fecha elegida.
+          </p>
+        </div>
+        <div class="md:col-span-5">
+          <%= form.label :notes, "Notas", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_area :notes, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <%= form.submit action_label, class: "inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800" %>
+        <%= link_to debt_path(@debt), class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+          Cancelar
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+</div>
+<script>
+  (function () {
+    const form = document.querySelector("[data-debt-payment-form='true']");
+    if (!form || form.dataset.bound === "true") return;
+    form.dataset.bound = "true";
+
+    const accountSelect = form.querySelector("[data-debt-payment-account='true']");
+    const methodWrapper = form.querySelector("[data-debt-payment-method-wrapper='true']");
+    const methodSelect = form.querySelector("[data-debt-payment-method='true']");
+    const referenceInput = form.querySelector("[data-debt-payment-reference='true']");
+    const paymentDateInput = form.querySelector("[data-debt-payment-date='true']");
+    const convertedBalanceValue = form.querySelector("[data-debt-payment-converted-balance='true']");
+    const conversionWarning = form.querySelector("[data-debt-payment-conversion-warning='true']");
+    const amountMaskedInput = form.querySelector("[data-debt-payment-amount-masked='true']");
+    const amountHiddenInput = form.querySelector("[data-debt-payment-amount-hidden='true']");
+    const allowOverpaymentInput = form.querySelector("[data-debt-payment-allow-overpayment='true']");
+    let bypassOverpaymentConfirmation = false;
+
+    const safeParseJSON = (value, fallback = {}) => {
+      if (!value) return fallback;
+
+      try {
+        return JSON.parse(value);
+      } catch (_error) {
+        return fallback;
+      }
+    };
+
+    let ratesToVes = safeParseJSON(form.dataset.debtRatesToVes, {});
+    const currencySymbols = safeParseJSON(form.dataset.currencySymbols, {});
+    const groupedBalances = safeParseJSON(form.dataset.debtGroupedBalances, []);
+    const ratesEndpoint = String(form.dataset.debtPaymentRatesEndpoint || "").trim();
+    const shouldAutofillOnLoad = form.dataset.debtPaymentAutofillAmount === "true";
+
+    const formatNumber = (value, precision = 2) => {
+      const number = Number(value || 0);
+      return number.toLocaleString("es-VE", {
+        minimumFractionDigits: precision,
+        maximumFractionDigits: precision,
+      });
+    };
+
+    const formatAmount = (value, currency) => {
+      const symbol = currencySymbols[currency] || currency || "$";
+      return `${symbol} ${formatNumber(value)}`;
+    };
+
+    const parseMaskedValue = (input) => {
+      if (!input) return 0;
+
+      if (window.MoneyInputMask?.parseValue) {
+        return window.MoneyInputMask.parseValue(input);
+      }
+
+      const compact = String(input.value || "")
+        .replace(/\s/g, "")
+        .replace(/[^\d.,-]/g, "");
+
+      const normalized = compact.includes(",")
+        ? compact.replace(/\./g, "").replace(",", ".")
+        : compact;
+
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const normalizeDisplayDateToIso = (value) => {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+
+      let match = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      if (match) {
+        return `${match[3]}-${match[2]}-${match[1]}`;
+      }
+
+      match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return match ? `${match[1]}-${match[2]}-${match[3]}` : "";
+    };
+
+    const sanitizeReference = () => {
+      if (!referenceInput) return "";
+
+      const digits = String(referenceInput.value || "")
+        .replace(/\D/g, "")
+        .slice(0, 6);
+
+      if (referenceInput.value !== digits) {
+        referenceInput.value = digits;
+      }
+
+      return digits;
+    };
+
+    const referenceRequired = () => {
+      const selectedOption = accountSelect?.options?.[accountSelect.selectedIndex];
+      const isBankAccount = selectedOption?.dataset.accountType === "bank_account";
+      return isBankAccount && String(methodSelect?.value || "").trim().length > 0;
+    };
+
+    const updateReferenceRules = () => {
+      if (!referenceInput) return;
+
+      const digits = sanitizeReference();
+      const requiresReference = referenceRequired();
+      const shouldValidate = requiresReference || digits.length > 0;
+
+      referenceInput.required = requiresReference;
+      referenceInput.setCustomValidity(
+        shouldValidate && digits.length !== 6 ? "La referencia debe tener exactamente 6 digitos." : ""
+      );
+    };
+
+    const updateAmountHidden = () => {
+      if (!amountMaskedInput || !amountHiddenInput) return;
+
+      const parsed = parseMaskedValue(amountMaskedInput);
+      amountHiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const getSelectedAccountCurrency = () => {
+      const fallbackCurrency = String(groupedBalances[0]?.currency || "USD").trim().toUpperCase() || "USD";
+      if (!accountSelect) return fallbackCurrency;
+
+      const selectedOption = accountSelect.options[accountSelect.selectedIndex];
+      return String(selectedOption?.dataset.accountCurrency || fallbackCurrency).trim().toUpperCase();
+    };
+
+    const convertAmount = (amount, fromCurrency, toCurrency) => {
+      const from = String(fromCurrency || "").trim().toUpperCase();
+      const to = String(toCurrency || "").trim().toUpperCase();
+      const numericAmount = Number(amount || 0);
+
+      if (!from || !to || !Number.isFinite(numericAmount) || numericAmount < 0) return null;
+      if (from === to) return { amount: numericAmount, rate: 1 };
+
+      const fromRateToBs = Number(ratesToVes[from]);
+      const toRateToBs = Number(ratesToVes[to]);
+
+      if (!(fromRateToBs > 0) || !(toRateToBs > 0)) return null;
+
+      const convertedAmount = numericAmount * fromRateToBs / toRateToBs;
+      const rate = numericAmount > 0 ? convertedAmount / numericAmount : fromRateToBs / toRateToBs;
+
+      return {
+        amount: convertedAmount,
+        rate,
+      };
+    };
+
+    const convertGroupedBalance = (targetCurrency) => {
+      const currency = String(targetCurrency || "").trim().toUpperCase();
+      if (!currency) return { amount: 0, convertible: false, currencies: [] };
+
+      let totalAmount = 0;
+      let convertible = true;
+      const involvedCurrencies = [];
+
+      groupedBalances.forEach((entry) => {
+        const balance = Number(entry?.balance || 0);
+        const entryCurrency = String(entry?.currency || "").trim().toUpperCase();
+
+        if (!(balance > 0) || !entryCurrency) return;
+
+        involvedCurrencies.push(entryCurrency);
+        const conversion = convertAmount(balance, entryCurrency, currency);
+        if (!conversion) {
+          convertible = false;
+          return;
+        }
+
+        totalAmount += conversion.amount;
+      });
+
+      return {
+        amount: totalAmount,
+        convertible,
+        currencies: Array.from(new Set(involvedCurrencies)),
+      };
+    };
+
+    const refreshRatesForSelectedDate = async () => {
+      const isoDate = normalizeDisplayDateToIso(paymentDateInput?.value);
+      if (!isoDate || !ratesEndpoint) return true;
+
+      try {
+        const response = await fetch(`${ratesEndpoint}?fecha=${encodeURIComponent(isoDate)}`, {
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) return false;
+
+        const data = await response.json().catch(() => ({}));
+        if (data.rates && typeof data.rates === "object") {
+          ratesToVes = data.rates;
+          return true;
+        }
+      } catch (_error) {
+        return false;
+      }
+
+      return false;
+    };
+
+    const syncMaskedInputCurrency = (currency, valueToSet = null) => {
+      if (!amountMaskedInput) return;
+
+      const symbol = currencySymbols[currency] || currency || "$";
+      amountMaskedInput.dataset.moneySymbol = symbol;
+      amountMaskedInput.placeholder = `${symbol} 0,00`;
+
+      const nextValue = Number.isFinite(Number(valueToSet))
+        ? Math.max(Number(valueToSet), 0)
+        : parseMaskedValue(amountMaskedInput);
+
+      if (window.MoneyInputMask?.setValue) {
+        window.MoneyInputMask.setValue(amountMaskedInput, nextValue, symbol);
+      } else {
+        amountMaskedInput.value = `${symbol} ${formatNumber(nextValue)}`;
+      }
+    };
+
+    const updatePendingByAccount = ({ setAmount = false } = {}) => {
+      const paymentCurrency = getSelectedAccountCurrency();
+      const conversion = convertGroupedBalance(paymentCurrency);
+
+      if (!conversion.convertible) {
+        if (convertedBalanceValue) {
+          convertedBalanceValue.textContent = "Sin tasa disponible para esta moneda";
+        }
+
+        if (conversionWarning) {
+          conversionWarning.classList.remove("hidden");
+        }
+
+        syncMaskedInputCurrency(paymentCurrency, setAmount ? 0 : null);
+        updateAmountHidden();
+        return;
+      }
+
+      if (convertedBalanceValue) {
+        convertedBalanceValue.textContent = formatAmount(conversion.amount, paymentCurrency);
+      }
+
+      if (conversionWarning) {
+        conversionWarning.classList.add("hidden");
+      }
+
+      syncMaskedInputCurrency(paymentCurrency, setAmount ? conversion.amount : null);
+      updateAmountHidden();
+    };
+
+    const updateMethodVisibility = () => {
+      if (!methodWrapper || !methodSelect || !accountSelect) return;
+
+      const selectedOption = accountSelect.options[accountSelect.selectedIndex];
+      const isBankAccount = selectedOption?.dataset.accountType === "bank_account";
+
+      methodWrapper.classList.toggle("hidden", !isBankAccount);
+
+      if (!isBankAccount) {
+        methodSelect.value = "";
+        if (referenceInput) {
+          referenceInput.value = "";
+        }
+      }
+
+      updateReferenceRules();
+    };
+
+    if (amountMaskedInput) {
+      amountMaskedInput.addEventListener("input", updateAmountHidden);
+    }
+
+    if (referenceInput) {
+      referenceInput.addEventListener("input", updateReferenceRules);
+    }
+
+    if (methodSelect) {
+      methodSelect.addEventListener("change", updateReferenceRules);
+    }
+
+    if (accountSelect) {
+      accountSelect.addEventListener("change", async () => {
+        updateMethodVisibility();
+        await refreshRatesForSelectedDate();
+        updatePendingByAccount({ setAmount: true });
+      });
+    }
+
+    if (paymentDateInput) {
+      const refreshPaymentDateSummary = async () => {
+        await refreshRatesForSelectedDate();
+        updatePendingByAccount({ setAmount: true });
+      };
+
+      paymentDateInput.addEventListener("change", refreshPaymentDateSummary);
+      paymentDateInput.addEventListener("blur", refreshPaymentDateSummary);
+    }
+
+    form.addEventListener("submit", async (event) => {
+      updateAmountHidden();
+
+      updateReferenceRules();
+
+      const digits = sanitizeReference();
+      const shouldValidate = referenceRequired() || digits.length > 0;
+      if (shouldValidate && digits.length !== 6) {
+        event.preventDefault();
+        referenceInput?.focus();
+        return;
+      }
+
+      if (bypassOverpaymentConfirmation) {
+        bypassOverpaymentConfirmation = false;
+        if (allowOverpaymentInput) {
+          allowOverpaymentInput.value = "1";
+        }
+        return;
+      }
+
+      if (allowOverpaymentInput) {
+        allowOverpaymentInput.value = "0";
+      }
+
+      const paymentCurrency = getSelectedAccountCurrency();
+      const conversion = convertGroupedBalance(paymentCurrency);
+      if (!conversion.convertible) return;
+
+      const enteredAmount = parseMaskedValue(amountMaskedInput);
+      const overpaymentAmount = Number((enteredAmount - Number(conversion.amount || 0)).toFixed(2));
+
+      if (!(overpaymentAmount > 0.01)) return;
+
+      event.preventDefault();
+
+      const pendingLabel = formatAmount(conversion.amount, paymentCurrency);
+      const enteredLabel = formatAmount(enteredAmount, paymentCurrency);
+      const overpaymentLabel = formatAmount(overpaymentAmount, paymentCurrency);
+
+      let accepted = false;
+
+      if (window.Swal?.fire) {
+        const result = await window.Swal.fire({
+          title: "Sobregiro detectado",
+          icon: "warning",
+          html: `Estas registrando ${enteredLabel} con un saldo pendiente de ${pendingLabel}.<br>El excedente sera ${overpaymentLabel}.`,
+          showCancelButton: true,
+          confirmButtonText: "Si, registrar con sobregiro",
+          cancelButtonText: "Cancelar",
+          focusCancel: true,
+          target: "body",
+          heightAuto: false,
+        });
+
+        accepted = result.isConfirmed === true;
+      } else {
+        accepted = window.confirm(`El pago excede el saldo pendiente por ${overpaymentLabel}. ¿Deseas registrarlo igualmente?`);
+      }
+
+      if (!accepted) {
+        return;
+      }
+
+      if (allowOverpaymentInput) {
+        allowOverpaymentInput.value = "1";
+      }
+
+      bypassOverpaymentConfirmation = true;
+      form.requestSubmit();
+    });
+
+    const initializePaymentSummary = async () => {
+      updateMethodVisibility();
+      await refreshRatesForSelectedDate();
+      updatePendingByAccount({ setAmount: shouldAutofillOnLoad });
+      updateReferenceRules();
+    };
+
+    initializePaymentSummary();
+  })();
+</script>

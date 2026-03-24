@@ -1,0 +1,36 @@
+<tr class="hover:bg-sky-50/30 transition-colors group">
+  <td class="px-6 py-4">
+    <div class="flex items-center gap-3">
+      <button
+        type="button"
+        class="js-product-toggle-row inline-flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50"
+        data-product-id="<%= producto.id %>">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="js-product-toggle-icon h-4 w-4 transition-transform">
+          <path fill-rule="evenodd" d="M9.47 5.47a.75.75 0 0 1 1.06 0l6 6a.75.75 0 0 1 0 1.06l-6 6a.75.75 0 1 1-1.06-1.06L14.94 12 9.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+        </svg>
+      </button>
+      <% if producto.foto.attached? %>
+        <img src="<%= url_for(producto.foto) rescue image_path('default_image.jpeg') %>" alt="Imagen de <%= producto.descripcion %>" class="w-10 h-10 rounded-lg object-cover bg-slate-100" />
+      <% else %>
+        <%= image_tag "default_image.jpeg", class: "w-10 h-10 rounded-lg object-cover bg-slate-100", alt: "Imagen por defecto" %>
+      <% end %>
+      <span class="font-medium text-slate-700"><%= producto.descripcion %></span>
+    </div>
+  </td>
+  <td class="px-6 py-4"><span class="px-2 py-1 bg-slate-100 rounded-md text-xs font-medium text-slate-500">Alimentos</span></td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-700"><%= format_money(producto.precio_venta_usd, unit: "$") %></td>
+  <td class="px-6 py-4 text-right"><span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-xs font-bold"><%= format_quantity(producto.total_quantity) %> disp.</span></td>
+  <td class="px-6 py-4">
+    <div class="flex justify-star gap-2 transition-opacity">
+      <%= link_to edit_producto_path(producto), remote: true, method: :get, class: "p-2 hover:bg-sky-100 rounded-lg text-sky-600 transition-colors bg-white", data: { turbo_frame: "modal-productos" }, onclick: "openModal('productModal')" do %>
+        <i data-lucide="edit-3" class="w-4 h-4"></i>
+      <% end %>
+      <%= button_to producto_path(producto), method: :delete, form_class: 'delete-alertbox', class: "p-2 hover:bg-red-100 rounded-lg text-red-500 transition-colors bg-white" do %>
+        <i data-lucide="trash-2" class="w-4 h-4"></i>
+      <% end %>
+    </div>
+  </td>
+</tr>
+<tr class="js-product-detail-row hidden bg-slate-50/60" data-product-detail-for="<%= producto.id %>">
+  <td class="px-6 py-3 pl-16 text-xs text-slate-500" colspan="5">Sin lotes asociados todavía.</td>
+</tr>

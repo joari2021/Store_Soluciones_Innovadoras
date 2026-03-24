@@ -1,0 +1,33 @@
+<%= form_with(
+      model: profit_margin_preset,
+      url: profit_margin_preset.persisted? ? profit_margin_preset_path(profit_margin_preset) : profit_margin_presets_path,
+      method: profit_margin_preset.persisted? ? :patch : :post,
+      local: true,
+      class: "space-y-4"
+    ) do |form| %>
+  <% if profit_margin_preset.errors.any? %>
+    <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+      <p class="font-semibold"><%= pluralize(profit_margin_preset.errors.count, "error") %> impidieron guardar el porcentaje:</p>
+      <ul class="mt-1 list-disc pl-5">
+        <% profit_margin_preset.errors.each do |error| %>
+          <li><%= error.full_message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div>
+    <%= form.label :percentage, "Porcentaje fijo (%)", class: "block text-xs font-bold uppercase tracking-wider text-slate-500" %>
+    <%= form.text_field :percentage,
+                        class: "mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                        placeholder: "% 150,00",
+                        autocomplete: "off",
+                        inputmode: "decimal",
+                        autofocus: true,
+                        data: { money_mask: true, money_symbol: "%" } %>
+    <p class="mt-1 text-xs text-slate-500">Ejemplos: 12%, 150%, 200%.</p>
+  </div>
+  <div class="flex items-center gap-2">
+    <%= form.submit submit_label, class: "inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800" %>
+    <%= link_to "Volver a productos", productos_path, class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+  </div>
+<% end %>

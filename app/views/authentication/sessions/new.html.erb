@@ -1,18 +1,27 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
-  <div class="col-sm-8" >
-    <h2>Iniciar Sesión</h2>
-    <%= form_with(url: sessions_path) do |form| %>
-      <div class="col-md-6 mt-4">
-        <%= form.label :login, "Correo o Usuario", class: "form-label" %>
-        <%= form.text_field :login, class:"form-control", required: true %>
-      </div>
-      <div class="col-md-6 mt-4">
-        <%= form.label :password, "Contraseña", class: "form-label" %>
-        <%= form.password_field :password, class:"form-control", required: true %>
-      </div>
-      <div class="col-md-6 mt-4">
-        <%= form.submit "Ingresar", class:"btn btn-primary" %>
-      </div>
-    <% end %>
+<div class="space-y-6">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Bienvenido</p>
+    <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900">Inicia sesion</h2>
+    <p class="mt-2 text-sm text-slate-500">Usa tu correo o usuario para entrar al panel del negocio.</p>
   </div>
+  <%= form_with(url: sessions_path, class: 'space-y-4') do |form| %>
+    <div class="space-y-2">
+      <%= form.label :login, 'Correo o usuario', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.text_field :login, required: true, autofocus: true, autocomplete: 'username', class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'usuario@correo.com o usuario' %>
+    </div>
+    <div class="space-y-2">
+      <%= form.label :password, 'Contrasena', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.password_field :password, required: true, autocomplete: 'current-password', class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Tu clave de acceso' %>
+    </div>
+    <div class="flex flex-col gap-2 sm:flex-row">
+      <%= form.submit 'Entrar al sistema', class: 'inline-flex w-full cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800 sm:flex-1' %>
+      <%= link_to 'Registrarse', new_user_path, class: 'inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-sky-300 bg-sky-50 px-5 py-3 text-sm font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100 sm:w-auto' %>
+    </div>
+  <% end %>
+  <% unless User.exists? %>
+    <p class="text-sm text-slate-500">
+      Primera configuracion del sistema:
+      <%= link_to 'crear usuario administrador', new_user_path, class: 'font-semibold text-sky-700 hover:text-sky-800' %>
+    </p>
+  <% end %>
 </div>

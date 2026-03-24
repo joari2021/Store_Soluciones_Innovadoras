@@ -8,11 +8,17 @@ module Authentication
     private
 
     def set_current_user
-      Current.user = User.find_by(id: session[:user_id]) if session[:user_id]
+      return unless session[:user_id]
+
+      Current.user = User.find_by(id: session[:user_id], active: true)
+      return if Current.user.present?
+
+      session.delete(:user_id)
+      session.delete(:business_id)
     end
 
     def protect_pages
-      redirect_to new_session_path, alert: "Debes iniciar Sesion" unless Current.user
+      redirect_to new_session_path, alert: 'Debes iniciar Sesion' unless Current.user
     end
   end
 end

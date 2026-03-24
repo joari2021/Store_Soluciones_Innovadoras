@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Acceso | Soluciones Innovadoras</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+  <body class="min-h-screen bg-gradient-to-br from-sky-100 via-cyan-50 to-slate-100 text-slate-700">
+    <div class="relative min-h-screen overflow-hidden p-4 sm:p-8">
+      <div class="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-300/30 blur-3xl"></div>
+      <div class="pointer-events-none absolute -right-20 bottom-0 h-80 w-80 rounded-full bg-sky-300/30 blur-3xl"></div>
+      <div class="relative mx-auto grid min-h-[calc(100vh-2rem)] w-full max-w-6xl overflow-hidden rounded-3xl border border-white/70 bg-white/85 shadow-2xl shadow-sky-200/50 backdrop-blur-xl lg:grid-cols-[1.1fr_1fr]">
+        <section class="hidden bg-gradient-to-br from-slate-900 via-sky-900 to-cyan-800 p-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <div>
+            <p class="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">Acceso restringido</p>
+            <h1 class="mt-6 text-4xl font-black leading-tight">Acceso para personal autorizado</h1>
+            <p class="mt-4 max-w-md text-sm leading-6 text-sky-100/90">Inicia sesion con credenciales validas para operar dentro del negocio.</p>
+          </div>
+          <div class="space-y-3 text-sm text-sky-100/90">
+            <p class="rounded-2xl border border-white/15 bg-white/10 p-4">Solo usuarios aprobados por administracion pueden continuar.</p>
+            <% if current_page?(new_user_path) %>
+              <%= link_to 'Ir a inicio de sesion', new_session_path, class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl border border-cyan-200/40 bg-cyan-300/15 px-4 py-3 text-sm font-semibold text-cyan-50 transition-colors hover:bg-cyan-300/25' %>
+            <% else %>
+              <%= link_to 'Registrarse', new_user_path, class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl border border-cyan-200/40 bg-cyan-300/15 px-4 py-3 text-sm font-semibold text-cyan-50 transition-colors hover:bg-cyan-300/25' %>
+            <% end %>
+          </div>
+        </section>
+        <section class="flex items-center p-6 sm:p-10">
+          <div class="w-full space-y-5">
+            <% flash.each do |type, message| %>
+              <% tone = type.to_s == 'alert' ? 'border-rose-200 bg-rose-50 text-rose-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700' %>
+              <div class="rounded-2xl border px-4 py-3 text-sm font-medium <%= tone %>"><%= message %></div>
+            <% end %>
+            <%= yield %>
+          </div>
+        </section>
+      </div>
+    </div>
+  </body>
+</html>

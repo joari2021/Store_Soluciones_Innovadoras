@@ -1,18 +1,314 @@
-<!--==================== HEADER ====================-->
-<header class="header" id="header">
-  <div class="header__content">
-    <a href="#" class="header__logo">Soluciones Innovadoras</a>
-    <div class="header__actions">
-      <!--<i class="ri-notification-2-line"></i>
-      <i class="ri-account-circle-line"></i>-->
-      <div class="header__menu" id="header-menu">
-        <i class="ri-menu-line"></i>
+<header class="h-16 md:h-20 flex-none glass border-b border-sky-100 flex items-center justify-between px-6 z-10">
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-3 md:hidden">
+      <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white">
+        <i data-lucide="hexagon" class="w-5 h-5"></i>
+      </div>
+      <h1 class="font-bold text-slate-700">BizFlow</h1>
+    </div>
+    <% if @businesses.present? %>
+      <div id="business-switcher" class="relative">
+        <button id="business-switcher-button" type="button" class="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm hover:border-sky-200 hover:bg-sky-50 transition-colors cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Cambiar negocio">
+          <span class="flex h-9 w-9 items-center justify-center rounded-xl text-sm font-bold" style="<%= current_business ? current_business.theme_preview_style : Business.theme_preview_style %>">
+            <%= current_business&.name.to_s.first&.upcase || 'N' %>
+          </span>
+          <span class="hidden md:block text-left">
+            <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-500">Negocio</span>
+            <span class="block text-sm font-semibold text-slate-800"><%= current_business&.name || 'Sin negocio' %></span>
+          </span>
+          <i data-lucide="chevron-down" class="hidden md:block h-4 w-4 text-slate-400 group-hover:text-slate-600"></i>
+        </button>
+        <div id="business-switcher-menu" class="absolute left-0 mt-3 hidden w-72 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+          <div class="border-b border-slate-100 px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Selecciona un negocio</p>
+            <p class="mt-1 text-sm font-semibold text-slate-800"><%= current_business&.name || 'Sin negocio' %></p>
+          </div>
+          <div class="max-h-64 overflow-y-auto py-2">
+            <% @businesses.each do |business| %>
+              <% is_current = current_business&.id == business.id %>
+              <% item_classes = is_current ? 'bg-sky-50 text-sky-700' : 'text-slate-700 hover:bg-slate-50' %>
+              <% if current_user_admin? %>
+                <%= button_to select_business_path(business), method: :post, form: { class: 'w-full' }, class: "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors cursor-pointer #{item_classes}" do %>
+                  <span class="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold" style="<%= business.theme_preview_style %>">
+                    <%= business.name.to_s.first&.upcase || 'N' %>
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate font-medium"><%= business.name %></span>
+                  </span>
+                  <% if is_current %>
+                    <i data-lucide="check" class="h-4 w-4"></i>
+                  <% end %>
+                <% end %>
+              <% else %>
+                <div class="flex w-full items-center gap-3 px-4 py-2 text-sm <%= item_classes %>">
+                  <span class="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold" style="<%= business.theme_preview_style %>">
+                    <%= business.name.to_s.first&.upcase || 'N' %>
+                  </span>
+                  <span class="min-w-0 flex-1 truncate font-medium"><%= business.name %></span>
+                  <% if is_current %>
+                    <i data-lucide="check" class="h-4 w-4"></i>
+                  <% end %>
+                </div>
+              <% end %>
+            <% end %>
+          </div>
+          <% if current_user_admin? %>
+            <div class="border-t border-slate-100 bg-slate-50 px-4 py-3 flex items-center justify-between">
+              <%= link_to businesses_path, class: 'text-sm font-semibold text-slate-600 hover:text-slate-800' do %>
+                Administrar
+              <% end %>
+              <%= link_to new_business_path, class: 'inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800' do %>
+                <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                Nuevo
+              <% end %>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% else %>
+      <% if current_user_admin? %>
+        <%= link_to new_business_path, class: 'inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800' do %>
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          <span class="hidden md:inline">Crear negocio</span>
+        <% end %>
+      <% else %>
+        <span class="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-500">Sin negocio asignado</span>
+      <% end %>
+    <% end %>
+  </div>
+  <div class="flex items-center gap-3 md:gap-5">
+    <% if controller_name == 'ventas' && action_name == 'index' %>
+      <% can_manage_cash_shifts = can_manage_action?(:manage_cash_shifts) %>
+      <% if @open_cash_shift.present? %>
+        <%= link_to cash_shift_path(@open_cash_shift), class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100' do %>
+          <i data-lucide="clock-3" class="h-4 w-4"></i>
+          <span class="hidden lg:inline">Turno #<%= @open_cash_shift.id %> abierto</span>
+          <span class="lg:hidden">Turno #<%= @open_cash_shift.id %></span>
+        <% end %>
+      <% elsif can_manage_cash_shifts %>
+        <button type="button"
+                id="ventas-open-cash-shift-trigger"
+                data-create-url="<%= cash_shifts_path %>"
+                class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100">
+          <i data-lucide="play" class="h-4 w-4"></i>
+          <span class="hidden lg:inline">Abrir turno</span>
+        </button>
+      <% else %>
+        <span class="hidden lg:inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
+          Espera al encargado para abrir turno
+        </span>
+      <% end %>
+    <% end %>
+    <% if Rails.env.development? && current_user_admin? %>
+      <%= link_to sandbox_mercantil_c2p_search_path,
+                  class: 'hidden lg:inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-violet-100',
+                  data: { turbo_frame: '_top' } do %>
+        <i data-lucide="flask-conical" class="h-4 w-4"></i>
+        Sandbox C2P
+      <% end %>
+    <% end %>
+    <div id="rates-tooltip" class="relative">
+      <button id="rates-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-200/85 text-slate-700 shadow-sm ring-1 ring-slate-300 transition-colors hover:bg-slate-300 hover:text-slate-900 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver tasas">
+        <i data-lucide="line-chart" class="w-5 h-5"></i>
+      </button>
+      <div id="rates-panel" class="absolute right-0 mt-3 hidden w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Tasas registradas</p>
+          <p class="mt-1 text-sm font-semibold text-slate-800">Valores mas recientes</p>
+        </div>
+        <div class="max-h-64 overflow-y-auto py-2">
+          <% if @latest_tasas.present? %>
+            <% @latest_tasas.each do |tasa| %>
+              <% fecha_label = tasa.fecha_referencia&.strftime('%d/%m/%Y') || '-' %>
+              <div class="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-slate-50">
+                <p class="truncate text-sm font-semibold text-slate-800"><%= tasa.description %></p>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-semibold text-slate-800 whitespace-nowrap"><%= format_money(tasa.valor, unit: 'Bs') %></span>
+                  <span class="text-xs text-slate-500 whitespace-nowrap"><%= fecha_label %></span>
+                </div>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="px-4 py-4 text-sm text-slate-500">No hay tasas registradas.</div>
+          <% end %>
+        </div>
       </div>
     </div>
+    <%= render 'shared/header_notifications' %>
+    <!-- Mobile Profile Icon -->
+    <div class="md:hidden h-8 w-8 overflow-hidden rounded-full border border-sky-200 bg-sky-100">
+      <% if Current.user&.avatar&.attached? %>
+        <%= image_tag Current.user.avatar, class: 'h-full w-full object-cover', alt: Current.user.display_name %>
+      <% else %>
+        <div class="flex h-full w-full items-center justify-center text-xs font-bold text-sky-700"><%= Current.user&.display_name.to_s.first&.upcase || 'U' %></div>
+      <% end %>
+    </div>
   </div>
-  <!--
-  <form action="" class="header__search">
-    <i class="ri-search-line"></i>
-    <input type="search" placeholder="Search movies" class="header__input">
-  </form>-->
 </header>
+<script>
+  (() => {
+    if (window.businessSwitcherHandlersBound) return;
+    window.businessSwitcherHandlersBound = true;
+
+    const getElements = () => {
+      const switcher = document.getElementById('business-switcher');
+      if (!switcher) return null;
+      const button = document.getElementById('business-switcher-button');
+      const menu = document.getElementById('business-switcher-menu');
+      if (!button || !menu) return null;
+      return { button, menu };
+    };
+
+    const closeMenu = () => {
+      const elements = getElements();
+      if (!elements) return;
+      elements.menu.classList.add('hidden');
+      elements.button.setAttribute('aria-expanded', 'false');
+    };
+
+    document.addEventListener('click', (event) => {
+      const elements = getElements();
+      if (!elements) return;
+
+      const { button, menu } = elements;
+      const clickedButton = button.contains(event.target);
+      const clickedMenu = menu.contains(event.target);
+
+      if (clickedButton) {
+        menu.classList.toggle('hidden');
+        button.setAttribute('aria-expanded', menu.classList.contains('hidden') ? 'false' : 'true');
+        return;
+      }
+
+      if (!clickedMenu) {
+        closeMenu();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closeMenu();
+    });
+  })();
+
+  (() => {
+    if (window.ratesTooltipHandlersBound) return;
+    window.ratesTooltipHandlersBound = true;
+
+    const getElements = () => {
+      const wrapper = document.getElementById('rates-tooltip');
+      if (!wrapper) return null;
+      const button = document.getElementById('rates-toggle');
+      const panel = document.getElementById('rates-panel');
+      if (!button || !panel) return null;
+      return { button, panel };
+    };
+
+    const closePanel = () => {
+      const elements = getElements();
+      if (!elements) return;
+      elements.panel.classList.add('hidden');
+      elements.button.setAttribute('aria-expanded', 'false');
+    };
+
+    document.addEventListener('click', (event) => {
+      const elements = getElements();
+      if (!elements) return;
+
+      const { button, panel } = elements;
+      const clickedButton = button.contains(event.target);
+      const clickedPanel = panel.contains(event.target);
+
+      if (clickedButton) {
+        panel.classList.toggle('hidden');
+        button.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
+        return;
+      }
+
+      if (!clickedPanel) {
+        closePanel();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closePanel();
+    });
+  })();
+
+  (() => {
+    if (window.notificationsTooltipHandlersBound) return;
+    window.notificationsTooltipHandlersBound = true;
+
+    const getElements = () => {
+      const wrapper = document.getElementById('notifications-tooltip');
+      if (!wrapper) return null;
+      const button = document.getElementById('notifications-toggle');
+      const panel = document.getElementById('notifications-panel');
+      if (!button || !panel) return null;
+      return { button, panel };
+    };
+
+    const closePanel = () => {
+      const elements = getElements();
+      if (!elements) return;
+      elements.panel.classList.add('hidden');
+      elements.button.setAttribute('aria-expanded', 'false');
+    };
+
+    document.addEventListener('click', (event) => {
+      const elements = getElements();
+      if (!elements) return;
+
+      const { button, panel } = elements;
+      const clickedButton = button.contains(event.target);
+      const clickedPanel = panel.contains(event.target);
+
+      if (clickedButton) {
+        panel.classList.toggle('hidden');
+        button.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
+        return;
+      }
+
+      if (!clickedPanel) {
+        closePanel();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closePanel();
+    });
+  })();
+
+  (() => {
+    if (window.notificationsDismissAnimationBound) return;
+    window.notificationsDismissAnimationBound = true;
+
+    document.addEventListener('submit', (event) => {
+      const form = event.target.closest('.js-dismiss-header-notification-form');
+      if (!form) return;
+
+      const itemId = form.dataset.itemId;
+      const item = itemId ? document.getElementById(itemId) : null;
+      if (!item || form.dataset.animating === 'true') return;
+
+      event.preventDefault();
+      form.dataset.animating = 'true';
+
+      item.style.transition = 'transform 220ms ease, opacity 220ms ease, margin 220ms ease';
+      item.style.transform = 'translateX(42px)';
+      item.style.opacity = '0';
+      item.style.marginTop = '0';
+      item.style.marginBottom = '0';
+
+      window.setTimeout(() => {
+        if (window.Turbo && typeof window.Turbo.navigator?.submitForm === 'function') {
+          window.Turbo.navigator.submitForm(form);
+        } else {
+          form.submit();
+        }
+      }, 230);
+    });
+  })();
+</script>

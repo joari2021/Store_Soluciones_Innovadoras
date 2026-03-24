@@ -1,0 +1,322 @@
+#materialize-datepicker-portal {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  pointer-events: none;
+}
+
+#materialize-datepicker-portal .modal-overlay {
+  position: fixed;
+  z-index: 20000;
+  top: -25%;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  height: 125%;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.2);
+  display: none;
+  will-change: opacity;
+  pointer-events: auto;
+}
+
+#materialize-datepicker-portal .datepicker-modal {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  background-color: #fafafa;
+  padding: 0;
+  max-height: none;
+  width: auto;
+  margin: auto;
+  overflow-y: auto;
+  border-radius: 16px;
+  will-change: top, opacity;
+  max-width: 325px;
+  min-width: 300px;
+  box-shadow:
+    0 24px 38px 3px rgba(0, 0, 0, 0.14),
+    0 9px 46px 8px rgba(0, 0, 0, 0.12),
+    0 11px 15px -7px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+  z-index: 20001;
+}
+
+#materialize-datepicker-portal .datepicker-container.modal-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+#materialize-datepicker-portal .datepicker-controls {
+  display: flex;
+  justify-content: space-between;
+  width: 280px;
+  margin: 0 auto;
+}
+
+#materialize-datepicker-portal .datepicker-controls .selects-container {
+  display: flex;
+  align-items: center;
+}
+
+#materialize-datepicker-portal .datepicker-controls .select-month {
+  margin-right: 14px;
+}
+
+#materialize-datepicker-portal .datepicker-controls .select-wrapper {
+  position: relative;
+}
+
+#materialize-datepicker-portal .datepicker-controls .select-wrapper input {
+  position: relative;
+  cursor: pointer;
+  background-color: transparent;
+  border: none !important;
+  box-shadow: none !important;
+  text-align: center;
+  margin: 0;
+  height: 3rem;
+  line-height: 3rem;
+  font-size: 16px;
+  display: block;
+  color: #334155;
+}
+
+#materialize-datepicker-portal
+  .datepicker-controls
+  .select-wrapper
+  input:focus {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+#materialize-datepicker-portal
+  .datepicker-controls
+  .select-wrapper
+  .select-dropdown:focus {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none;
+}
+
+#materialize-datepicker-portal .datepicker-controls .select-wrapper .caret {
+  display: none;
+}
+
+#materialize-datepicker-portal .datepicker-controls .select-year input {
+  width: 58px;
+}
+
+#materialize-datepicker-portal .datepicker-controls .select-month input {
+  width: 96px;
+}
+
+#materialize-datepicker-portal .datepicker-controls select {
+  display: none;
+}
+
+#materialize-datepicker-portal .month-prev,
+#materialize-datepicker-portal .month-next {
+  margin-top: 4px;
+  cursor: pointer;
+  background-color: transparent;
+  border: none;
+  color: #334155;
+}
+
+#materialize-datepicker-portal .datepicker-date-display {
+  flex: 1 auto;
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #fff;
+  padding: 20px 22px;
+  font-weight: 500;
+}
+
+#materialize-datepicker-portal .datepicker-date-display .year-text {
+  display: block;
+  font-size: 1.5rem;
+  line-height: 25px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+#materialize-datepicker-portal .datepicker-date-display .date-text {
+  display: block;
+  font-size: 2.8rem;
+  line-height: 47px;
+  font-weight: 500;
+}
+
+#materialize-datepicker-portal .datepicker-calendar-container {
+  flex: 2.5 auto;
+}
+
+#materialize-datepicker-portal .datepicker-table {
+  width: 280px;
+  font-size: 1rem;
+  margin: 0 auto;
+}
+
+#materialize-datepicker-portal .datepicker-table thead,
+#materialize-datepicker-portal .datepicker-table tr {
+  border-bottom: none;
+}
+
+#materialize-datepicker-portal .datepicker-table th {
+  padding: 10px 5px;
+  text-align: center;
+}
+
+#materialize-datepicker-portal .datepicker-table abbr {
+  text-decoration: none;
+  color: #64748b;
+}
+
+#materialize-datepicker-portal .datepicker-table td {
+  border-radius: 50%;
+  padding: 0;
+}
+
+#materialize-datepicker-portal .datepicker-table td.is-today {
+  color: #0284c7;
+}
+
+#materialize-datepicker-portal .datepicker-table td.is-selected {
+  background-color: #0ea5e9;
+  color: #fff;
+}
+
+#materialize-datepicker-portal .datepicker-table td.is-outside-current-month,
+#materialize-datepicker-portal .datepicker-table td.is-disabled {
+  color: rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+}
+
+#materialize-datepicker-portal .datepicker-day-button {
+  background-color: transparent;
+  border: none;
+  line-height: 38px;
+  display: block;
+  width: 100%;
+  border-radius: 50%;
+  padding: 0 5px;
+  cursor: pointer;
+  color: inherit;
+}
+
+#materialize-datepicker-portal .datepicker-day-button:focus {
+  background-color: rgba(14, 165, 233, 0.25);
+}
+
+#materialize-datepicker-portal .datepicker-footer {
+  width: 280px;
+  margin: 0 auto;
+  padding-bottom: 5px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+#materialize-datepicker-portal .datepicker-cancel,
+#materialize-datepicker-portal .datepicker-clear,
+#materialize-datepicker-portal .datepicker-today,
+#materialize-datepicker-portal .datepicker-done {
+  color: #0284c7;
+  padding: 0.35rem 0.7rem;
+  font-weight: 600;
+  border-radius: 9999px;
+  margin: 0;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+#materialize-datepicker-portal .datepicker-done {
+  display: none !important;
+}
+
+#materialize-datepicker-portal .datepicker-clear {
+  display: none !important;
+}
+
+#materialize-datepicker-portal .datepicker-cancel:hover,
+#materialize-datepicker-portal .datepicker-clear:hover,
+#materialize-datepicker-portal .datepicker-today:hover,
+#materialize-datepicker-portal .datepicker-done:hover {
+  background-color: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+  transform: translateY(-1px);
+}
+
+.materialize-datepicker-input {
+  padding-left: 2.45rem !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2' ry='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 0.75rem center;
+  background-size: 1rem 1rem;
+}
+
+body > .dropdown-content.select-dropdown {
+  background-color: #fff;
+  margin: 0;
+  display: none;
+  min-width: 100px;
+  overflow-y: auto;
+  opacity: 0;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 20002;
+  transform-origin: 0 0;
+}
+
+body > .dropdown-content.select-dropdown li {
+  clear: both;
+  color: rgba(0, 0, 0, 0.87);
+  cursor: pointer;
+  min-height: 50px;
+  line-height: 1.5rem;
+  width: 100%;
+  text-align: left;
+}
+
+body > .dropdown-content.select-dropdown li > span {
+  font-size: 16px;
+  color: #0284c7;
+  display: block;
+  line-height: 22px;
+  padding: 14px 16px;
+}
+
+body > .dropdown-content.select-dropdown li:hover,
+body.keyboard-focused > .dropdown-content.select-dropdown li:focus {
+  background-color: rgba(0, 0, 0, 0.08);
+}
+
+@media only screen and (min-width: 601px) {
+  #materialize-datepicker-portal .datepicker-modal {
+    max-width: 625px;
+  }
+
+  #materialize-datepicker-portal .datepicker-container.modal-content {
+    flex-direction: row;
+  }
+
+  #materialize-datepicker-portal .datepicker-date-display {
+    flex: 0 1 270px;
+  }
+
+  #materialize-datepicker-portal .datepicker-controls,
+  #materialize-datepicker-portal .datepicker-table,
+  #materialize-datepicker-portal .datepicker-footer {
+    width: 320px;
+  }
+
+  #materialize-datepicker-portal .datepicker-day-button {
+    line-height: 44px;
+  }
+}

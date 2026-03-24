@@ -1,78 +1,152 @@
 class Producto < ApplicationRecord
   include PgSearch::Model
+
+  attr_accessor :porcentaje_ganancia unless column_names.include?('porcentaje_ganancia')
+
+  attr_accessor :profit_margin_preset_id unless column_names.include?('profit_margin_preset_id')
+
+  attr_accessor :exento unless column_names.include?('exento')
+
+  belongs_to :business
+  belongs_to :categoria
+  belongs_to :profit_margin_preset, optional: true if column_names.include?('profit_margin_preset_id')
   has_one_attached :foto
+  has_many :supplier_products, dependent: :destroy
+  has_many :suppliers, through: :supplier_products
+  has_many :product_variations, dependent: :destroy
+  has_many :stock_lots, dependent: :destroy
+  has_many :stock_lot_variations, through: :stock_lots
+  has_many :venta_items, dependent: :nullify
+  has_many :ventas, through: :venta_items
+  has_many :service_product_expenses, dependent: :nullify
 
-  def self.availability_column
-    return 'available' if column_names.include?('available')
-    return 'disponible' if column_names.include?('disponible')
+  accepts_nested_attributes_for :product_variations, allow_destroy: true
 
-    nil
-  end
+  has_many :purchase_invoice_items, class_name: 'PurchaseInvoiceItem', foreign_key: :producto_id, dependent: :nullify
 
-  def self.availability_true_sql
-    column = availability_column
-    return 'TRUE' if column.blank?
+  validates :descripcion, presence: true
+  validates :porcentaje_ganancia,
+            numericality: { greater_than_or_equal_to: 0, less_than: 1000 },
+            allow_nil: true
 
-    "#{table_name}.#{column} = TRUE"
-  end
-
-  def available?
-    if has_attribute?(:available)
-      self[:available]
-    elsif has_attribute?(:disponible)
-      self[:disponible]
-    else
-      true
-    end
-  end
-
-  def available=(value)
-    boolean_value = ActiveModel::Type::Boolean.new.cast(value)
-
-    if has_attribute?(:available)
-      self[:available] = boolean_value
-    elsif has_attribute?(:disponible)
-      self[:disponible] = boolean_value
-    end
-  end
-
-  def disponible?
-    available?
-  end
-
-  def disponible=(value)
-    self.available = value
-  end
-
+  before_validation :ensure_default_variation, on: :create
+  before_validation :normalize_localized_monetary_fields
   pg_search_scope :whose_name_starts_with,
                   against: {
-                    descripcion: "A"
+                    descripcion: 'A'
                   },
                   using: {
-                    tsearch: { prefix: true },
+                    tsearch: { prefix: true }
                   }
 
-  # Calcular el precio en bolívares
-  
+  # Helper de conversion cuando haga falta mostrar valores en Bs
   def calcular_precio_bs(valor_en_dolares)
-    tasa = TasaCambio.find_by(description: "Dolar BCV")&.valor || 0
+    tasa = TasaCambio.latest_value('Dolar BCV') || 0
     (valor_en_dolares * tasa).round(2)
   end
-  
-  def precio_sugerido_usd(precio_costo_unidad_usd)
-    case nivel_ganancia
-    when "Baja"
-      precio_costo_unidad_usd / (1 - 0.15)
-    when "Justa"
-      precio_costo_unidad_usd / (1 - 0.23)
-    when "Media"
-      precio_costo_unidad_usd / (1 - 0.3)
-    when "Alta"
-      precio_costo_unidad_usd / (1 - 0.5)
-    else
-      # Si no se cumple ninguna condición, puedes devolver el precio de costo o nil
-      precio_costo_unidad_usd
+
+  def total_quantity
+    total_from_variations = stock_lot_variations.sum(:quantity_remaining).to_d
+    return total_from_variations if total_from_variations.positive?
+
+    stock_lots.sum(:quantity_remaining).to_d
+  end
+
+  def inventory_lots
+    stock_lots.ordered_fifo
+  end
+
+  def inventory_remaining_quantity
+    stock_lots.sum(:quantity_remaining)
+  end
+
+  def highest_active_lot_unit_cost_usd
+    stock_lots
+      .select { |lot| lot.quantity_remaining.to_d.positive? }
+      .map { |lot| lot.unit_cost_usd.to_d }
+      .max
+  end
+
+  def target_margin_percentage
+    preset_percentage = profit_margin_preset&.percentage
+    return preset_percentage.to_d if preset_percentage.present?
+
+    return nil if porcentaje_ganancia.blank?
+
+    porcentaje_ganancia.to_d
+  end
+
+  def expected_price_usd_from_target_margin(cost_usd = highest_active_lot_unit_cost_usd)
+    return nil unless cost_usd.to_d.positive?
+
+    margin = target_margin_percentage
+    return nil if margin.nil?
+
+    (cost_usd.to_d * (1 + margin / 100)).round(2)
+  end
+
+  def below_target_margin_for_highest_active_lot?
+    highest_cost = highest_active_lot_unit_cost_usd
+    expected_price = expected_price_usd_from_target_margin(highest_cost)
+    return false if expected_price.nil?
+
+    precio_venta_usd.to_d < expected_price
+  end
+
+  def consume_variation_stock!(variation_id:, quantity_units:)
+    requested = quantity_units.to_d
+    raise ActiveRecord::RecordInvalid.new(self), 'Cantidad inválida para descuento.' if requested <= 0
+
+    remaining_to_consume = requested
+
+    transaction do
+      stock_lots.ordered_fifo.each do |lot|
+        consumed = lot.consume_variation_units!(variation_id: variation_id, quantity_units: remaining_to_consume)
+        remaining_to_consume -= consumed
+        break if remaining_to_consume <= 0
+      end
+
+      if remaining_to_consume > 0
+        raise ActiveRecord::RecordInvalid.new(self),
+              "Stock insuficiente para la variación seleccionada (faltan #{remaining_to_consume.to_f.round(4)} unidades)."
+      end
     end
   end
-end
 
+  private
+
+  def ensure_default_variation
+    return if product_variations.any?
+
+    product_variations.build(description: 'Unica', safety_stock: 0)
+  end
+
+  def normalize_localized_monetary_fields
+    self.precio_venta_usd = normalize_localized_decimal(precio_venta_usd_before_type_cast)
+    porcentaje_raw = if respond_to?(:porcentaje_ganancia_before_type_cast)
+                       porcentaje_ganancia_before_type_cast
+                     else
+                       porcentaje_ganancia
+                     end
+    self.porcentaje_ganancia = normalize_localized_decimal(porcentaje_raw)
+  end
+
+  def normalize_localized_decimal(raw_value)
+    return raw_value if raw_value.blank? || raw_value.is_a?(Numeric)
+
+    compact = raw_value.to_s.strip.gsub(/\s+/, '').gsub(/[^\d,.-]/, '')
+    return nil if compact.blank?
+
+    normalized = if compact.include?(',')
+                   compact.delete('.').tr(',', '.')
+                 elsif compact.count('.') > 1 && compact.split('.').drop(1).all? { |group| group.length == 3 }
+                   compact.delete('.')
+                 else
+                   compact
+                 end
+
+    BigDecimal(normalized)
+  rescue ArgumentError
+    raw_value
+  end
+end

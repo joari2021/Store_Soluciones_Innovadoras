@@ -1,0 +1,138 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800"><%= @cliente.name %></h1>
+        <p class="mt-1 text-sm text-slate-500">Documento: <%= @cliente.document_label.presence || '-' %></p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to edit_cliente_path(@cliente), class: 'inline-flex items-center justify-center rounded-xl bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-200' do %>
+          <i data-lucide="pencil" class="h-4 w-4"></i>
+          Editar
+        <% end %>
+        <%= link_to clientes_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300' do %>
+          <i data-lucide="arrow-left" class="h-4 w-4"></i>
+          Volver
+        <% end %>
+        <% if current_user_admin? %>
+          <%= link_to cliente_path(@cliente), method: :delete, data: { swal_delete: 'cliente' }, class: 'inline-flex items-center justify-center rounded-xl bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-600 shadow-sm transition-colors hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200' do %>
+            <i data-lucide="trash" class="h-4 w-4"></i>
+            Eliminar
+          <% end %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Contacto</p>
+      <div class="mt-3 space-y-2 text-sm text-slate-600">
+        <p><span class="font-semibold text-slate-700">Telefono:</span> <%= @cliente.phone.presence || '-' %></p>
+        <p><span class="font-semibold text-slate-700">Direccion:</span> <%= @cliente.address.presence || '-' %></p>
+      </div>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Resumen</p>
+      <% last_sale = @ventas.first %>
+      <div class="mt-3 space-y-2 text-sm text-slate-600">
+        <p><span class="font-semibold text-slate-700">Ventas registradas:</span> <%= @ventas.size %></p>
+        <p><span class="font-semibold text-slate-700">Ultima venta:</span> <%= last_sale ? last_sale.created_at.strftime('%d/%m/%Y %H:%M') : '-' %></p>
+      </div>
+    </div>
+  </div>
+  <div class="flex items-center justify-between">
+    <h2 class="text-lg font-semibold text-slate-800">Ventas del cliente</h2>
+  </div>
+  <% if @ventas.any? %>
+    <div class="grid gap-3 md:hidden">
+      <% @ventas.each do |venta| %>
+        <% base_is_ves = venta.base_currency == 'VES' %>
+        <% tasa = venta.tasa_dolar.to_d %>
+        <% base_total = base_is_ves ? venta.base_total : venta.total_usd %>
+        <% alt_total = base_is_ves ? venta.total_usd : venta.total_bs %>
+        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-200 hover:border-sky-200 hover:shadow-md hover:shadow-sky-100/50">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <h3 class="truncate text-base font-bold text-slate-800">Venta #<%= venta.id %></h3>
+              <p class="mt-1 text-sm text-slate-600"><span class="font-semibold text-slate-700">Estado:</span> <%= venta.status_label %></p>
+            </div>
+            <span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700"><%= venta.base_currency %></span>
+          </div>
+          <div class="mt-3 text-sm text-slate-600">
+            <span class="font-semibold text-slate-700">Fecha:</span> <%= venta.created_at.strftime('%d/%m/%Y %H:%M') %>
+          </div>
+          <div class="mt-3">
+            <p class="text-sm font-semibold text-slate-700"><%= format_money(base_total, unit: base_is_ves ? 'Bs ' : '$') %></p>
+            <p class="text-xs text-slate-500">
+              <%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: base_is_ves ? '$' : 'Bs ') : '--' %>
+            </p>
+          </div>
+          <div class="mt-4 flex items-center gap-2">
+            <%= link_to venta_path(venta), class: 'inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors', title: 'Ver', 'aria-label': 'Ver' do %>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                <path d="M12 4.5c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z" />
+                <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+              </svg>
+            <% end %>
+          </div>
+        </article>
+      <% end %>
+    </div>
+    <div class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+      <table class="min-w-full table-auto text-sm text-slate-700">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-6 py-4 text-left font-bold">Venta</th>
+            <th class="px-6 py-4 text-left font-bold">Estado</th>
+            <th class="px-6 py-4 text-center font-bold">Base</th>
+            <th class="px-6 py-4 text-center font-bold">Total</th>
+            <th class="px-6 py-4 text-left font-bold">Fecha</th>
+            <th class="px-6 py-4 text-right font-bold">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% @ventas.each_with_index do |venta, index| %>
+            <% base_is_ves = venta.base_currency == 'VES' %>
+            <% tasa = venta.tasa_dolar.to_d %>
+            <% base_total = base_is_ves ? venta.base_total : venta.total_usd %>
+            <% alt_total = base_is_ves ? venta.total_usd : venta.total_bs %>
+            <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/50' %> hover:bg-sky-50/70">
+              <td class="px-6 py-4 font-semibold text-slate-800">#<%= venta.id %></td>
+              <td class="px-6 py-4"><%= venta.status_label %></td>
+              <td class="px-6 py-4 text-center">
+                <span class="inline-flex items-center rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700"><%= venta.base_currency %></span>
+              </td>
+              <td class="px-6 py-4 text-center whitespace-nowrap">
+                <span class="inline-flex items-center rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  <%= format_money(base_total, unit: base_is_ves ? 'Bs ' : '$') %>
+                </span>
+                <div class="text-xs text-slate-500">
+                  <%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: base_is_ves ? '$' : 'Bs ') : '--' %>
+                </div>
+              </td>
+              <td class="px-6 py-4"><%= venta.created_at.strftime('%d/%m/%Y %H:%M') %></td>
+              <td class="px-6 py-4">
+                <div class="flex items-center justify-end gap-2">
+                  <%= link_to venta_path(venta), class: 'inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors', title: 'Ver', 'aria-label': 'Ver' do %>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                      <path d="M12 4.5c-5 0-9.27 3.11-11 7.5 1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5Zm0 12a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9Z" />
+                      <path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z" />
+                    </svg>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+        <i data-lucide="shopping-cart" class="h-6 w-6"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">No hay ventas registradas</h3>
+      <p class="mt-1 text-sm text-slate-500">Las ventas futuras se mostraran aqui.</p>
+    </div>
+  <% end %>
+</div>

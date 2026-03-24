@@ -1,146 +1,640 @@
-<div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
-  <% if Current.user&.admin? %>
-    <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success mb-3" %>
-    <%= link_to 'Descargar Productos (Excel)', export_excel_productos_path, class: "btn btn-outline-primary mb-3 ms-2", data: { turbo: false } %>
-    <%if @total_alertas > 0%>
-      <%= link_to(
-      "#{params[:filter] == 'alerta' ? 'Mostrar todos los productos' : 'Alerta Precio'} <span class='badge bg-danger'>#{@total_alertas}</span>".html_safe,
-      params[:filter] == "alerta" ? productos_path : productos_path(filter: "alerta"),
-      class: "btn #{params[:filter] == 'alerta' ? 'btn-primary' : 'btn-warning'} mb-3"
-    ) %>
-    <%end%>
-  <% end %>
-  <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
-    <span>Tasa Dolar BCV: <strong><%= number_to_currency(@tasa_dolar_bcv, unit: "Bs ") %></strong></span><br>
-    <span>Tasa Euro BCV: <strong><%= number_to_currency(@tasa_euro_bcv, unit: "Bs ") %></strong></span>
+<section id="tab-productos" class="hidden space-y-6 fade-in">
+  <% can_manage_products = can_manage_action?(:manage_products) %>
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Productos</h1>
+        <p class="mt-1 text-sm text-slate-500">Controla stock por variacion, explora lotes disponibles y ubica costos al instante.</p>
+      </div>
+      <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+        <% if can_manage_products %>
+          <%= link_to categorias_path,
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
+            <i data-lucide="tag" class="h-4 w-4"></i>
+            Categorias
+          <% end %>
+          <%= link_to profit_margin_presets_path,
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
+            % Base de Ganancias
+          <% end %>
+          <%= link_to new_producto_path,
+                      remote: true,
+                      method: :get,
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95 sm:w-auto',
+                      data: { turbo_frame: 'modal-productos' },
+                      onclick: "openModal('productModal')" do %>
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Agregar producto
+          <% end %>
+          <%= link_to export_excel_productos_path,
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 sm:w-auto',
+                      data: { turbo: false } do %>
+            <i data-lucide="download" class="h-4 w-4"></i>
+            Descargar Excel
+          <% end %>
+        <% end %>
+      </div>
+    </div>
   </div>
-  <h1 class="my-4 text-center">Listado de Productos</h1>
-  <%= render "shared/campo_buscar", url: productos_path, busqueda: "Productos" %>
-  <%= turbo_frame_tag "productos-#{@pagy.page}" do%>
-    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xxl-6 g-4 mt-2" id="productos-container">
-      <% @cont_alertas = 0 %>
-      <% @productos.each do |producto| %>
-        <% costo_unidad = (producto.precio_costo / producto.cant_unidades) %>
-        <% precio_sugerido_usd = producto.precio_sugerido_usd(costo_unidad)%>
-        <div class="col">
-          <div class="card h-100 shadow-sm text-black">
-            <% if Current.user&.admin? %>
-              <div class="card-header d-flex justify-content-end">
-                <%= link_to edit_producto_path(producto), class: "btn btn-primary btn-sm", data: { turbo_frame: "_top" } do %>
-                  <i class="fas fa-edit"></i>
-                <% end %>
-              </div>
+  <% if @has_productos || @filters_applied %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <% active_filter_params = {} %>
+      <% active_filter_params[:query_text] = @query_text if @query_text.present? %>
+      <% active_filter_params[:low_stock] = 1 if @low_stock_filter %>
+      <% active_filter_params[:below_target_margin] = 1 if @below_target_margin_filter %>
+      <div class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrar por categoria</p>
+          <% if can_manage_products %>
+            <%= link_to categorias_path,
+                        class: 'inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50' do %>
+              <i data-lucide="settings-2" class="h-3.5 w-3.5"></i>
+              Gestionar
             <% end %>
-            <div class="image-container">
-              <% if producto.foto.attached? %>
-                <%= image_tag producto.foto, class: "card-img-top", alt: producto.descripcion %>
-              <% else %>
-                <%= image_tag "default_image.jpeg", class: "card-img-top", alt: "Imagen por defecto" %>
-              <% end %>
-              <% unless producto.available? %>
-                <%= image_tag "no-disponible.png", class: "overlay-no-disponible", alt: "No disponible" %>
-              <% end %>
-            </div>
-            <div class="card-body">
-              <!--
-              <% if Current.user&.admin? %>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Pack ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.precio_costo, unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Pack (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo), unit: "Bs. ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Cantidad:</span>
-                  <strong class="d-block text-end"><%= producto.cant_unidades %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Unidad ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_costo / producto.cant_unidades), unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Costo Unidad (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_costo / producto.cant_unidades), unit: "Bs ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Nivel Ganancia:</span>
-                  <strong class="d-block text-end"><%= producto.nivel_ganancia.upcase %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">PV Sugerido ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(precio_sugerido_usd, unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">PV Sugerido (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(precio_sugerido_usd), unit: "Bs ") %></strong>
-                </p>
-                <hr>
-              <% end %>
-              -->
-              <% if producto.moneda_base_precio === "Dolar" %>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta ($):</span>
-                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_usd, unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta (Bs):</span>
-                  <strong class="d-block text-end"><%= number_to_currency(producto.calcular_precio_bs(producto.precio_venta_usd), unit: "Bs ") %></strong>
-                </p>
-              <% else %>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta ($):</span>
-                  <strong class="d-block text-end"><%= number_to_currency((producto.precio_venta_bs / @tasa_dolar_bcv), unit: "$ ") %></strong>
-                </p>
-                <hr>
-                <p class="card-text mb-1">
-                  <span class="d-block text-start">Precio Venta (Bs):</span>
-                  <strong class="d-block text-end text-success"><%= number_to_currency(producto.precio_venta_bs, unit: "Bs ") %></strong>
-                </p>
-              <% end %>
-              <hr class="text-info" style="height: 3px;">
-              <h6 class="card-title text-primary fw-bold"><%= producto.descripcion %></h6>
-            </div>
+          <% end %>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <% all_active = @selected_categoria_id.blank? %>
+          <%= link_to productos_path(active_filter_params),
+                      class: "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all #{all_active ? 'border-sky-300 bg-sky-100 text-sky-700 shadow-sm' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100'}" do %>
+            <span>Todas</span>
+            <span class="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-slate-700"><%= @product_counts_by_categoria_id.values.sum %></span>
+          <% end %>
+          <% @categorias.each do |categoria| %>
+            <% is_active = @selected_categoria_id == categoria.id %>
+            <%= link_to productos_path(active_filter_params.merge(category_id: categoria.id)),
+                        class: "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all #{is_active ? 'border-cyan-300 bg-cyan-100 text-cyan-800 shadow-sm' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100'}" do %>
+              <span><%= categoria.nombre %></span>
+              <span class="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-slate-700"><%= @product_counts_by_categoria_id[categoria.id].to_i %></span>
+            <% end %>
+          <% end %>
+        </div>
+      </div>
+      <%= form_with url: productos_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,18rem)_minmax(0,14rem)_minmax(0,14rem)_auto_auto] md:items-end md:justify-start', data: { products_search_form: true } do %>
+        <%= hidden_field_tag :category_id, @selected_categoria_id if @selected_categoria_id.present? %>
+        <div class="w-full md:w-[18rem]">
+          <label for="products_query_text" class="block text-sm font-medium text-slate-700">Buscar producto</label>
+          <div class="relative mt-1">
+            <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400"></i>
+            <%= text_field_tag :query_text,
+                               @query_text,
+                               id: 'products_query_text',
+                               autocomplete: 'off',
+                               placeholder: 'Ej: lapiz, cuaderno, tinta...',
+                               class: 'block w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                               data: { products_search_input: true } %>
+          </div>
+        </div>
+        <div class="w-full md:w-[14rem]">
+          <label for="products_low_stock" class="block text-sm font-medium text-slate-700">Filtro de stock</label>
+          <%= select_tag :low_stock,
+                         options_for_select([
+                           ['Todos', '0'],
+                           ['Productos con stock bajo', '1']
+                         ], @low_stock_filter ? '1' : '0'),
+                         id: 'products_low_stock',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                         data: { products_low_stock_input: true } %>
+        </div>
+        <div class="w-full md:w-[14rem]">
+          <label for="products_below_target_margin" class="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <span>Filtro de precio objetivo</span>
+            <span id="products-below-target-badge">
+              <%= render partial: 'productos/below_target_badge', locals: { count: @below_target_margin_total_count } %>
+            </span>
+          </label>
+          <%= select_tag :below_target_margin,
+                         options_for_select([
+                           ['Todos', '0'],
+                           ['Por debajo del objetivo', '1']
+                         ], @below_target_margin_filter ? '1' : '0'),
+                         id: 'products_below_target_margin',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                         data: { products_below_target_margin_input: true } %>
+        </div>
+        <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">
+          Buscar
+        </button>
+        <% if @filters_applied %>
+          <%= link_to productos_path, class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+            Limpiar
+          <% end %>
+        <% else %>
+          <span></span>
+        <% end %>
+      <% end %>
+      <div class="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          Mostrando <span class="font-semibold text-slate-700" data-products-loaded-count="true"><%= @productos.size %></span>
+          de <span class="font-semibold text-slate-700"><%= @matching_productos_count %></span>
+          <%= @matching_productos_count == 1 ? 'producto' : 'productos' %>.
+        </p>
+        <p>
+          <% if @selected_categoria.present? %>
+            Filtro activo: categoria <span class="font-semibold text-slate-700"><%= @selected_categoria.nombre %></span>.
+          <% elsif @below_target_margin_filter %>
+            Filtro activo: precio por debajo del objetivo segun lote activo de mayor costo.
+          <% elsif @low_stock_filter %>
+            Filtro activo: productos con stock bajo.
+          <% else %>
+            Haz clic en el producto para ver variaciones y luego en cada variacion para ver sus lotes.
+          <% end %>
+        </p>
+      </div>
+    </div>
+  <% end %>
+  <% if @productos.any? %>
+    <div class="space-y-4" data-products-index="true" data-products-url="<%= productos_path %>" data-products-query-text="<%= @query_text %>" data-products-low-stock="<%= @low_stock_filter %>" data-products-below-target-margin="<%= @below_target_margin_filter %>" data-products-category-id="<%= @selected_categoria_id %>">
+      <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-sm text-slate-700">
+            <thead class="border-b border-sky-100 bg-sky-50/70 text-xs font-bold uppercase tracking-wider text-slate-500">
+              <tr>
+                <th class="px-6 py-4">Producto</th>
+                <th class="px-6 py-4">Categoría</th>
+                <th class="px-6 py-4 text-right">Costo Unit $</th>
+                <th class="px-6 py-4 text-right">Precio venta$</th>
+                <th class="px-6 py-4 text-right">Existencia</th>
+                <th class="px-6 py-4 text-right">Valor Inventario $</th>
+                <th class="px-6 py-4 text-right">Valor de venta</th>
+                <% if can_manage_products %>
+                  <th class="px-6 py-4 text-right">Acciones</th>
+                <% end %>
+              </tr>
+            </thead>
+            <tbody id="productos_tbody" class="divide-y divide-slate-100">
+              <%= render partial: 'product_table_rows', locals: { productos: @productos } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <% if @next_page.present? %>
+        <div class="flex justify-center py-2" data-products-pagination="true" data-next-page="<%= @next_page %>">
+          <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-sky-400"></span>
+            <span data-products-pagination-text="true">Cargando más productos...</span>
           </div>
         </div>
       <% end %>
     </div>
-    <%= turbo_frame_tag "productos-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
-  <%end%>
-</div>
-<style>
-  .image-container {
-    position: relative;
-    width: 100%;
-    padding-top: 130%; /* Relación de aspecto 130% */
-    overflow: hidden;
-  }
+  <% elsif @filters_applied %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No se encontraron productos</h3>
+      <p class="mt-1 text-sm text-slate-500"><%= (@low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?) ? 'No hay coincidencias con los filtros activos. Prueba quitar algun filtro o cambiar la búsqueda.' : 'Prueba con otro nombre o limpia la búsqueda.' %></p>
+      <%= link_to productos_path, class: 'mt-4 inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+        Limpiar búsqueda
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No hay productos registrados</h3>
+      <p class="mt-1 text-sm text-slate-500">Agrega tu primer producto para iniciar el control de inventario por lotes.</p>
+    </div>
+  <% end %>
+  <div id="products-live-updates" class="hidden" aria-hidden="true"></div>
+  <%= render partial: 'modal-productos' %>
+</section>
+<script>
+  (() => {
+    const DETAIL_ANIMATION_MS = 220;
 
-  .image-container img {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* Asegura que la imagen se ajuste al contenedor */
-  }
-  .image-container img.overlay-no-disponible {
-    position: absolute;
-    top: -100px;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    pointer-events: none; /* Permite hacer clic en la imagen de abajo */
-    object-fit: contain;
-    z-index: 2;
-  }
-</style>
+    const findProductRoots = (scope) => {
+      const roots = [];
+
+      if (scope instanceof Element && scope.matches("[data-products-index='true']")) {
+        roots.push(scope);
+      }
+
+      if (scope.querySelectorAll) {
+        roots.push(...scope.querySelectorAll("[data-products-index='true']"));
+      }
+
+      return [...new Set(roots)];
+    };
+
+    const rowsToArray = (rows) => Array.from(rows || []);
+
+    const stopRowAnimation = (row) => {
+      if (!row || !row._productsAnimation) return;
+
+      row._productsAnimation.cancel();
+      row._productsAnimation = null;
+      row.style.willChange = "";
+    };
+
+    const revealRows = (rows) => {
+      rowsToArray(rows).forEach((row) => {
+        stopRowAnimation(row);
+        row.classList.remove("hidden");
+
+        if (!("animate" in row)) return;
+
+        row.style.willChange = "transform, opacity";
+        const animation = row.animate(
+          [
+            { opacity: 0, transform: "translateY(-10px)" },
+            { opacity: 1, transform: "translateY(0)" },
+          ],
+          {
+            duration: DETAIL_ANIMATION_MS,
+            easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+          },
+        );
+
+        row._productsAnimation = animation;
+        const clearAnimationState = () => {
+          row.style.willChange = "";
+          row._productsAnimation = null;
+        };
+
+        animation.onfinish = clearAnimationState;
+        animation.oncancel = clearAnimationState;
+      });
+    };
+
+    const hideRows = (rows) => Promise.all(
+      rowsToArray(rows).map((row) => new Promise((resolve) => {
+        if (row.classList.contains("hidden")) {
+          resolve();
+          return;
+        }
+
+        stopRowAnimation(row);
+
+        if (!("animate" in row)) {
+          row.classList.add("hidden");
+          resolve();
+          return;
+        }
+
+        row.style.willChange = "transform, opacity";
+        const animation = row.animate(
+          [
+            { opacity: 1, transform: "translateY(0)" },
+            { opacity: 0, transform: "translateY(-10px)" },
+          ],
+          {
+            duration: DETAIL_ANIMATION_MS - 20,
+            easing: "ease-in",
+          },
+        );
+
+        row._productsAnimation = animation;
+        const closeRow = () => {
+          row.classList.add("hidden");
+          row.style.willChange = "";
+          row._productsAnimation = null;
+          resolve();
+        };
+
+        animation.onfinish = closeRow;
+        animation.oncancel = closeRow;
+      })),
+    );
+
+    const toggleProductDetails = async (root, button) => {
+      const productId = button.dataset.productId;
+      if (!productId) return;
+
+      const variationRows = rowsToArray(root.querySelectorAll(`.js-product-variation-row[data-product-detail-for="${productId}"]`));
+      const lotRows = rowsToArray(root.querySelectorAll(`.js-product-lot-row[data-product-lot-for="${productId}"]`));
+      const emptyRows = rowsToArray(root.querySelectorAll(`.js-product-empty-row[data-product-empty-for="${productId}"]`));
+
+      const hasDetails = variationRows.length > 0 || emptyRows.length > 0;
+      if (!hasDetails) return;
+
+      const isClosed = variationRows.every((row) => row.classList.contains("hidden")) &&
+        emptyRows.every((row) => row.classList.contains("hidden"));
+
+      if (isClosed) {
+        revealRows(variationRows);
+        revealRows(emptyRows);
+        await hideRows(lotRows);
+      } else {
+        await hideRows(variationRows);
+        await hideRows(emptyRows);
+        await hideRows(lotRows);
+      }
+
+      root.querySelectorAll(`.js-variation-toggle-row[data-product-id="${productId}"]`).forEach((variationButton) => {
+        variationButton.dataset.open = "false";
+        const icon = variationButton.querySelector(".js-variation-toggle-icon");
+        if (icon) icon.classList.remove("rotate-90");
+      });
+
+      const icon = button.querySelector(".js-product-toggle-icon");
+      if (icon) icon.classList.toggle("rotate-90", isClosed);
+    };
+
+    const toggleVariationLots = async (root, button) => {
+      const productId = button.dataset.productId;
+      const variationKey = button.dataset.variationKey;
+      if (!productId || !variationKey) return;
+
+      const allLotRows = rowsToArray(root.querySelectorAll(`.js-product-lot-row[data-product-lot-for="${productId}"]`));
+      const targetLotRows = rowsToArray(root.querySelectorAll(`.js-product-lot-row[data-product-lot-for="${productId}"][data-variation-key="${variationKey}"]`));
+      if (!targetLotRows.length) return;
+
+      const shouldOpen = targetLotRows.every((row) => row.classList.contains("hidden"));
+
+      await hideRows(allLotRows);
+      if (shouldOpen) {
+        revealRows(targetLotRows);
+      }
+
+      root.querySelectorAll(`.js-variation-toggle-row[data-product-id="${productId}"]`).forEach((variationButton) => {
+        const isActive = shouldOpen && variationButton.dataset.variationKey === variationKey;
+        variationButton.dataset.open = isActive ? "true" : "false";
+        const icon = variationButton.querySelector(".js-variation-toggle-icon");
+        if (icon) icon.classList.toggle("rotate-90", isActive);
+      });
+    };
+
+    const bindSearchDebounce = (scope = document) => {
+      const form = scope.querySelector("[data-products-search-form='true']");
+      const input = scope.querySelector("[data-products-search-input='true']");
+      const lowStockInput = scope.querySelector("[data-products-low-stock-input='true']");
+      const belowTargetMarginInput = scope.querySelector(
+        "[data-products-below-target-margin-input='true']",
+      );
+      if (!form) return;
+
+      if (input && input.dataset.debounceBound !== "true") {
+        input.dataset.debounceBound = "true";
+        let timer = null;
+
+        input.addEventListener("input", () => {
+          if (timer) clearTimeout(timer);
+
+          timer = setTimeout(() => {
+            form.requestSubmit();
+          }, 350);
+        });
+      }
+
+      if (lowStockInput && lowStockInput.dataset.changeBound !== "true") {
+        lowStockInput.dataset.changeBound = "true";
+        lowStockInput.addEventListener("change", () => form.requestSubmit());
+      }
+
+      if (
+        belowTargetMarginInput &&
+        belowTargetMarginInput.dataset.changeBound !== "true"
+      ) {
+        belowTargetMarginInput.dataset.changeBound = "true";
+        belowTargetMarginInput.addEventListener("change", () =>
+          form.requestSubmit(),
+        );
+      }
+    };
+
+    const bindLiveProductRowUpdates = () => {
+      const updatesContainer = document.getElementById("products-live-updates");
+      const tableBody = document.getElementById("productos_tbody");
+      if (!updatesContainer || !tableBody) return;
+      if (updatesContainer.dataset.liveUpdatesBound === "true") return;
+      updatesContainer.dataset.liveUpdatesBound = "true";
+
+      const replaceProductRows = (productId, rowsHtml) => {
+        if (!productId || !rowsHtml) return;
+
+        const selectors = [
+          `tr[data-product-row-id="${productId}"]`,
+          `tr[data-product-detail-for="${productId}"]`,
+          `tr[data-product-lot-for="${productId}"]`,
+          `tr[data-product-empty-for="${productId}"]`,
+        ];
+
+        const oldRows = Array.from(tableBody.querySelectorAll(selectors.join(",")));
+        if (!oldRows.length) return;
+
+        const nextSibling = oldRows[oldRows.length - 1].nextSibling;
+        oldRows.forEach((row) => stopRowAnimation(row));
+        oldRows.forEach((row) => row.remove());
+
+        const parser = document.createElement("template");
+        parser.innerHTML = rowsHtml.trim();
+        const newRows = Array.from(parser.content.querySelectorAll("tr"));
+        if (!newRows.length) return;
+
+        const fragment = document.createDocumentFragment();
+        newRows.forEach((row) => fragment.appendChild(row));
+
+        if (nextSibling && nextSibling.parentNode === tableBody) {
+          tableBody.insertBefore(fragment, nextSibling);
+        } else {
+          tableBody.appendChild(fragment);
+        }
+
+        if (window.lucide) window.lucide.createIcons();
+      };
+
+      const processPayload = (node) => {
+        if (!(node instanceof Element)) return;
+
+        const payload = node.matches("[data-product-row-update='true']")
+          ? node
+          : node.querySelector("[data-product-row-update='true']");
+        if (!payload) return;
+
+        const productId = payload.dataset.productId;
+        const templateNode = payload.querySelector("template[data-product-row-update-html]");
+        const rowsHtml = templateNode ? templateNode.innerHTML : "";
+        replaceProductRows(productId, rowsHtml);
+        payload.remove();
+      };
+
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => processPayload(node));
+        });
+      });
+
+      observer.observe(updatesContainer, { childList: true });
+      updatesContainer.querySelectorAll("[data-product-row-update='true']").forEach((node) => processPayload(node));
+
+      document.addEventListener(
+        "turbo:before-cache",
+        () => {
+          observer.disconnect();
+        },
+        { once: true },
+      );
+    };
+
+    const initProductsInfiniteScroll = (scope = document) => {
+      bindLiveProductRowUpdates();
+
+      findProductRoots(scope).forEach((root) => {
+        if (root.dataset.productsBound === "true") return;
+        root.dataset.productsBound = "true";
+
+        const tableBody = root.querySelector("#productos_tbody");
+        const loadedCountNode = document.querySelector("[data-products-loaded-count='true']");
+        let observer = null;
+        let loading = false;
+
+        root.addEventListener("click", (event) => {
+          const productButton = event.target.closest(".js-product-toggle-row");
+          if (productButton) {
+            void toggleProductDetails(root, productButton);
+            return;
+          }
+
+          const variationButton = event.target.closest(".js-variation-toggle-row");
+          if (variationButton) {
+            void toggleVariationLots(root, variationButton);
+            return;
+          }
+
+          const retryButton = event.target.closest("[data-products-retry='true']");
+          if (!retryButton) return;
+
+          const pagination = retryButton.closest("[data-products-pagination='true']");
+          if (!pagination) return;
+
+          pagination.innerHTML = `
+            <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
+              <span class="h-2 w-2 animate-pulse rounded-full bg-sky-400"></span>
+              <span data-products-pagination-text="true">Cargando más productos...</span>
+            </div>
+          `;
+
+          loadPage(pagination);
+        });
+
+        const buildUrl = (page) => {
+          const url = new URL(root.dataset.productsUrl, window.location.origin);
+
+          if (root.dataset.productsQueryText) {
+            url.searchParams.set("query_text", root.dataset.productsQueryText);
+          }
+
+          if (root.dataset.productsLowStock === "true") {
+            url.searchParams.set("low_stock", "1");
+          }
+
+          if (root.dataset.productsBelowTargetMargin === "true") {
+            url.searchParams.set("below_target_margin", "1");
+          }
+
+          if (root.dataset.productsCategoryId) {
+            url.searchParams.set("category_id", root.dataset.productsCategoryId);
+          }
+
+          url.searchParams.set("page", String(page));
+          url.searchParams.set("format", "json");
+          return url.toString();
+        };
+
+        const disconnectObserver = () => {
+          if (observer) {
+            observer.disconnect();
+            observer = null;
+          }
+        };
+
+        const setRetryState = (pagination) => {
+          pagination.innerHTML = `
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer"
+              data-products-retry="true"
+            >
+              Reintentar carga
+            </button>
+          `;
+        };
+
+        const bindPagination = (pagination) => {
+          if (!pagination) return;
+
+          disconnectObserver();
+
+          if (!("IntersectionObserver" in window)) {
+            setRetryState(pagination);
+            return;
+          }
+
+          observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                if (!entry.isIntersecting) return;
+
+                disconnectObserver();
+                loadPage(pagination);
+              });
+            },
+            { rootMargin: "220px 0px" },
+          );
+
+          observer.observe(pagination);
+        };
+
+        const loadPage = async (pagination) => {
+          const nextPage = Number(pagination.dataset.nextPage || 0);
+          if (!nextPage || loading) return;
+
+          loading = true;
+          const messageNode = pagination.querySelector("[data-products-pagination-text='true']");
+          if (messageNode) messageNode.textContent = "Cargando más productos...";
+
+          try {
+            const response = await fetch(buildUrl(nextPage), {
+              headers: {
+                Accept: "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+              },
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || "No se pudo cargar la siguiente página");
+
+            if (data.table_rows_html && tableBody) {
+              tableBody.insertAdjacentHTML("beforeend", data.table_rows_html);
+              if (window.lucide) window.lucide.createIcons();
+            }
+
+            if (loadedCountNode) {
+              const currentValue = Number(loadedCountNode.textContent || 0);
+              loadedCountNode.textContent = String(currentValue + Number(data.batch_count || 0));
+            }
+
+            if (data.next_page) {
+              pagination.dataset.nextPage = String(data.next_page);
+
+              if (messageNode) {
+                messageNode.textContent = "Desplázate para cargar más";
+              }
+
+              bindPagination(pagination);
+            } else {
+              pagination.remove();
+            }
+          } catch (_error) {
+            setRetryState(pagination);
+          } finally {
+            loading = false;
+          }
+        };
+
+        bindPagination(root.querySelector("[data-products-pagination='true']"));
+
+        document.addEventListener(
+          "turbo:before-cache",
+          () => {
+            disconnectObserver();
+          },
+          { once: true },
+        );
+      });
+
+      bindSearchDebounce(scope instanceof Element ? scope : document);
+    };
+
+    document.addEventListener("turbo:load", () => initProductsInfiniteScroll(document));
+    document.addEventListener("DOMContentLoaded", () => initProductsInfiniteScroll(document));
+    document.addEventListener("turbo:render", () => initProductsInfiniteScroll(document));
+    document.addEventListener("turbo:frame-load", (event) => initProductsInfiniteScroll(event.target));
+  })();
+</script>

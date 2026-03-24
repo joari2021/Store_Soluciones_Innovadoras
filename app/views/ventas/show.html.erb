@@ -1,0 +1,518 @@
+<% base_is_ves = @venta.base_currency == 'VES' %>
+<% sale_reference = @sale_reference || {} %>
+<% tasa = sale_reference[:effective_usd_rate].to_d %>
+<% tasa = @venta.tasa_dolar.to_d unless tasa.positive? %>
+<% tasa_fecha = sale_reference[:rate_date] %>
+<% base_symbol = base_is_ves ? 'Bs ' : '$' %>
+<% alt_symbol = base_is_ves ? '$' : 'Bs ' %>
+<% base_total = base_is_ves ? sale_reference.fetch(:ves_total, @venta.total_bs.to_d) : sale_reference.fetch(:usd_total, @venta.total_usd.to_d) %>
+<% alt_total = base_is_ves ? sale_reference.fetch(:usd_total, @venta.total_usd.to_d) : sale_reference.fetch(:ves_total, @venta.total_bs.to_d) %>
+<% base_subtotal = base_is_ves ? @venta.base_subtotal : @venta.subtotal_usd %>
+<% base_exento = base_is_ves ? @venta.exento_base_subtotal : @venta.exento_subtotal_usd %>
+<% base_vat = base_is_ves ? @venta.base_vat : @venta.vat_usd %>
+<% paid_base_total = @venta.venta_payments.sum do |payment|
+     sign = payment.payment_kind == 'out' ? -1 : 1
+     amount = base_is_ves ? payment.amount_bs.to_d : payment.amount_usd.to_d
+     amount * sign
+   end.round(2) %>
+<% paid_alt_total = @venta.venta_payments.sum do |payment|
+     sign = payment.payment_kind == 'out' ? -1 : 1
+     amount = base_is_ves ? payment.amount_usd.to_d : payment.amount_bs.to_d
+     amount * sign
+   end.round(2) %>
+<% if base_is_ves && paid_base_total.positive? %>
+  <% base_total = paid_base_total %>
+  <% alt_total = paid_alt_total if paid_alt_total.positive? %>
+<% end %>
+<% currency_symbols = { 'USD' => '$', 'USDT' => 'USDT', 'VES' => 'Bs', 'EUR' => 'EUR' } %>
+<% items_count = @venta.venta_items.size %>
+<% incoming_payments = @venta.venta_payments.count { |payment| payment.payment_kind != 'out' } %>
+<% outgoing_payments = @venta.venta_payments.count { |payment| payment.payment_kind == 'out' } %>
+<% default_invoice_status = { label: 'Pagada', badge_class: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' } %>
+<% invoice_status = @invoice_status || default_invoice_status %>
+<% credit_status = @sale_credit_status || { label: 'Pagada', badge_class: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' } %>
+<% linked_debt = @sale_linked_debt %>
+<% sale_credit_display = @sale_credit_display || {} %>
+<% credit_currency = sale_credit_display[:currency].to_s.upcase.presence || @venta.base_currency %>
+<% credit_currency_symbol = currency_symbols[credit_currency] || credit_currency %>
+<% credit_total = sale_credit_display[:total].to_d %>
+<% credit_paid = sale_credit_display[:paid].to_d %>
+<% credit_balance = sale_credit_display[:balance].to_d %>
+<% credit_total_base = sale_credit_display[:total_base] %>
+<% credit_paid_base = sale_credit_display[:paid_base] %>
+<% credit_balance_base = sale_credit_display[:balance_base] %>
+<% credit_total_alt = sale_credit_display[:total_alt] %>
+<% credit_paid_alt = sale_credit_display[:paid_alt] %>
+<% credit_balance_alt = sale_credit_display[:balance_alt] %>
+<% vat_badge_class = case @venta.vat_mode
+                     when 'none' then 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'
+                     when 'add' then 'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                     else 'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200'
+                     end %>
+<% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
+<div class="space-y-6">
+  <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
+    <div class="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-sky-200/30 blur-2xl"></div>
+    <div class="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div class="max-w-2xl">
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] <%= invoice_status[:badge_class] %>">
+          Factura <%= invoice_status[:label] %>
+        </span>
+        <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-800 md:text-4xl">Venta #<%= @venta.id %></h1>
+        <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Registrada el <%= @venta.created_at.strftime('%d/%m/%Y %H:%M') %> con una vista renovada para revisar items, pagos y configuraci&oacute;n de la venta.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to historial_ventas_path, class: "inline-flex cursor-pointer items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
+          Volver al historial
+        <% end %>
+        <% if @venta.vat_mode == 'none' %>
+          <%= link_to delivery_note_venta_path(@venta, autoprint: 1),
+                      target: '_blank',
+                      rel: 'noopener',
+                      class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100' do %>
+            Generar nota de entrega
+          <% end %>
+        <% else %>
+          <span class="inline-flex cursor-not-allowed items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-500"
+                title="Disponible solo para facturas sin IVA">
+            Nota de entrega bloqueada (IVA activo)
+          </span>
+        <% end %>
+        <%= link_to ventas_path, class: "inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800" do %>
+          Ir al POS
+        <% end %>
+      </div>
+    </div>
+    <div class="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</p>
+        <p class="mt-2 text-lg font-bold text-slate-800"><%= @venta.cliente_display_name %></p>
+        <p class="mt-1 text-xs text-slate-500">Facturo: <span class="font-semibold text-slate-700"><%= @venta.seller_display_name %></span></p>
+        <p class="mt-1 text-xs text-slate-500"><%= items_count %> item(s) en la orden</p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total base</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(base_total, unit: base_symbol) %></p>
+        <p class="mt-1 text-xs text-slate-500"><%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: alt_symbol) : '--' %></p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">IVA y base</p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= vat_badge_class %>"><%= @venta.vat_mode_label %></span>
+          <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100"><%= @venta.base_currency %></span>
+        </div>
+        <p class="mt-2 text-xs text-slate-500">Tasa BCV: <span class="font-semibold text-slate-700"><%= tasa.positive? ? format_money(tasa, unit: 'Bs ') : 'No disponible' %></span></p>
+        <% if tasa_fecha.present? %>
+          <p class="mt-1 text-xs text-slate-500">Fecha tasa: <span class="font-semibold text-slate-700"><%= tasa_fecha.strftime('%d/%m/%Y') %></span></p>
+        <% end %>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Pagos</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @venta.venta_payments.size %></p>
+        <p class="mt-1 text-xs text-slate-500"><%= incoming_payments %> ingreso(s) y <%= outgoing_payments %> vuelto(s)</p>
+        <div class="mt-2 flex flex-wrap items-center gap-2">
+          <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= invoice_status[:badge_class] %>">Factura <%= invoice_status[:label] %></span>
+          <% if linked_debt.present? %>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= credit_status[:badge_class] %>">Deuda <%= credit_status[:label] %></span>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    <% if linked_debt.present? %>
+      <div class="relative mt-5 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Credito asociado a esta venta</p>
+            <h2 class="mt-1 text-lg font-extrabold text-slate-800">Monto enviado a deuda: <%= format_money(credit_total, unit: credit_currency_symbol) %></h2>
+            <p class="mt-1 text-xs text-slate-600">Equivalencia base del dia: <%= credit_total_base.present? ? format_money(credit_total_base, unit: base_symbol) : '--' %> · <%= credit_total_alt.present? ? format_money(credit_total_alt, unit: alt_symbol) : '--' %></p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= credit_status[:badge_class] %>">Deuda <%= credit_status[:label] %></span>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= invoice_status[:badge_class] %>">Factura <%= invoice_status[:label] %></span>
+            <%= link_to debt_path(linked_debt), class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100' do %>
+              Ver deuda #<%= linked_debt.id %>
+            <% end %>
+          </div>
+        </div>
+        <div class="mt-3 grid gap-2 md:grid-cols-3">
+          <div class="rounded-xl border border-amber-200 bg-white/85 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagado en deuda</p>
+            <p class="mt-1 text-sm font-bold text-slate-800"><%= format_money(credit_paid, unit: credit_currency_symbol) %></p>
+            <p class="text-xs text-slate-500"><%= credit_paid_base.present? ? format_money(credit_paid_base, unit: base_symbol) : '--' %> · <%= credit_paid_alt.present? ? format_money(credit_paid_alt, unit: alt_symbol) : '--' %></p>
+          </div>
+          <div class="rounded-xl border border-amber-200 bg-white/85 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pendiente</p>
+            <p class="mt-1 text-sm font-bold text-slate-800"><%= format_money(credit_balance, unit: credit_currency_symbol) %></p>
+            <p class="text-xs text-slate-500"><%= credit_balance_base.present? ? format_money(credit_balance_base, unit: base_symbol) : '--' %> · <%= credit_balance_alt.present? ? format_money(credit_balance_alt, unit: alt_symbol) : '--' %></p>
+          </div>
+          <div class="rounded-xl border border-amber-200 bg-white/85 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vencimiento</p>
+            <p class="mt-1 text-sm font-bold text-slate-800"><%= linked_debt.due_on.present? ? linked_debt.due_on.strftime('%d/%m/%Y') : 'Sin fecha' %></p>
+            <p class="text-xs text-slate-500">Cliente: <span class="font-semibold text-slate-700"><%= linked_debt.counterparty_display_name %></span></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+  <div class="grid gap-4 xl:grid-cols-[1.35fr_0.65fr]">
+    <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex items-center justify-between gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 px-6 py-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Detalle de la orden</p>
+          <h2 class="mt-1 text-lg font-bold text-slate-800">Items vendidos</h2>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100"><%= items_count %> item(s)</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-slate-700">
+          <thead class="border-b border-sky-100 bg-sky-50/60 text-xs uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-6 py-4 text-left font-bold">Producto</th>
+              <th class="px-6 py-4 text-left font-bold">Variacion</th>
+              <th class="px-6 py-4 text-center font-bold">Cantidad</th>
+              <th class="px-6 py-4 text-right font-bold">Precio unitario</th>
+              <th class="px-6 py-4 text-right font-bold">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @venta.venta_items.each_with_index do |item, index| %>
+              <% unit_usd = item.unit_price_usd.to_d.round(2) %>
+              <% subtotal_usd = item.subtotal_usd.to_d.round(2) %>
+              <% raw_unit_base = base_is_ves ? @venta.base_unit_price(item) : unit_usd %>
+              <% raw_subtotal_base = base_is_ves ? @venta.base_line_subtotal(item) : subtotal_usd %>
+              <% item_kind_class = item.producto.present? ? 'bg-sky-50 text-sky-700 ring-1 ring-sky-100' : 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100' %>
+              <% is_service_item = item.producto.blank? %>
+              <% item_exento = item.respond_to?(:exento) && item.exento %>
+              <% service_system_label = item.variation_name.to_s.strip.presence || 'Servicio' %>
+              <% default_item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
+              <% display_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
+              <% service_snapshot = if is_service_item
+                                      service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
+                                    end %>
+              <% service_breakdown_lines = if is_service_item
+                                             Array(service_snapshot.is_a?(Hash) ? service_snapshot['detail_lines'] : []).filter_map do |line|
+                                               next unless line.is_a?(Hash)
+
+                                               classification = line['classification'].to_s
+                                               next unless %w[product_expense nested_expense].include?(classification)
+
+                                               if classification == 'product_expense'
+                                                 next unless ActiveModel::Type::Boolean.new.cast(line['breakdown_in_invoice'])
+                                               end
+
+                                               line_total_usd = line['amount_usd'].to_d.round(2)
+                                               next unless line_total_usd.positive?
+
+                                               line_quantity = line['quantity'].to_d.round(2)
+                                               line_quantity = 1.to_d unless line_quantity.positive?
+                                               line_unit_usd = (line_total_usd / line_quantity).round(2)
+
+                                               line_label = classification == 'nested_expense' ? 'Servicio anidado' : 'Producto del servicio'
+                                               line_name = line['source_name'].to_s.strip.presence || line_label
+
+                                               {
+                                                 classification: classification,
+                                                 label: line_label,
+                                                 name: line_name,
+                                                 quantity: line_quantity,
+                                                 unit_usd: line_unit_usd,
+                                                 subtotal_usd: line_total_usd
+                                               }
+                                             end
+                                           else
+                                             []
+                                           end %>
+              <% service_printing_lines = if is_service_item
+                                            Array(service_printings_by_parent_name.delete(default_item_name.to_s.strip.downcase)).filter_map do |line|
+                                              next unless line.is_a?(Hash)
+
+                                              line_quantity = line['quantity'].to_d.round(2)
+                                              line_quantity = 1.to_d unless line_quantity.positive?
+                                              line_total_usd = line['total_sale_price_usd'].to_d.round(2)
+                                              next unless line_total_usd.positive?
+                                              line_total_bs = line['total_sale_price_bs'].to_d.round(2)
+                                              line_unit_bs = line['unit_sale_price_bs'].to_d.round(2)
+
+                                              {
+                                                classification: line['classification'].to_s.presence || 'printing_service',
+                                                label: line['classification_label'].to_s.presence || 'Servicio de impresion',
+                                                name: line['source_name'].to_s.strip.presence || 'Impresion',
+                                                quantity: line_quantity,
+                                                unit_bs: line_unit_bs,
+                                                subtotal_bs: line_total_bs,
+                                                unit_usd: line['unit_sale_price_usd'].to_d.round(2),
+                                                subtotal_usd: line_total_usd
+                                              }
+                                            end
+                                          else
+                                            []
+                                          end %>
+              <% all_service_breakdown_lines = service_breakdown_lines + service_printing_lines %>
+              <% service_breakdown_total_usd = all_service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+              <% service_printing_total_bs = service_printing_lines.sum { |line| line[:subtotal_bs].to_d }.round(2) %>
+              <% service_non_printing_breakdown_total_usd = service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+              <% service_visual_subtotal_usd = if is_service_item
+                                                 [(subtotal_usd - service_breakdown_total_usd).round(2), 0.to_d].max
+                                               else
+                                                 subtotal_usd
+                                               end %>
+              <% service_quantity = item.quantity.to_d %>
+              <% service_quantity = 1.to_d unless service_quantity.positive? %>
+              <% service_visual_unit_usd = is_service_item ? (service_visual_subtotal_usd / service_quantity).round(2) : unit_usd %>
+              <% display_subtotal_usd = service_visual_subtotal_usd %>
+              <% display_unit_usd = service_visual_unit_usd %>
+              <% if is_service_item && base_is_ves && subtotal_usd.positive? %>
+                <% non_printing_breakdown_base = tasa.positive? ? (service_non_printing_breakdown_total_usd * tasa).round(2) : 0.to_d %>
+                <% subtotal_base = [raw_subtotal_base.to_d - service_printing_total_bs - non_printing_breakdown_base, 0.to_d].max.round(2) %>
+                <% unit_base = (subtotal_base / service_quantity).round(2) %>
+                <% if tasa.positive? %>
+                  <% display_subtotal_usd = (subtotal_base / tasa).round(2) %>
+                  <% display_unit_usd = (display_subtotal_usd / service_quantity).round(2) %>
+                <% end %>
+              <% else %>
+                <% unit_base = base_is_ves ? raw_unit_base : display_unit_usd %>
+                <% subtotal_base = base_is_ves ? raw_subtotal_base : display_subtotal_usd %>
+              <% end %>
+              <% unit_alt = base_is_ves ? display_unit_usd : (tasa.positive? ? (display_unit_usd * tasa).round(2) : 0) %>
+              <% subtotal_alt = base_is_ves ? display_subtotal_usd : (tasa.positive? ? (display_subtotal_usd * tasa).round(2) : 0) %>
+              <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/50">
+                <td class="px-6 py-4">
+                  <div class="flex flex-col gap-1">
+                    <span class="font-semibold text-slate-800"><%= display_item_name %></span>
+                    <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= item_kind_class %>"><%= item.producto.present? ? 'Producto' : service_system_label %></span>
+                    <% if item.producto.present? && item_exento %>
+                      <span class="inline-flex w-fit items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Exento IVA</span>
+                    <% end %>
+                  </div>
+                </td>
+                <td class="px-6 py-4">
+                  <% if is_service_item %>
+                    <span class="text-xs text-slate-400">-</span>
+                  <% else %>
+                    <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><%= item.variation_name.presence || item.product_variation&.description || 'Unica' %></span>
+                  <% end %>
+                </td>
+                <td class="px-6 py-4 text-center font-semibold text-slate-700"><%= format_quantity(item.quantity, precision: 2) %></td>
+                <td class="px-6 py-4 text-right">
+                  <span class="font-semibold text-slate-800"><%= format_money(unit_base, unit: base_symbol) %></span>
+                  <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(unit_alt, unit: alt_symbol) : '--' %></div>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <span class="font-semibold text-slate-800"><%= format_money(subtotal_base, unit: base_symbol) %></span>
+                  <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(subtotal_alt, unit: alt_symbol) : '--' %></div>
+                </td>
+              </tr>
+              <% if is_service_item %>
+                <% all_service_breakdown_lines.each do |line| %>
+                  <% child_quantity = line[:quantity].to_d %>
+                  <% child_unit_usd = line[:unit_usd].to_d.round(2) %>
+                  <% child_subtotal_usd = line[:subtotal_usd].to_d.round(2) %>
+                  <% if %w[printing_service lamination_service].include?(line[:classification].to_s) && base_is_ves %>
+                    <% child_unit_base = line[:unit_bs].to_d.round(2) %>
+                    <% child_subtotal_base = line[:subtotal_bs].to_d.round(2) %>
+                    <% child_unit_alt = tasa.positive? ? (child_unit_base / tasa).round(2) : child_unit_usd %>
+                    <% child_subtotal_alt = tasa.positive? ? (child_subtotal_base / tasa).round(2) : child_subtotal_usd %>
+                  <% else %>
+                    <% child_unit_base = base_is_ves ? (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) : child_unit_usd %>
+                    <% child_subtotal_base = base_is_ves ? (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) : child_subtotal_usd %>
+                    <% child_unit_alt = base_is_ves ? child_unit_usd : (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) %>
+                    <% child_subtotal_alt = base_is_ves ? child_subtotal_usd : (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) %>
+                  <% end %>
+                  <% child_kind_class = case line[:classification]
+                                        when 'nested_expense'
+                                          'bg-violet-50 text-violet-700 ring-1 ring-violet-100'
+                                        when 'lamination_service'
+                                          'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100'
+                                        when 'printing_service'
+                                          'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100'
+                                        else
+                                          'bg-amber-50 text-amber-700 ring-1 ring-amber-100'
+                                        end %>
+                  <% child_row_tone_class = case line[:classification]
+                                            when 'nested_expense'
+                                              'bg-violet-50/35 hover:bg-violet-50/55'
+                                            when 'lamination_service'
+                                              'bg-emerald-50/35 hover:bg-emerald-50/55'
+                                            when 'printing_service'
+                                              'bg-cyan-50/35 hover:bg-cyan-50/55'
+                                            else
+                                              'bg-amber-50/35 hover:bg-amber-50/55'
+                                            end %>
+                  <% child_border_class = case line[:classification]
+                                          when 'nested_expense'
+                                            'border-l-violet-300'
+                                          when 'lamination_service'
+                                            'border-l-emerald-300'
+                                          when 'printing_service'
+                                            'border-l-cyan-300'
+                                          else
+                                            'border-l-amber-300'
+                                          end %>
+                  <% child_marker_class = case line[:classification]
+                                          when 'nested_expense'
+                                            'bg-violet-100 text-violet-700 ring-violet-200'
+                                          when 'lamination_service'
+                                            'bg-emerald-100 text-emerald-700 ring-emerald-200'
+                                          when 'printing_service'
+                                            'bg-cyan-100 text-cyan-700 ring-cyan-200'
+                                          else
+                                            'bg-amber-100 text-amber-700 ring-amber-200'
+                                          end %>
+                  <tr class="transition-all duration-150 border-t border-dashed border-slate-200/80 <%= child_row_tone_class %>">
+                    <td class="relative border-l-4 <%= child_border_class %> px-6 py-3 pl-14">
+                      <span class="absolute left-5 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-bold ring-1 <%= child_marker_class %>">↳</span>
+                      <div class="flex flex-col gap-1">
+                        <span class="font-semibold text-slate-800"><%= line[:name] %></span>
+                        <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= child_kind_class %>"><%= line[:label] %></span>
+                      </div>
+                    </td>
+                    <td class="px-6 py-3">
+                      <span class="inline-flex w-fit items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-300">Asociado a "<%= display_item_name %>"</span>
+                    </td>
+                    <td class="px-6 py-3 text-center font-semibold text-slate-700"><%= format_quantity(child_quantity, precision: 2) %></td>
+                    <td class="px-6 py-3 text-right">
+                      <span class="font-semibold text-slate-800"><%= format_money(child_unit_base, unit: base_symbol) %></span>
+                      <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(child_unit_alt, unit: alt_symbol) : '--' %></div>
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                      <span class="font-semibold text-slate-800"><%= format_money(child_subtotal_base, unit: base_symbol) %></span>
+                      <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(child_subtotal_alt, unit: alt_symbol) : '--' %></div>
+                    </td>
+                  </tr>
+                <% end %>
+              <% end %>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="space-y-4">
+      <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Configuracion</p>
+        <div class="mt-4 space-y-3">
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <span class="text-sm text-slate-500">Moneda base</span>
+            <span class="font-semibold text-slate-800"><%= @venta.base_currency %></span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <span class="text-sm text-slate-500">IVA aplicado</span>
+            <span class="font-semibold text-slate-800"><%= @venta.vat_mode_label %> (<%= (@venta.vat_rate.to_d * 100).round(2) %>%)</span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <span class="text-sm text-slate-500">Tasa BCV</span>
+            <span class="font-semibold text-slate-800"><%= tasa.positive? ? format_money(tasa, unit: 'Bs ') : 'No disponible' %></span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <span class="text-sm text-slate-500">Fecha tasa aplicada</span>
+            <span class="font-semibold text-slate-800"><%= tasa_fecha.present? ? tasa_fecha.strftime('%d/%m/%Y') : 'Sin registro' %></span>
+          </div>
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <span class="text-sm text-slate-500">Estado factura</span>
+            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= invoice_status[:badge_class] %>"><%= invoice_status[:label] %></span>
+          </div>
+          <% if linked_debt.present? %>
+            <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+              <span class="text-sm text-slate-500">Estado deuda</span>
+              <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= credit_status[:badge_class] %>"><%= credit_status[:label] %></span>
+            </div>
+            <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+              <span class="text-sm text-slate-500">Deuda vinculada</span>
+              <%= link_to debt_path(linked_debt), class: 'inline-flex cursor-pointer items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 transition-colors hover:bg-amber-200' do %>
+                #<%= linked_debt.id %>
+              <% end %>
+            </div>
+          <% end %>
+          <div class="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+            <span class="text-sm text-slate-500">Facturo</span>
+            <span class="font-semibold text-slate-800"><%= @venta.seller_display_name %></span>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-700">Resumen monetario</p>
+        <div class="mt-4 space-y-3">
+          <div class="flex items-center justify-between gap-3 text-sm text-slate-600">
+            <span>Subtotal gravado</span>
+            <span class="font-semibold text-slate-800"><%= format_money(base_subtotal, unit: base_symbol) %></span>
+          </div>
+          <div class="flex items-center justify-between gap-3 text-sm text-slate-600">
+            <span>Exento</span>
+            <span class="font-semibold text-slate-800"><%= format_money(base_exento, unit: base_symbol) %></span>
+          </div>
+          <div class="flex items-center justify-between gap-3 text-sm text-slate-600">
+            <span>IVA</span>
+            <span class="font-semibold text-slate-800"><%= format_money(base_vat, unit: base_symbol) %></span>
+          </div>
+          <div class="border-t border-emerald-200 pt-3">
+            <div class="flex items-center justify-between gap-3">
+              <span class="text-base font-semibold text-slate-700">Total</span>
+              <div class="text-right">
+                <p class="text-2xl font-extrabold text-emerald-700"><%= format_money(base_total, unit: base_symbol) %></p>
+                <p class="text-xs font-semibold text-slate-500"><%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: alt_symbol) : '--' %></p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between gap-3 border-b border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 px-6 py-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Movimientos de cobro</p>
+        <h2 class="mt-1 text-lg font-bold text-slate-800">Pagos registrados</h2>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100"><%= incoming_payments %> ingreso(s)</span>
+        <span class="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-100"><%= outgoing_payments %> vuelto(s)</span>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm text-slate-700">
+        <thead class="border-b border-cyan-100 bg-cyan-50/50 text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-6 py-4 text-left font-bold">Cuenta</th>
+            <th class="px-6 py-4 text-left font-bold">Fecha pago</th>
+            <th class="px-6 py-4 text-left font-bold">Tipo</th>
+            <th class="px-6 py-4 text-left font-bold">Metodo</th>
+            <th class="px-6 py-4 text-center font-bold">Moneda</th>
+            <th class="px-6 py-4 text-right font-bold">Monto</th>
+            <th class="px-6 py-4 text-right font-bold">Equivalente base</th>
+            <th class="px-6 py-4 text-left font-bold">Referencia</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% @venta.venta_payments.each_with_index do |payment, index| %>
+            <% account_name = payment.account&.name || 'Sin cuenta' %>
+            <% currency_symbol = payment.account&.currency_symbol || currency_symbols[payment.currency] || payment.currency %>
+            <% sign = payment.payment_kind == 'out' ? -1 : 1 %>
+            <% base_amount = (base_is_ves ? payment.amount_bs : payment.amount_usd) * sign %>
+            <% alt_amount = (base_is_ves ? payment.amount_usd : payment.amount_bs) * sign %>
+            <% original_amount = payment.amount_original.to_d * sign %>
+            <% kind_badge_class = payment.payment_kind == 'out' ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-200' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' %>
+            <% amount_class = payment.payment_kind == 'out' ? 'text-rose-700' : 'text-slate-800' %>
+            <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-cyan-50/40">
+              <td class="px-6 py-4 font-semibold text-slate-800"><%= account_name %></td>
+              <td class="px-6 py-4">
+                <%= (payment.payment_date || payment.created_at&.to_date)&.strftime('%d/%m/%Y') || '-' %>
+              </td>
+              <td class="px-6 py-4">
+                <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= kind_badge_class %>"><%= payment.payment_kind_label %></span>
+              </td>
+              <td class="px-6 py-4"><span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><%= payment.payment_method_label %></span></td>
+              <td class="px-6 py-4 text-center"><span class="inline-flex items-center rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100"><%= payment.currency %></span></td>
+              <td class="px-6 py-4 text-right font-semibold <%= amount_class %>"><%= format_money(original_amount, unit: currency_symbol) %></td>
+              <td class="px-6 py-4 text-right">
+                <span class="font-semibold <%= amount_class %>"><%= format_money(base_amount, unit: base_symbol) %></span>
+                <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(alt_amount, unit: alt_symbol) : '--' %></div>
+              </td>
+              <td class="px-6 py-4"><%= payment.reference.presence || '-' %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

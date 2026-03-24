@@ -1,134 +1,103 @@
-<div class="container text-black">
-  <div class="d-flex flex-column align-items-end position-absolute top-0 end-0 mt-2 me-2" style="z-index: 10;">
-    <button type="button" class="btn btn-outline-success btn-sm mb-1" id="copy-service-modal">
-      <i class="fas fa-copy"></i> Copiar información del servicio
-    </button>
-    <!--
-    <% if service.required_data.present? %>
-      <button type="button" class="btn btn-outline-success btn-sm" id="copy-required-data">
-        <i class="fas fa-copy"></i> Copiar datos requeridos
-      </button>
-    <% end %>
-    -->
-  </div>
-  <p>
-    <h4 class="fw-bold">💰 PRECIO 
-      <span class="badge bg-primary">
-        <% if service.currency_base_price == "$" %>
-          <%= number_to_currency(service.sale_price, unit: "$ ") %><% if defined?(@tasa_dolar_bcv) && @tasa_dolar_bcv.present? %> (<%= number_to_currency(service.sale_price * @tasa_dolar_bcv, unit: "Bs ") %>)<% end %>
+<% tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil %>
+<% unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil %>
+<div class="services-modal-content space-y-6 text-slate-700">
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <% unit_price_usd = service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+    <% unit_price_bs = service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+    <div class="services-price-card flex-1">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Precio</p>
+      <div class="mt-2 flex flex-wrap items-baseline gap-2 text-slate-800" data-service-price>
+        <% if service.to_agree? %>
+          <span class="text-2xl font-extrabold text-amber-600">A convenir</span>
+          <span class="text-sm text-slate-500">Se define durante la factura</span>
+        <% elsif unit_price_usd.present? %>
+          <span class="text-2xl font-extrabold"><%= format_money(unit_price_usd, unit: "$ ") %></span>
+          <% if unit_price_bs.present? %>
+            <span class="text-sm text-slate-500">(<%= format_money(unit_price_bs, unit: "Bs ") %>)</span>
+          <% end %>
+        <% elsif unit_price_bs.present? %>
+          <span class="text-2xl font-extrabold"><%= format_money(unit_price_bs, unit: "Bs ") %></span>
         <% else %>
-          <%= number_to_currency(service.value_units * @unidad_VI, unit: "Bs ") %>
+          <span class="text-sm text-amber-600">Precio no disponible</span>
         <% end %>
-      </span>
-    </h4>
-  </p>
-  <hr>
-  <div class="row g-3">
-    <% if service.physical_requirements.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-warning mb-3">
-          <div class="card-header fw-bold">📄 REQUISITOS FISICOS</div>
-          <div class="card-body">
-            <p class="card-text"><%= simple_format(service.physical_requirements) %></p>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">Modo: <%= service.to_agree? ? 'A convenir' : 'Precio fijo' %></p>
+      <% unless service.to_agree? %>
+        <p class="text-xs text-slate-500">Referencia: <%= service.currency_base_price.presence || '-' %></p>
+      <% end %>
+    </div>
+    <button type="button" class="services-copy-btn" id="copy-service-modal" data-service-copy>
+      <i data-lucide="copy" class="h-4 w-4"></i>
+      Copiar informacion
+    </button>
+  </div>
+  <% if service.cost && service.service_expense_structures.any? %>
+    <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Costos asociados</p>
+        <p class="text-sm text-slate-500">Estructuras de gastos vinculadas al servicio.</p>
+      </div>
+      <div class="mt-3 space-y-2">
+        <% service.service_expense_structures.each do |structure| %>
+          <% structure_usd = structure.total_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+          <% structure_bs = structure.total_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+          <div class="space-y-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2">
+            <p class="truncate text-sm font-semibold text-slate-700"><%= structure.description %></p>
+            <div class="flex items-center justify-between gap-2 text-sm">
+              <span class="text-slate-500">$ BCV</span>
+              <span class="font-semibold text-slate-700"><%= format_money(structure_usd, unit: "$ ") %></span>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-sm">
+              <span class="text-slate-500">Bs</span>
+              <span class="font-semibold text-slate-700"><%= format_money(structure_bs, unit: "Bs ") %></span>
+            </div>
           </div>
-        </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+  <div class="grid gap-4 md:grid-cols-2">
+    <% if service.physical_requirements.present? %>
+      <div class="services-section-card services-section--warning" data-service-section data-title="📄 REQUISITOS FISICOS">
+        <p class="services-section-title">Requisitos fisicos</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.physical_requirements) %></div>
       </div>
     <% end %>
     <% if service.digital_requirements.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-warning mb-3">
-          <div class="card-header fw-bold">📷 REQUISITOS DIGITALES (FOTOS O ESCANEOS)</div>
-          <div class="card-body">
-            <p class="card-text"><%= simple_format(service.digital_requirements) %></p>
-          </div>
-        </div>
+      <div class="services-section-card services-section--warning" data-service-section data-title="📷 REQUISITOS DIGITALES (FOTOS O ESCANEOS)">
+        <p class="services-section-title">Requisitos digitales</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.digital_requirements) %></div>
       </div>
     <% end %>
     <% if service.required_data.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-warning mb-3" id="required-data-card">
-          <div class="card-header fw-bold">📝 DATOS REQUERIDOS</div>
-          <div class="card-body">
-            <p class="card-text"><%= simple_format(service.required_data) %></p>
-          </div>
-        </div>
+      <div class="services-section-card services-section--info" id="required-data-card" data-service-section data-title="📝 DATOS REQUERIDOS" data-format="required-data">
+        <p class="services-section-title">Datos requeridos</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.required_data) %></div>
       </div>
     <% end %>
-    <hr>
     <% if service.delivery_time.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-primary text-white mb-3">
-          <div class="card-header fw-bold">⏰ TIEMPO DE ENTREGA</div>
-          <div class="card-body">
-            <div class="card-text"><%= simple_format(service.delivery_time) %></div>
-          </div>
-        </div>
+      <div class="services-section-card services-section--neutral" data-service-section data-title="⏰ TIEMPO DE ENTREGA" data-format="inline">
+        <p class="services-section-title">Tiempo de entrega</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.delivery_time) %></div>
       </div>
     <% end %>
     <% if service.delivery_content.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-success text-white mb-3">
-          <div class="card-header fw-bold">📬 EL CLIENTE RECIBIRA</div>
-          <div class="card-body">
-            <p class="card-text"><%= simple_format(service.delivery_content) %></p>
-          </div>
-        </div>
+      <div class="services-section-card services-section--success" data-service-section data-title="📬 EL CLIENTE RECIBIRA">
+        <p class="services-section-title">El cliente recibira</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.delivery_content) %></div>
       </div>
     <% end %>
-    <hr>
     <% if service.note.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-danger text-white mb-3">
-          <div class="card-header fw-bold">⚠️ NOTA</div>
-          <div class="card-body">
-            <p class="card-text"><em><%= simple_format(service.note) %></em></p>
-          </div>
-        </div>
+      <div class="services-section-card services-section--danger" data-service-section data-title="⚠️ NOTA" data-format="inline">
+        <p class="services-section-title">Nota</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.note) %></div>
       </div>
-      <hr>
     <% end %>
     <% if service.personal_steps.present? %>
-      <div class="col-md-6 mx-auto">
-        <div class="card bg-info mb-3" data-no-copy="true" id="personal-steps-card">
-          <div class="card-header fw-bold">👤 PASOS A SEGUIR (SOLO PERSONAL)</div>
-          <div class="card-body">
-            <p class="card-text"><%= simple_format(service.personal_steps) %></p>
-          </div>
-        </div>
+      <div class="services-section-card services-section--info" data-service-section data-title="👤 PASOS A SEGUIR (SOLO PERSONAL)" data-copy="false" data-no-copy="true" id="personal-steps-card">
+        <p class="services-section-title">Pasos a seguir (solo personal)</p>
+        <div class="services-section-body" data-service-text><%= simple_format(service.personal_steps) %></div>
       </div>
     <% end %>
   </div>
 </div>
-<style>
-  .card-body a.custom-copy-link {
-    color: green;
-    text-decoration: underline;
-    cursor: pointer;
-    position: relative;
-    word-break: break-all;
-    font-style: italic;
-    font-weight: bold;
-  }
-  .copied-tooltip {
-    position: absolute;
-    left: 50%;
-    top: -1.8em;
-    transform: translateX(-50%);
-    background: #333;
-    color: #fff;
-    padding: 2px 10px;
-    border-radius: 6px;
-    font-size: 0.85em;
-    white-space: nowrap;
-    z-index: 100;
-    opacity: 0;
-    pointer-events: none;
-    font-style: italic;
-    transition: opacity 3s;
-  }
-  .copied-tooltip.show {
-    opacity: 0.95;
-    pointer-events: auto;
-    transition: opacity .5s;
-  }
-</style>

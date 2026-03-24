@@ -1,0 +1,512 @@
+<% base_is_ves = @venta.base_currency == 'VES' %>
+<% sale_reference = @sale_reference || {} %>
+<% tasa = sale_reference[:effective_usd_rate].to_d %>
+<% tasa = @venta.tasa_dolar.to_d unless tasa.positive? %>
+<% base_symbol = base_is_ves ? 'Bs ' : '$' %>
+<% alt_symbol = base_is_ves ? '$' : 'Bs ' %>
+<% base_total = base_is_ves ? sale_reference.fetch(:ves_total, @venta.total_bs.to_d) : sale_reference.fetch(:usd_total, @venta.total_usd.to_d) %>
+<% alt_total = base_is_ves ? sale_reference.fetch(:usd_total, @venta.total_usd.to_d) : sale_reference.fetch(:ves_total, @venta.total_bs.to_d) %>
+<% client = @venta.cliente %>
+<% items_count = @venta.venta_items.size %>
+<% business_address_line = @business.address.presence %>
+<% business_city_state_line = if @business.city.present? && @business.state.present?
+                                "#{@business.city}, Edo. #{@business.state}"
+                              else
+                                [@business.city.presence, @business.state.presence].compact.join(', ')
+                              end %>
+<% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
+<style>
+  .note-banner {
+    position: relative;
+    width: 100%;
+    height: 195px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    background: #e2e8f0;
+  }
+
+  .note-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    display: block;
+  }
+
+  .note-banner-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #475569;
+    background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+  }
+
+  .note-banner-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 10px 20px 0;
+    text-align: center;
+    transform: translate(10px, -3px);
+  }
+
+  .note-banner-text {
+    color: #f8fafc;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.05;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 2px 4px #000;
+    letter-spacing: 0.01em;
+  }
+
+  .note-banner-text .line-item {
+    margin-top: 0;
+  }
+
+  .doc-meta-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #bae6fd;
+    background: #f0f9ff;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  .doc-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .doc-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .meta-grid {
+    margin: 10px 0 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .meta-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px;
+    background: #f8fafc;
+  }
+
+  .meta-label {
+    margin: 0;
+    color: #64748b;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+
+  .meta-value {
+    margin: 5px 0 0;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+
+  .items-table th,
+  .items-table td {
+    border: 1px solid #cbd5e1;
+    padding: 7px 8px;
+    font-size: 12px;
+    vertical-align: top;
+  }
+
+  .items-table th {
+    background: #eff6ff;
+    color: #0f172a;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-align: left;
+  }
+
+  .row-odd {
+    background: #ffffff;
+  }
+
+  .row-even {
+    background: #f8fafc;
+  }
+
+  .item-title {
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .text-center {
+    text-align: center;
+  }
+
+  .totals-box {
+    margin-top: 14px;
+    margin-left: auto;
+    width: 300px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .totals-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .totals-row:last-child {
+    border-bottom: none;
+  }
+
+  .totals-row.total {
+    background: #f0fdf4;
+    font-size: 14px;
+    font-weight: 800;
+    color: #166534;
+  }
+
+  .signatures {
+    margin-top: 56px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .signature-box {
+    text-align: center;
+  }
+
+  .signature-line {
+    margin: 0 auto;
+    width: 85%;
+    border-top: 1px solid #64748b;
+    height: 0;
+  }
+
+  .signature-label {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #475569;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .footer-note {
+    margin-top: 20px;
+    padding-top: 8px;
+    border-top: 1px dashed #cbd5e1;
+    font-size: 11px;
+    color: #64748b;
+    text-align: center;
+  }
+</style>
+<section class="note-banner">
+  <% if @business.banner.attached? %>
+    <%= image_tag url_for(@business.banner), alt: 'Banner del negocio' %>
+  <% else %>
+    <div class="note-banner-fallback">Sin banner configurado</div>
+  <% end %>
+  <div class="note-banner-overlay">
+    <div class="note-banner-text">
+      <% if @business.rif.present? %>
+        <div class="line-item">RIF: <%= @business.rif %></div>
+      <% end %>
+      <% if business_address_line.present? %>
+        <div class="line-item"><%= business_address_line %></div>
+      <% end %>
+      <% if business_city_state_line.present? %>
+        <div class="line-item"><%= business_city_state_line %></div>
+      <% end %>
+      <% if @business.phone.present? %>
+        <div class="line-item">Tlf: <%= @business.phone %></div>
+      <% end %>
+    </div>
+  </div>
+</section>
+<section class="doc-meta-strip">
+  <h1 class="doc-title">Nota de Entrega</h1>
+  <div>
+    <span class="doc-pill">Nro. NE-<%= @venta.id %></span>
+  </div>
+</section>
+<section class="meta-grid">
+  <article class="meta-card">
+    <p class="meta-label">Cliente</p>
+    <p class="meta-value"><%= @venta.cliente_display_name %></p>
+    <% if client.present? %>
+      <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 4px;">
+        Documento: <%= [client.document_type, client.document_number].compact.join('-').presence || '-' %>
+      </p>
+      <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">
+        Telefono: <%= client.phone.presence || '-' %>
+      </p>
+      <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">
+        Direccion: <%= client.address.presence || '-' %>
+      </p>
+    <% end %>
+  </article>
+  <article class="meta-card">
+    <p class="meta-label">Datos de documento</p>
+    <p class="meta-value">Vendedor: <%= @venta.seller_display_name %></p>
+    <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 4px;">Fecha emision: <%= @venta.created_at.strftime('%d/%m/%Y %H:%M') %></p>
+    <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">Moneda base: <%= @venta.base_currency %></p>
+    <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">Tasa referencial: <%= tasa.positive? ? format_money(tasa, unit: 'Bs ') : 'No disponible' %></p>
+  </article>
+</section>
+<table class="items-table">
+  <thead>
+    <tr>
+      <th style="width: 44px;">#</th>
+      <th>Descripcion</th>
+      <th style="width: 86px;" class="text-center">Cantidad</th>
+      <th style="width: 110px;" class="text-right">P. Unitario</th>
+      <th style="width: 120px;" class="text-right">Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% internet_service_name = 'Servicio de internet' %>
+    <% allowed_service_terms = %w[impresion plastificacion encuadernacion] %>
+    <% normalized_text = lambda { |value| I18n.transliterate(value.to_s).downcase } %>
+    <% service_description_for_note = lambda do |description, system_reference: nil|
+         text = [description, system_reference].compact.map { |entry| normalized_text.call(entry) }.join(' ')
+         if allowed_service_terms.any? { |term| text.include?(term) }
+           description
+         else
+           internet_service_name
+         end
+       end %>
+    <% product_like_classification = lambda do |classification, label|
+         key = normalized_text.call(classification)
+         text = normalized_text.call(label)
+         key == 'product_expense' || key == 'physical_delivery_extra_product' || text.include?('producto adicional')
+       end %>
+    <% product_name_without_variation = lambda do |value|
+         value.to_s.sub(/\s*\([^\)]*\)\s*\z/, '').strip
+       end %>
+    <% row_number = 0 %>
+    <% @venta.venta_items.each do |item| %>
+      <% unit_usd = item.unit_price_usd.to_d.round(2) %>
+      <% subtotal_usd = item.subtotal_usd.to_d.round(2) %>
+      <% raw_unit_base = base_is_ves ? @venta.base_unit_price(item) : unit_usd %>
+      <% raw_subtotal_base = base_is_ves ? @venta.base_line_subtotal(item) : subtotal_usd %>
+      <% is_service_item = item.producto.blank? %>
+      <% service_system_label = item.variation_name.to_s.strip.presence || 'Servicio' %>
+      <% default_item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
+      <% display_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
+      <% service_snapshot = if is_service_item
+                              service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
+                            end %>
+      <% service_breakdown_lines = if is_service_item
+                                     Array(service_snapshot.is_a?(Hash) ? service_snapshot['detail_lines'] : []).filter_map do |line|
+                                       next unless line.is_a?(Hash)
+
+                                       classification = line['classification'].to_s
+                                       next unless %w[product_expense nested_expense].include?(classification)
+
+                                       if classification == 'product_expense'
+                                         next unless ActiveModel::Type::Boolean.new.cast(line['breakdown_in_invoice'])
+                                       end
+
+                                       line_total_usd = line['amount_usd'].to_d.round(2)
+                                       next unless line_total_usd.positive?
+
+                                       line_quantity = line['quantity'].to_d.round(2)
+                                       line_quantity = 1.to_d unless line_quantity.positive?
+                                       line_unit_usd = (line_total_usd / line_quantity).round(2)
+
+                                       line_label = classification == 'nested_expense' ? 'Servicio anidado' : 'Producto del servicio'
+                                       line_name = line['source_name'].to_s.strip.presence || line_label
+
+                                       {
+                                         classification: classification,
+                                         label: line_label,
+                                         name: line_name,
+                                         quantity: line_quantity,
+                                         unit_usd: line_unit_usd,
+                                         subtotal_usd: line_total_usd
+                                       }
+                                     end
+                                   else
+                                     []
+                                   end %>
+      <% service_printing_lines = if is_service_item
+                                    Array(service_printings_by_parent_name.delete(default_item_name.to_s.strip.downcase)).filter_map do |line|
+                                      next unless line.is_a?(Hash)
+
+                                      line_quantity = line['quantity'].to_d.round(2)
+                                      line_quantity = 1.to_d unless line_quantity.positive?
+                                      line_total_usd = line['total_sale_price_usd'].to_d.round(2)
+                                      next unless line_total_usd.positive?
+                                      line_total_bs = line['total_sale_price_bs'].to_d.round(2)
+                                      line_unit_bs = line['unit_sale_price_bs'].to_d.round(2)
+
+                                      {
+                                        classification: line['classification'].to_s.presence || 'printing_service',
+                                        label: line['classification_label'].to_s.presence || 'Servicio de impresion',
+                                        name: line['source_name'].to_s.strip.presence || 'Impresion',
+                                        quantity: line_quantity,
+                                        unit_bs: line_unit_bs,
+                                        subtotal_bs: line_total_bs,
+                                        unit_usd: line['unit_sale_price_usd'].to_d.round(2),
+                                        subtotal_usd: line_total_usd
+                                      }
+                                    end
+                                  else
+                                    []
+                                  end %>
+      <% all_service_breakdown_lines = service_breakdown_lines + service_printing_lines %>
+      <% service_breakdown_total_usd = all_service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+      <% service_printing_total_bs = service_printing_lines.sum { |line| line[:subtotal_bs].to_d }.round(2) %>
+      <% service_non_printing_breakdown_total_usd = service_breakdown_lines.sum { |line| line[:subtotal_usd].to_d }.round(2) %>
+      <% service_visual_subtotal_usd = if is_service_item
+                                         [(subtotal_usd - service_breakdown_total_usd).round(2), 0.to_d].max
+                                       else
+                                         subtotal_usd
+                                       end %>
+      <% service_quantity = item.quantity.to_d %>
+      <% service_quantity = 1.to_d unless service_quantity.positive? %>
+      <% service_visual_unit_usd = is_service_item ? (service_visual_subtotal_usd / service_quantity).round(2) : unit_usd %>
+      <% display_subtotal_usd = service_visual_subtotal_usd %>
+      <% display_unit_usd = service_visual_unit_usd %>
+      <% display_description = if is_service_item
+                                 service_description_for_note.call(
+                                   display_item_name,
+                                   system_reference: service_system_label
+                                 )
+                               else
+                                 display_item_name
+                               end %>
+      <% if is_service_item && base_is_ves && subtotal_usd.positive? %>
+        <% non_printing_breakdown_base = tasa.positive? ? (service_non_printing_breakdown_total_usd * tasa).round(2) : 0.to_d %>
+        <% subtotal_base = [raw_subtotal_base.to_d - service_printing_total_bs - non_printing_breakdown_base, 0.to_d].max.round(2) %>
+        <% unit_base = (subtotal_base / service_quantity).round(2) %>
+        <% if tasa.positive? %>
+          <% display_subtotal_usd = (subtotal_base / tasa).round(2) %>
+          <% display_unit_usd = (display_subtotal_usd / service_quantity).round(2) %>
+        <% end %>
+      <% else %>
+        <% unit_base = base_is_ves ? raw_unit_base : display_unit_usd %>
+        <% subtotal_base = base_is_ves ? raw_subtotal_base : display_subtotal_usd %>
+      <% end %>
+      <% row_number += 1 %>
+      <tr class="<%= row_number.odd? ? 'row-odd' : 'row-even' %>">
+        <td class="text-center"><%= row_number %></td>
+        <td>
+          <div class="item-title"><%= display_description %></div>
+        </td>
+        <td class="text-center"><%= format_quantity(item.quantity, precision: 2) %></td>
+        <td class="text-right"><%= format_money(unit_base, unit: base_symbol) %></td>
+        <td class="text-right"><%= format_money(subtotal_base, unit: base_symbol) %></td>
+      </tr>
+      <% if is_service_item %>
+        <% all_service_breakdown_lines.each do |line| %>
+          <% child_quantity = line[:quantity].to_d %>
+          <% child_unit_usd = line[:unit_usd].to_d.round(2) %>
+          <% child_subtotal_usd = line[:subtotal_usd].to_d.round(2) %>
+          <% if %w[printing_service lamination_service].include?(line[:classification].to_s) && base_is_ves %>
+            <% child_unit_base = line[:unit_bs].to_d.round(2) %>
+            <% child_subtotal_base = line[:subtotal_bs].to_d.round(2) %>
+          <% else %>
+            <% child_unit_base = base_is_ves ? (tasa.positive? ? (child_unit_usd * tasa).round(2) : 0) : child_unit_usd %>
+            <% child_subtotal_base = base_is_ves ? (tasa.positive? ? (child_subtotal_usd * tasa).round(2) : 0) : child_subtotal_usd %>
+          <% end %>
+          <% child_description = if product_like_classification.call(line[:classification], line[:label])
+                                   product_name_without_variation.call(line[:name])
+                                 else
+                                   service_description_for_note.call(
+                                     line[:name],
+                                     system_reference: line[:label]
+                                   )
+                                 end %>
+          <% row_number += 1 %>
+          <tr class="<%= row_number.odd? ? 'row-odd' : 'row-even' %>">
+            <td class="text-center"><%= row_number %></td>
+            <td>
+              <div class="item-title"><%= child_description %></div>
+            </td>
+            <td class="text-center"><%= format_quantity(child_quantity, precision: 2) %></td>
+            <td class="text-right"><%= format_money(child_unit_base, unit: base_symbol) %></td>
+            <td class="text-right"><%= format_money(child_subtotal_base, unit: base_symbol) %></td>
+          </tr>
+        <% end %>
+      <% end %>
+    <% end %>
+    <% if items_count == 0 %>
+      <tr>
+        <td colspan="5" class="text-center" style="padding: 14px; color: #64748b;">Sin items registrados en la venta.</td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<div class="totals-box">
+  <div class="totals-row">
+    <span>Subtotal</span>
+    <strong><%= format_money(base_total, unit: base_symbol) %></strong>
+  </div>
+  <div class="totals-row">
+    <span>Referencia</span>
+    <strong><%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: alt_symbol) : '--' %></strong>
+  </div>
+  <div class="totals-row total">
+    <span>Total entrega</span>
+    <strong><%= format_money(base_total, unit: base_symbol) %></strong>
+  </div>
+</div>
+<section class="signatures">
+  <article class="signature-box">
+    <div class="signature-line"></div>
+    <p class="signature-label">Entregado por</p>
+  </article>
+  <article class="signature-box">
+    <div class="signature-line"></div>
+    <p class="signature-label">Recibido por</p>
+  </article>
+</section>
+<p class="footer-note">
+  Este documento se emite como constancia de entrega. No sustituye comprobantes fiscales.
+</p>

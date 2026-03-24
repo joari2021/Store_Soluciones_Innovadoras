@@ -1,0 +1,914 @@
+<div class="space-y-6 fade-in">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Cuentas</h1>
+        <p class="mt-1 text-sm text-slate-500">Administra caja, bancos, billeteras y tarjetas con su moneda asociada.</p>
+      </div>
+      <%= link_to new_account_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" do %>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+          <path d="M12 4.5a.75.75 0 0 1 .75.75v6h6a.75.75 0 0 1 0 1.5h-6v6a.75.75 0 0 1-1.5 0v-6h-6a.75.75 0 0 1 0-1.5h6v-6a.75.75 0 0 1 .75-.75Z" />
+        </svg>
+        Nueva cuenta
+      <% end %>
+    </div>
+    <div class="mt-4 rounded-2xl border border-white/80 bg-white/70 p-4 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Totales por moneda</p>
+      <% summary_currencies = %w[VES EUR USD USDT BTC BNB] %>
+      <div class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <% summary_currencies.each do |currency| %>
+          <% meta = Account::CURRENCIES[currency] %>
+          <% total_value = (@currency_totals[currency] || 0).to_d %>
+          <% total_class = total_value.negative? ? 'text-red-600' : total_value.positive? ? 'text-emerald-600' : 'text-slate-700' %>
+          <div class="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500"><%= meta[:label] %></p>
+            <p class="text-sm font-extrabold <%= total_class %>">
+              <%= format_money(total_value, unit: meta[:symbol]) %>
+            </p>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <style>
+    .special-account-card {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+    }
+
+    .special-account-watermark {
+      position: absolute;
+      right: -10px;
+      top: 50%;
+      width: 220px;
+      height: 220px;
+      transform: translateY(-50%);
+      opacity: 0.55;
+      mix-blend-mode: multiply;
+      filter: grayscale(0.1) contrast(1.1);
+      pointer-events: none;
+      z-index: 0;
+      object-fit: contain;
+    }
+
+    .special-account-card > *:not(.special-account-watermark) {
+      position: relative;
+      z-index: 1;
+    }
+
+    @media (min-width: 1280px) {
+      .special-account-watermark {
+        width: 260px;
+        height: 260px;
+      }
+    }
+
+    #accounts-transfer-modal {
+      opacity: 0;
+      transition: opacity 180ms ease;
+    }
+
+    #accounts-transfer-modal .accounts-transfer-panel {
+      transform: translateY(20px) scale(0.98);
+      opacity: 0;
+      transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 180ms ease;
+    }
+
+    #accounts-transfer-modal.is-visible {
+      opacity: 1;
+    }
+
+    #accounts-transfer-modal.is-visible .accounts-transfer-panel {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+
+    #accounts-transfer-modal.is-leaving {
+      opacity: 0;
+    }
+
+    #accounts-transfer-modal.is-leaving .accounts-transfer-panel {
+      transform: translateY(14px) scale(0.985);
+      opacity: 0;
+    }
+  </style>
+  <% if @accounts.any? %>
+    <% grouped_accounts = [
+      ['Cuentas bancarias', @accounts.select { |account| account.account_type == 'bank_account' }],
+      ['Metodos especiales', @accounts.select { |account| Account::SPECIAL_ACCOUNT_TYPES.include?(account.account_type) }],
+      ['Cajas', @accounts.select { |account| account.account_type == 'cash_box' }],
+      ['Billeteras cripto', @accounts.select { |account| account.account_type == 'crypto_wallet' }],
+      ['Billeteras digitales', @accounts.select { |account| account.account_type == 'digital_wallet' }],
+      ['Tarjetas', @accounts.select { |account| account.account_type == 'card' }]
+    ] %>
+    <div class="space-y-6">
+      <% grouped_accounts.each do |title, accounts| %>
+        <% next if accounts.empty? %>
+        <div class="flex items-center gap-3">
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-600"><%= title %></h2>
+          <div class="h-px flex-1 bg-slate-200"></div>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <% accounts.each do |account| %>
+            <% theme = account.theme_config %>
+            <% special_image = case account.account_type
+                               when 'biopago' then 'biopago.png'
+                               when 'pos' then 'pos.png'
+                               when 'cashea' then 'cashea.png'
+                               end %>
+            <% has_uploaded_index_image = account.logo.attached? && special_image.blank? %>
+            <% has_index_image = special_image.present? || has_uploaded_index_image %>
+            <article class="rounded-2xl border p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md <%= theme[:card] %> <%= has_index_image ? 'special-account-card' : '' %>">
+              <% if special_image.present? %>
+                <img src="<%= asset_path(special_image) %>" alt="" aria-hidden="true" class="special-account-watermark" loading="lazy">
+              <% elsif has_uploaded_index_image %>
+                <%= image_tag account.logo, alt: '', aria: { hidden: true }, class: 'special-account-watermark', loading: 'lazy' %>
+              <% end %>
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center gap-2">
+                    <h3 class="truncate text-base font-bold text-slate-800"><%= account.name %></h3>
+                  </div>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold <%= theme[:tag] %>">
+                      <i data-lucide="<%= account.account_type_icon %>" class="h-3.5 w-3.5"></i>
+                      <%= account.account_type_label %>
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-lg bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                      <i data-lucide="<%= account.currency_icon %>" class="h-3.5 w-3.5"></i>
+                      <%= account.currency_label %>
+                      <span class="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-bold text-slate-700"><%= account.currency_symbol %></span>
+                    </span>
+                  </div>
+                </div>
+                <div class="flex flex-col items-end gap-2">
+                  <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold <%= account.active? ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' %>">
+                    <%= account.active? ? 'Activa' : 'Inactiva' %>
+                  </span>
+                  <% if account.account_type == 'bank_account' && account.is_primary? %>
+                    <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                      <i data-lucide="star" class="h-3.5 w-3.5"></i>
+                      Principal
+                    </span>
+                  <% end %>
+                </div>
+              </div>
+              <div class="mt-4 rounded-xl border border-white/60 bg-white/80 p-3">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo actual</p>
+                <% balance_value = account.balance.to_d %>
+                <% balance_class = balance_value.negative? ? 'text-red-600' : balance_value.positive? ? 'text-emerald-600' : 'text-slate-700' %>
+                <p class="mt-1 text-2xl font-extrabold tracking-tight <%= balance_class %>">
+                  <%= format_money(balance_value, unit: account.currency_symbol) %>
+                </p>
+                <% if account.currency == 'VES' && @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+                  <% usd_equivalent = account.balance.to_d / @bcv_rate.to_d %>
+                  <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(usd_equivalent, unit: '$') %> (BCV)</p>
+                <% elsif account.currency == 'USD' && @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+                  <% bs_equivalent = account.balance.to_d * @bcv_rate.to_d %>
+                  <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(bs_equivalent, unit: 'Bs') %></p>
+                <% elsif account.currency == 'USDT' %>
+                  <% if @usdt_rate.present? && @usdt_rate.to_d.positive? %>
+                    <% referencia_bs = account.balance.to_d * @usdt_rate.to_d %>
+                    <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(referencia_bs, unit: 'Bs') %></p>
+                    <% if @bcv_rate.present? && @bcv_rate.to_d.positive? %>
+                      <% usd_equivalent = (account.balance.to_d * @usdt_rate.to_d) / @bcv_rate.to_d %>
+                      <p class="mt-1 text-xs text-slate-500">Referencia: <%= format_money(usd_equivalent, unit: '$') %> (BCV)</p>
+                    <% end %>
+                  <% else %>
+                    <p class="mt-1 text-xs text-slate-500">No hay tasa de referencia.</p>
+                  <% end %>
+                <% end %>
+              </div>
+              <div class="mt-4 flex flex-wrap items-center gap-2">
+                <%= link_to account_path(account), class: "inline-flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-semibold text-white transition-colors #{theme[:button]}" do %>
+                  <i data-lucide="history" class="h-3.5 w-3.5"></i>
+                  Ver historial
+                <% end %>
+                <button
+                  type="button"
+                  class="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  data-transfer-trigger="true"
+                  data-origin-id="<%= account.id %>"
+                  data-origin-name="<%= account.name %>"
+                  data-origin-currency="<%= account.currency %>"
+                  data-origin-symbol="<%= account.currency_symbol %>"
+                  data-origin-balance="<%= account.balance.to_d.to_f %>"
+                  data-origin-account-type="<%= account.account_type %>">
+                  <i data-lucide="arrow-right-left" class="h-3.5 w-3.5"></i>
+                  Transferir
+                </button>
+                <% if account.account_type == 'bank_account' && !account.is_primary? %>
+                  <%= button_to set_primary_account_path(account), method: :patch,
+                                form_class: 'inline-block',
+                                class: 'inline-flex items-center justify-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer',
+                                title: 'Marcar principal',
+                                'aria-label': 'Marcar principal' do %>
+                    <i data-lucide="star" class="h-3.5 w-3.5"></i>
+                    Marcar principal
+                  <% end %>
+                <% end %>
+                <% if account.account_type == 'bank_account' && account.is_primary? %>
+                  <%= button_to unset_primary_account_path(account), method: :patch,
+                                form_class: 'inline-block',
+                                class: 'inline-flex items-center justify-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors cursor-pointer',
+                                title: 'Quitar principal',
+                                'aria-label': 'Quitar principal' do %>
+                    <i data-lucide="x-circle" class="h-3.5 w-3.5"></i>
+                    Quitar principal
+                  <% end %>
+                <% end %>
+                <%= link_to edit_account_path(account), class: 'inline-flex items-center justify-center rounded-lg bg-amber-50 p-2 text-amber-600 hover:bg-amber-100 transition-colors', title: 'Editar', 'aria-label': 'Editar' do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                    <path d="M16.862 3.487a2.625 2.625 0 1 1 3.712 3.713L8.25 19.524l-4.5.75.75-4.5L16.862 3.487Z" />
+                  </svg>
+                <% end %>
+                <%= link_to account_path(account), method: :delete, data: { swal_delete: 'account' }, class: 'inline-flex items-center justify-center rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition-colors', title: 'Eliminar', 'aria-label': 'Eliminar' do %>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
+                    <path fill-rule="evenodd" d="M16.5 4.5V6h3a.75.75 0 0 1 0 1.5h-.638l-1.02 11.214A2.25 2.25 0 0 1 15.603 21H8.397a2.25 2.25 0 0 1-2.24-2.286L5.138 7.5H4.5a.75.75 0 0 1 0-1.5h3V4.5A1.5 1.5 0 0 1 9 3h6a1.5 1.5 0 0 1 1.5 1.5Zm-7.5 0V6h6V4.5h-6Z" clip-rule="evenodd" />
+                  </svg>
+                <% end %>
+              </div>
+            </article>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+        <i data-lucide="wallet" class="h-6 w-6"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">No hay cuentas registradas</h3>
+      <p class="mt-1 text-sm text-slate-500">Crea una cuenta para empezar a administrar bancos, cajas y billeteras.</p>
+    </div>
+  <% end %>
+  <div id="accounts-transfer-modal" class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-900/45 p-4">
+    <div class="accounts-transfer-panel w-full max-w-xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div>
+          <h3 class="text-base font-bold text-slate-800">Transferir entre cuentas</h3>
+          <p class="text-xs text-slate-500" data-transfer-origin-label>Selecciona origen y destino</p>
+        </div>
+        <button type="button" class="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200" data-transfer-close="true">Cerrar</button>
+      </div>
+      <form id="accounts-transfer-form" method="post" class="space-y-4 px-5 py-4">
+        <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Cuenta origen</label>
+            <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" data-transfer-origin-field readonly>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Cuenta destino</label>
+            <select name="target_account_id" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-transfer-target required>
+              <option value="">Selecciona una cuenta</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid gap-3 md:grid-cols-3">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</label>
+            <input
+              type="text"
+              name="transfer_date"
+              autocomplete="off"
+              placeholder="dd-mm-aaaa"
+              class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+              data-transfer-date
+              required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto origen</label>
+              <input type="text" name="amount_from" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" data-transfer-amount-from data-money-mask="true" data-money-symbol="$" inputmode="decimal" autocomplete="off" required>
+              <p class="mt-1 text-[11px] text-slate-500" data-transfer-origin-available>Disponible actual: -</p>
+              <p class="mt-1 text-[11px] font-semibold text-slate-600" data-transfer-origin-result>Ingresa un monto para calcular el saldo restante.</p>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto destino</label>
+              <input type="text" name="amount_to" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" data-transfer-amount-to data-money-mask="true" data-money-symbol="$" inputmode="decimal" autocomplete="off" required>
+              <p class="mt-1 text-[11px] text-slate-500" data-transfer-target-available>Disponible actual: -</p>
+              <p class="mt-1 text-[11px] font-semibold text-slate-600" data-transfer-target-result>Selecciona una cuenta destino para calcular el disponible luego de acreditar.</p>
+            </div>
+          </div>
+          <p class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-700" data-transfer-hint>
+            Selecciona cuenta destino, fecha y monto para ver conversion sugerida.
+          </p>
+          <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="grid gap-3 md:grid-cols-2">
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Metodo de pago</label>
+                <select name="transfer_payment_method" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-transfer-method required>
+                  <option value="">Selecciona un metodo</option>
+                  <option value="third_party_transfer">Transferencia a tercero</option>
+                  <option value="interbank_transfer">Transferencia a otro banco</option>
+                  <option value="mobile_payment">Pago movil</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Comision</label>
+                <input type="text" name="commission_amount" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:bg-slate-100 disabled:text-slate-400" placeholder="$ 0,00" data-transfer-commission-amount data-money-mask="true" data-money-symbol="$" inputmode="decimal" autocomplete="off" disabled>
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Quien paga la comision</label>
+              <select name="commission_account_id" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 disabled:bg-slate-100 disabled:text-slate-400" data-transfer-commission-account disabled>
+                <option value="">Selecciona una cuenta</option>
+              </select>
+            </div>
+            <p class="text-[11px] text-slate-500" data-transfer-commission-hint>
+              La comision se habilita para transferencia a otro banco y pago movil. Se sugiere 0,30 % del monto origen y puedes ajustarla manualmente.
+            </p>
+            <p class="text-[11px] font-semibold text-slate-600" data-transfer-commission-result>
+              Selecciona metodo y cuenta pagadora para calcular el impacto de la comision.
+            </p>
+          </div>
+          <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+            <button type="button" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-transfer-close="true">Cancelar</button>
+            <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Registrar transferencia</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <script type="application/json" id="accounts-transfer-data">
+      <%= raw ERB::Util.json_escape((@transfer_accounts_payload || []).to_json) %>
+    </script>
+    <script type="application/json" id="accounts-transfer-rates">
+      <%= raw ERB::Util.json_escape((@transfer_latest_rates || {}).to_json) %>
+    </script>
+    <script>
+      (() => {
+        const parseJsonEl = (id, fallback) => {
+          const el = document.getElementById(id);
+          if (!el) return fallback;
+          try {
+            return JSON.parse(el.textContent || JSON.stringify(fallback));
+          } catch (_error) {
+            return fallback;
+          }
+        };
+
+        const transferAccounts = parseJsonEl('accounts-transfer-data', []);
+        const latestRates = parseJsonEl('accounts-transfer-rates', { VES: 1 });
+        const accountsById = new Map(transferAccounts.map((account) => [String(account.id), account]));
+        const ratesCache = {};
+
+        const parseDecimal = (raw, inputEl = null) => {
+          if (inputEl && window.MoneyInputMask?.parseValue) {
+            return Number(window.MoneyInputMask.parseValue(inputEl) || 0);
+          }
+
+          const cleaned = String(raw || '').trim().replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+          if (!cleaned) return 0;
+          const normalized = cleaned.includes(',') ? cleaned.replace(/\./g, '').replace(',', '.') : cleaned;
+          const parsed = Number.parseFloat(normalized);
+          return Number.isFinite(parsed) ? parsed : 0;
+        };
+
+        const applyMoneySymbol = (input, symbol) => {
+          if (!input) return;
+          const safeSymbol = String(symbol || '$').trim() || '$';
+          input.dataset.moneySymbol = safeSymbol;
+          input.placeholder = `${safeSymbol} 0,00`;
+
+          const currentValue = parseDecimal(input.value, input);
+          if (window.MoneyInputMask?.setValue) {
+            window.MoneyInputMask.setValue(input, currentValue, safeSymbol);
+            return;
+          }
+
+          if (!Number.isFinite(currentValue) || currentValue <= 0) {
+            input.value = '';
+            return;
+          }
+
+          input.value = String(currentValue).replace('.', ',');
+        };
+
+        const formatMoneyText = (value, symbol) => {
+          if (window.MoneyInputMask?.formatMoney) {
+            return window.MoneyInputMask.formatMoney(Number(value || 0), symbol || '$');
+          }
+
+          const safeValue = Number.isFinite(Number(value)) ? Number(value) : 0;
+          return `${symbol || '$'} ${safeValue.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        };
+
+        const setTone = (element, tone) => {
+          if (!element) return;
+
+          element.classList.remove('text-slate-600', 'text-slate-500', 'text-emerald-700', 'text-rose-600', 'text-sky-700');
+
+          if (tone === 'success') {
+            element.classList.add('text-emerald-700');
+            return;
+          }
+
+          if (tone === 'danger') {
+            element.classList.add('text-rose-600');
+            return;
+          }
+
+          if (tone === 'info') {
+            element.classList.add('text-sky-700');
+            return;
+          }
+
+          element.classList.add('text-slate-600');
+        };
+
+        const formatDateInput = (date) => {
+          if (!(date instanceof Date)) return '';
+          const dd = String(date.getDate()).padStart(2, '0');
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const yyyy = date.getFullYear();
+          return `${dd}-${mm}-${yyyy}`;
+        };
+
+        const parseDateInput = (raw) => {
+          const value = String(raw || '').trim();
+          if (!value) return null;
+
+          const match = value.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+          if (!match) return null;
+
+          const date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
+          if (
+            date.getFullYear() !== Number(match[3]) ||
+            date.getMonth() !== Number(match[2]) - 1 ||
+            date.getDate() !== Number(match[1])
+          ) {
+            return null;
+          }
+
+          return date;
+        };
+
+        const isoDate = (date) => {
+          const dd = String(date.getDate()).padStart(2, '0');
+          const mm = String(date.getMonth() + 1).padStart(2, '0');
+          const yyyy = date.getFullYear();
+          return `${yyyy}-${mm}-${dd}`;
+        };
+
+        const usesHistoricalRate = (currency) => ['USD', 'EUR'].includes(String(currency || '').toUpperCase());
+
+        const pickRate = (ratesByDate, currencyCode) => {
+          const code = String(currencyCode || '').toUpperCase();
+          if (code === 'VES') return 1;
+          if (usesHistoricalRate(code)) return Number(ratesByDate[code] || 0);
+          return Number(latestRates[code] || 0);
+        };
+
+        const loadRatesForDate = async (date) => {
+          const key = isoDate(date);
+          if (ratesCache[key]) return ratesCache[key];
+
+          const response = await fetch(`/tasa_cambios/rates_for_date?fecha=${encodeURIComponent(key)}`);
+          if (!response.ok) return null;
+
+          const payload = await response.json();
+          ratesCache[key] = payload?.rates || null;
+          return ratesCache[key];
+        };
+
+        const modal = document.getElementById('accounts-transfer-modal');
+        const form = document.getElementById('accounts-transfer-form');
+        if (!modal || !form) return;
+        if (modal.dataset.transferModalBound === 'true') return;
+        modal.dataset.transferModalBound = 'true';
+
+        const originLabel = modal.querySelector('[data-transfer-origin-label]');
+        const originField = modal.querySelector('[data-transfer-origin-field]');
+        const targetSelect = modal.querySelector('[data-transfer-target]');
+        const dateInput = modal.querySelector('[data-transfer-date]');
+        const amountFromInput = modal.querySelector('[data-transfer-amount-from]');
+        const amountToInput = modal.querySelector('[data-transfer-amount-to]');
+        const originAvailable = modal.querySelector('[data-transfer-origin-available]');
+        const originResult = modal.querySelector('[data-transfer-origin-result]');
+        const targetAvailable = modal.querySelector('[data-transfer-target-available]');
+        const targetResult = modal.querySelector('[data-transfer-target-result]');
+        const hint = modal.querySelector('[data-transfer-hint]');
+        const methodSelect = modal.querySelector('[data-transfer-method]');
+        const commissionAmountInput = modal.querySelector('[data-transfer-commission-amount]');
+        const commissionAccountSelect = modal.querySelector('[data-transfer-commission-account]');
+        const commissionHint = modal.querySelector('[data-transfer-commission-hint]');
+        const commissionResult = modal.querySelector('[data-transfer-commission-result]');
+
+        let currentOrigin = null;
+        let destinationEdited = false;
+        let commissionEdited = false;
+        let closingTimer = null;
+
+        const selectedTargetAccount = () => accountsById.get(String(targetSelect?.value || '')) || null;
+        const selectedCommissionAccount = () => accountsById.get(String(commissionAccountSelect?.value || '')) || null;
+        const commissionApplies = () => ['interbank_transfer', 'mobile_payment'].includes(String(methodSelect?.value || ''));
+
+        const rebuildTargetOptions = () => {
+          if (!targetSelect) return;
+          targetSelect.innerHTML = '<option value="">Selecciona una cuenta</option>';
+
+          transferAccounts.forEach((account) => {
+            if (!currentOrigin || String(account.id) === String(currentOrigin.id)) return;
+
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.name} (${account.currency})`;
+            option.dataset.currency = account.currency;
+            option.dataset.symbol = account.symbol;
+            option.dataset.balance = account.balance;
+            option.dataset.accountType = account.account_type;
+            targetSelect.appendChild(option);
+          });
+        };
+
+        const rebuildCommissionPayerOptions = () => {
+          if (!commissionAccountSelect) return;
+
+          const previousValue = commissionAccountSelect.value;
+          commissionAccountSelect.innerHTML = '<option value="">Selecciona una cuenta</option>';
+
+          [currentOrigin, selectedTargetAccount()].forEach((account) => {
+            if (!account) return;
+
+            const option = document.createElement('option');
+            option.value = account.id;
+            option.textContent = `${account.name} (${account.currency})`;
+            option.dataset.symbol = account.symbol;
+            option.dataset.currency = account.currency;
+            option.dataset.balance = account.balance;
+            commissionAccountSelect.appendChild(option);
+          });
+
+          if (previousValue && commissionAccountSelect.querySelector(`option[value="${previousValue}"]`)) {
+            commissionAccountSelect.value = previousValue;
+          } else if (currentOrigin) {
+            commissionAccountSelect.value = String(currentOrigin.id);
+          }
+        };
+
+        const setHint = (text) => {
+          if (!hint) return;
+          hint.textContent = text;
+        };
+
+        const updateBalanceSummaries = () => {
+          const targetAccount = selectedTargetAccount();
+          const commissionAccount = selectedCommissionAccount();
+          const originAmount = parseDecimal(amountFromInput?.value, amountFromInput);
+          const destinationAmount = parseDecimal(amountToInput?.value, amountToInput);
+          const commissionAmount = commissionApplies() ? parseDecimal(commissionAmountInput?.value, commissionAmountInput) : 0;
+
+          if (originAvailable && currentOrigin) {
+            originAvailable.textContent = `Disponible actual: ${formatMoneyText(currentOrigin.balance, currentOrigin.symbol)}`;
+          }
+
+          if (originResult && currentOrigin) {
+            const totalOriginDebit = originAmount + (commissionAccount && String(commissionAccount.id) === String(currentOrigin.id) ? commissionAmount : 0);
+
+            if (!(totalOriginDebit > 0)) {
+              originResult.textContent = 'Ingresa un monto para calcular el saldo restante.';
+              setTone(originResult, 'neutral');
+            } else {
+              const remaining = Number(currentOrigin.balance || 0) - totalOriginDebit;
+
+              if (remaining >= 0) {
+                originResult.textContent = `Disponible luego del debito: ${formatMoneyText(remaining, currentOrigin.symbol)}`;
+                setTone(originResult, 'success');
+              } else {
+                originResult.textContent = `Saldo insuficiente: faltan ${formatMoneyText(Math.abs(remaining), currentOrigin.symbol)} para completar el debito.`;
+                setTone(originResult, 'danger');
+              }
+            }
+          }
+
+          if (targetAvailable) {
+            if (targetAccount) {
+              targetAvailable.textContent = `Disponible actual: ${formatMoneyText(targetAccount.balance, targetAccount.symbol)}`;
+            } else {
+              targetAvailable.textContent = 'Disponible actual: -';
+            }
+          }
+
+          if (targetResult) {
+            if (!targetAccount || !(destinationAmount > 0)) {
+              targetResult.textContent = 'Selecciona una cuenta destino para calcular el disponible luego de acreditar.';
+              setTone(targetResult, 'neutral');
+            } else {
+              const afterCredit = Number(targetAccount.balance || 0) + destinationAmount;
+              targetResult.textContent = `Disponible luego de acreditar: ${formatMoneyText(afterCredit, targetAccount.symbol)}`;
+              setTone(targetResult, 'success');
+            }
+          }
+
+          if (commissionResult) {
+            if (!commissionApplies()) {
+              commissionResult.textContent = 'La comision no aplica para transferencia a tercero.';
+              setTone(commissionResult, 'neutral');
+            } else if (!commissionAccount) {
+              commissionResult.textContent = 'Selecciona cual cuenta pagara la comision.';
+              setTone(commissionResult, 'neutral');
+            } else {
+              const baseAvailable = Number(commissionAccount.balance || 0);
+              const afterTransferCredit = String(commissionAccount.id) === String(targetAccount?.id) ? destinationAmount : 0;
+              const availableForCommission = baseAvailable + afterTransferCredit;
+              const remainingAfterCommission = availableForCommission - commissionAmount;
+
+              if (remainingAfterCommission >= 0) {
+                commissionResult.textContent = `La comision se debitara en ${commissionAccount.name}. Disponible util: ${formatMoneyText(availableForCommission, commissionAccount.symbol)} · Restante: ${formatMoneyText(remainingAfterCommission, commissionAccount.symbol)}.`;
+                setTone(commissionResult, 'success');
+              } else {
+                commissionResult.textContent = `La cuenta ${commissionAccount.name} no cubre la comision. Faltan ${formatMoneyText(Math.abs(remainingAfterCommission), commissionAccount.symbol)}.`;
+                setTone(commissionResult, 'danger');
+              }
+            }
+          }
+        };
+
+        const updateCommissionFieldState = () => {
+          const enabled = commissionApplies();
+
+          if (commissionAmountInput) commissionAmountInput.disabled = !enabled;
+          if (commissionAccountSelect) commissionAccountSelect.disabled = !enabled;
+
+          if (!enabled) {
+            commissionEdited = false;
+            if (commissionAmountInput) applyMoneySymbol(commissionAmountInput, currentOrigin?.symbol || '$');
+            if (window.MoneyInputMask?.setValue && commissionAmountInput) {
+              window.MoneyInputMask.setValue(commissionAmountInput, 0, currentOrigin?.symbol || '$');
+            }
+          }
+
+          if (commissionHint) {
+            commissionHint.textContent = enabled
+              ? 'Comision sugerida: 0,30 % del monto origen. Puedes ajustarla manualmente y elegir cual de las dos cuentas la paga.'
+              : 'La comision se habilita para transferencia a otro banco y pago movil. Para transferencia a tercero no aplica.';
+          }
+
+          rebuildCommissionPayerOptions();
+          syncSuggestedCommission(true);
+          updateBalanceSummaries();
+        };
+
+        const syncSuggestedCommission = async (force = false) => {
+          if (!commissionApplies() || !currentOrigin || !commissionAmountInput) {
+            updateBalanceSummaries();
+            return;
+          }
+
+          const payerAccount = selectedCommissionAccount() || currentOrigin;
+          applyMoneySymbol(commissionAmountInput, payerAccount.symbol || currentOrigin.symbol || '$');
+
+          const originAmount = parseDecimal(amountFromInput?.value, amountFromInput);
+          const transferDate = parseDateInput(dateInput?.value);
+
+          if (!(originAmount > 0)) {
+            if (window.MoneyInputMask?.setValue && (force || !commissionEdited)) {
+              window.MoneyInputMask.setValue(commissionAmountInput, 0, payerAccount.symbol || '$');
+            }
+            updateBalanceSummaries();
+            return;
+          }
+
+          let suggested = originAmount * 0.003;
+
+          if (transferDate && String(currentOrigin.currency).toUpperCase() !== String(payerAccount.currency).toUpperCase()) {
+            const rates = await loadRatesForDate(transferDate);
+            const fromRate = rates ? pickRate(rates, currentOrigin.currency) : 0;
+            const toRate = rates ? pickRate(rates, payerAccount.currency) : 0;
+            if (fromRate > 0 && toRate > 0) {
+              suggested = (suggested * fromRate) / toRate;
+            }
+          }
+
+          if (force || !commissionEdited) {
+            if (window.MoneyInputMask?.setValue) {
+              window.MoneyInputMask.setValue(commissionAmountInput, suggested, payerAccount.symbol || '$');
+            } else {
+              commissionAmountInput.value = suggested.toFixed(2).replace('.', ',');
+            }
+          }
+
+          updateBalanceSummaries();
+        };
+
+        const updateSuggestedAmount = async () => {
+          if (!currentOrigin || !targetSelect || !dateInput || !amountFromInput || !amountToInput) return;
+
+          const targetOption = targetSelect.options[targetSelect.selectedIndex];
+          const targetCurrency = targetOption?.dataset?.currency;
+          const fromAmount = parseDecimal(amountFromInput.value, amountFromInput);
+          const parsedDate = parseDateInput(dateInput.value);
+
+          if (!targetCurrency || !(fromAmount > 0) || !parsedDate) {
+            setHint('Selecciona cuenta destino, fecha y monto para ver conversion sugerida.');
+            return;
+          }
+
+          if (String(currentOrigin.currency).toUpperCase() === String(targetCurrency).toUpperCase()) {
+            if (!destinationEdited) {
+              if (window.MoneyInputMask?.setValue) {
+                window.MoneyInputMask.setValue(amountToInput, fromAmount, targetOption.dataset.symbol);
+              } else {
+                amountToInput.value = fromAmount.toFixed(2).replace('.', ',');
+              }
+            }
+            setHint('Misma moneda: se sugiere el mismo monto en origen y destino.');
+            updateBalanceSummaries();
+            return;
+          }
+
+          const rates = await loadRatesForDate(parsedDate);
+          if (!rates) {
+            setHint('No se pudo obtener tasas para la fecha seleccionada.');
+            return;
+          }
+
+          const fromRate = pickRate(rates, currentOrigin.currency);
+          const toRate = pickRate(rates, targetCurrency);
+          if (!(fromRate > 0) || !(toRate > 0)) {
+            setHint('No hay tasa disponible para convertir entre estas monedas.');
+            return;
+          }
+
+          const suggested = (fromAmount * fromRate) / toRate;
+          if (!destinationEdited) {
+            if (window.MoneyInputMask?.setValue) {
+              window.MoneyInputMask.setValue(amountToInput, suggested, targetOption.dataset.symbol);
+            } else {
+              amountToInput.value = suggested.toFixed(2).replace('.', ',');
+            }
+          }
+
+          setHint(`Sugerido: ${currentOrigin.symbol} ${fromAmount.toFixed(2)} -> ${targetOption.dataset.symbol} ${suggested.toFixed(2)} (puedes editar manualmente el destino).`);
+          updateBalanceSummaries();
+        };
+
+        const openModal = (originData) => {
+          if (closingTimer) {
+            window.clearTimeout(closingTimer);
+            closingTimer = null;
+          }
+
+          currentOrigin = originData;
+          destinationEdited = false;
+          commissionEdited = false;
+
+          form.action = `/cuentas/${originData.id}/transfer`;
+          if (originField) originField.value = `${originData.name} (${originData.currency})`;
+          if (originLabel) originLabel.textContent = `Origen: ${originData.name} · Moneda ${originData.currency}`;
+
+          rebuildTargetOptions();
+          if (targetSelect) targetSelect.value = '';
+          if (methodSelect) methodSelect.value = '';
+          if (amountFromInput) amountFromInput.value = '';
+          if (amountToInput) amountToInput.value = '';
+          if (amountFromInput) applyMoneySymbol(amountFromInput, originData.symbol);
+          if (amountToInput) applyMoneySymbol(amountToInput, '$');
+          if (commissionAmountInput) {
+            commissionAmountInput.value = '';
+            applyMoneySymbol(commissionAmountInput, originData.symbol);
+          }
+          if (dateInput) dateInput.value = formatDateInput(new Date());
+          setHint('Selecciona cuenta destino, fecha y monto para ver conversion sugerida.');
+          rebuildCommissionPayerOptions();
+          updateCommissionFieldState();
+          updateBalanceSummaries();
+
+          modal.classList.remove('hidden');
+          modal.classList.add('flex');
+          modal.classList.remove('is-leaving');
+
+          window.requestAnimationFrame(() => {
+            modal.classList.add('is-visible');
+          });
+
+          if (typeof window.initializeMaterializeDatepickers === 'function') {
+            window.initializeMaterializeDatepickers(modal);
+          }
+          if (window.MoneyInputMask?.init) {
+            window.MoneyInputMask.init(modal);
+          }
+        };
+
+        const closeModal = () => {
+          modal.classList.remove('is-visible');
+          modal.classList.add('is-leaving');
+
+          if (closingTimer) {
+            window.clearTimeout(closingTimer);
+          }
+
+          closingTimer = window.setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex', 'is-leaving');
+            closingTimer = null;
+          }, 220);
+        };
+
+        document.addEventListener('turbo:before-cache', closeModal);
+
+        document.addEventListener('click', (event) => {
+          const trigger = event.target.closest('[data-transfer-trigger="true"]');
+          if (trigger) {
+            const originAccount = accountsById.get(String(trigger.dataset.originId || ''));
+            openModal(originAccount || {
+              id: trigger.dataset.originId,
+              name: trigger.dataset.originName,
+              currency: trigger.dataset.originCurrency,
+              symbol: trigger.dataset.originSymbol,
+              balance: Number(trigger.dataset.originBalance || 0),
+              account_type: trigger.dataset.originAccountType,
+            });
+            return;
+          }
+
+          const closeTrigger = event.target.closest('[data-transfer-close="true"]');
+          if (closeTrigger) {
+            closeModal();
+          }
+        });
+
+        targetSelect?.addEventListener('change', () => {
+          const selected = targetSelect.options[targetSelect.selectedIndex];
+          if (amountToInput) applyMoneySymbol(amountToInput, selected?.dataset?.symbol || '$');
+          destinationEdited = false;
+          rebuildCommissionPayerOptions();
+          updateSuggestedAmount();
+          syncSuggestedCommission(true);
+        });
+
+        dateInput?.addEventListener('change', () => {
+          destinationEdited = false;
+          updateSuggestedAmount();
+          syncSuggestedCommission(true);
+        });
+
+        amountFromInput?.addEventListener('input', () => {
+          destinationEdited = false;
+          updateSuggestedAmount();
+          syncSuggestedCommission();
+        });
+
+        amountToInput?.addEventListener('input', () => {
+          destinationEdited = true;
+          updateBalanceSummaries();
+        });
+
+        methodSelect?.addEventListener('change', () => {
+          commissionEdited = false;
+          updateCommissionFieldState();
+        });
+
+        commissionAccountSelect?.addEventListener('change', () => {
+          commissionEdited = false;
+          syncSuggestedCommission(true);
+        });
+
+        commissionAmountInput?.addEventListener('input', () => {
+          commissionEdited = true;
+          updateBalanceSummaries();
+        });
+
+        form.addEventListener('submit', async (event) => {
+          const targetAccount = selectedTargetAccount();
+          const commissionAccount = selectedCommissionAccount();
+          const originAmount = parseDecimal(amountFromInput?.value, amountFromInput);
+          const destinationAmount = parseDecimal(amountToInput?.value, amountToInput);
+          const commissionAmount = commissionApplies() ? parseDecimal(commissionAmountInput?.value, commissionAmountInput) : 0;
+          const totalOriginDebit = originAmount + (commissionAccount && String(commissionAccount.id) === String(currentOrigin?.id) ? commissionAmount : 0);
+          const originRemaining = Number(currentOrigin?.balance || 0) - totalOriginDebit;
+
+          let blockingMessage = '';
+
+          if (originRemaining < 0) {
+            blockingMessage = 'El monto a debitar no esta disponible en la cuenta origen.';
+          } else if (commissionApplies() && !commissionAccount) {
+            blockingMessage = 'Selecciona cual cuenta pagara la comision antes de registrar la transferencia.';
+          } else if (commissionApplies() && commissionAccount) {
+            const commissionBaseAvailable = Number(commissionAccount.balance || 0);
+            const extraTargetCredit = String(commissionAccount.id) === String(targetAccount?.id) ? destinationAmount : 0;
+            if ((commissionBaseAvailable + extraTargetCredit - commissionAmount) < 0) {
+              blockingMessage = 'La cuenta seleccionada para pagar la comision no tiene saldo disponible suficiente.';
+            }
+          }
+
+          if (!blockingMessage) return;
+
+          event.preventDefault();
+
+          if (window.Swal?.fire) {
+            await window.Swal.fire({
+              icon: 'error',
+              title: 'Saldo insuficiente',
+              text: blockingMessage,
+              confirmButtonText: 'OK'
+            });
+            return;
+          }
+
+          window.alert(blockingMessage);
+        });
+      })();
+    </script>
+  </div>

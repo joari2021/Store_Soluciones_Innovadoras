@@ -1,28 +1,45 @@
-<div class="container">
-  <div class="row">
-    <div class="col-sm-4 caja-login" >
-      <%= form_with(model: @user) do |form| %>
-        <% @user.errors.full_messages.each do |error| %>
-          <div>
-            <%= error %>
-          </div>
-        <% end %>
-        <div>
-          <%= form.label :email %>
-          <%= form.email_field :email, required: true %>
-        </div>
-        <div>
-          <%= form.label :username %>
-          <%= form.text_field :username, required: true %>
-        </div>
-        <div>
-          <%= form.label :password %>
-          <%= form.password_field :password, required: true %>
-        </div>
-        <div>
-          <%= form.submit %>
-        </div>
-      <% end %>
-    </div>
+<div class="space-y-6">
+  <div>
+    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Registro inicial</p>
+    <h2 class="mt-2 text-3xl font-black tracking-tight text-slate-900">Crear administrador</h2>
+    <p class="mt-2 text-sm text-slate-500">Este usuario tendra control completo del sistema y podra crear personal por negocio.</p>
   </div>
+  <%= form_with(model: @user, url: users_path, class: 'space-y-4') do |form| %>
+    <% if @user.errors.any? %>
+      <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+        <p class="font-semibold">Corrige los siguientes errores:</p>
+        <ul class="mt-2 list-disc space-y-1 pl-5">
+          <% @user.errors.full_messages.each do |message| %>
+            <li><%= message %></li>
+          <% end %>
+        </ul>
+      </div>
+    <% end %>
+    <div class="space-y-2">
+      <%= form.label :full_name, 'Nombre completo', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.text_field :full_name, class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Ej: Juan Delgado' %>
+    </div>
+    <div class="space-y-2">
+      <%= form.label :email, 'Correo', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.email_field :email, required: true, autocomplete: 'email', class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'administrador@correo.com' %>
+    </div>
+    <div class="space-y-2">
+      <%= form.label :username, 'Usuario', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.text_field :username, required: true, autocomplete: 'username', class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'usuario_admin' %>
+    </div>
+    <div class="space-y-2">
+      <%= form.label :password, 'Clave segura', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.password_field :password, required: true, autocomplete: 'new-password', class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Minimo 10 caracteres' %>
+    </div>
+    <div class="space-y-2">
+      <%= form.label :password_confirmation, 'Confirmar clave', class: 'text-sm font-semibold text-slate-700' %>
+      <%= form.password_field :password_confirmation, required: true, autocomplete: 'new-password', class: 'w-full rounded-xl border border-sky-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Repite la clave' %>
+    </div>
+    <p class="text-xs text-slate-500">La clave debe incluir mayusculas, minusculas, numeros y simbolos.</p>
+    <%= form.submit 'Crear administrador', class: 'inline-flex w-full cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800' %>
+  <% end %>
+  <p class="text-sm text-slate-500">
+    ¿Ya tienes usuario?
+    <%= link_to 'Inicia sesion', new_session_path, class: 'font-semibold text-sky-700 hover:text-sky-800' %>
+  </p>
 </div>

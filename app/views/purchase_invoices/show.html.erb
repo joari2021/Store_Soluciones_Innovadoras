@@ -1,0 +1,352 @@
+<div class="space-y-6">
+  <% highlight_active = @highlight_from_lot && @highlighted_item_id.present? %>
+  <% format_decimal_input = lambda do |value, scale = 2|
+       next '' if value.nil?
+
+       number = value.to_d.round(scale)
+       string_value = number.to_s('F')
+       if string_value.include?('.')
+         integer_part, decimal_part = string_value.split('.', 2)
+         decimal_trimmed = decimal_part.to_s.gsub(/0+\z/, '')
+         decimal_trimmed.present? ? "#{integer_part}.#{decimal_trimmed}" : integer_part
+       else
+         string_value
+       end
+     end %>
+  <% tasa = @purchase_invoice.tasa_dolar.to_d %>
+  <% row_data = @purchase_invoice.purchase_invoice_items.map do |item|
+       product_name = item.product_name.presence || item.producto&.descripcion || 'Selecciona un producto'
+       cantidad_packs = item.cantidad.to_d
+       costo_mayor = item.costo_mayor.to_d
+       unid_x_pack = item.unid_x_pack.to_d
+       costo_mayor_bs = item.costo_mayor_bs.to_d.positive? ? item.costo_mayor_bs.to_d : (costo_mayor * tasa)
+       total_usd = costo_mayor * cantidad_packs
+       total_bs = costo_mayor_bs * cantidad_packs
+       product_variations = item.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || []
+       product_variation_lookup_by_id = product_variations.index_by { |variation| variation[:id].to_s }
+       single_variation_description = if product_variations.one?
+                                        product_variations.first[:description].presence || 'Unica'
+                                      end
+       variation_breakdown_rows_raw = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+       variation_breakdown_rows = variation_breakdown_rows_raw.filter_map do |entry|
+         next unless entry.is_a?(Hash)
+
+         variation_id = (entry['variation_id'] || entry[:variation_id]).presence
+         stored_description = (entry['description'] || entry[:description]).to_s.strip
+         resolved_description = if variation_id.present?
+                                  product_variation_lookup_by_id.dig(variation_id.to_s, :description)
+                                end
+         resolved_description = resolved_description.presence || single_variation_description.presence || stored_description.presence || 'Variación'
+
+         {
+           'variation_id' => variation_id,
+           'description' => resolved_description,
+           'quantity' => (entry['quantity'] || entry[:quantity])
+         }
+       end
+       variation_count = if variation_breakdown_rows.any?
+                           variation_breakdown_rows.size
+                         elsif product_variations.one?
+                           1
+                         else
+                           0
+                         end
+
+       {
+         item: item,
+         product_name: product_name,
+         exento_activo: item.exento?,
+         cantidad_packs: cantidad_packs,
+         costo_mayor: costo_mayor,
+         costo_mayor_bs: costo_mayor_bs,
+         unid_x_pack: unid_x_pack,
+         total_usd: total_usd,
+         total_bs: total_bs,
+         product_variations: product_variations,
+         variation_breakdown_rows: variation_breakdown_rows,
+         variation_count: variation_count
+       }
+     end %>
+  <% subtotal_usd = row_data.reduce(0.to_d) { |sum, row| row[:exento_activo] ? sum : (sum + row[:total_usd]) } %>
+  <% subtotal_bs = row_data.reduce(0.to_d) { |sum, row| row[:exento_activo] ? sum : (sum + row[:total_bs]) } %>
+  <% exento_usd = row_data.reduce(0.to_d) { |sum, row| row[:exento_activo] ? (sum + row[:total_usd]) : sum } %>
+  <% exento_bs = row_data.reduce(0.to_d) { |sum, row| row[:exento_activo] ? (sum + row[:total_bs]) : sum } %>
+  <% iva_usd = subtotal_usd * 0.16 %>
+  <% iva_bs = subtotal_bs * 0.16 %>
+  <% total_final_bs = subtotal_bs + iva_bs + exento_bs %>
+  <% pricing_priority = @purchase_invoice.supplier&.pricing_currency_priority.presence || 'usd' %>
+  <% subtotal_usd_display = pricing_priority == 'bs' && tasa.positive? ? (subtotal_bs / tasa) : subtotal_usd %>
+  <% iva_usd_display = pricing_priority == 'bs' && tasa.positive? ? (iva_bs / tasa) : iva_usd %>
+  <% exento_usd_display = pricing_priority == 'bs' && tasa.positive? ? (exento_bs / tasa) : exento_usd %>
+  <% total_final_usd = if pricing_priority == 'bs'
+                         tasa.positive? ? (total_final_bs / tasa) : (subtotal_usd + iva_usd + exento_usd)
+                       else
+                         subtotal_usd + iva_usd + exento_usd
+                       end %>
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Factura #<%= @purchase_invoice.id %></h1>
+        <p class="mt-1 text-sm text-slate-500">Detalle de compra, proveedor y composición de costos.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
+        <% if current_user_admin? %>
+          <%= link_to 'Eliminar factura',
+                      purchase_invoice_path(@purchase_invoice),
+                      class: 'inline-flex items-center justify-center rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-300 cursor-pointer',
+                      data: { turbo_method: :delete, swal_delete: 'purchase_invoice' } %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Proveedor</p>
+      <p class="mt-2 text-sm font-semibold text-slate-800"><%= @purchase_invoice.supplier_display_name %></p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Fecha emisión</p>
+      <p class="mt-2 text-sm font-semibold text-slate-800"><%= l(@purchase_invoice.fecha_emision, format: :short) rescue @purchase_invoice.fecha_emision %></p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Tasa dólar</p>
+      <p class="mt-2 text-sm font-semibold text-slate-800"><%= format_money(@purchase_invoice.tasa_dolar, unit: "Bs") %></p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Monto total</p>
+      <p class="mt-2 text-sm font-semibold text-slate-800"><%= format_money(@purchase_invoice.monto_total, unit: "$") %></p>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Número</p>
+    <p class="mt-2 text-sm text-slate-700"><%= @purchase_invoice.numero.presence || '-' %></p>
+    <p class="mt-4 text-xs font-bold uppercase tracking-wider text-slate-400">Observaciones</p>
+    <p class="mt-2 text-sm text-slate-700"><%= @purchase_invoice.observaciones.presence || '-' %></p>
+  </div>
+  <% invoice_pending_balance_bs = (@invoice_pending_balance_bs || 0).to_d.round(2) %>
+  <% invoice_total_paid_bs = (@invoice_total_paid_bs || 0).to_d.round(2) %>
+  <% invoice_debt_assigned_bs = (@invoice_debt_assigned_bs || 0).to_d.round(2) %>
+  <% invoice_usd_per_bs = total_final_bs.positive? ? (total_final_usd / total_final_bs) : 0.to_d %>
+  <% convert_bs_to_invoice_usd = lambda do |amount_bs|
+       (amount_bs.to_d * invoice_usd_per_bs).round(2)
+     end %>
+  <% invoice_pending_balance_usd = convert_bs_to_invoice_usd.call(invoice_pending_balance_bs) %>
+  <% invoice_total_paid_usd = convert_bs_to_invoice_usd.call(invoice_total_paid_bs) %>
+  <% invoice_debt_assigned_usd = convert_bs_to_invoice_usd.call(invoice_debt_assigned_bs) %>
+  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-100 px-6 py-4">
+      <h2 class="text-lg font-semibold text-slate-800">Items de la factura</h2>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm text-slate-700">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-4 py-3 text-left">Acciones</th>
+            <th class="px-4 py-3 text-left">Producto</th>
+            <th class="px-4 py-3 text-left">E</th>
+            <th class="px-4 py-3 text-center">Cantidad Packs</th>
+            <th class="px-4 py-3 text-right">Costo Mayor $</th>
+            <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
+            <th class="px-4 py-3 text-center">Unid x Pack</th>
+            <th class="px-4 py-3 text-left">Variaciones</th>
+            <th class="px-4 py-3 text-right">Total $</th>
+            <th class="px-4 py-3 text-right">Total Bs</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% if row_data.any? %>
+            <% row_data.each_with_index do |row, index| %>
+              <% item = row[:item] %>
+              <% highlighted_row = highlight_active && (item.id == @highlighted_item_id) %>
+              <tr data-factura-item-id="<%= item.id %>" class="<%= [index.even? ? 'bg-white' : 'bg-slate-50/50', (highlighted_row ? 'bg-sky-50/70' : nil)].compact.join(' ') %>">
+                <td class="px-4 py-3 <%= highlighted_row ? 'border-y border-l border-sky-300' : '' %>">
+                  <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center justify-center rounded-lg bg-slate-100 p-2 text-slate-500" title="Solo visual" aria-label="Solo visual">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                        <path d="M1.5 12s3.75-7.5 10.5-7.5S22.5 12 22.5 12s-3.75 7.5-10.5 7.5S1.5 12 1.5 12Z" />
+                        <path d="M12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" />
+                      </svg>
+                    </span>
+                  </div>
+                </td>
+                <td class="px-4 py-3 font-semibold text-slate-800 <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= row[:product_name] %></td>
+                <td class="px-4 py-3 <%= highlighted_row ? 'border-y border-sky-300' : '' %>">
+                  <span class="inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-semibold <%= row[:exento_activo] ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-300 bg-white text-slate-600' %>">
+                    <span class="text-[11px] font-bold">E</span>
+                    <span class="relative inline-flex h-5 w-10 items-center rounded-full <%= row[:exento_activo] ? 'bg-emerald-500' : 'bg-slate-300' %>">
+                      <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow <%= row[:exento_activo] ? 'translate-x-5' : 'translate-x-0.5' %>"></span>
+                    </span>
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-center <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_quantity(row[:cantidad_packs]) %></td>
+                <td class="px-4 py-3 table-number <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_money(row[:costo_mayor], unit: '$') %></td>
+                <td class="px-4 py-3 table-number <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_money(row[:costo_mayor_bs], unit: 'Bs') %></td>
+                <td class="px-4 py-3 text-center <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_quantity(row[:unid_x_pack]) %></td>
+                <td class="px-4 py-3 <%= highlighted_row ? 'border-y border-sky-300' : '' %>">
+                  <div class="group relative max-w-[16rem]">
+                    <div class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5 text-slate-500">
+                        <path d="M12 5c-5.523 0-9.5 4.028-10.95 6.238a1.5 1.5 0 0 0 0 1.524C2.5 14.972 6.477 19 12 19s9.5-4.028 10.95-6.238a1.5 1.5 0 0 0 0-1.524C21.5 9.028 17.523 5 12 5Zm0 11a4.25 4.25 0 1 1 0-8.5 4.25 4.25 0 0 1 0 8.5Zm0-2.5a1.75 1.75 0 1 0 0-3.5 1.75 1.75 0 0 0 0 3.5Z"/>
+                      </svg>
+                      <span><%= row[:variation_count] == 1 ? '1 variación' : "#{row[:variation_count]} variaciones" %></span>
+                    </div>
+                    <div class="pointer-events-none absolute left-0 top-full z-30 mt-1 w-max max-w-[18rem] translate-y-1 rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-700 opacity-0 shadow-lg transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+                      <ul class="space-y-1">
+                        <% if row[:variation_breakdown_rows].any? %>
+                          <% row[:variation_breakdown_rows].each do |entry| %>
+                            <% description = entry['description'].presence || 'Variación' %>
+                            <% quantity = format_decimal_input.call(entry['quantity'], 2) %>
+                            <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                              <span class="truncate"><%= description %></span>
+                              <span class="font-semibold text-slate-600"><%= quantity %></span>
+                            </li>
+                          <% end %>
+                        <% elsif row[:product_variations].one? %>
+                          <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                            <span class="truncate"><%= row[:product_variations].first[:description].presence || 'Unica' %></span>
+                            <span class="font-semibold text-slate-600">Unica</span>
+                          </li>
+                        <% else %>
+                          <li class="text-slate-500">Sin detalle</li>
+                        <% end %>
+                      </ul>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3 table-number <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_money(row[:total_usd], unit: '$') %></td>
+                <td class="px-4 py-3 table-number font-semibold text-slate-800 <%= highlighted_row ? 'border-y border-r border-sky-300' : '' %>"><%= format_money(row[:total_bs], unit: 'Bs') %></td>
+              </tr>
+            <% end %>
+          <% else %>
+            <tr>
+              <td class="px-4 py-4 text-sm text-slate-500" colspan="10">Sin ítems registrados en esta factura.</td>
+            </tr>
+          <% end %>
+        </tbody>
+        <tfoot class="bg-slate-50 border-t border-slate-200">
+          <tr>
+            <td class="px-4 py-3" colspan="7"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">Subtotal</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(subtotal_usd_display, unit: '$') %></td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(subtotal_bs, unit: 'Bs') %></td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3" colspan="7"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">IVA 16%</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(iva_usd_display, unit: '$') %></td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(iva_bs, unit: 'Bs') %></td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3" colspan="7"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">Exento</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(exento_usd_display, unit: '$') %></td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(exento_bs, unit: 'Bs') %></td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3" colspan="7"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">Total</td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(total_final_usd, unit: '$') %></td>
+            <td class="px-4 py-3 table-number font-extrabold text-slate-800"><%= format_money(total_final_bs, unit: 'Bs') %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  <% unless @purchase_invoice.initial_inventory? %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-slate-800">Pago de factura</h2>
+          <p class="text-sm text-slate-500">Métodos de pago registrados y monto asignado a deuda.</p>
+        </div>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Base: total factura <%= format_money(total_final_usd, unit: '$') %></p>
+      </div>
+      <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Total pagado $</p>
+          <p class="mt-2 text-lg font-extrabold text-emerald-800"><%= format_money(invoice_total_paid_usd, unit: '$') %></p>
+        </div>
+        <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Asignado a deuda $</p>
+          <p class="mt-2 text-lg font-extrabold text-amber-800"><%= format_money(invoice_debt_assigned_usd, unit: '$') %></p>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo pendiente actual $</p>
+          <p class="mt-2 text-lg font-extrabold text-slate-800"><%= format_money(invoice_pending_balance_usd, unit: '$') %></p>
+        </div>
+      </div>
+      <div class="mt-4">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Métodos de pago registrados</p>
+        <% if @invoice_payment_movements.present? %>
+          <div class="mt-2 space-y-2">
+            <% @invoice_payment_movements.each do |movement| %>
+              <% payment_method_label = if movement.payment_method.present?
+                                        movement.payment_method_label
+                                      elsif movement.account&.account_type == 'cash_box'
+                                        'Efectivo'
+                                      else
+                                        movement.account&.account_type_label || 'Sin método'
+                                      end %>
+              <div class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p class="text-sm font-semibold text-slate-800"><%= movement.account.name %></p>
+                  <p class="mt-1 text-xs text-slate-500">
+                    <%= l(movement.occurred_at.to_date, format: '%d/%m/%Y') %>
+                    · Método: <%= payment_method_label %>
+                  </p>
+                </div>
+                <p class="text-sm font-extrabold text-emerald-700"><%= format_money(convert_bs_to_invoice_usd.call(movement.amount), unit: '$') %></p>
+              </div>
+            <% end %>
+          </div>
+        <% else %>
+          <div class="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            Esta factura no tiene pagos directos registrados en su creación.
+          </div>
+        <% end %>
+      </div>
+      <% if @invoice_pending_debt.present? %>
+        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-sm font-semibold text-amber-800">Deuda pendiente asociada</p>
+              <p class="mt-1 text-xs text-amber-700">
+                Vence: <%= @invoice_pending_debt.due_on.present? ? @invoice_pending_debt.due_on.strftime('%d/%m/%Y') : 'Sin fecha' %>
+                · Estado: <%= @invoice_pending_debt.status_label %>
+              </p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <% if invoice_pending_balance_bs.positive? %>
+                <%= link_to new_debt_debt_payment_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800', data: { turbo_frame: '_top' } do %>
+                  Registrar pago
+                <% end %>
+              <% end %>
+              <%= link_to debt_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50', data: { turbo_frame: '_top' } do %>
+                Ver deuda
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-cyan-200 bg-cyan-50 p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-cyan-900">Inventario inicial</h2>
+      <p class="mt-1 text-sm text-cyan-800">Este registro corresponde a la carga inicial de inventario y no genera pagos ni deudas.</p>
+    </div>
+  <% end %>
+</div>
+<% if highlight_active %>
+  <script>
+    document.addEventListener('turbo:load', () => {
+      const highlightedItemId = '<%= @highlighted_item_id %>';
+      if (!highlightedItemId) return;
+
+      const targetRow = document.querySelector(`tr[data-factura-item-id="${highlightedItemId}"]`);
+      if (!targetRow) return;
+
+      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, { once: true });
+  </script>
+<% end %>

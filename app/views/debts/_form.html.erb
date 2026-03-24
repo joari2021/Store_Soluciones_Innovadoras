@@ -1,0 +1,1728 @@
+<%= form_with model: @debt, local: true, class: "space-y-6", data: { debt_form: true } do |form| %>
+  <% if @debt.errors.any? %>
+    <% balance_error_message = @debt.errors.full_messages.find { |message| message.to_s.downcase.include?('saldo insuficiente') } %>
+    <% if balance_error_message.present? %>
+      <div
+        class="hidden"
+        data-balance-insufficient-alert="true"
+        data-balance-insufficient-message="<%= balance_error_message %>"
+      ></div>
+    <% end %>
+    <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
+      <div class="flex items-center justify-between">
+        <h4 class="text-sm font-bold">No se pudo guardar la deuda</h4>
+        <span class="text-xs font-medium"><%= pluralize(@debt.errors.count, 'error') %></span>
+      </div>
+      <ul class="mt-2 list-disc pl-5 text-sm">
+        <% @debt.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <% initial_cliente = @clientes.find { |cliente| cliente.id == form.object.cliente_id } %>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle de la deuda</p>
+    <div class="mt-4 grid gap-4 md:grid-cols-2">
+      <div>
+        <%= form.label :cliente_id, "Cliente", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.hidden_field :cliente_id,
+                              data: {
+                                debt_cliente_id: true,
+                                debt_cliente_name: initial_cliente&.name.to_s,
+                                debt_cliente_document: initial_cliente&.document_label.to_s
+                              } %>
+        <div class="relative mt-1">
+          <input type="text"
+                 autocomplete="off"
+                 placeholder="Buscar cliente"
+                 class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                 data-debt-client-search="true">
+          <div class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl" data-debt-client-results="true">
+            <button type="button"
+                  class="flex w-full cursor-pointer items-center gap-2 border-b border-slate-100 px-3 py-2 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50"
+                    data-debt-client-add="true">
+              + Cliente no registrado
+            </button>
+            <div class="max-h-48 overflow-y-auto" data-debt-client-list="true"></div>
+          </div>
+        </div>
+        <div class="mt-2 <%= initial_cliente.present? ? 'flex' : 'hidden' %> items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2" data-debt-client-selected="true">
+          <div>
+            <p class="text-xs text-slate-500">Cliente seleccionado</p>
+            <p class="text-sm font-semibold text-slate-700" data-debt-client-selected-name="true"><%= initial_cliente.present? ? "#{initial_cliente.name} (#{initial_cliente.document_label})" : "" %></p>
+          </div>
+          <button type="button" class="cursor-pointer text-slate-400 hover:text-red-500" data-debt-client-clear="true">x</button>
+        </div>
+        <p class="mt-2 text-xs text-slate-500 <%= initial_cliente.present? ? 'hidden' : '' %>" data-debt-client-empty="true">Selecciona un cliente para esta deuda.</p>
+      </div>
+      <div>
+        <%= form.label :debt_kind, "Tipo", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :debt_kind, Debt.debt_kind_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", data: { debt_kind: true } %>
+      </div>
+    </div>
+  </div>
+  <% debt_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+  <% loan_account_options = @accounts.map do |account| %>
+    <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
+  <% end %>
+  <% normalize_iso_date = lambda do |value|
+       raw = value.to_s.strip
+       if raw.blank?
+         ''
+       else
+         begin
+           if raw.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+             Date.strptime(raw.tr('/', '-'), '%d-%m-%Y').iso8601
+           elsif raw.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+             Date.iso8601(raw).iso8601
+           else
+             Date.parse(raw).iso8601
+           end
+         rescue ArgumentError
+           ''
+         end
+       end
+     end %>
+  <% normalize_display_date = lambda do |value|
+         iso_value = normalize_iso_date.call(value)
+         if iso_value.present?
+           begin
+             Date.iso8601(iso_value).strftime('%d-%m-%Y')
+           rescue ArgumentError
+             ''
+           end
+         else
+           ''
+         end
+       end %>
+  <% debt_entry_rows = Array(@debt_entries_form).presence || [] %>
+  <% if debt_entry_rows.empty? %>
+    <% debt_entry_rows = [{
+      amount: form.object.amount.presence || 0,
+      currency: form.object.currency.presence || "USD",
+      issued_on: (form.object.issued_on || Date.current).iso8601,
+      due_on: form.object.due_on&.iso8601,
+      description: form.object.description,
+      loan_enabled: false,
+      loan_account_id: nil
+    }] %>
+  <% end %>
+  <% entry_currencies = debt_entry_rows.map { |row| row[:currency].presence || row["currency"].presence }.compact %>
+  <% primary_currency = entry_currencies.first.presence || form.object.currency.presence || "USD" %>
+  <% selected_currency_symbol = debt_currency_symbols[primary_currency] || "$" %>
+  <% render_batch_debt_fields = true %>
+  <% if render_batch_debt_fields %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-debt-entries-wrapper="true" data-debt-rates-to-ves="<%= @currency_rates_to_ves.to_json %>" data-currency-symbols="<%= debt_currency_symbols.to_json %>" data-default-issued-on="<%= Date.current.strftime('%d-%m-%Y') %>">
+      <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos y fechas</p>
+          <p class="mt-1 text-sm text-slate-500">Agrega una o varias deudas. El monto, la moneda y la fecha de emision son obligatorios por cada deuda.</p>
+        </div>
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" data-debt-entry-add="true">
+          Anadir otra deuda
+        </button>
+      </div>
+      <div class="mt-4 space-y-3" data-debt-entries-container="true">
+        <% debt_entry_rows.each_with_index do |row, index| %>
+          <% row_amount = row[:amount].presence || row["amount"].presence || 0 %>
+          <% row_currency = row[:currency].presence || row["currency"].presence || "USD" %>
+          <% row_symbol = debt_currency_symbols[row_currency] || "$" %>
+          <% row_issued_on = row[:issued_on].presence || row["issued_on"].presence || Date.current.iso8601 %>
+          <% row_due_on = row[:due_on].presence || row["due_on"].presence %>
+          <% row_description = row[:description].presence || row["description"].presence %>
+          <% row_loan_enabled = ActiveModel::Type::Boolean.new.cast(row[:loan_enabled].presence || row["loan_enabled"].presence) %>
+          <% row_loan_account_id = row[:loan_account_id].presence || row["loan_account_id"].presence %>
+          <% loan_kind_enabled = %w[receivable payable].include?(form.object.debt_kind.to_s) %>
+          <% row_issued_value = normalize_display_date.call(row_issued_on) %>
+          <% row_due_value = normalize_display_date.call(row_due_on) %>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" data-debt-entry-row="true">
+            <div class="mb-3 flex items-center justify-between gap-3">
+              <p class="text-sm font-semibold text-slate-700">Deuda <span data-debt-entry-index-label="true"><%= index + 1 %></span></p>
+              <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-debt-entry-remove="true">
+                Eliminar
+              </button>
+            </div>
+            <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 py-2 <%= loan_kind_enabled ? '' : 'hidden' %>" data-debt-entry-loan-section="true">
+              <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <label class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                  <%= hidden_field_tag "debt_entries[#{index}][loan_enabled]", "0", data: { debt_entry_loan_enabled_hidden: true } %>
+                  <%= check_box_tag "debt_entries[#{index}][loan_enabled]",
+                                    "1",
+                                    row_loan_enabled,
+                                    class: "h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500",
+                                    data: { debt_entry_loan_enabled: true } %>
+                  Fue un prestamo
+                </label>
+                <p class="text-xs text-emerald-700">Usa el mismo monto de esta deuda.</p>
+              </div>
+              <div class="mt-2 <%= row_loan_enabled && loan_kind_enabled ? '' : 'hidden' %>" data-debt-entry-loan-fields="true">
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600">Cuenta del prestamo</label>
+                  <%= select_tag "debt_entries[#{index}][loan_account_id]",
+                                 options_for_select(loan_account_options, row_loan_account_id),
+                                 include_blank: "Selecciona una cuenta",
+                                 class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500",
+                                 data: { debt_entry_loan_account: true } %>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-500">Al elegir cuenta se fija la moneda y simbolo del monto.</p>
+              </div>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Moneda</label>
+                <%= select_tag "debt_entries[#{index}][currency]",
+                               options_for_select(Account.currency_options, row_currency),
+                               include_blank: "Selecciona moneda",
+                               class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                               data: { debt_entry_currency: true } %>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Monto</label>
+                <%= hidden_field_tag "debt_entries[#{index}][amount]", row_amount, data: { debt_entry_amount_hidden: true } %>
+                <%= text_field_tag "debt_entries[#{index}][amount_masked]",
+                                   format_money(row_amount, unit: row_symbol),
+                                   inputmode: "decimal",
+                                   autocomplete: "off",
+                                   placeholder: "#{row_symbol} 0,00",
+                                   class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                   data: {
+                                     money_mask: true,
+                                     money_symbol: row_symbol,
+                                     debt_entry_amount_masked: true
+                                   } %>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Fecha de emision</label>
+                <%= text_field_tag "debt_entries[#{index}][issued_on]",
+                                   row_issued_value,
+                                   required: true,
+                                   autocomplete: 'off',
+                                   placeholder: 'dd-mm-aaaa',
+                                   class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                   data: { debt_entry_issued_on: true } %>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-slate-700">Fecha de vencimiento (opcional)</label>
+                <%= text_field_tag "debt_entries[#{index}][due_on]",
+                                   row_due_value,
+                                   autocomplete: 'off',
+                                   placeholder: 'dd-mm-aaaa',
+                                   class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                   data: { debt_entry_due_on: true } %>
+              </div>
+              <div class="md:col-span-2 xl:col-span-4">
+                <label class="block text-sm font-medium text-slate-700">Descripcion de la deuda (opcional)</label>
+                <%= text_area_tag "debt_entries[#{index}][description]",
+                                  row_description,
+                                  rows: 2,
+                                  class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                                  data: { debt_entry_description: true } %>
+              </div>
+            </div>
+          </div>
+        <% end %>
+      </div>
+      <template data-debt-entry-template="true">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4" data-debt-entry-row="true">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <p class="text-sm font-semibold text-slate-700">Deuda <span data-debt-entry-index-label="true">1</span></p>
+            <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-debt-entry-remove="true">
+              Eliminar
+            </button>
+          </div>
+          <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/50 px-3 py-2" data-debt-entry-loan-section="true">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <label class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                <input type="hidden" name="debt_entries[__INDEX__][loan_enabled]" value="0" data-debt-entry-loan-enabled-hidden="true">
+                <input type="checkbox" name="debt_entries[__INDEX__][loan_enabled]" value="1" class="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500" data-debt-entry-loan-enabled="true">
+                Fue un prestamo
+              </label>
+              <p class="text-xs text-emerald-700">Usa el mismo monto de esta deuda.</p>
+            </div>
+            <div class="mt-2 hidden" data-debt-entry-loan-fields="true">
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600">Cuenta del prestamo</label>
+                <select name="debt_entries[__INDEX__][loan_account_id]" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500" data-debt-entry-loan-account="true">
+                  <option value="">Selecciona una cuenta</option>
+                  <%= options_for_select(loan_account_options) %>
+                </select>
+              </div>
+              <p class="mt-1 text-[11px] text-slate-500">Al elegir cuenta se fija la moneda y simbolo del monto.</p>
+            </div>
+          </div>
+          <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Moneda</label>
+              <select name="debt_entries[__INDEX__][currency]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-currency="true">
+                <%= options_for_select(Account.currency_options) %>
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Monto</label>
+              <input type="hidden" name="debt_entries[__INDEX__][amount]" value="0" data-debt-entry-amount-hidden="true">
+              <input type="text" name="debt_entries[__INDEX__][amount_masked]" value="$ 0,00" inputmode="decimal" autocomplete="off" placeholder="$ 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="$" data-debt-entry-amount-masked="true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Fecha de emision</label>
+              <input type="text" name="debt_entries[__INDEX__][issued_on]" value="__DEFAULT_DATE__" required="required" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-issued-on="true">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700">Fecha de vencimiento (opcional)</label>
+              <input type="text" name="debt_entries[__INDEX__][due_on]" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-due-on="true">
+            </div>
+            <div class="md:col-span-2 xl:col-span-4">
+              <label class="block text-sm font-medium text-slate-700">Descripcion de la deuda (opcional)</label>
+              <textarea name="debt_entries[__INDEX__][description]" rows="2" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-entry-description="true"></textarea>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos y fechas</p>
+      <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.hidden_field :amount, data: { debt_amount_hidden: true } %>
+          <%= text_field_tag :debt_amount_masked,
+                             format_money(form.object.amount, unit: selected_currency_symbol),
+                             inputmode: "decimal",
+                             autocomplete: "off",
+                             placeholder: "#{selected_currency_symbol} 0,00",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: {
+                               money_mask: true,
+                               money_symbol: selected_currency_symbol,
+                               debt_amount_masked: true
+                             } %>
+        </div>
+        <div>
+          <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.select :currency,
+                          Account.currency_options,
+                          {},
+                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                          data: { debt_currency: true, currency_symbols: debt_currency_symbols.to_json } %>
+        </div>
+        <div>
+          <%= form.label :issued_on, "Fecha de emision", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :issued_on,
+                              value: normalize_display_date.call(form.object.issued_on),
+                              autocomplete: 'off',
+                              placeholder: 'dd-mm-aaaa',
+                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+        <div>
+          <%= form.label :due_on, "Fecha de vencimiento", class: "block text-sm font-medium text-slate-700" %>
+          <%= form.text_field :due_on,
+                              value: normalize_display_date.call(form.object.due_on),
+                              autocomplete: 'off',
+                              placeholder: 'dd-mm-aaaa',
+                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  <div class="fixed inset-0 z-50 hidden items-center justify-center p-4" data-debt-client-modal>
+    <div class="absolute inset-0 bg-slate-900/60" data-debt-client-modal-close></div>
+    <div class="relative z-10 w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Cliente no registrado</p>
+          <h3 class="text-base font-bold text-slate-800">Registrar nuevo cliente</h3>
+        </div>
+        <button type="button" class="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-slate-50" data-debt-client-modal-close>
+          x
+        </button>
+      </div>
+      <div class="space-y-3 px-5 py-4">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Nombre</label>
+          <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-name>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Telefono (obligatorio)</label>
+          <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-phone>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Tipo de documento</label>
+            <select class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-document-type>
+              <option value="V">V</option>
+              <option value="E">E</option>
+              <option value="J">J</option>
+              <option value="G">G</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Documento</label>
+            <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-document-number>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Direccion</label>
+          <textarea rows="2" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-debt-client-address></textarea>
+        </div>
+        <p class="hidden text-sm" data-debt-client-feedback></p>
+      </div>
+      <div class="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" data-debt-client-modal-close>
+          Cancelar
+        </button>
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800" data-debt-client-save>
+          Guardar cliente
+        </button>
+      </div>
+    </div>
+  </div>
+  <% if render_batch_debt_fields %>
+    <% unless @debt.persisted? %>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <% selected_payment_account = @accounts.find { |account| account.id.to_s == params[:payment_account_id].to_s } %>
+        <% selected_payment_currency = params[:payment_currency].presence || selected_payment_account&.currency || primary_currency %>
+        <% payment_currency_symbol = debt_currency_symbols[selected_payment_currency] || selected_currency_symbol %>
+        <% show_payment_method = selected_payment_account&.account_type == "bank_account" %>
+        <% payment_account_options = @accounts.map do |account| %>
+          <% ["#{account.name} (#{account.currency})", account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+        <% end %>
+        <% payment_date_display = normalize_display_date.call(params[:payment_occurred_on].presence) %>
+        <% payment_date_display = Date.current.strftime('%d-%m-%Y') if payment_date_display.blank? %>
+        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago inicial</p>
+            <p class="mt-1 text-sm text-slate-500">Opcional: registra un pago inicial al crear una o varias deudas.</p>
+            <p class="mt-1 text-xs text-slate-400">El monto se distribuye automaticamente entre las deudas segun su saldo pendiente.</p>
+          </div>
+          <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
+            <%= check_box_tag :register_payment,
+                          "1",
+                          params[:register_payment] == "1",
+                          class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500",
+                          data: { debt_register_payment: true } %>
+            Registrar pago ahora
+          </label>
+        </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3" data-debt-payment-fields="true">
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Moneda del pago</label>
+            <%= select_tag :payment_currency,
+                       options_for_select(Account.currency_options, selected_payment_currency),
+                       include_blank: "Selecciona moneda",
+                       class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                       data: { debt_payment_currency: true, currency_symbols: debt_currency_symbols.to_json } %>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Cuenta</label>
+            <%= select_tag :payment_account_id,
+                         options_for_select(payment_account_options, params[:payment_account_id]),
+                         include_blank: "Selecciona una cuenta",
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { debt_payment_account: true } %>
+          </div>
+          <div class="<%= show_payment_method ? '' : 'hidden' %>" data-debt-payment-method-wrapper="true">
+            <label class="block text-sm font-medium text-slate-700">Metodo (solo banco)</label>
+            <%= select_tag :payment_method,
+                         options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], params[:payment_method]),
+                         include_blank: "Selecciona",
+                         class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                         data: { debt_payment_method_select: true } %>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Monto pagado</label>
+            <%= hidden_field_tag :payment_amount, params[:payment_amount], data: { debt_payment_amount_hidden: true } %>
+            <%= text_field_tag :payment_amount_masked,
+                             params[:payment_amount].presence || format_money(0, unit: payment_currency_symbol),
+                             inputmode: "decimal",
+                             autocomplete: "off",
+                             placeholder: "#{payment_currency_symbol} 0,00",
+                             class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: {
+                               money_mask: true,
+                               money_symbol: payment_currency_symbol,
+                               debt_payment_amount_masked: true
+                             } %>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Referencia</label>
+            <%= text_field_tag :payment_reference,
+                           params[:payment_reference],
+                           inputmode: "numeric",
+                           maxlength: 6,
+                           minlength: 6,
+                           pattern: "\\d{6}",
+                           autocomplete: "off",
+                           title: "La referencia debe tener exactamente 6 digitos",
+                           class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                           placeholder: "6 digitos",
+                           data: { debt_payment_reference: true } %>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700">Fecha del pago</label>
+            <%= text_field_tag :payment_occurred_on,
+                             payment_date_display,
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                             data: { debt_payment_date_input: true } %>
+          </div>
+        </div>
+      </div>
+    <% end %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-debt-summary-wrapper="true">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Totales y resumen</p>
+      <div class="mt-4 grid gap-3 lg:grid-cols-2">
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-widest text-emerald-700">Total en $ (BCV)</p>
+          <p class="mt-1 text-lg font-extrabold text-emerald-700" data-debt-total-usd="true">$ 0,00</p>
+        </div>
+        <div class="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-widest text-sky-700">Total en Bs</p>
+          <p class="mt-1 text-lg font-extrabold text-sky-700" data-debt-total-bs="true">Bs 0,00</p>
+        </div>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-widest text-amber-700">Abonando en $ (BCV)</p>
+          <p class="mt-1 text-lg font-extrabold text-amber-700" data-debt-paying-usd="true">$ 0,00</p>
+          <p class="mt-1 text-xs font-semibold text-amber-700" data-debt-paying-bs="true">Bs 0,00</p>
+        </div>
+        <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3" data-debt-delta-card="true">
+          <p class="text-xs font-semibold uppercase tracking-widest text-rose-700" data-debt-delta-label="true">Falta por pagar</p>
+          <p class="mt-1 text-lg font-extrabold text-rose-700" data-debt-delta-usd="true">$ 0,00</p>
+          <p class="mt-1 text-xs font-semibold text-rose-700" data-debt-delta-bs="true">Bs 0,00</p>
+        </div>
+      </div>
+    </div>
+  <% end %>
+  <div class="flex flex-wrap items-center gap-3">
+    <%= form.submit(@debt.persisted? ? "Actualizar deuda" : "Crear deuda", class: "inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800") %>
+    <%= link_to "Cancelar", debts_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+  </div>
+  <script>
+    (function () {
+      const form = document.querySelector("[data-debt-form='true']");
+      if (!form || form.dataset.debtBound === "true") return;
+      form.dataset.debtBound = "true";
+
+      const amountMaskedInput = form.querySelector("[data-debt-amount-masked='true']");
+      const amountHiddenInput = form.querySelector("[data-debt-amount-hidden='true']");
+      const debtKindSelect = form.querySelector("[data-debt-kind='true']");
+      const currencySelect = form.querySelector("[data-debt-currency='true']");
+
+      const debtEntriesWrapper = form.querySelector("[data-debt-entries-wrapper='true']");
+      const debtEntriesContainer = form.querySelector("[data-debt-entries-container='true']");
+      const debtEntryTemplate = form.querySelector("[data-debt-entry-template='true']");
+      const addDebtEntryButton = form.querySelector("[data-debt-entry-add='true']");
+      const debtTotalUsdValue = form.querySelector("[data-debt-total-usd='true']");
+      const debtTotalBsValue = form.querySelector("[data-debt-total-bs='true']");
+      const debtPayingUsdValue = form.querySelector("[data-debt-paying-usd='true']");
+      const debtPayingBsValue = form.querySelector("[data-debt-paying-bs='true']");
+      const debtDeltaCard = form.querySelector("[data-debt-delta-card='true']");
+      const debtDeltaLabel = form.querySelector("[data-debt-delta-label='true']");
+      const debtDeltaUsd = form.querySelector("[data-debt-delta-usd='true']");
+      const debtDeltaBs = form.querySelector("[data-debt-delta-bs='true']");
+
+      const paymentCurrencySelect = form.querySelector("[data-debt-payment-currency='true']");
+      const paymentMaskedInput = form.querySelector("[data-debt-payment-amount-masked='true']");
+      const paymentHiddenInput = form.querySelector("[data-debt-payment-amount-hidden='true']");
+      const paymentAccountSelect = form.querySelector("[data-debt-payment-account='true']");
+      const paymentMethodWrapper = form.querySelector("[data-debt-payment-method-wrapper='true']");
+      const paymentMethodSelect = form.querySelector("[data-debt-payment-method-select='true']");
+      const paymentReferenceInput = form.querySelector("[data-debt-payment-reference='true']");
+      const registerPaymentCheckbox = form.querySelector("[data-debt-register-payment='true']");
+
+      const clienteHiddenInput = form.querySelector("[data-debt-cliente-id='true']");
+      const clientSearchInput = form.querySelector("[data-debt-client-search='true']");
+      const clientResults = form.querySelector("[data-debt-client-results='true']");
+      const clientList = form.querySelector("[data-debt-client-list='true']");
+      const clientAddButton = form.querySelector("[data-debt-client-add='true']");
+      const clientSelected = form.querySelector("[data-debt-client-selected='true']");
+      const clientSelectedName = form.querySelector("[data-debt-client-selected-name='true']");
+      const clientEmpty = form.querySelector("[data-debt-client-empty='true']");
+      const clientClearButton = form.querySelector("[data-debt-client-clear='true']");
+
+      const clientModal = form.querySelector("[data-debt-client-modal]");
+      const clientModalCloseButtons = form.querySelectorAll("[data-debt-client-modal-close]");
+      const clientSaveButton = form.querySelector("[data-debt-client-save]");
+      const clientNameInput = form.querySelector("[data-debt-client-name]");
+      const clientPhoneInput = form.querySelector("[data-debt-client-phone]");
+      const clientDocumentTypeInput = form.querySelector("[data-debt-client-document-type]");
+      const clientDocumentNumberInput = form.querySelector("[data-debt-client-document-number]");
+      const clientAddressInput = form.querySelector("[data-debt-client-address]");
+      const clientFeedback = form.querySelector("[data-debt-client-feedback]");
+      let clientSearchTimeout = null;
+
+      const safeParseJSON = (value, fallback = {}) => {
+        if (!value) return fallback;
+
+        try {
+          return JSON.parse(value);
+        } catch (_error) {
+          return fallback;
+        }
+      };
+
+      const currencySymbolsSource =
+        debtEntriesWrapper?.dataset.currencySymbols ||
+        currencySelect?.dataset.currencySymbols ||
+        paymentCurrencySelect?.dataset.currencySymbols;
+      const currencySymbols = safeParseJSON(currencySymbolsSource, {});
+      const ratesToVes = safeParseJSON(debtEntriesWrapper?.dataset.debtRatesToVes, {});
+
+      const debtEntryRows = () => {
+        if (!debtEntriesContainer) return [];
+        return Array.from(debtEntriesContainer.querySelectorAll("[data-debt-entry-row='true']"));
+      };
+
+      const formatNumber = (value, precision = 2) => {
+        const number = Number(value || 0);
+        return number.toLocaleString("es-VE", {
+          minimumFractionDigits: precision,
+          maximumFractionDigits: precision,
+        });
+      };
+
+      const getPrimaryDebtCurrency = () => {
+        if (currencySelect && String(currencySelect.value || "").trim().length > 0) {
+          return String(currencySelect.value).trim().toUpperCase();
+        }
+
+        const firstEntryCurrency = debtEntriesContainer?.querySelector("[data-debt-entry-currency='true']");
+        return String(firstEntryCurrency?.value || "").trim().toUpperCase();
+      };
+
+      let totalDebtUsd = 0;
+      let totalDebtBs = 0;
+
+      const setClientFeedback = (message, tone = "error") => {
+        if (!clientFeedback) return;
+
+        if (!message) {
+          clientFeedback.textContent = "";
+          clientFeedback.classList.add("hidden");
+          clientFeedback.classList.remove("text-red-600", "text-emerald-600");
+          return;
+        }
+
+        clientFeedback.textContent = message;
+        clientFeedback.classList.remove("hidden");
+        clientFeedback.classList.remove("text-red-600", "text-emerald-600");
+        clientFeedback.classList.add(tone === "success" ? "text-emerald-600" : "text-red-600");
+      };
+
+      const escapeHtml = (value) => {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      };
+
+      const setSelectedCliente = (client) => {
+        if (clienteHiddenInput) {
+          clienteHiddenInput.value = client?.id ? String(client.id) : "";
+        }
+
+        if (clientSearchInput && client) {
+          clientSearchInput.value = "";
+        }
+
+        if (clientSelected && clientSelectedName && clientEmpty) {
+          if (client) {
+            clientSelectedName.textContent = `${client.name} (${client.document || "N/A"})`;
+            clientSelected.classList.remove("hidden");
+            clientSelected.classList.add("flex");
+            clientEmpty.classList.add("hidden");
+          } else {
+            clientSelectedName.textContent = "";
+            clientSelected.classList.add("hidden");
+            clientSelected.classList.remove("flex");
+            clientEmpty.classList.remove("hidden");
+          }
+        }
+      };
+
+      const hideClientResults = () => {
+        if (clientResults) {
+          clientResults.classList.add("hidden");
+        }
+      };
+
+      const renderClientResults = (clients) => {
+        if (!clientList || !clientResults) return;
+
+        if (!clients || clients.length === 0) {
+          clientList.innerHTML = '<p class="px-3 py-2 text-sm text-slate-500">Sin coincidencias</p>';
+          clientResults.classList.remove("hidden");
+          return;
+        }
+
+        const rows = clients
+          .map((client) => {
+            return `
+              <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${encodeURIComponent(String(client.name || ""))}" data-client-doc="${encodeURIComponent(String(client.document || ""))}">
+                <span>${escapeHtml(client.name)}</span>
+                <span class="text-xs text-slate-400">${escapeHtml(client.document || "")}</span>
+              </button>
+            `;
+          })
+          .join("");
+
+        clientList.innerHTML = rows;
+        clientResults.classList.remove("hidden");
+      };
+
+      const searchClients = async (query) => {
+        if (!query || query.length < 1) {
+          hideClientResults();
+          return;
+        }
+
+        try {
+          const response = await fetch(`/clientes/search?q=${encodeURIComponent(query)}`);
+          const data = await response.json().catch(() => ({}));
+          renderClientResults(data.clients || []);
+        } catch (_error) {
+          renderClientResults([]);
+        }
+      };
+
+      const openClientModal = (presetName = "") => {
+        if (!clientModal) return;
+
+        setClientFeedback("");
+        if (clientNameInput) {
+          clientNameInput.value = String(presetName || "");
+        }
+        clientModal.classList.remove("hidden");
+        clientModal.classList.add("flex");
+        setTimeout(() => {
+          if (clientNameInput) clientNameInput.focus();
+        }, 0);
+      };
+
+      const closeClientModal = () => {
+        if (!clientModal) return;
+
+        clientModal.classList.remove("flex");
+        clientModal.classList.add("hidden");
+      };
+
+      const createClienteFromModal = async () => {
+        if (!clientSaveButton || !clienteHiddenInput) return;
+
+        const name = String(clientNameInput?.value || "").trim();
+        const phone = String(clientPhoneInput?.value || "").trim();
+        const documentType = String(clientDocumentTypeInput?.value || "V").trim() || "V";
+        const documentNumber = String(clientDocumentNumberInput?.value || "").trim();
+        const address = String(clientAddressInput?.value || "").trim();
+
+        if (!name) {
+          setClientFeedback("El nombre es obligatorio.");
+          clientNameInput?.focus();
+          return;
+        }
+
+        if (!phone) {
+          setClientFeedback("El telefono es obligatorio.");
+          clientPhoneInput?.focus();
+          return;
+        }
+
+        const csrfToken = document
+          .querySelector('meta[name="csrf-token"]')
+          ?.getAttribute("content");
+
+        const payload = {
+          cliente: {
+            name,
+            phone,
+            document_type: documentType,
+            document_number: documentNumber,
+            address,
+          },
+        };
+
+        clientSaveButton.disabled = true;
+        setClientFeedback("");
+
+        try {
+          const response = await fetch("/deudas/crear-cliente", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+              ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+            },
+            body: JSON.stringify(payload),
+          });
+
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            throw new Error(data.error || "No se pudo registrar el cliente.");
+          }
+
+          setSelectedCliente({
+            id: data.id,
+            name: data.name,
+            document: data.document,
+          });
+
+          hideClientResults();
+          closeClientModal();
+
+          if (clientPhoneInput) clientPhoneInput.value = "";
+          if (clientDocumentNumberInput) clientDocumentNumberInput.value = "";
+          if (clientAddressInput) clientAddressInput.value = "";
+
+          if (window.AppToast?.success) {
+            window.AppToast.success("Cliente registrado y seleccionado.");
+          }
+        } catch (error) {
+          setClientFeedback(error.message || "No se pudo registrar el cliente.");
+        } finally {
+          clientSaveButton.disabled = false;
+        }
+      };
+
+      const resolveDebtCurrencySymbol = () => {
+        const currency = getPrimaryDebtCurrency();
+        if (!currency) return "$";
+
+        return currencySymbols[currency] || "$";
+      };
+
+      const resolvePaymentCurrencySymbol = () => {
+        if (!paymentCurrencySelect) return resolveDebtCurrencySymbol();
+
+        return currencySymbols[paymentCurrencySelect.value] || "$";
+      };
+
+      const parseMaskedValue = (input) => {
+        if (!input) return 0;
+
+        if (window.MoneyInputMask?.parseValue) {
+          return window.MoneyInputMask.parseValue(input);
+        }
+
+        const compact = String(input.value || "")
+          .replace(/\s/g, "")
+          .replace(/[^\d.,-]/g, "");
+
+        const normalized = compact.includes(",")
+          ? compact.replace(/\./g, "").replace(",", ".")
+          : compact;
+
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const sanitizeNumericReference = (input) => {
+        if (!input) return "";
+
+        const digits = String(input.value || "")
+          .replace(/\D/g, "")
+          .slice(0, 6);
+
+        if (input.value !== digits) {
+          input.value = digits;
+        }
+
+        return digits;
+      };
+
+      const isLoanEligibleDebt = () => {
+        const debtKind = String(debtKindSelect?.value || "").trim();
+        return debtKind === "receivable" || debtKind === "payable";
+      };
+
+      const paymentAccountIsBank = () => {
+        if (!paymentAccountSelect) return false;
+
+        const selectedOption = paymentAccountSelect.options[paymentAccountSelect.selectedIndex];
+        return selectedOption?.dataset.accountType === "bank_account";
+      };
+
+      const registerPaymentEnabled = () => (registerPaymentCheckbox ? registerPaymentCheckbox.checked : true);
+
+      const updateDebtPaymentReferenceRules = () => {
+        if (!paymentReferenceInput) return;
+
+        const digits = sanitizeNumericReference(paymentReferenceInput);
+        const requiresReference = registerPaymentEnabled() && paymentAccountIsBank() && String(paymentMethodSelect?.value || "").trim().length > 0;
+        const shouldValidate = registerPaymentEnabled() && (requiresReference || digits.length > 0);
+
+        paymentReferenceInput.required = requiresReference;
+        paymentReferenceInput.setCustomValidity(
+          shouldValidate && digits.length !== 6 ? "La referencia debe tener exactamente 6 digitos." : ""
+        );
+      };
+
+      const updateAmountHidden = () => {
+        if (!amountMaskedInput || !amountHiddenInput) return;
+
+        const parsed = parseMaskedValue(amountMaskedInput);
+
+        amountHiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const updatePaymentHidden = () => {
+        if (!paymentMaskedInput || !paymentHiddenInput) return;
+
+        const parsed = parseMaskedValue(paymentMaskedInput);
+        paymentHiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+        updateDebtPaymentSummary();
+      };
+
+      const syncMaskedInputCurrency = (input, symbol) => {
+        if (!input) return;
+
+        input.dataset.moneySymbol = symbol;
+        input.placeholder = `${symbol} 0,00`;
+
+        if (window.MoneyInputMask?.setValue && window.MoneyInputMask?.parseValue) {
+          const currentValue = window.MoneyInputMask.parseValue(input);
+          window.MoneyInputMask.setValue(input, currentValue, symbol);
+        }
+      };
+
+      const syncDebtAmountMaskCurrency = () => {
+        const symbol = resolveDebtCurrencySymbol();
+        syncMaskedInputCurrency(amountMaskedInput, symbol);
+        updateAmountHidden();
+      };
+
+      const syncPaymentAmountMaskCurrency = () => {
+        const symbol = resolvePaymentCurrencySymbol();
+        syncMaskedInputCurrency(paymentMaskedInput, symbol);
+        updatePaymentHidden();
+      };
+
+      const updateDebtEntryAmountHidden = (row) => {
+        if (!row) return;
+
+        const maskedInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+        const hiddenInput = row.querySelector("[data-debt-entry-amount-hidden='true']");
+        if (!maskedInput || !hiddenInput) return;
+
+        const parsed = parseMaskedValue(maskedInput);
+        hiddenInput.value = Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const syncDebtEntryMaskCurrency = (row) => {
+        if (!row) return;
+
+        const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+        const maskedInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+        if (!currencyField || !maskedInput) return;
+
+        const currency = String(currencyField.value || "").trim().toUpperCase();
+        const symbol = currencySymbols[currency] || "$";
+        syncMaskedInputCurrency(maskedInput, symbol);
+      };
+
+      const syncDebtEntryCurrencyLockFromLoan = (row) => {
+        if (!row) return;
+
+        const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+        const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
+        const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+        if (!currencyField) return;
+
+        const loansAvailable = isLoanEligibleDebt();
+        const selectedOption = loanAccountField?.options[loanAccountField.selectedIndex];
+        const accountCurrency = String(selectedOption?.dataset.accountCurrency || "").trim().toUpperCase();
+        const shouldLockCurrency = loansAvailable && Boolean(loanCheckbox?.checked) && accountCurrency.length > 0;
+
+        if (shouldLockCurrency) {
+          currencyField.value = accountCurrency;
+        }
+
+        currencyField.dataset.currencyLocked = shouldLockCurrency ? "true" : "false";
+        currencyField.setAttribute("aria-disabled", shouldLockCurrency ? "true" : "false");
+        currencyField.tabIndex = shouldLockCurrency ? -1 : 0;
+        currencyField.classList.toggle("pointer-events-none", shouldLockCurrency);
+        currencyField.classList.toggle("bg-slate-100", shouldLockCurrency);
+        currencyField.classList.toggle("text-slate-500", shouldLockCurrency);
+        currencyField.classList.toggle("cursor-not-allowed", shouldLockCurrency);
+        if (shouldLockCurrency && document.activeElement === currencyField) {
+          currencyField.blur();
+        }
+        syncDebtEntryMaskCurrency(row);
+        updateDebtEntryAmountHidden(row);
+      };
+
+      const updateDebtEntryLoanVisibility = (row) => {
+        if (!row) return;
+
+        const loanSection = row.querySelector("[data-debt-entry-loan-section='true']");
+        const loanFields = row.querySelector("[data-debt-entry-loan-fields='true']");
+        const loanEnabledHidden = row.querySelector("[data-debt-entry-loan-enabled-hidden='true']");
+        const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
+        const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+        const loansAvailable = isLoanEligibleDebt();
+
+        if (loanSection) {
+          loanSection.classList.toggle("hidden", !loansAvailable);
+        }
+
+        [loanEnabledHidden, loanCheckbox].forEach((field) => {
+          if (field) field.disabled = !loansAvailable;
+        });
+
+        const shouldShowFields = loansAvailable && Boolean(loanCheckbox?.checked);
+
+        if (loanFields) {
+          loanFields.classList.toggle("hidden", !shouldShowFields);
+        }
+
+        [loanAccountField].forEach((field) => {
+          if (field) field.disabled = !shouldShowFields;
+        });
+
+        syncDebtEntryCurrencyLockFromLoan(row);
+      };
+
+      const updateDebtEntryLabels = () => {
+        const rows = debtEntryRows();
+
+        rows.forEach((row, index) => {
+          const label = row.querySelector("[data-debt-entry-index-label='true']");
+          if (label) label.textContent = String(index + 1);
+
+          const removeButton = row.querySelector("[data-debt-entry-remove='true']");
+          if (removeButton) {
+            removeButton.classList.toggle("hidden", rows.length <= 1);
+          }
+        });
+      };
+
+      const updateDebtPaymentSummary = () => {
+        const shouldRegisterPayment = registerPaymentCheckbox ? registerPaymentCheckbox.checked : true;
+        const paymentCurrency = String(paymentCurrencySelect?.value || "").trim().toUpperCase();
+        const paymentAmount = shouldRegisterPayment ? parseMaskedValue(paymentMaskedInput) : 0;
+
+        const paymentRateToBs = Number(ratesToVes[paymentCurrency]);
+        const usdRateToBs = Number(ratesToVes.USD);
+
+        const paymentInBs = Number.isFinite(paymentRateToBs) && paymentRateToBs > 0 && paymentAmount > 0
+          ? paymentAmount * paymentRateToBs
+          : 0;
+        const paymentInUsd = Number.isFinite(usdRateToBs) && usdRateToBs > 0
+          ? paymentInBs / usdRateToBs
+          : 0;
+
+        if (debtPayingUsdValue) {
+          debtPayingUsdValue.textContent = `$ ${formatNumber(paymentInUsd)}`;
+        }
+
+        if (debtPayingBsValue) {
+          debtPayingBsValue.textContent = `Bs ${formatNumber(paymentInBs)}`;
+        }
+
+        const deltaUsd = paymentInUsd - totalDebtUsd;
+        const deltaBs = paymentInBs - totalDebtBs;
+        const surplus = deltaUsd >= 0;
+
+        if (debtDeltaLabel) {
+          debtDeltaLabel.textContent = surplus ? "Sobra por aplicar" : "Falta por pagar";
+        }
+
+        if (debtDeltaUsd) {
+          debtDeltaUsd.textContent = `$ ${formatNumber(Math.abs(deltaUsd))}`;
+        }
+
+        if (debtDeltaBs) {
+          debtDeltaBs.textContent = `Bs ${formatNumber(Math.abs(deltaBs))}`;
+        }
+
+        if (debtDeltaCard) {
+          debtDeltaCard.classList.remove("border-rose-200", "bg-rose-50", "border-emerald-200", "bg-emerald-50");
+          debtDeltaCard.classList.add(surplus ? "border-emerald-200" : "border-rose-200");
+          debtDeltaCard.classList.add(surplus ? "bg-emerald-50" : "bg-rose-50");
+        }
+
+        [debtDeltaLabel, debtDeltaUsd, debtDeltaBs].forEach((element) => {
+          if (!element) return;
+
+          element.classList.remove("text-rose-700", "text-emerald-700");
+          element.classList.add(surplus ? "text-emerald-700" : "text-rose-700");
+        });
+      };
+
+      const updateDebtTotals = () => {
+        if (!debtEntriesContainer) return;
+
+        let totalInBs = 0;
+
+        debtEntryRows().forEach((row) => {
+          updateDebtEntryAmountHidden(row);
+
+          const hiddenInput = row.querySelector("[data-debt-entry-amount-hidden='true']");
+          const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+          const amount = Number.parseFloat(String(hiddenInput?.value || "0"));
+          const currency = String(currencyField?.value || "").trim().toUpperCase();
+
+          if (!currency || !Number.isFinite(amount) || amount <= 0) return;
+
+          const rate = Number(ratesToVes[currency]);
+          if (Number.isFinite(rate) && rate > 0) {
+            totalInBs += amount * rate;
+          }
+        });
+
+        const usdRateToBs = Number(ratesToVes.USD);
+        const totalInUsd = Number.isFinite(usdRateToBs) && usdRateToBs > 0 ? totalInBs / usdRateToBs : 0;
+        totalDebtBs = totalInBs;
+        totalDebtUsd = totalInUsd;
+
+        if (debtTotalUsdValue) {
+          debtTotalUsdValue.textContent = `$ ${formatNumber(totalInUsd)}`;
+        }
+
+        if (debtTotalBsValue) {
+          debtTotalBsValue.textContent = `Bs ${formatNumber(totalInBs)}`;
+        }
+
+        updateDebtPaymentSummary();
+      };
+
+      const syncPaymentCurrencyFromDebt = () => {
+        if (!paymentCurrencySelect) return;
+        if (String(paymentCurrencySelect.value || "").trim().length > 0) return;
+
+        const primaryCurrency = getPrimaryDebtCurrency();
+        if (primaryCurrency) {
+          paymentCurrencySelect.value = primaryCurrency;
+        }
+      };
+
+      const initializeMaterializeDatepickersInRow = (row) => {
+        if (!row) return;
+
+        if (typeof window.initializeMaterializeDatepickers === "function") {
+          window.initializeMaterializeDatepickers(row);
+          return;
+        }
+
+        if (typeof window.initializeTailwindDatepickers === "function") {
+          window.initializeTailwindDatepickers(row);
+        }
+      };
+
+      const attachDebtEntryRowEvents = (row) => {
+        if (!row) return;
+
+        const amountInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+        const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+        const removeButton = row.querySelector("[data-debt-entry-remove='true']");
+        const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
+        const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+        const recalculateDebtTotals = () => {
+          updateDebtEntryAmountHidden(row);
+          updateDebtTotals();
+        };
+
+        if (amountInput) {
+          amountInput.addEventListener("input", recalculateDebtTotals);
+          amountInput.addEventListener("change", recalculateDebtTotals);
+          amountInput.addEventListener("blur", recalculateDebtTotals);
+        }
+
+        if (currencyField) {
+          currencyField.addEventListener("change", () => {
+            syncDebtEntryCurrencyLockFromLoan(row);
+            syncPaymentCurrencyFromDebt();
+            updateDebtTotals();
+          });
+        }
+
+        if (removeButton) {
+          removeButton.addEventListener("click", () => {
+            row.remove();
+
+            if (debtEntryRows().length === 0) {
+              addDebtEntryRow();
+            }
+
+            updateDebtEntryLabels();
+            syncPaymentCurrencyFromDebt();
+            syncPaymentAmountMaskCurrency();
+            updateDebtTotals();
+          });
+        }
+
+        if (loanCheckbox) {
+          loanCheckbox.addEventListener("change", () => {
+            updateDebtEntryLoanVisibility(row);
+            syncPaymentCurrencyFromDebt();
+            updateDebtTotals();
+          });
+        }
+
+        if (loanAccountField) {
+          loanAccountField.addEventListener("change", () => {
+            updateDebtEntryLoanVisibility(row);
+            syncPaymentCurrencyFromDebt();
+            updateDebtTotals();
+          });
+        }
+
+        updateDebtEntryLoanVisibility(row);
+        initializeMaterializeDatepickersInRow(row);
+      };
+
+      const addDebtEntryRow = () => {
+        if (!debtEntriesWrapper || !debtEntriesContainer || !debtEntryTemplate) return;
+
+        const nextIndex =
+          Number.parseInt(debtEntriesWrapper.dataset.nextIndex || String(debtEntryRows().length), 10) ||
+          debtEntryRows().length;
+        const defaultDate = debtEntriesWrapper.dataset.defaultIssuedOn || "";
+
+        let rowHtml = debtEntryTemplate.innerHTML;
+        rowHtml = rowHtml.replace(/__INDEX__/g, String(nextIndex));
+        rowHtml = rowHtml.replace(/__DEFAULT_DATE__/g, defaultDate);
+
+        const buffer = document.createElement("div");
+        buffer.innerHTML = rowHtml.trim();
+        const newRow = buffer.firstElementChild;
+        if (!newRow) return;
+
+        debtEntriesContainer.appendChild(newRow);
+        debtEntriesWrapper.dataset.nextIndex = String(nextIndex + 1);
+
+        const preferredCurrency = getPrimaryDebtCurrency();
+        const currencyField = newRow.querySelector("[data-debt-entry-currency='true']");
+        if (currencyField && preferredCurrency) {
+          currencyField.value = preferredCurrency;
+        }
+
+        window.MoneyInputMask?.init(newRow);
+        attachDebtEntryRowEvents(newRow);
+        syncDebtEntryMaskCurrency(newRow);
+        updateDebtEntryAmountHidden(newRow);
+        updateDebtEntryLabels();
+        syncPaymentCurrencyFromDebt();
+        syncPaymentAmountMaskCurrency();
+        updateDebtTotals();
+      };
+
+      const validateDebtEntries = () => {
+        if (!debtEntriesContainer) return true;
+
+        const rows = debtEntryRows();
+        if (rows.length === 0) {
+          if (window.AppToast?.error) {
+            window.AppToast.error("Debes agregar al menos una deuda.");
+          }
+          return false;
+        }
+
+        for (let index = 0; index < rows.length; index += 1) {
+          const row = rows[index];
+          const amountInput = row.querySelector("[data-debt-entry-amount-masked='true']");
+          const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+          const issuedOnInput = row.querySelector("[data-debt-entry-issued-on='true']");
+          const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
+          const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+
+          const amount = parseMaskedValue(amountInput);
+          const currency = String(currencyField?.value || "").trim();
+          const issuedOn = String(issuedOnInput?.value || "").trim();
+
+          if (!(amount > 0)) {
+            if (window.AppToast?.error) {
+              window.AppToast.error(`La deuda ${index + 1} debe tener un monto mayor a cero.`);
+            }
+            amountInput?.focus();
+            return false;
+          }
+
+          if (!currency) {
+            if (window.AppToast?.error) {
+              window.AppToast.error(`Selecciona la moneda de la deuda ${index + 1}.`);
+            }
+            currencyField?.focus();
+            return false;
+          }
+
+          if (!issuedOn) {
+            if (window.AppToast?.error) {
+              window.AppToast.error(`La deuda ${index + 1} requiere fecha de emision.`);
+            }
+            issuedOnInput?.focus();
+            return false;
+          }
+
+          updateDebtEntryAmountHidden(row);
+
+          if (isLoanEligibleDebt() && loanCheckbox?.checked) {
+            const loanAccountId = String(loanAccountField?.value || "").trim();
+
+            if (!loanAccountId) {
+              if (window.AppToast?.error) {
+                window.AppToast.error(`Selecciona la cuenta del prestamo para la deuda ${index + 1}.`);
+              }
+              loanAccountField?.focus();
+              return false;
+            }
+          }
+        }
+
+        return true;
+      };
+
+      const isBolivarCurrency = (currency) => {
+        const normalized = String(currency || "").trim().toUpperCase();
+        return normalized === "VES" || normalized === "BS";
+      };
+
+      const normalizeIssuedDateForBcvCheck = (rawValue) => {
+        const value = String(rawValue || "").trim();
+        if (!value) return null;
+
+        let match = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        if (match) {
+          const day = Number(match[1]);
+          const month = Number(match[2]);
+          const year = Number(match[3]);
+          const date = new Date(year, month - 1, day);
+
+          if (
+            date.getFullYear() === year &&
+            date.getMonth() === month - 1 &&
+            date.getDate() === day
+          ) {
+            return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          }
+        }
+
+        match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (match) {
+          const year = Number(match[1]);
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          const date = new Date(year, month - 1, day);
+
+          if (
+            date.getFullYear() === year &&
+            date.getMonth() === month - 1 &&
+            date.getDate() === day
+          ) {
+            return `${match[1]}-${match[2]}-${match[3]}`;
+          }
+        }
+
+        return null;
+      };
+
+      const displayDateFromIso = (isoDate) => {
+        const match = String(isoDate || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return String(isoDate || "");
+
+        return `${match[3]}-${match[2]}-${match[1]}`;
+      };
+
+      const vesDebtIssuedDatesForBcvCheck = () => {
+        if (!debtEntriesContainer) return [];
+
+        const uniqueDates = new Set();
+
+        debtEntryRows().forEach((row) => {
+          const currencyField = row.querySelector("[data-debt-entry-currency='true']");
+          const issuedOnField = row.querySelector("[data-debt-entry-issued-on='true']");
+
+          if (!isBolivarCurrency(currencyField?.value)) return;
+
+          const normalizedDate = normalizeIssuedDateForBcvCheck(issuedOnField?.value);
+          if (normalizedDate) {
+            uniqueDates.add(normalizedDate);
+          }
+        });
+
+        return Array.from(uniqueDates).sort();
+      };
+
+      const bcvRateExistsForDate = async (isoDate) => {
+        try {
+          const response = await fetch(`/tasa_cambios/bcv_por_fecha?fecha=${encodeURIComponent(isoDate)}`, {
+            headers: { Accept: "application/json" },
+          });
+
+          return response.ok;
+        } catch (_error) {
+          return false;
+        }
+      };
+
+      const missingBcvRateDatesForVesDebts = async () => {
+        const dates = vesDebtIssuedDatesForBcvCheck();
+        if (dates.length === 0) return [];
+
+        const checks = await Promise.all(
+          dates.map(async (isoDate) => {
+            const exists = await bcvRateExistsForDate(isoDate);
+            return exists ? null : isoDate;
+          }),
+        );
+
+        return checks.filter(Boolean);
+      };
+
+      const showMissingBcvRateAlert = (isoDates) => {
+        const displayDates = isoDates.map((isoDate) => displayDateFromIso(isoDate));
+
+        if (window.Swal) {
+          const items = displayDates.map((date) => `<li>${date}</li>`).join("");
+
+          window.Swal.fire({
+            icon: "warning",
+            title: "Faltan tasas Dolar BCV",
+            html: `No existe tasa Dolar BCV para estas fechas de emision en deudas en Bs:<br><ul style="text-align:left;display:inline-block;margin-top:8px;">${items}</ul><br>Registra esas tasas y vuelve a guardar.`,
+            confirmButtonText: "Entendido",
+            confirmButtonColor: "#2563eb",
+            target: "body",
+            heightAuto: false,
+          });
+          return;
+        }
+
+        if (window.AppToast?.warning) {
+          window.AppToast.warning(`Faltan tasas Dolar BCV para: ${displayDates.join(", ")}.`);
+        }
+      };
+
+      const filterSelectByCurrency = (selectElement, currency) => {
+        if (!selectElement) return;
+
+        Array.from(selectElement.options).forEach((option) => {
+          if (!option.value) {
+            option.hidden = false;
+            option.disabled = false;
+            return;
+          }
+
+          const optionCurrency = String(option.dataset.accountCurrency || "");
+          const matches = !currency || optionCurrency === currency;
+          option.hidden = !matches;
+          option.disabled = !matches;
+        });
+
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
+        if (selectedOption?.disabled) {
+          selectElement.value = "";
+        }
+      };
+
+      const updatePaymentAccountsByCurrency = () => {
+        const selectedCurrency = paymentCurrencySelect?.value;
+        filterSelectByCurrency(paymentAccountSelect, selectedCurrency);
+      };
+
+      const updatePaymentMethodVisibility = () => {
+        if (!paymentMethodWrapper || !paymentMethodSelect || !paymentAccountSelect) return;
+
+        const selectedOption = paymentAccountSelect.options[paymentAccountSelect.selectedIndex];
+        const isBankAccount = selectedOption?.dataset.accountType === "bank_account";
+
+        paymentMethodWrapper.classList.toggle("hidden", !isBankAccount);
+
+        if (!isBankAccount) {
+          paymentMethodSelect.value = "";
+          if (paymentReferenceInput) {
+            paymentReferenceInput.value = "";
+          }
+        }
+
+        updateDebtPaymentReferenceRules();
+      };
+
+      if (debtEntriesContainer && debtEntriesWrapper) {
+        const initialRows = debtEntryRows();
+        debtEntriesWrapper.dataset.nextIndex = String(initialRows.length);
+
+        initialRows.forEach((row) => {
+          window.MoneyInputMask?.init(row);
+          attachDebtEntryRowEvents(row);
+          syncDebtEntryMaskCurrency(row);
+          updateDebtEntryAmountHidden(row);
+        });
+
+        updateDebtEntryLabels();
+        updateDebtTotals();
+      }
+
+      if (debtEntriesContainer) {
+        const recalculateFromEntryEvent = (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLElement)) return;
+
+          const row = target.closest("[data-debt-entry-row='true']");
+          if (!row) return;
+
+          if (target.matches("[data-debt-entry-amount-masked='true']")) {
+            updateDebtEntryAmountHidden(row);
+            updateDebtTotals();
+            return;
+          }
+
+          if (target.matches("[data-debt-entry-currency='true']")) {
+            syncDebtEntryCurrencyLockFromLoan(row);
+            syncPaymentCurrencyFromDebt();
+            updateDebtTotals();
+          }
+        };
+
+        debtEntriesContainer.addEventListener("input", recalculateFromEntryEvent);
+        debtEntriesContainer.addEventListener("change", recalculateFromEntryEvent);
+      }
+
+      if (addDebtEntryButton) {
+        addDebtEntryButton.addEventListener("click", addDebtEntryRow);
+      }
+
+      if (clientSearchInput) {
+        clientSearchInput.addEventListener("input", () => {
+          const query = String(clientSearchInput.value || "").trim();
+          if (clientSearchTimeout) clearTimeout(clientSearchTimeout);
+
+          clientSearchTimeout = setTimeout(() => {
+            searchClients(query);
+          }, 250);
+        });
+
+        clientSearchInput.addEventListener("focus", () => {
+          const query = String(clientSearchInput.value || "").trim();
+          if (query.length > 0) {
+            searchClients(query);
+          }
+        });
+      }
+
+      if (clientAddButton) {
+        clientAddButton.addEventListener("click", () => {
+          const presetName = String(clientSearchInput?.value || "").trim();
+          openClientModal(presetName);
+        });
+      }
+
+      if (clientList) {
+        clientList.addEventListener("click", (event) => {
+          const button = event.target.closest("button[data-client-id]");
+          if (!button) return;
+
+          let clientName = "";
+          let clientDocument = "";
+          try {
+            clientName = decodeURIComponent(String(button.dataset.clientName || ""));
+            clientDocument = decodeURIComponent(String(button.dataset.clientDoc || ""));
+          } catch (_error) {
+            clientName = String(button.dataset.clientName || "");
+            clientDocument = String(button.dataset.clientDoc || "");
+          }
+
+          setSelectedCliente({
+            id: button.dataset.clientId,
+            name: clientName,
+            document: clientDocument,
+          });
+
+          hideClientResults();
+        });
+      }
+
+      if (clientClearButton) {
+        clientClearButton.addEventListener("click", () => {
+          setSelectedCliente(null);
+          if (clientSearchInput) clientSearchInput.focus();
+        });
+      }
+
+      document.addEventListener("click", (event) => {
+        if (!clientResults || clientResults.classList.contains("hidden")) return;
+        if (clientResults.contains(event.target)) return;
+        if (clientSearchInput && clientSearchInput.contains(event.target)) return;
+
+        hideClientResults();
+      });
+
+      clientModalCloseButtons.forEach((button) => {
+        button.addEventListener("click", closeClientModal);
+      });
+
+      if (clientSaveButton) {
+        clientSaveButton.addEventListener("click", createClienteFromModal);
+      }
+
+      if (clientModal) {
+        clientModal.addEventListener("click", (event) => {
+          if (event.target !== clientModal) return;
+
+          closeClientModal();
+        });
+
+        clientModal.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter") return;
+          if (event.target instanceof HTMLTextAreaElement) return;
+          if (event.target instanceof HTMLButtonElement) return;
+
+          event.preventDefault();
+        });
+      }
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        if (!clientModal || clientModal.classList.contains("hidden")) return;
+
+        closeClientModal();
+      });
+
+      if (amountMaskedInput) {
+        amountMaskedInput.addEventListener("input", updateAmountHidden);
+      }
+
+      if (paymentMaskedInput) {
+        paymentMaskedInput.addEventListener("input", updatePaymentHidden);
+      }
+
+      if (paymentReferenceInput) {
+        paymentReferenceInput.addEventListener("input", () => {
+          updateDebtPaymentReferenceRules();
+        });
+      }
+
+      if (paymentMethodSelect) {
+        paymentMethodSelect.addEventListener("change", updateDebtPaymentReferenceRules);
+      }
+
+      if (debtKindSelect) {
+        debtKindSelect.addEventListener("change", () => {
+          debtEntryRows().forEach((row) => {
+            updateDebtEntryLoanVisibility(row);
+          });
+        });
+      }
+
+      if (currencySelect) {
+        currencySelect.addEventListener("change", () => {
+          syncDebtAmountMaskCurrency();
+
+          if (paymentCurrencySelect && !String(paymentCurrencySelect.value || "").trim()) {
+            paymentCurrencySelect.value = currencySelect.value;
+          }
+
+          syncPaymentAmountMaskCurrency();
+          updatePaymentAccountsByCurrency();
+          updatePaymentMethodVisibility();
+        });
+      }
+
+      if (paymentCurrencySelect) {
+        paymentCurrencySelect.addEventListener("change", () => {
+          syncPaymentAmountMaskCurrency();
+          updatePaymentAccountsByCurrency();
+          updatePaymentMethodVisibility();
+          updateDebtPaymentSummary();
+        });
+      }
+
+      if (registerPaymentCheckbox) {
+        registerPaymentCheckbox.addEventListener("change", () => {
+          updateDebtPaymentSummary();
+          updateDebtPaymentReferenceRules();
+        });
+      }
+
+      if (paymentAccountSelect) {
+        paymentAccountSelect.addEventListener("change", updatePaymentMethodVisibility);
+      }
+
+      form.addEventListener("submit", async (event) => {
+        if (form.dataset.debtSkipBcvValidation === "true") {
+          form.dataset.debtSkipBcvValidation = "false";
+          return;
+        }
+
+        event.preventDefault();
+
+        const selectedClientId = String(clienteHiddenInput?.value || "").trim();
+
+        if (selectedClientId.length === 0) {
+          if (window.AppToast?.error) {
+            window.AppToast.error("Selecciona un cliente o registra uno no registrado.");
+          }
+
+          if (clientSearchInput) clientSearchInput.focus();
+          return;
+        }
+
+        if (!validateDebtEntries()) {
+          event.preventDefault();
+          return;
+        }
+
+        updateDebtPaymentReferenceRules();
+
+        const paymentReferenceValue = sanitizeNumericReference(paymentReferenceInput);
+        const paymentReferenceRequired = registerPaymentEnabled() && paymentAccountIsBank() && String(paymentMethodSelect?.value || "").trim().length > 0;
+        const paymentReferenceShouldValidate = registerPaymentEnabled() && (paymentReferenceRequired || paymentReferenceValue.length > 0);
+
+        if (paymentReferenceShouldValidate && paymentReferenceValue.length !== 6) {
+          if (window.AppToast?.error) {
+            window.AppToast.error("La referencia debe tener exactamente 6 digitos.");
+          }
+
+          paymentReferenceInput?.focus();
+          return;
+        }
+
+        updateAmountHidden();
+        updatePaymentHidden();
+
+        const missingBcvDates = await missingBcvRateDatesForVesDebts();
+        if (missingBcvDates.length > 0) {
+          showMissingBcvRateAlert(missingBcvDates);
+          return;
+        }
+
+        form.dataset.debtSkipBcvValidation = "true";
+        if (typeof form.requestSubmit === "function") {
+          if (event.submitter instanceof HTMLButtonElement || event.submitter instanceof HTMLInputElement) {
+            form.requestSubmit(event.submitter);
+          } else {
+            form.requestSubmit();
+          }
+        } else {
+          form.submit();
+        }
+      });
+
+      if (clienteHiddenInput) {
+        const initialClienteId = String(clienteHiddenInput.value || "").trim();
+        const initialClienteName = String(clienteHiddenInput.dataset.debtClienteName || "").trim();
+        const initialClienteDocument = String(clienteHiddenInput.dataset.debtClienteDocument || "").trim();
+
+        if (initialClienteId.length > 0 && initialClienteName.length > 0) {
+          setSelectedCliente({
+            id: initialClienteId,
+            name: initialClienteName,
+            document: initialClienteDocument,
+          });
+        } else {
+          setSelectedCliente(null);
+        }
+      }
+
+      syncPaymentCurrencyFromDebt();
+      updatePaymentAccountsByCurrency();
+      updatePaymentMethodVisibility();
+      syncDebtAmountMaskCurrency();
+      syncPaymentAmountMaskCurrency();
+      updateDebtPaymentReferenceRules();
+      updateDebtTotals();
+    })();
+  </script>
+<% end %>
