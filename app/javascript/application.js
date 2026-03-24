@@ -445,6 +445,12 @@ const initializeMoneyMasks = () => {
   window.MoneyInputMask?.init(document);
 };
 
+const initializeLucideIcons = () => {
+  if (window.lucide && typeof window.lucide.createIcons === "function") {
+    window.lucide.createIcons();
+  }
+};
+
 document.addEventListener("turbo:load", () =>
   initializeTailwindDatepickers(document),
 );
@@ -476,6 +482,10 @@ document.addEventListener("turbo:load", initializeMoneyMasks);
 document.addEventListener("DOMContentLoaded", initializeMoneyMasks);
 document.addEventListener("turbo:render", initializeMoneyMasks);
 document.addEventListener("turbo:frame-load", initializeMoneyMasks);
+document.addEventListener("turbo:load", initializeLucideIcons);
+document.addEventListener("DOMContentLoaded", initializeLucideIcons);
+document.addEventListener("turbo:render", initializeLucideIcons);
+document.addEventListener("turbo:frame-load", initializeLucideIcons);
 document.addEventListener("turbo:load", displayFlashToasts);
 document.addEventListener("DOMContentLoaded", displayFlashToasts);
 document.addEventListener("turbo:render", displayFlashToasts);

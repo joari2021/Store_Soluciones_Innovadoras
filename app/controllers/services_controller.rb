@@ -20,6 +20,22 @@ class ServicesController < ApplicationController
                       ])
     scoped_services = scoped_services.visible_for_user(Current.user)
 
+    services_for_badges = scoped_services.reorder(nil)
+    @services_total_count = services_for_badges.count
+    @service_systems = services_for_badges
+                       .joins(:system_service)
+                       .group('system_services.name')
+                       .count
+                       .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
+
+    available_count = services_for_badges.where(available: true).count
+    @service_status_counts = {
+      available: available_count,
+      unavailable: @services_total_count - available_count,
+      caution: services_for_badges.where(caution_service: true).count,
+      restricted: services_for_badges.where(restricted_service: true).count
+    }
+
     @services = if params[:query_text].present?
                   scoped_services
                     .joins(:system_service)
