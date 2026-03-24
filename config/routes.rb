@@ -68,6 +68,8 @@ Rails.application.routes.draw do
       get :historial
       get :drafts
       get :products_snapshot
+      get :catalog_products
+      get :catalog_services
       get 'drafts/:id', action: :show_draft
       post :save_draft
       patch 'drafts/:id', action: :update_draft
@@ -82,6 +84,8 @@ Rails.application.routes.draw do
   resources :purchase_invoices, path: 'facturas-compra' do
     collection do
       get :initial_inventory, path: 'inventario-inicial'
+      get :initial_inventory_template, path: 'inventario-inicial/plantilla'
+      post :import_initial_inventory, path: 'inventario-inicial/importar'
     end
   end
   resources :managers

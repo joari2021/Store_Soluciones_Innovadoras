@@ -1,0 +1,89 @@
+<% payload = services_payload_by_id[service.id] || {} %>
+<% price_usd = payload[:price_usd] %>
+<% price_usd_value = price_usd ? price_usd.to_d : nil %>
+<% payload_price_bs_value = payload[:price_bs].present? ? payload[:price_bs].to_d : nil %>
+<% price_on_request = payload[:price_on_request] == true %>
+<% request_reference = payload[:currency_base_price].to_s.presence || 'Dolar BCV' %>
+<% price_available = if request_reference == 'Unidad VI'
+                       price_on_request || price_usd_value&.positive? || payload_price_bs_value&.positive?
+                     else
+                       price_on_request || price_usd_value&.positive?
+                     end %>
+<% price_bs = if payload_price_bs_value&.positive?
+                payload_price_bs_value
+              elsif price_usd_value&.positive? && bcv_rate.positive?
+                (price_usd_value * bcv_rate)
+              end %>
+<% request_symbol = payload[:currency_symbol].to_s.presence || (request_reference == 'Bs' ? 'Bs' : '$') %>
+<% unidad_vi_reference = request_reference == 'Unidad VI' %>
+<% system_name = service.system_service&.name.to_s.strip %>
+<% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
+<% service_state_class = if price_on_request
+                           'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                         elsif price_available
+                           'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200'
+                         else
+                           'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
+                         end %>
+<% service_card_class = if price_on_request
+                          'border-amber-200'
+                        elsif price_available
+                          'border-cyan-200'
+                        else
+                          'border-rose-200'
+                        end %>
+<article class="ventas-service-card glass-card group relative overflow-hidden rounded-3xl border <%= service_card_class %> bg-white/95 p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-100/60 active:scale-[0.98] <%= price_available ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed' %>" data-service-id="<%= service.id %>" data-service-query="<%= service_query %>" data-service-system="<%= system_name %>" data-service-disabled="<%= price_available ? 'false' : 'true' %>" data-service-on-request="<%= price_on_request ? 'true' : 'false' %>">
+  <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-cyan-100/70 via-sky-50/50 to-white/0"></div>
+  <div class="relative">
+    <div class="flex items-start justify-between gap-2">
+      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold <%= service_state_class %>">
+        <i data-lucide="sparkles" class="h-3 w-3"></i>
+        <%= price_on_request ? 'A convenir' : 'Servicio' %>
+      </span>
+      <div class="flex flex-wrap items-center justify-end gap-1">
+        <% if system_name.present? %>
+          <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500"><%= system_name %></span>
+        <% end %>
+      </div>
+    </div>
+    <div class="mt-3 aspect-[2/1] overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
+      <% if service.system_service&.image&.attached? %>
+        <%= image_tag service.system_service.image, class: 'h-full w-full object-cover transition duration-500 group-hover:scale-105', alt: service.system_service.name %>
+      <% else %>
+        <i data-lucide="briefcase" class="w-12 h-12"></i>
+      <% end %>
+    </div>
+    <div class="mt-3 relative">
+      <div class="w-full rounded-2xl px-3 py-2.5 pr-12 <%= price_on_request ? 'bg-amber-50 ring-1 ring-amber-100' : 'bg-cyan-50 ring-1 ring-cyan-100' %>">
+        <h3 class="font-bold text-slate-800 text-sm truncate"><%= service.description.to_s %></h3>
+        <div class="mt-3 flex items-end justify-between gap-3">
+          <p class="text-xs text-slate-500">Base: <%= request_reference == 'Bs' ? 'Bs' : "#{request_symbol} #{request_reference}" %></p>
+          <% if price_on_request %>
+            <div class="text-right">
+              <p class="text-amber-600 font-bold">A convenir</p>
+              <p class="text-xs text-slate-500">Se define al cobrar</p>
+            </div>
+          <% elsif price_available %>
+            <div class="text-right">
+              <% if unidad_vi_reference %>
+                <p class="text-cyan-700 font-bold"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                <p class="text-xs text-slate-500"><%= price_usd_value&.positive? ? format_money(price_usd_value, unit: '$') : '$ --' %></p>
+              <% else %>
+                <p class="text-cyan-700 font-bold"><%= format_money(price_usd_value, unit: '$') %></p>
+                <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="text-right">
+              <p class="text-rose-600 font-bold">Sin precio</p>
+              <p class="text-xs text-slate-500">Configura este servicio</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+      <button type="button" class="ventas-add-service absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md shadow-slate-200 transition-all group-hover:bg-cyan-600 group-hover:shadow-cyan-200" data-service-id="<%= service.id %>" <%= price_available ? '' : 'disabled' %>>
+        <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+      </button>
+    </div>
+  </div>
+</article>

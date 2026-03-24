@@ -1,31 +1,7 @@
 <% bcv_rate = (@tasa_dolar_bcv || 0).to_d %>
-<% product_categories = @productos.each_with_object(Hash.new(0)) do |producto, counts|
-                        categoria_nombre = producto.categoria&.nombre.to_s.strip
-                        next if categoria_nombre.blank?
-
-                        counts[categoria_nombre] += 1
-                      end.sort_by { |nombre, _cantidad| nombre.downcase } %>
-<% visible_services = @services.select do |service|
-                       payload = @services_payload_by_id[service.id] || {}
-                       request_reference = payload[:currency_base_price].to_s.presence || 'Dolar BCV'
-                       price_usd_value = payload[:price_usd].present? ? payload[:price_usd].to_d : nil
-                       price_bs_value = payload[:price_bs].present? ? payload[:price_bs].to_d : nil
-                       price_on_request = payload[:price_on_request] == true
-                       price_available = if request_reference == 'Unidad VI'
-                                           price_usd_value&.positive? || price_bs_value&.positive?
-                                         else
-                                           price_usd_value&.positive?
-                                         end
-
-                       service.available? && (price_on_request || price_available)
-                     end %>
-<% service_systems = visible_services.each_with_object(Hash.new(0)) do |service, counts|
-                       system_name = service.system_service&.name.to_s.strip
-                       next if system_name.blank?
-
-                       counts[system_name] += 1
-                     end.sort_by { |nombre, _cantidad| nombre.downcase } %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>">
+<% product_categories = @product_categories || [] %>
+<% service_systems = @service_systems || [] %>
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -318,7 +294,7 @@
               </div>
               <span class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
                 <i data-lucide="boxes" class="h-3.5 w-3.5"></i>
-                <%= @productos.size %> disponibles
+                <%= @productos_total_count %> disponibles
               </span>
             </div>
             <% if product_categories.any? %>
@@ -327,7 +303,7 @@
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button type="button" data-product-category-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
                     <span>Todas</span>
-                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @productos.size %></span>
+                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @productos_total_count %></span>
                   </button>
                   <% product_categories.each do |nombre_categoria, cantidad_items| %>
                     <button type="button" data-product-category-filter="<%= nombre_categoria %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
@@ -339,110 +315,16 @@
               </div>
             <% end %>
             <div id="ventas-product-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <% @productos.each do |producto| %>
-                <% payload = @products_payload_by_id[producto.id] || {} %>
-                <% available_total = payload[:available_total].to_d %>
-                <% price_usd_value = payload[:price_usd].present? ? payload[:price_usd].to_d : producto.precio_venta_usd.to_d %>
-                <% product_exento = if payload.key?(:exento) || payload.key?('exento')
-                                     ActiveModel::Type::Boolean.new.cast(payload[:exento] || payload['exento'])
-                                   elsif producto.respond_to?(:exento?)
-                                     producto.exento?
-                                   else
-                                     false
-                                   end %>
-                <% price_bs = bcv_rate.positive? ? (price_usd_value * bcv_rate) : nil %>
-                <% variations = producto.product_variations.sort_by(&:id) %>
-                <% variation_names = variations.map(&:description) %>
-                <% variation_rows = Array(payload[:variations]) %>
-                <% available_variation_rows = variation_rows.select { |row| (row[:available] || row['available']).to_d.positive? } %>
-                <% available_variation_names = available_variation_rows.map { |row| (row[:name] || row['name']).to_s.strip }.reject(&:blank?) %>
-                <% visible_variations = available_variation_names.first(3) %>
-                <% extra_count = [available_variation_names.size - visible_variations.size, 0].max %>
-                <% product_query = ([producto.descripcion] + variation_names).join(' ').downcase %>
-                <% stock_badge_class = if available_total <= 0
-                                         'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
-                                       elsif available_total < 6
-                                         'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
-                                       else
-                                         'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
-                                       end %>
-                <% product_card_class = if available_total <= 0
-                                          'border-rose-200'
-                                        elsif available_total < 6
-                                          'border-amber-200'
-                                        else
-                                          'border-sky-100'
-                                        end %>
-                <article class="ventas-product-card glass-card group relative overflow-hidden rounded-3xl border <%= product_card_class %> bg-white/95 p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-100/60 active:scale-[0.98] <%= available_total.positive? ? 'cursor-pointer' : 'cursor-not-allowed' %>" data-product-id="<%= producto.id %>" data-product-query="<%= product_query %>" data-product-category="<%= producto.categoria&.nombre.to_s %>" data-product-exento="<%= product_exento ? 'true' : 'false' %>">
-                  <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-100/70 via-cyan-50/60 to-white/0"></div>
-                  <div class="relative">
-                    <div class="flex items-start justify-between gap-2">
-                      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold <%= stock_badge_class %>">
-                        <i data-lucide="activity" class="h-3 w-3"></i>
-                        Disp: <span data-product-stock="<%= producto.id %>"><%= format_quantity(available_total, precision: 0) %></span>
-                      </span>
-                      <div class="flex items-center gap-1.5">
-                        <% if product_exento %>
-                          <span class="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
-                            Exento IVA
-                          </span>
-                        <% end %>
-                        <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" data-product-variation-count="<%= producto.id %>">
-                          <%= available_variation_names.size %> var.
-                        </span>
-                      </div>
-                    </div>
-                    <div class="relative mt-3 aspect-square overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
-                      <% if producto.foto.attached? %>
-                        <%= image_tag producto.foto, class: 'h-full w-full object-cover', alt: producto.descripcion.to_s %>
-                      <% else %>
-                        <i data-lucide="package" class="w-12 h-12"></i>
-                      <% end %>
-                      <div class="pointer-events-none absolute inset-0 <%= available_total.positive? ? 'hidden' : 'flex' %> items-center justify-center overflow-hidden rounded-2xl" data-out-of-stock>
-                        <div class="absolute inset-0 bg-gradient-to-br from-slate-900/65 via-rose-900/55 to-orange-700/45 backdrop-blur-[2px]"></div>
-                        <div class="absolute left-1/2 top-[14%] z-10 -translate-x-1/2 rounded-full bg-rose-500/95 px-6 py-1.5 text-center text-[10px] font-extrabold uppercase tracking-[0.2em] text-white shadow-lg shadow-rose-900/45 ring-1 ring-white/25 animate-pulse">
-                          Agotado
-                        </div>
-                        <div class="relative z-10 flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-white">
-                          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/40">
-                            <i data-lucide="ban" class="h-5 w-5"></i>
-                          </span>
-                          <p class="text-[11px] font-extrabold uppercase tracking-[0.18em]">Sin stock</p>
-                          <p class="text-[10px] font-medium text-white/85">Proximamente disponible</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div class="px-1 pt-3">
-                      <h3 class="font-bold text-slate-800 text-sm truncate"><%= producto.descripcion.to_s %></h3>
-                      <div class="mt-2 flex flex-wrap gap-1 min-h-[1.5rem]" data-product-variations="<%= producto.id %>">
-                        <% if visible_variations.any? %>
-                          <% visible_variations.each do |variation_name| %>
-                            <span class="max-w-[5.5rem] truncate rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-700 ring-1 ring-cyan-100">
-                              <%= variation_name %>
-                            </span>
-                          <% end %>
-                          <% if extra_count.positive? %>
-                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">+<%= extra_count %></span>
-                          <% end %>
-                        <% else %>
-                          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">Sin stock por variacion</span>
-                        <% end %>
-                      </div>
-                      <div class="mt-3 relative">
-                        <div class="w-full rounded-2xl bg-sky-50 px-3 py-2.5 pr-12 ring-1 ring-sky-100">
-                          <p class="text-xs font-semibold uppercase tracking-wide text-sky-600">Precio</p>
-                          <p class="whitespace-nowrap text-sky-700 font-bold" data-product-price-usd="<%= producto.id %>"><%= format_money(price_usd_value, unit: '$') %></p>
-                          <p class="whitespace-nowrap text-xs text-slate-500" data-product-price-bs="<%= producto.id %>"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
-                        </div>
-                        <button type="button" class="ventas-add-button absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md shadow-slate-200 transition-all group-hover:bg-sky-500 group-hover:shadow-sky-200" data-product-id="<%= producto.id %>">
-                          <i data-lucide="plus" class="h-3.5 w-3.5"></i>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              <% end %>
+              <%= render partial: 'ventas/catalog_product_card', collection: @productos, as: :producto, locals: { products_payload_by_id: @products_payload_by_id, bcv_rate: bcv_rate } %>
             </div>
+            <% if @products_next_page.present? %>
+              <div class="mt-4 flex justify-center">
+                <button id="ventas-load-more-products" type="button" class="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100">
+                  <i data-lucide="chevrons-down" class="h-4 w-4"></i>
+                  Cargar m&aacute;s productos
+                </button>
+              </div>
+            <% end %>
           <% else %>
             <div class="rounded-3xl border border-dashed border-sky-200 bg-gradient-to-br from-white to-sky-50 p-10 text-center shadow-sm">
               <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
@@ -454,7 +336,7 @@
           <% end %>
         </div>
         <div id="ventas-service-panel" class="space-y-4 hidden rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
-          <% if visible_services.any? %>
+          <% if @services.any? %>
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Cat&aacute;logo de servicios</p>
@@ -462,7 +344,7 @@
               </div>
               <span class="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100">
                 <i data-lucide="briefcase-business" class="h-3.5 w-3.5"></i>
-                <%= visible_services.size %> disponibles
+                <%= @services_total_count %> disponibles
               </span>
             </div>
             <% if service_systems.any? %>
@@ -471,7 +353,7 @@
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button type="button" data-service-system-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
                     <span>Todos</span>
-                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= visible_services.size %></span>
+                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @services_total_count %></span>
                   </button>
                   <% service_systems.each do |nombre_sistema, cantidad_items| %>
                     <button type="button" data-service-system-filter="<%= nombre_sistema %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
@@ -483,98 +365,16 @@
               </div>
             <% end %>
             <div id="ventas-service-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <% visible_services.each do |service| %>
-                <% payload = @services_payload_by_id[service.id] || {} %>
-                <% price_usd = payload[:price_usd] %>
-                <% price_usd_value = price_usd ? price_usd.to_d : nil %>
-                <% payload_price_bs_value = payload[:price_bs].present? ? payload[:price_bs].to_d : nil %>
-                <% price_on_request = payload[:price_on_request] == true %>
-                <% request_reference = payload[:currency_base_price].to_s.presence || 'Dolar BCV' %>
-                <% price_available = if request_reference == 'Unidad VI'
-                                       price_on_request || price_usd_value&.positive? || payload_price_bs_value&.positive?
-                                     else
-                                       price_on_request || price_usd_value&.positive?
-                                     end %>
-                <% price_bs = if payload_price_bs_value&.positive?
-                                payload_price_bs_value
-                              elsif price_usd_value&.positive? && bcv_rate.positive?
-                                (price_usd_value * bcv_rate)
-                              end %>
-                <% request_symbol = payload[:currency_symbol].to_s.presence || (request_reference == 'Bs' ? 'Bs' : '$') %>
-                <% unidad_vi_reference = request_reference == 'Unidad VI' %>
-                <% system_name = service.system_service&.name.to_s.strip %>
-                <% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
-                <% service_state_class = if price_on_request
-                                           'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
-                                         elsif price_available
-                                           'bg-cyan-100 text-cyan-700 ring-1 ring-cyan-200'
-                                         else
-                                           'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
-                                         end %>
-                <% service_card_class = if price_on_request
-                                          'border-amber-200'
-                                        elsif price_available
-                                          'border-cyan-200'
-                                        else
-                                          'border-rose-200'
-                                        end %>
-                <article class="ventas-service-card glass-card group relative overflow-hidden rounded-3xl border <%= service_card_class %> bg-white/95 p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-100/60 active:scale-[0.98] <%= price_available ? 'cursor-pointer' : 'opacity-70 cursor-not-allowed' %>" data-service-id="<%= service.id %>" data-service-query="<%= service_query %>" data-service-system="<%= system_name %>" data-service-disabled="<%= price_available ? 'false' : 'true' %>" data-service-on-request="<%= price_on_request ? 'true' : 'false' %>">
-                  <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-cyan-100/70 via-sky-50/50 to-white/0"></div>
-                  <div class="relative">
-                    <div class="flex items-start justify-between gap-2">
-                      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold <%= service_state_class %>">
-                        <i data-lucide="sparkles" class="h-3 w-3"></i>
-                        <%= price_on_request ? 'A convenir' : 'Servicio' %>
-                      </span>
-                      <div class="flex flex-wrap items-center justify-end gap-1">
-                        <% if system_name.present? %>
-                          <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500"><%= system_name %></span>
-                        <% end %>
-                      </div>
-                    </div>
-                    <div class="mt-3 aspect-[2/1] overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
-                      <% if service.system_service&.image&.attached? %>
-                        <%= image_tag service.system_service.image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.system_service.name %>
-                      <% else %>
-                        <i data-lucide="briefcase" class="w-12 h-12"></i>
-                      <% end %>
-                    </div>
-                    <div class="mt-3 relative">
-                      <div class="w-full rounded-2xl px-3 py-2.5 pr-12 <%= price_on_request ? 'bg-amber-50 ring-1 ring-amber-100' : 'bg-cyan-50 ring-1 ring-cyan-100' %>">
-                        <h3 class="font-bold text-slate-800 text-sm truncate"><%= service.description.to_s %></h3>
-                        <div class="mt-3 flex items-end justify-between gap-3">
-                          <p class="text-xs text-slate-500">Base: <%= request_reference == 'Bs' ? 'Bs' : "#{request_symbol} #{request_reference}" %></p>
-                          <% if price_on_request %>
-                            <div class="text-right">
-                              <p class="text-amber-600 font-bold">A convenir</p>
-                              <p class="text-xs text-slate-500">Se define al cobrar</p>
-                            </div>
-                          <% elsif price_available %>
-                            <div class="text-right">
-                              <% if unidad_vi_reference %>
-                                <p class="text-cyan-700 font-bold"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
-                                <p class="text-xs text-slate-500"><%= price_usd_value&.positive? ? format_money(price_usd_value, unit: '$') : '$ --' %></p>
-                              <% else %>
-                                <p class="text-cyan-700 font-bold"><%= format_money(price_usd_value, unit: '$') %></p>
-                                <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
-                              <% end %>
-                            </div>
-                          <% else %>
-                            <div class="text-right">
-                              <p class="text-rose-600 font-bold">Sin precio</p>
-                              <p class="text-xs text-slate-500">Configura este servicio</p>
-                            </div>
-                          <% end %>
-                        </div>
-                      </div>
-                      <button type="button" class="ventas-add-service absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md shadow-slate-200 transition-all group-hover:bg-cyan-600 group-hover:shadow-cyan-200" data-service-id="<%= service.id %>" <%= price_available ? '' : 'disabled' %>>
-                        <i data-lucide="plus" class="h-3.5 w-3.5"></i>
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              <% end %>
+              <%= render partial: 'ventas/catalog_service_card', collection: @services, as: :service, locals: { services_payload_by_id: @services_payload_by_id, bcv_rate: bcv_rate } %>
             </div>
+            <% if @services_next_page.present? %>
+              <div class="mt-4 flex justify-center">
+                <button id="ventas-load-more-services" type="button" class="inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm transition-colors hover:bg-cyan-100">
+                  <i data-lucide="chevrons-down" class="h-4 w-4"></i>
+                  Cargar m&aacute;s servicios
+                </button>
+              </div>
+            <% end %>
                       <% else %>
                         <div class="rounded-3xl border border-dashed border-cyan-200 bg-gradient-to-br from-white to-cyan-50 p-10 text-center shadow-sm">
                           <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-600">
@@ -850,6 +650,16 @@
                   const productsById = new Map(products.map((product) => [String(product.id), product]));
                   const servicesById = new Map(services.map((service) => [String(service.id), service]));
                   const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
+                  const productsGrid = document.getElementById('ventas-product-grid');
+                  const servicesGrid = document.getElementById('ventas-service-grid');
+                  const loadMoreProductsButton = document.getElementById('ventas-load-more-products');
+                  const loadMoreServicesButton = document.getElementById('ventas-load-more-services');
+                  const productsCatalogUrl = String(root.dataset.productsCatalogUrl || '').trim();
+                  const servicesCatalogUrl = String(root.dataset.servicesCatalogUrl || '').trim();
+                  let nextProductsPage = Number.parseInt(root.dataset.productsNextPage || '', 10);
+                  let nextServicesPage = Number.parseInt(root.dataset.servicesNextPage || '', 10);
+                  let loadingProductsCatalog = false;
+                  let loadingServicesCatalog = false;
                   const cart = new Map();
                   const syncedReservedProductQuantities = new Map();
                   const vatRate = 0.16;
@@ -1314,6 +1124,153 @@
                     baseCurrencyInputs.forEach((input) => {
                       input.checked = input.value === baseCurrency;
                     });
+                  };
+
+                  const upsertProductsCollection = (rows) => {
+                    Array.from(rows || []).forEach((row) => {
+                      const key = String(row?.id || '');
+                      if (!key) return;
+
+                      productsById.set(key, row);
+                      const index = products.findIndex((product) => String(product?.id || '') === key);
+                      if (index >= 0) {
+                        products[index] = row;
+                      } else {
+                        products.push(row);
+                      }
+                    });
+                  };
+
+                  const upsertServicesCollection = (rows) => {
+                    Array.from(rows || []).forEach((row) => {
+                      const key = String(row?.id || '');
+                      if (!key) return;
+
+                      servicesById.set(key, row);
+                      const index = services.findIndex((service) => String(service?.id || '') === key);
+                      if (index >= 0) {
+                        services[index] = row;
+                      } else {
+                        services.push(row);
+                      }
+                    });
+                  };
+
+                  const refreshCatalogSearch = () => {
+                    const searchInput = document.getElementById('ventas-item-search');
+                    if (!searchInput) return;
+                    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+                  };
+
+                  const syncCatalogLoadButtons = () => {
+                    if (loadMoreProductsButton) {
+                      loadMoreProductsButton.classList.toggle('hidden', !(Number.isInteger(nextProductsPage) && nextProductsPage > 0));
+                      loadMoreProductsButton.disabled = loadingProductsCatalog;
+                      loadMoreProductsButton.classList.toggle('opacity-60', loadingProductsCatalog);
+                    }
+
+                    if (loadMoreServicesButton) {
+                      loadMoreServicesButton.classList.toggle('hidden', !(Number.isInteger(nextServicesPage) && nextServicesPage > 0));
+                      loadMoreServicesButton.disabled = loadingServicesCatalog;
+                      loadMoreServicesButton.classList.toggle('opacity-60', loadingServicesCatalog);
+                    }
+                  };
+
+                  const loadMoreProductsCatalog = async () => {
+                    if (loadingProductsCatalog) return;
+                    if (!(Number.isInteger(nextProductsPage) && nextProductsPage > 0)) return;
+                    if (!productsCatalogUrl || !productsGrid) return;
+
+                    loadingProductsCatalog = true;
+                    syncCatalogLoadButtons();
+
+                    try {
+                      const response = await fetch(`${productsCatalogUrl}?page=${encodeURIComponent(nextProductsPage)}`, {
+                        headers: {
+                          Accept: 'application/json',
+                        },
+                        credentials: 'same-origin',
+                      });
+
+                      const data = await response.json().catch(() => ({}));
+                      if (!response.ok) throw new Error(String(data.error || 'No se pudo cargar más productos.'));
+
+                      if (String(data.cards_html || '').trim()) {
+                        productsGrid.insertAdjacentHTML('beforeend', String(data.cards_html));
+                      }
+
+                      upsertProductsCollection(data.products || []);
+                      const parsedNext = Number.parseInt(data.next_page, 10);
+                      nextProductsPage = Number.isInteger(parsedNext) && parsedNext > 0 ? parsedNext : null;
+                      root.dataset.productsNextPage = nextProductsPage || '';
+
+                      if (window.lucide?.createIcons) {
+                        window.lucide.createIcons();
+                      }
+
+                      updateAvailabilityUI();
+                      refreshCatalogSearch();
+                    } catch (error) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'error',
+                          title: 'Error al cargar productos',
+                          text: error.message || 'Intenta nuevamente.',
+                          heightAuto: false,
+                        });
+                      }
+                    } finally {
+                      loadingProductsCatalog = false;
+                      syncCatalogLoadButtons();
+                    }
+                  };
+
+                  const loadMoreServicesCatalog = async () => {
+                    if (loadingServicesCatalog) return;
+                    if (!(Number.isInteger(nextServicesPage) && nextServicesPage > 0)) return;
+                    if (!servicesCatalogUrl || !servicesGrid) return;
+
+                    loadingServicesCatalog = true;
+                    syncCatalogLoadButtons();
+
+                    try {
+                      const response = await fetch(`${servicesCatalogUrl}?page=${encodeURIComponent(nextServicesPage)}`, {
+                        headers: {
+                          Accept: 'application/json',
+                        },
+                        credentials: 'same-origin',
+                      });
+
+                      const data = await response.json().catch(() => ({}));
+                      if (!response.ok) throw new Error(String(data.error || 'No se pudo cargar más servicios.'));
+
+                      if (String(data.cards_html || '').trim()) {
+                        servicesGrid.insertAdjacentHTML('beforeend', String(data.cards_html));
+                      }
+
+                      upsertServicesCollection(data.services || []);
+                      const parsedNext = Number.parseInt(data.next_page, 10);
+                      nextServicesPage = Number.isInteger(parsedNext) && parsedNext > 0 ? parsedNext : null;
+                      root.dataset.servicesNextPage = nextServicesPage || '';
+
+                      if (window.lucide?.createIcons) {
+                        window.lucide.createIcons();
+                      }
+
+                      refreshCatalogSearch();
+                    } catch (error) {
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: 'error',
+                          title: 'Error al cargar servicios',
+                          text: error.message || 'Intenta nuevamente.',
+                          heightAuto: false,
+                        });
+                      }
+                    } finally {
+                      loadingServicesCatalog = false;
+                      syncCatalogLoadButtons();
+                    }
                   };
 
                   const setVatModeSelection = (nextMode) => {
@@ -2041,6 +1998,15 @@
                   };
 
                   initSearchTabs();
+                  syncCatalogLoadButtons();
+
+                  if (loadMoreProductsButton) {
+                    loadMoreProductsButton.addEventListener('click', loadMoreProductsCatalog);
+                  }
+
+                  if (loadMoreServicesButton) {
+                    loadMoreServicesButton.addEventListener('click', loadMoreServicesCatalog);
+                  }
 
                   const renderTotals = () => {
                     const vatMode = getVatMode();

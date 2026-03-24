@@ -1,0 +1,101 @@
+<% payload = products_payload_by_id[producto.id] || {} %>
+<% available_total = payload[:available_total].to_d %>
+<% price_usd_value = payload[:price_usd].present? ? payload[:price_usd].to_d : producto.precio_venta_usd.to_d %>
+<% product_exento = if payload.key?(:exento) || payload.key?('exento')
+                     ActiveModel::Type::Boolean.new.cast(payload[:exento] || payload['exento'])
+                   elsif producto.respond_to?(:exento?)
+                     producto.exento?
+                   else
+                     false
+                   end %>
+<% price_bs = bcv_rate.positive? ? (price_usd_value * bcv_rate) : nil %>
+<% variations = producto.product_variations.sort_by(&:id) %>
+<% variation_names = variations.map(&:description) %>
+<% variation_rows = Array(payload[:variations]) %>
+<% available_variation_rows = variation_rows.select { |row| (row[:available] || row['available']).to_d.positive? } %>
+<% available_variation_names = available_variation_rows.map { |row| (row[:name] || row['name']).to_s.strip }.reject(&:blank?) %>
+<% visible_variations = available_variation_names.first(3) %>
+<% extra_count = [available_variation_names.size - visible_variations.size, 0].max %>
+<% product_query = ([producto.descripcion] + variation_names).join(' ').downcase %>
+<% stock_badge_class = if available_total <= 0
+                         'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
+                       elsif available_total < 6
+                         'bg-amber-100 text-amber-700 ring-1 ring-amber-200'
+                       else
+                         'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200'
+                       end %>
+<% product_card_class = if available_total <= 0
+                          'border-rose-200'
+                        elsif available_total < 6
+                          'border-amber-200'
+                        else
+                          'border-sky-100'
+                        end %>
+<article class="ventas-product-card glass-card group relative overflow-hidden rounded-3xl border <%= product_card_class %> bg-white/95 p-3 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-sky-100/60 active:scale-[0.98] <%= available_total.positive? ? 'cursor-pointer' : 'cursor-not-allowed' %>" data-product-id="<%= producto.id %>" data-product-query="<%= product_query %>" data-product-category="<%= producto.categoria&.nombre.to_s %>" data-product-exento="<%= product_exento ? 'true' : 'false' %>">
+  <div class="absolute inset-x-0 top-0 h-24 bg-gradient-to-r from-sky-100/70 via-cyan-50/60 to-white/0"></div>
+  <div class="relative">
+    <div class="flex items-start justify-between gap-2">
+      <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold <%= stock_badge_class %>">
+        <i data-lucide="activity" class="h-3 w-3"></i>
+        Disp: <span data-product-stock="<%= producto.id %>"><%= format_quantity(available_total, precision: 0) %></span>
+      </span>
+      <div class="flex items-center gap-1.5">
+        <% if product_exento %>
+          <span class="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+            Exento IVA
+          </span>
+        <% end %>
+        <span class="rounded-full bg-slate-900/5 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500" data-product-variation-count="<%= producto.id %>">
+          <%= available_variation_names.size %> var.
+        </span>
+      </div>
+    </div>
+    <div class="relative mt-3 aspect-square overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
+      <% if producto.foto.attached? %>
+        <%= image_tag producto.foto, class: 'h-full w-full object-cover', alt: producto.descripcion.to_s %>
+      <% else %>
+        <i data-lucide="package" class="w-12 h-12"></i>
+      <% end %>
+      <div class="pointer-events-none absolute inset-0 <%= available_total.positive? ? 'hidden' : 'flex' %> items-center justify-center overflow-hidden rounded-2xl" data-out-of-stock>
+        <div class="absolute inset-0 bg-gradient-to-br from-slate-900/65 via-rose-900/55 to-orange-700/45 backdrop-blur-[2px]"></div>
+        <div class="absolute left-1/2 top-[14%] z-10 -translate-x-1/2 rounded-full bg-rose-500/95 px-6 py-1.5 text-center text-[10px] font-extrabold uppercase tracking-[0.2em] text-white shadow-lg shadow-rose-900/45 ring-1 ring-white/25 animate-pulse">
+          Agotado
+        </div>
+        <div class="relative z-10 flex h-full w-full flex-col items-center justify-center gap-1.5 text-center text-white">
+          <span class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/20 ring-1 ring-white/40">
+            <i data-lucide="ban" class="h-5 w-5"></i>
+          </span>
+          <p class="text-[11px] font-extrabold uppercase tracking-[0.18em]">Sin stock</p>
+          <p class="text-[10px] font-medium text-white/85">Proximamente disponible</p>
+        </div>
+      </div>
+    </div>
+    <div class="px-1 pt-3">
+      <h3 class="font-bold text-slate-800 text-sm truncate"><%= producto.descripcion.to_s %></h3>
+      <div class="mt-2 flex flex-wrap gap-1 min-h-[1.5rem]" data-product-variations="<%= producto.id %>">
+        <% if visible_variations.any? %>
+          <% visible_variations.each do |variation_name| %>
+            <span class="max-w-[5.5rem] truncate rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-700 ring-1 ring-cyan-100">
+              <%= variation_name %>
+            </span>
+          <% end %>
+          <% if extra_count.positive? %>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">+<%= extra_count %></span>
+          <% end %>
+        <% else %>
+          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">Sin stock por variacion</span>
+        <% end %>
+      </div>
+      <div class="mt-3 relative">
+        <div class="w-full rounded-2xl bg-sky-50 px-3 py-2.5 pr-12 ring-1 ring-sky-100">
+          <p class="text-xs font-semibold uppercase tracking-wide text-sky-600">Precio</p>
+          <p class="whitespace-nowrap text-sky-700 font-bold" data-product-price-usd="<%= producto.id %>"><%= format_money(price_usd_value, unit: '$') %></p>
+          <p class="whitespace-nowrap text-xs text-slate-500" data-product-price-bs="<%= producto.id %>"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+        </div>
+        <button type="button" class="ventas-add-button absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md shadow-slate-200 transition-all group-hover:bg-sky-500 group-hover:shadow-sky-200" data-product-id="<%= producto.id %>">
+          <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>

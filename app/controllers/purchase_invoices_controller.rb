@@ -1,5 +1,14 @@
 class PurchaseInvoicesController < ApplicationController
   PER_PAGE = 15
+  INITIAL_INVENTORY_TEMPLATE_HEADERS = [
+    'producto_id',
+    'producto',
+    'variacion_id',
+    'variacion',
+    'costo_unit_usd',
+    'existencia_inicial',
+    'exento'
+  ].freeze
   INVOICE_PAYMENT_STATUS_LABELS = {
     'paid' => 'Pagada',
     'partial' => 'Parcialmente pagada',
@@ -83,6 +92,162 @@ class PurchaseInvoicesController < ApplicationController
     else
       redirect_to new_purchase_invoice_path(invoice_kind: PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY)
     end
+  end
+
+  def initial_inventory_template
+    rows = [INITIAL_INVENTORY_TEMPLATE_HEADERS]
+
+    current_business.productos.includes(:product_variations).order(:descripcion).find_each do |producto|
+      variations = producto.product_variations.order(:id).to_a
+      unit_cost = producto.highest_active_lot_unit_cost_usd.to_d
+      unit_cost = producto.precio_venta_usd.to_d if unit_cost <= 0
+      exento = producto.respond_to?(:exento?) && producto.exento? ? 'si' : 'no'
+
+      if variations.any?
+        variations.each do |variation|
+          rows << [
+            producto.id,
+            producto.descripcion,
+            variation.id,
+            variation.description,
+            unit_cost.to_s('F'),
+            '0',
+            exento
+          ]
+        end
+      else
+        rows << [
+          producto.id,
+          producto.descripcion,
+          '',
+          'Unica',
+          unit_cost.to_s('F'),
+          '0',
+          exento
+        ]
+      end
+    end
+
+    csv_body = rows.map { |row| build_csv_row(row) }.join("\n")
+    filename = "plantilla_inventario_inicial_#{Time.current.strftime('%Y%m%d_%H%M%S')}.csv"
+
+    send_data "\uFEFF#{csv_body}",
+              filename: filename,
+              type: 'text/csv; charset=utf-8',
+              disposition: 'attachment'
+  end
+
+  def import_initial_inventory
+    file = params[:inventory_file]
+    if file.blank?
+      redirect_to purchase_invoices_path,
+                  alert: 'Debes seleccionar un archivo de plantilla para importar inventario inicial.'
+      return
+    end
+
+    parsed_rows = parse_inventory_template(file: file)
+    if parsed_rows.empty?
+      redirect_to purchase_invoices_path,
+                  alert: 'La plantilla no contiene filas válidas para importar.'
+      return
+    end
+
+    grouped_rows = parsed_rows.group_by { |row| row[:producto_id] }
+    product_ids = grouped_rows.keys
+    products_by_id = current_business.productos.includes(:product_variations).where(id: product_ids).index_by(&:id)
+
+    missing_ids = product_ids - products_by_id.keys
+    if missing_ids.any?
+      redirect_to purchase_invoices_path,
+                  alert: "Hay productos que no existen en este negocio: #{missing_ids.join(', ')}"
+      return
+    end
+
+    item_attributes = []
+    grouped_rows.each do |producto_id, rows|
+      producto = products_by_id[producto_id]
+      variations_by_id = producto.product_variations.index_by(&:id)
+
+      costs = rows.map { |row| row[:costo_unit_usd] }.uniq
+      if costs.size > 1
+        redirect_to purchase_invoices_path,
+                    alert: "El producto ##{producto_id} tiene costos unitarios distintos en la plantilla."
+        return
+      end
+
+      exento_values = rows.map { |row| row[:exento] }.uniq
+      if exento_values.size > 1
+        redirect_to purchase_invoices_path,
+                    alert: "El producto ##{producto_id} tiene valores de exento distintos en la plantilla."
+        return
+      end
+
+      variation_breakdown = rows.filter_map do |row|
+        next if row[:existencia_inicial] <= 0
+
+        variation_id = row[:variacion_id]
+        variation_name = row[:variacion].presence
+
+        if variation_id.present?
+          variation = variations_by_id[variation_id]
+          unless variation
+            redirect_to purchase_invoices_path,
+                        alert: "La variación ##{variation_id} no pertenece al producto ##{producto_id}."
+            return
+          end
+          variation_name = variation.description
+        end
+
+        {
+          'variation_id' => variation_id,
+          'description' => variation_name.presence || 'Variación',
+          'quantity' => row[:existencia_inicial].to_f
+        }
+      end
+
+      total_quantity = variation_breakdown.sum { |entry| entry['quantity'].to_d }
+      next if total_quantity <= 0
+
+      item_attributes << {
+        producto_id: producto.id,
+        product_name: producto.descripcion,
+        costo_mayor: costs.first.to_d,
+        unid_x_pack: 1,
+        cantidad: total_quantity,
+        exento: exento_values.first,
+        variation_breakdown: variation_breakdown
+      }
+    end
+
+    if item_attributes.empty?
+      redirect_to purchase_invoices_path,
+                  alert: 'No se detectaron existencias iniciales mayores a cero para importar.'
+      return
+    end
+
+    PurchaseInvoice.transaction do
+      invoice = current_business.purchase_invoices.initial_inventory.order(created_at: :desc).first
+      invoice ||= current_business.purchase_invoices.new
+
+      invoice.assign_attributes(
+        invoice_kind: PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY,
+        supplier_id: nil,
+        supplier_name: nil,
+        fecha_emision: Time.current.in_time_zone('America/Caracas').to_date,
+        tasa_dolar: TasaCambio.latest_value('Dolar BCV').to_d
+      )
+
+      invoice.save! if invoice.new_record?
+      invoice.purchase_invoice_items.destroy_all
+      item_attributes.each { |attrs| invoice.purchase_invoice_items.create!(attrs) }
+      invoice.save!
+    end
+
+    redirect_to initial_inventory_purchase_invoices_path,
+                notice: "Inventario inicial importado correctamente (#{item_attributes.size} productos actualizados)."
+  rescue StandardError => e
+    redirect_to purchase_invoices_path,
+                alert: "No se pudo importar la plantilla: #{e.message}"
   end
 
   def show
@@ -191,6 +356,140 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   private
+
+  def parse_inventory_template(file:)
+    raw = file.read
+    text = raw.to_s.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+    text = text.delete_prefix("\uFEFF")
+    lines = text.split(/\r\n|\n|\r/).reject { |line| line.strip.empty? }
+    return [] if lines.empty?
+
+    delimiter = detect_template_delimiter(lines.first)
+    headers = split_template_row(lines.shift, delimiter: delimiter).map { |header| normalize_template_header(header) }
+    header_index = headers.each_with_index.to_h
+
+    required_headers = %w[producto_id costo_unit_usd existencia_inicial exento]
+    missing_headers = required_headers - header_index.keys
+    raise "La plantilla no contiene columnas requeridas: #{missing_headers.join(', ')}" if missing_headers.any?
+
+    rows = []
+    lines.each_with_index do |line, index|
+      row_number = index + 2
+      values = split_template_row(line, delimiter: delimiter)
+      producto_id_raw = values[header_index['producto_id']].to_s.strip
+      next if producto_id_raw.blank?
+
+      unless producto_id_raw.match?(/\A\d+\z/)
+        raise "Fila #{row_number}: producto_id invalido"
+      end
+
+      producto_id = producto_id_raw.to_i
+
+      costo_unit = parse_template_decimal(
+        values[header_index['costo_unit_usd']],
+        field_name: 'costo_unit_usd',
+        row_number: row_number
+      )
+      existencia = parse_template_decimal(
+        values[header_index['existencia_inicial']],
+        field_name: 'existencia_inicial',
+        row_number: row_number
+      )
+
+      if costo_unit.negative?
+        raise "Fila #{row_number}: costo_unit_usd no puede ser negativo"
+      end
+
+      if existencia.negative?
+        raise "Fila #{row_number}: existencia_inicial no puede ser negativa"
+      end
+
+      variacion_id_idx = header_index['variacion_id']
+      variacion_idx = header_index['variacion']
+      exento_raw = values[header_index['exento']]
+      variacion_id_raw = variacion_id_idx ? values[variacion_id_idx].to_s.strip : ''
+      variacion_id = variacion_id_raw.match?(/\A\d+\z/) ? variacion_id_raw.to_i : nil
+
+      rows << {
+        producto_id: producto_id,
+        variacion_id: variacion_id,
+        variacion: variacion_idx ? values[variacion_idx].to_s.strip : nil,
+        costo_unit_usd: costo_unit,
+        existencia_inicial: existencia,
+        exento: parse_template_boolean(exento_raw)
+      }
+    end
+
+    rows
+  end
+
+  def detect_template_delimiter(header_line)
+    candidates = [';', ',', "\t"]
+    candidates.max_by { |delimiter| header_line.count(delimiter) }
+  end
+
+  def split_template_row(line, delimiter:)
+    values = []
+    current = +''
+    in_quotes = false
+    chars = line.to_s.chars
+    i = 0
+
+    while i < chars.length
+      char = chars[i]
+      if char == '"'
+        if in_quotes && chars[i + 1] == '"'
+          current << '"'
+          i += 1
+        else
+          in_quotes = !in_quotes
+        end
+      elsif char == delimiter && !in_quotes
+        values << current
+        current = +''
+      else
+        current << char
+      end
+      i += 1
+    end
+
+    values << current
+    values.map(&:strip)
+  end
+
+  def normalize_template_header(value)
+    value.to_s.strip.downcase
+         .tr('áéíóúüñ', 'aeiouun')
+         .gsub(/\s+/, '_')
+  end
+
+  def parse_template_decimal(value, field_name:, row_number:)
+    raw = value.to_s.strip
+    return 0.to_d if raw.blank?
+
+    normalized = raw.gsub(/\./, '').tr(',', '.') if raw.include?(',') && raw.include?('.')
+    normalized ||= raw.tr(',', '.')
+    BigDecimal(normalized)
+  rescue ArgumentError
+    raise "Fila #{row_number}: #{field_name} invalido"
+  end
+
+  def parse_template_boolean(value)
+    normalized = value.to_s.strip.downcase
+    %w[1 true t si s yes y].include?(normalized)
+  end
+
+  def build_csv_row(fields)
+    fields.map { |field| csv_escape(field) }.join(';')
+  end
+
+  def csv_escape(value)
+    raw = value.to_s
+    escaped = raw.gsub('"', '""')
+    return escaped unless escaped.match?(/[";\n\r]/)
+
+    "\"#{escaped}\""
+  end
 
   def ensure_purchase_invoice_columns_loaded
     return if PurchaseInvoice.attribute_names.include?('invoice_kind')

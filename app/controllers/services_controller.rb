@@ -29,7 +29,7 @@ class ServicesController < ApplicationController
                     .order('system_services.name ASC, services.description ASC')
                 end
 
-    @pagy, @services = pagy_countless(@services, items: 24)
+    @pagy, @services = pagy_countless(@services, items: 25)
   end
 
   def printing_prices

@@ -1,4 +1,6 @@
 class VentasController < ApplicationController
+  POS_CATALOG_ITEMS_PER_PAGE = 24
+
   before_action :require_business
   before_action -> { require_module_access!(:ventas) }
   before_action :require_admin, only: %i[destroy]
@@ -6,45 +8,21 @@ class VentasController < ApplicationController
   before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft]
 
   def index
-    @productos = current_business
-                 .productos
-                 .with_attached_foto
-                 .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
-                 .order(:descripcion)
+    products_scope = ventas_products_scope
+    @productos_total_count = products_scope.count
+    @productos = paginate_scope(products_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
+    @products_next_page = next_page_for(total_count: @productos_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
+
+    @product_categories = products_scope
+                          .joins(:categoria)
+                          .group('categorias.nombre')
+                          .count
+                          .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
     @accounts = current_business.accounts.with_attached_payment_method_image.where(active: true).order(:name)
     @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
 
-    @products_payload = @productos.map do |producto|
-      variation_rows = producto.stock_lot_variations.to_a
-      variation_groups = variation_rows.group_by(&:product_variation_id)
-      variation_totals = variation_groups.transform_values do |rows|
-        rows.sum { |row| row.quantity_remaining.to_d }
-      end
-
-      total_units = variation_totals.values.sum
-      total_units = producto.stock_lots.to_a.sum { |lot| lot.quantity_remaining.to_d } if total_units.zero?
-
-      variations_payload = producto.product_variations.sort_by(&:id).map do |variation|
-        available = variation_totals[variation.id].to_d
-        available = total_units if available.zero? && variation_totals.empty? && producto.product_variations.size == 1
-
-        {
-          id: variation.id,
-          name: variation.description.to_s,
-          available: available.to_f
-        }
-      end
-
-      {
-        id: producto.id,
-        name: producto.descripcion.to_s,
-        price_usd: producto.precio_venta_usd.to_f,
-        exento: producto.respond_to?(:exento?) ? producto.exento? : false,
-        available_total: total_units.to_f,
-        variations: variations_payload
-      }
-    end
+    @products_payload = build_products_payload(@productos)
 
     @products_payload_by_id = @products_payload.index_by { |row| row[:id] }
 
@@ -52,124 +30,23 @@ class VentasController < ApplicationController
     unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
     effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
 
-    @services = current_business
-                .services
-                .includes(
-                  :system_service,
-                  :print_delivery_material_surcharge,
-                  :service_print_coverage_prices,
-                  { service_print_material_surcharges: :producto },
-                  service_expense_structures: [
-                    :service_manager_expenses,
-                    :service_variable_expenses,
-                    { service_product_expenses: [:product_variation, { producto: :product_variations }] }
-                  ]
-                )
-                .where(available: true)
-                .visible_for_user(Current.user)
-                .order('system_services.name ASC, services.description ASC')
-    @services_payload = @services.map do |service|
-      unit_price_usd = service.fixed? ? service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
-      unit_price_bs = service.fixed? ? service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
-      unit_cost_usd = if service_cost_debit_enabled?(service)
-                        service.total_expense_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi, active_only: true)
-                      end
-      currency_base_reference = service.currency_base_price.to_s.strip.presence || Service::DEFAULT_REFERENCE
-      currency_base_reference = Service::DEFAULT_REFERENCE if currency_base_reference == Service::LEGACY_USD_REFERENCE
+    services_scope = ventas_services_scope
+    @services_total_count = services_scope.count
+    @services = paginate_scope(services_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
+    @services_next_page = next_page_for(total_count: @services_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
 
-      reference_rate_bs = case currency_base_reference
-                          when Service::BOLIVAR_REFERENCE
-                            1.to_d
-                          when Service::DEFAULT_REFERENCE
-                            effective_bcv_rate
-                          else
-                            TasaCambio.latest_value(currency_base_reference).to_d
-                          end
+    @service_systems = services_scope
+                       .joins(:system_service)
+                       .group('system_services.name')
+                       .count
+                       .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
-      currency_symbol = TasaCambio.latest_symbol(currency_base_reference).presence ||
-                        TasaCambio::DEFAULT_SYMBOLS[currency_base_reference] ||
-                        (currency_base_reference == Service::BOLIVAR_REFERENCE ? 'Bs' : '$')
-
-      consumable_costs = []
-      has_manager_or_variable_expense = false
-      physical_printing_payload = build_service_physical_printing_payload(service: service,
-                                                                          tasa_dolar: effective_bcv_rate)
-
-      service.active_expense_structures_for_sales.each do |structure|
-        structure_label = structure.description.to_s.strip.presence || 'Sin estructura'
-
-        has_manager_or_variable_expense ||= structure.service_manager_expenses.any?
-        has_manager_or_variable_expense ||= structure.service_variable_expenses.any?
-
-        structure.service_product_expenses.each do |expense|
-          product = expense.producto
-          next unless product
-
-          variation = expense.product_variation || product.product_variations.order(:id).first
-          next unless variation
-
-          consumable_costs << {
-            expense_id: expense.id,
-            structure_id: structure.id,
-            structure_name: structure_label,
-            product_id: product.id,
-            product_name: product.descripcion.to_s,
-            variation_id: variation.id,
-            variation_name: variation.description.to_s,
-            quantity: expense.quantity.to_d.to_f,
-            unit_price_usd: product.precio_venta_usd.to_d.to_f,
-            breakdown_in_invoice: expense.breakdown_in_invoice?
-          }
-        end
-      end
-
-      {
-        id: service.id,
-        name: service.description.to_s,
-        sale_display_name: service.print_sale_display_name.to_s,
-        system_name: service.system_service&.name.to_s,
-        printing_type_service: service.printing_type_service?,
-        lamination_type_service: service.lamination_type_service?,
-        price_usd: unit_price_usd&.to_f,
-        price_bs: unit_price_bs&.to_f,
-        price_on_request: service.to_agree?,
-        pricing_mode: service.pricing_mode,
-        delivery_physical_enabled: service.delivery_physical_enabled?,
-        delivery_digital_enabled: service.delivery_digital_enabled?,
-        cost_enabled: service.cost?,
-        unit_cost_usd: unit_cost_usd&.to_f,
-        currency_base_price: currency_base_reference,
-        currency_symbol: currency_symbol,
-        reference_rate_bs: reference_rate_bs.positive? ? reference_rate_bs.to_f : nil,
-        has_manager_or_variable_expense: has_manager_or_variable_expense,
-        physical_printing: physical_printing_payload,
-        print_coverage_options: service.service_print_coverage_prices
-                                .sort_by { |row| [row.price_bs.to_d, row.coverage_percent.to_d, row.id.to_i] }
-                                       .map do |row|
-                                         {
-                                           id: row.id,
-                                           coverage_percent: row.coverage_percent.to_d.to_f,
-                                           price_bs: row.price_bs.to_d.to_f
-                                         }
-                                       end,
-        print_material_options: service.service_print_material_surcharges
-                                .sort_by { |row| [row.created_at || Time.at(0), row.id.to_i] }
-                                       .map do |row|
-          required_quantity = row.respond_to?(:required_quantity) ? row.required_quantity.to_d : 1.to_d
-          {
-            id: row.id,
-            product_id: row.producto_id,
-            label: row.display_label.to_s,
-            product_name: row.producto&.descripcion.to_s,
-            required_quantity: required_quantity.to_f,
-            surcharge_percent: row.surcharge_percent.to_d.to_f,
-            include_product_price_in_sale: row.include_product_price_in_sale?,
-            product_price_usd: row.producto&.precio_venta_usd.to_d.to_f
-          }
-        end,
-        consumable_costs: consumable_costs
-      }
-    end
+    @services_payload = build_services_payload(
+      @services,
+      tasa_dolar: tasa_dolar,
+      unidad_vi: unidad_vi,
+      effective_bcv_rate: effective_bcv_rate
+    )
     @services_payload_by_id = @services_payload.index_by { |row| row[:id] }
 
     @accounts_payload = @accounts.map do |account|
@@ -186,6 +63,75 @@ class VentasController < ApplicationController
     end
 
     @drafts_payload = drafts_payload
+  end
+
+  def catalog_products
+    page = params[:page].to_i
+    page = 1 if page < 1
+
+    scope = ventas_products_scope
+    total_count = scope.count
+    productos = paginate_scope(scope, page: page, items: POS_CATALOG_ITEMS_PER_PAGE)
+    payload = build_products_payload(productos)
+    payload_by_id = payload.index_by { |row| row[:id] }
+
+    cards_html = render_to_string(
+      partial: 'ventas/catalog_product_card',
+      collection: productos,
+      as: :producto,
+      formats: [:html],
+      locals: {
+        products_payload_by_id: payload_by_id,
+        bcv_rate: current_bcv_rate_for_sales
+      }
+    )
+
+    render json: {
+      cards_html: cards_html,
+      products: payload,
+      current_page: page,
+      next_page: next_page_for(total_count: total_count, page: page, items: POS_CATALOG_ITEMS_PER_PAGE),
+      total_count: total_count
+    }
+  end
+
+  def catalog_services
+    page = params[:page].to_i
+    page = 1 if page < 1
+
+    tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil
+    unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
+    effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
+
+    scope = ventas_services_scope
+    total_count = scope.count
+    services = paginate_scope(scope, page: page, items: POS_CATALOG_ITEMS_PER_PAGE)
+    payload = build_services_payload(
+      services,
+      tasa_dolar: tasa_dolar,
+      unidad_vi: unidad_vi,
+      effective_bcv_rate: effective_bcv_rate
+    )
+    payload_by_id = payload.index_by { |row| row[:id] }
+
+    cards_html = render_to_string(
+      partial: 'ventas/catalog_service_card',
+      collection: services,
+      as: :service,
+      formats: [:html],
+      locals: {
+        services_payload_by_id: payload_by_id,
+        bcv_rate: current_bcv_rate_for_sales
+      }
+    )
+
+    render json: {
+      cards_html: cards_html,
+      services: payload,
+      current_page: page,
+      next_page: next_page_for(total_count: total_count, page: page, items: POS_CATALOG_ITEMS_PER_PAGE),
+      total_count: total_count
+    }
   end
 
   def drafts
@@ -1323,6 +1269,151 @@ class VentasController < ApplicationController
         variations: variations_payload
       }
     end
+  end
+
+  def build_services_payload(services, tasa_dolar:, unidad_vi:, effective_bcv_rate:)
+    services.map do |service|
+      unit_price_usd = service.fixed? ? service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
+      unit_price_bs = service.fixed? ? service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
+      unit_cost_usd = if service_cost_debit_enabled?(service)
+                        service.total_expense_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi, active_only: true)
+                      end
+      currency_base_reference = service.currency_base_price.to_s.strip.presence || Service::DEFAULT_REFERENCE
+      currency_base_reference = Service::DEFAULT_REFERENCE if currency_base_reference == Service::LEGACY_USD_REFERENCE
+
+      reference_rate_bs = case currency_base_reference
+                          when Service::BOLIVAR_REFERENCE
+                            1.to_d
+                          when Service::DEFAULT_REFERENCE
+                            effective_bcv_rate
+                          else
+                            TasaCambio.latest_value(currency_base_reference).to_d
+                          end
+
+      currency_symbol = TasaCambio.latest_symbol(currency_base_reference).presence ||
+                        TasaCambio::DEFAULT_SYMBOLS[currency_base_reference] ||
+                        (currency_base_reference == Service::BOLIVAR_REFERENCE ? 'Bs' : '$')
+
+      consumable_costs = []
+      has_manager_or_variable_expense = false
+      physical_printing_payload = build_service_physical_printing_payload(service: service,
+                                                                          tasa_dolar: effective_bcv_rate)
+
+      service.active_expense_structures_for_sales.each do |structure|
+        structure_label = structure.description.to_s.strip.presence || 'Sin estructura'
+
+        has_manager_or_variable_expense ||= structure.service_manager_expenses.any?
+        has_manager_or_variable_expense ||= structure.service_variable_expenses.any?
+
+        structure.service_product_expenses.each do |expense|
+          product = expense.producto
+          next unless product
+
+          variation = expense.product_variation || product.product_variations.order(:id).first
+          next unless variation
+
+          consumable_costs << {
+            expense_id: expense.id,
+            structure_id: structure.id,
+            structure_name: structure_label,
+            product_id: product.id,
+            product_name: product.descripcion.to_s,
+            variation_id: variation.id,
+            variation_name: variation.description.to_s,
+            quantity: expense.quantity.to_d.to_f,
+            unit_price_usd: product.precio_venta_usd.to_d.to_f,
+            breakdown_in_invoice: expense.breakdown_in_invoice?
+          }
+        end
+      end
+
+      {
+        id: service.id,
+        name: service.description.to_s,
+        sale_display_name: service.print_sale_display_name.to_s,
+        system_name: service.system_service&.name.to_s,
+        printing_type_service: service.printing_type_service?,
+        lamination_type_service: service.lamination_type_service?,
+        price_usd: unit_price_usd&.to_f,
+        price_bs: unit_price_bs&.to_f,
+        price_on_request: service.to_agree?,
+        pricing_mode: service.pricing_mode,
+        delivery_physical_enabled: service.delivery_physical_enabled?,
+        delivery_digital_enabled: service.delivery_digital_enabled?,
+        cost_enabled: service.cost?,
+        unit_cost_usd: unit_cost_usd&.to_f,
+        currency_base_price: currency_base_reference,
+        currency_symbol: currency_symbol,
+        reference_rate_bs: reference_rate_bs.positive? ? reference_rate_bs.to_f : nil,
+        has_manager_or_variable_expense: has_manager_or_variable_expense,
+        physical_printing: physical_printing_payload,
+        print_coverage_options: service.service_print_coverage_prices
+                                .sort_by { |row| [row.price_bs.to_d, row.coverage_percent.to_d, row.id.to_i] }
+                                .map do |row|
+          {
+            id: row.id,
+            coverage_percent: row.coverage_percent.to_d.to_f,
+            price_bs: row.price_bs.to_d.to_f
+          }
+        end,
+        print_material_options: service.service_print_material_surcharges
+                                .sort_by { |row| [row.created_at || Time.at(0), row.id.to_i] }
+                                .map do |row|
+          required_quantity = row.respond_to?(:required_quantity) ? row.required_quantity.to_d : 1.to_d
+          {
+            id: row.id,
+            product_id: row.producto_id,
+            label: row.display_label.to_s,
+            product_name: row.producto&.descripcion.to_s,
+            required_quantity: required_quantity.to_f,
+            surcharge_percent: row.surcharge_percent.to_d.to_f,
+            include_product_price_in_sale: row.include_product_price_in_sale?,
+            product_price_usd: row.producto&.precio_venta_usd.to_d.to_f
+          }
+        end,
+        consumable_costs: consumable_costs
+      }
+    end
+  end
+
+  def ventas_products_scope
+    current_business
+      .productos
+      .with_attached_foto
+      .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
+      .order(:descripcion)
+  end
+
+  def ventas_services_scope
+    current_business
+      .services
+      .includes(
+        :system_service,
+        :print_delivery_material_surcharge,
+        :service_print_coverage_prices,
+        { service_print_material_surcharges: :producto },
+        service_expense_structures: [
+          :service_manager_expenses,
+          :service_variable_expenses,
+          { service_product_expenses: [:product_variation, { producto: :product_variations }] }
+        ]
+      )
+      .where(available: true)
+      .visible_for_user(Current.user)
+      .order('system_services.name ASC, services.description ASC')
+  end
+
+  def paginate_scope(scope, page:, items:)
+    offset = [page - 1, 0].max * items
+    scope.offset(offset).limit(items)
+  end
+
+  def next_page_for(total_count:, page:, items:)
+    page * items < total_count ? page + 1 : nil
+  end
+
+  def current_bcv_rate_for_sales
+    @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : 0.to_d
   end
 
   def drafts_payload

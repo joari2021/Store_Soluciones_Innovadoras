@@ -232,7 +232,7 @@
           </article>
         <% end %>
       </div>
-      <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy if @pagy.next %>
+      <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy, class: "block mt-3" if @pagy.next %>
     <% else %>
       <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
         <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
