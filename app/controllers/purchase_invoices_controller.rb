@@ -97,7 +97,10 @@ class PurchaseInvoicesController < ApplicationController
   def initial_inventory_template
     rows = [INITIAL_INVENTORY_TEMPLATE_HEADERS]
 
-    current_business.productos.includes(:product_variations).order(:descripcion).find_each do |producto|
+    current_business.productos
+            .includes(:product_variations)
+            .order(Arel.sql('LOWER(productos.descripcion) ASC'), :id)
+            .each do |producto|
       variations = producto.product_variations.order(:id).to_a
       unit_cost = producto.highest_active_lot_unit_cost_usd.to_d
       unit_cost = producto.precio_venta_usd.to_d if unit_cost <= 0
