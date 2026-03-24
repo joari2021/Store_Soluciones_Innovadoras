@@ -1,5 +1,3 @@
-require 'csv'
-
 class ProductosController < ApplicationController
   before_action :set_producto, only: %i[show edit update destroy]
   before_action :require_admin, except: [:index, :show]
@@ -7,6 +5,7 @@ class ProductosController < ApplicationController
   def index
     @productos = Producto.all.order(descripcion: :asc)
     #@productos = Producto.all.with_attached_poster
+    availability_sql = Producto.availability_true_sql
 
     if params[:query_text].present?
       @productos = @productos.whose_name_starts_with(params[:query_text])
@@ -22,13 +21,13 @@ class ProductosController < ApplicationController
     # Filtrar productos con alerta de precio si el filtro está activado
     if params[:filter] == "alerta"
       @productos = @productos.where(
-        "(available = true AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+        "(#{availability_sql} AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
           WHEN 'Baja' THEN 15
           WHEN 'Justa' THEN 23
           WHEN 'Media' THEN 30
           WHEN 'Alta' THEN 50
         END AS float) / 100)) OR
-         (available = true AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+         (#{availability_sql} AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
           WHEN 'Baja' THEN 15
           WHEN 'Justa' THEN 23
           WHEN 'Media' THEN 30
@@ -39,13 +38,13 @@ class ProductosController < ApplicationController
 
     # Contar el total de productos con alerta (sin importar el filtro)
     @total_alertas = Producto.where(
-      "(available = true AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+      "(#{availability_sql} AND moneda_base_precio = 'Dolar' AND precio_venta_usd < (precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
         WHEN 'Baja' THEN 15
         WHEN 'Justa' THEN 23
         WHEN 'Media' THEN 30
         WHEN 'Alta' THEN 50
       END AS float) / 100)) OR
-       (available = true AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
+       (#{availability_sql} AND moneda_base_precio = 'Bolivar' AND precio_venta_bs < ((precio_costo / cant_unidades) / (1 - CAST(CASE nivel_ganancia
         WHEN 'Baja' THEN 15
         WHEN 'Justa' THEN 23
         WHEN 'Media' THEN 30
@@ -74,41 +73,42 @@ class ProductosController < ApplicationController
   def export_excel
     productos = Producto.order(descripcion: :asc)
 
-    rows = CSV.generate(col_sep: "\t") do |csv|
-      csv << [
-        'ID',
-        'Descripcion',
-        'Precio costo',
-        'Precio venta USD',
-        'Precio venta Bs',
-        'Cantidad unidades',
-        'Nivel ganancia',
-        'Moneda base precio',
-        'Min stock',
-        'Max stock',
-        'Disponible',
-        'Creado en',
-        'Actualizado en'
-      ]
+    lines = []
+    lines << [
+      'ID',
+      'Descripcion',
+      'Precio costo',
+      'Precio venta USD',
+      'Precio venta Bs',
+      'Cantidad unidades',
+      'Nivel ganancia',
+      'Moneda base precio',
+      'Min stock',
+      'Max stock',
+      'Disponible',
+      'Creado en',
+      'Actualizado en'
+    ].join("\t")
 
-      productos.find_each do |producto|
-        csv << [
-          producto.id,
-          producto.descripcion,
-          producto.precio_costo,
-          producto.precio_venta_usd,
-          producto.precio_venta_bs,
-          producto.cant_unidades,
-          producto.nivel_ganancia,
-          producto.moneda_base_precio,
-          producto.min_stock,
-          producto.max_stock,
-          producto.available? ? 'Si' : 'No',
-          producto.created_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S'),
-          producto.updated_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S')
-        ]
-      end
+    productos.find_each do |producto|
+      lines << [
+        producto.id,
+        sanitize_excel_cell(producto.descripcion),
+        producto.precio_costo,
+        producto.precio_venta_usd,
+        producto.precio_venta_bs,
+        producto.cant_unidades,
+        sanitize_excel_cell(producto.nivel_ganancia),
+        sanitize_excel_cell(producto.moneda_base_precio),
+        producto.min_stock,
+        producto.max_stock,
+        producto.available? ? 'Si' : 'No',
+        producto.created_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S'),
+        producto.updated_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S')
+      ].join("\t")
     end
+
+    rows = lines.join("\n")
 
     filename = "productos_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xls"
     send_data "\uFEFF#{rows}",
@@ -138,11 +138,36 @@ class ProductosController < ApplicationController
 
   private
 
+  def sanitize_excel_cell(value)
+    value.to_s.gsub(/[\t\r\n]/, ' ').strip
+  end
+
   def set_producto
     @producto = Producto.find(params[:id])
   end
 
   def producto_params
-    params.require(:producto).permit(:descripcion, :precio_costo, :precio_venta_usd, :precio_venta_bs, :cant_unidades, :foto, :nivel_ganancia, :min_stock, :max_stock, :moneda_base_precio, :available)
+    permitted = params.require(:producto).permit(
+      :descripcion,
+      :precio_costo,
+      :precio_venta_usd,
+      :precio_venta_bs,
+      :cant_unidades,
+      :foto,
+      :nivel_ganancia,
+      :min_stock,
+      :max_stock,
+      :moneda_base_precio,
+      :available,
+      :disponible
+    )
+
+    if permitted.key?(:available) && !Producto.column_names.include?('available')
+      permitted[:disponible] = permitted.delete(:available)
+    elsif permitted.key?(:disponible) && !Producto.column_names.include?('disponible')
+      permitted[:available] = permitted.delete(:disponible)
+    end
+
+    permitted
   end
 end
