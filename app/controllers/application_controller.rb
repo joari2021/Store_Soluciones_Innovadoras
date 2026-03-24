@@ -129,10 +129,12 @@ class ApplicationController < ActionController::Base
     end
 
     if can_view_admin_only_notifications
-      below_target_margin_count = current_business
-                                  .productos
-                                  .includes(:profit_margin_preset, :stock_lots)
-                                  .count(&:below_target_margin_for_highest_active_lot?)
+      productos_scope = current_business.productos.includes(:stock_lots)
+      if Producto.reflect_on_association(:profit_margin_preset).present?
+        productos_scope = productos_scope.includes(:profit_margin_preset)
+      end
+
+      below_target_margin_count = productos_scope.count(&:below_target_margin_for_highest_active_lot?)
 
       if below_target_margin_count.positive?
         @header_notifications << {

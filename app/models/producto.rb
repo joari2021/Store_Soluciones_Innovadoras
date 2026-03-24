@@ -68,7 +68,9 @@ class Producto < ApplicationRecord
   end
 
   def target_margin_percentage
-    preset_percentage = profit_margin_preset&.percentage
+    preset_percentage = if self.class.reflect_on_association(:profit_margin_preset).present? && respond_to?(:profit_margin_preset)
+                          profit_margin_preset&.percentage
+                        end
     return preset_percentage.to_d if preset_percentage.present?
 
     return nil if porcentaje_ganancia.blank?
