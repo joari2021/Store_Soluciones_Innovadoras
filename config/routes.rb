@@ -6,7 +6,11 @@ Rails.application.routes.draw do
     resources :sessions, only: [:new, :create, :destroy], path: "/login", path_names: { new: "/" }
   end
 
-  resources :productos
+  resources :productos do
+    collection do
+      get :export_excel
+    end
+  end
   resources :managers
   resources :services do
     resources :service_managers, only: %i[new create edit update destroy]

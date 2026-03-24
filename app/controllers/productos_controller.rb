@@ -1,3 +1,5 @@
+require 'csv'
+
 class ProductosController < ApplicationController
   before_action :set_producto, only: %i[show edit update destroy]
   before_action :require_admin, except: [:index, :show]
@@ -68,6 +70,52 @@ class ProductosController < ApplicationController
   end
 
   def show;end
+
+  def export_excel
+    productos = Producto.order(descripcion: :asc)
+
+    rows = CSV.generate(col_sep: "\t") do |csv|
+      csv << [
+        'ID',
+        'Descripcion',
+        'Precio costo',
+        'Precio venta USD',
+        'Precio venta Bs',
+        'Cantidad unidades',
+        'Nivel ganancia',
+        'Moneda base precio',
+        'Min stock',
+        'Max stock',
+        'Disponible',
+        'Creado en',
+        'Actualizado en'
+      ]
+
+      productos.find_each do |producto|
+        csv << [
+          producto.id,
+          producto.descripcion,
+          producto.precio_costo,
+          producto.precio_venta_usd,
+          producto.precio_venta_bs,
+          producto.cant_unidades,
+          producto.nivel_ganancia,
+          producto.moneda_base_precio,
+          producto.min_stock,
+          producto.max_stock,
+          producto.available? ? 'Si' : 'No',
+          producto.created_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S'),
+          producto.updated_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S')
+        ]
+      end
+    end
+
+    filename = "productos_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xls"
+    send_data "\uFEFF#{rows}",
+              filename: filename,
+              type: 'application/vnd.ms-excel; charset=utf-8',
+              disposition: 'attachment'
+  end
 
   def edit
   end

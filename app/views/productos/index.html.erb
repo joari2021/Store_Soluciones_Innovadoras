@@ -1,6 +1,7 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <% if Current.user&.admin? %>
     <%= link_to 'Nuevo Producto', new_producto_path, class: "btn btn-success mb-3" %>
+    <%= link_to 'Descargar Productos (Excel)', export_excel_productos_path, class: "btn btn-outline-primary mb-3 ms-2", data: { turbo: false } %>
     <%if @total_alertas > 0%>
       <%= link_to(
       "#{params[:filter] == 'alerta' ? 'Mostrar todos los productos' : 'Alerta Precio'} <span class='badge bg-danger'>#{@total_alertas}</span>".html_safe,
