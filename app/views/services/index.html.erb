@@ -98,7 +98,7 @@
     </div>
   </div>
   <% if @services.any? %>
-    <div class="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+    <div class="services-cards-grid grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
       <%= turbo_frame_tag "services-#{@pagy.page}", class: "services-frame-flow" do %>
         <% @services.each_with_index do |service, index| %>
           <% system_name = service.system_service&.name || "Sistema" %>
