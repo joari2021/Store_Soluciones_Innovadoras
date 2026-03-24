@@ -13,6 +13,9 @@ Rails.application.routes.draw do
   end
   resources :managers
   resources :services do
+    collection do
+      get :export_excel
+    end
     resources :service_managers, only: %i[new create edit update destroy]
   end
   resources :system_services

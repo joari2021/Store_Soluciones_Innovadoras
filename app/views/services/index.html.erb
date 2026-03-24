@@ -1,7 +1,10 @@
 <div class="fondo-opaco position-relative" style="width: 100%; border: 1px solid black;">
   <h1>Servicios</h1>
   <% if Current.user&.admin? %>
-    <div><%= link_to 'Nuevo Servicio', new_service_path, class: "btn btn-primary" %></div>
+    <div>
+      <%= link_to 'Nuevo Servicio', new_service_path, class: "btn btn-primary" %>
+      <%= link_to 'Descargar Servicios (Excel)', export_excel_services_path, class: "btn btn-outline-primary ms-2", data: { turbo: false } %>
+    </div>
   <% end %>
   <%= render "shared/campo_buscar", url: services_path, busqueda: "Servicios" %>
   <div class="position-absolute top-0 end-0 bg-primary text-white p-2">
