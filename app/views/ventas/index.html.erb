@@ -1262,9 +1262,8 @@
             window.lucide.createIcons();
           }
 
-          updateAvailabilityUI();
-          refreshCatalogSearch();
-          maybeAutoLoadVisibleCatalog();
+                      updateAvailabilityUI();
+                      refreshCatalogSearch();
         } catch (error) {
           if (window.Swal) {
             window.Swal.fire({
@@ -1277,6 +1276,7 @@
         } finally {
           loadingProductsCatalog = false;
           syncCatalogInfiniteSentinels();
+          maybeAutoLoadVisibleCatalog();
         }
       };
 
@@ -1312,8 +1312,7 @@
             window.lucide.createIcons();
           }
 
-          refreshCatalogSearch();
-          maybeAutoLoadVisibleCatalog();
+                      refreshCatalogSearch();
         } catch (error) {
           if (window.Swal) {
             window.Swal.fire({
@@ -1326,6 +1325,7 @@
         } finally {
           loadingServicesCatalog = false;
           syncCatalogInfiniteSentinels();
+                      maybeAutoLoadVisibleCatalog();
         }
       };
 
