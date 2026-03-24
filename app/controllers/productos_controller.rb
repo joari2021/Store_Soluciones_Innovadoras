@@ -182,11 +182,11 @@ class ProductosController < ApplicationController
         producto.id,
         producto.descripcion,
         producto.categoria&.nombre,
-        producto.available? ? 'Si' : 'No',
+        product_available_for_export?(producto) ? 'Si' : 'No',
         producto.precio_venta_usd,
         (producto.respond_to?(:exento) && producto.exento?) ? 'Si' : 'No',
         producto.respond_to?(:porcentaje_ganancia) ? producto.porcentaje_ganancia : nil,
-        producto.profit_margin_preset&.name,
+        product_profit_margin_preset_for_export(producto),
         producto.highest_active_lot_unit_cost_usd,
         producto.expected_price_usd_from_target_margin,
         producto.below_target_margin_for_highest_active_lot? ? 'Si' : 'No',
@@ -292,6 +292,25 @@ class ProductosController < ApplicationController
   end
 
   private
+
+  def product_available_for_export?(producto)
+    return producto.available? if producto.respond_to?(:available?)
+    return producto.disponible? if producto.respond_to?(:disponible?)
+    return ActiveModel::Type::Boolean.new.cast(producto[:available]) if producto.has_attribute?(:available)
+    return ActiveModel::Type::Boolean.new.cast(producto[:disponible]) if producto.has_attribute?(:disponible)
+
+    true
+  end
+
+  def product_profit_margin_preset_for_export(producto)
+    preset = producto.profit_margin_preset
+    return nil if preset.blank?
+
+    return preset.name if preset.respond_to?(:name) && preset.name.present?
+    return "#{preset.percentage}%" if preset.respond_to?(:percentage) && preset.percentage.present?
+
+    preset.to_s
+  end
 
   def sanitize_excel_cell(value)
     ERB::Util.html_escape(value.to_s.gsub(/[\r\n]/, ' ').strip)
