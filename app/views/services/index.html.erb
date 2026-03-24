@@ -97,9 +97,9 @@
       <% end %>
     </div>
   </div>
-  <%= turbo_frame_tag "services-#{@pagy.page}" do %>
-    <% if @services.any? %>
-      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+  <% if @services.any? %>
+    <div class="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <%= turbo_frame_tag "services-#{@pagy.page}", class: "services-frame-flow" do %>
         <% @services.each_with_index do |service, index| %>
           <% system_name = service.system_service&.name || "Sistema" %>
           <% tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil %>
@@ -219,17 +219,17 @@
             <% end %>
           </article>
         <% end %>
+        <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy, class: "services-frame-flow" if @pagy.next %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
+        <i data-lucide="sparkles" class="h-6 w-6"></i>
       </div>
-      <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy, class: "block mt-3" if @pagy.next %>
-    <% else %>
-      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-        <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-          <i data-lucide="sparkles" class="h-6 w-6"></i>
-        </div>
-        <h3 class="text-base font-semibold text-slate-700">No hay servicios registrados</h3>
-        <p class="mt-1 text-sm text-slate-500">Crea tu primer servicio para empezar a vender.</p>
-      </div>
-    <% end %>
+      <h3 class="text-base font-semibold text-slate-700">No hay servicios registrados</h3>
+      <p class="mt-1 text-sm text-slate-500">Crea tu primer servicio para empezar a vender.</p>
+    </div>
   <% end %>
 </div>
 <div id="serviceModal" class="services-modal fixed inset-0 z-50 hidden items-center justify-center p-4" aria-hidden="true" data-controller="modal-service">
