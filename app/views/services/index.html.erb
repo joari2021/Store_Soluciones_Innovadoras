@@ -1,4 +1,7 @@
-<div class="services-scope space-y-6">
+<div class="services-scope space-y-6"
+  data-active-query-text="<%= @active_query_text %>"
+  data-active-system-filter="<%= @active_system_filter %>"
+  data-active-status-filter="<%= @active_status_filter %>">
   <div class="services-hero relative overflow-hidden rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
     <div class="services-hero-glow services-hero-glow--one"></div>
     <div class="services-hero-glow services-hero-glow--two"></div>
@@ -47,7 +50,7 @@
   <div class="services-search">
     <div class="relative w-full lg:w-[24rem] xl:w-[28rem]">
       <i data-lucide="search" class="services-search-icon"></i>
-      <input id="service-search-input" type="text" placeholder="Buscar servicios..." class="services-search-input">
+      <input id="service-search-input" type="text" placeholder="Buscar servicios..." class="services-search-input" value="<%= @active_query_text %>">
       <button type="button" id="service-search-clear" class="services-clear-btn hidden" aria-label="Limpiar busqueda">
         <i data-lucide="x" class="h-3.5 w-3.5"></i>
       </button>
@@ -97,15 +100,15 @@
       <% end %>
     </div>
   </div>
-  <% if @services.any? %>
-    <div class="services-cards-grid grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-      <%= turbo_frame_tag "services-#{@pagy.page}", class: "services-frame-flow" do %>
+  <% if @services.any? || @pagy.page.to_i > 1 %>
+    <div class="services-cards-grid grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <%= turbo_frame_tag "services-#{@pagy.page}", class: "contents" do %>
         <% @services.each_with_index do |service, index| %>
           <% system_name = service.system_service&.name || "Sistema" %>
           <% tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil %>
           <% unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil %>
           <% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
-          <article class="services-card group rounded-2xl p-3 shadow-sm"
+          <article class="services-card group flex h-full flex-col rounded-2xl p-3 shadow-sm"
                    data-service-query="<%= service_query %>"
                    data-service-system="<%= system_name %>"
                    data-service-available="<%= service.available? %>"
@@ -143,8 +146,8 @@
               <% end %>
               <span class="services-pill absolute bottom-2 left-2"><%= system_name %></span>
             </div>
-            <h3 class="mt-3 text-base font-bold text-slate-800"><%= service.description %></h3>
-            <div class="mt-3 flex items-end justify-between gap-3">
+            <h3 class="services-card-title mt-3 text-base font-bold text-slate-800"><%= service.description %></h3>
+            <div class="services-card-pricing mt-3 flex items-end justify-between gap-3">
               <div>
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio</p>
                 <% if service.to_agree? %>
@@ -189,10 +192,10 @@
               </div>
             </div>
             <% if Current.user&.admin? %>
-              <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-2 text-[11px] text-slate-600">
+              <div class="services-card-costs mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-2 text-[11px] text-slate-600">
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Costos</p>
                 <% if service.cost && service.service_expense_structures.any? %>
-                  <div class="mt-2">
+                  <div class="services-card-costs-list mt-2">
                     <% service.service_expense_structures.each_with_index do |structure, structure_index| %>
                       <% structure_usd = structure.total_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
                       <% structure_bs = structure.total_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
@@ -219,7 +222,14 @@
             <% end %>
           </article>
         <% end %>
-        <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy, class: "services-frame-flow" if @pagy.next %>
+        <% if @pagy.next %>
+          <%= turbo_frame_tag "services-#{@pagy.next}", src: pagy_url_for(@pagy, @pagy.next), loading: :lazy, class: "col-span-full" do %>
+            <div class="flex items-center justify-center gap-3 py-6 text-sm text-slate-500">
+              <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500"></span>
+              Cargando mas servicios...
+            </div>
+          <% end %>
+        <% end %>
       <% end %>
     </div>
   <% else %>
@@ -249,56 +259,55 @@
 </div>
 <script>
   document.addEventListener("turbo:load", () => {
+    const scope = document.querySelector(".services-scope");
     const searchInput = document.getElementById("service-search-input");
     const clearButton = document.getElementById("service-search-clear");
     const serviceSystemButtons = Array.from(document.querySelectorAll("[data-service-system-filter]"));
     const serviceStatusButtons = Array.from(document.querySelectorAll("[data-service-status-filter]"));
-    if (!searchInput || !clearButton) return;
+    if (!scope || !searchInput || !clearButton) return;
     if (searchInput.dataset.bound === "true") return;
     searchInput.dataset.bound = "true";
 
-    let activeSystem = "";
-    let activeStatus = "all";
+    let searchDebounceTimer = null;
+    let activeQuery = String(scope.dataset.activeQueryText || "").trim();
+    let activeSystem = String(scope.dataset.activeSystemFilter || "").trim();
+    let activeStatus = String(scope.dataset.activeStatusFilter || "all").trim() || "all";
 
-    const normalize = (value) =>
-      String(value || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .trim();
+    const visitWithFilters = () => {
+      const url = new URL(window.location.href);
 
-    const applyFilter = () => {
-      const query = normalize(searchInput.value);
-      clearButton.classList.toggle("hidden", query.length === 0);
+      if (activeQuery.length > 0) {
+        url.searchParams.set("query_text", activeQuery);
+      } else {
+        url.searchParams.delete("query_text");
+      }
 
-      const cards = Array.from(document.querySelectorAll("[data-service-query]"));
-      cards.forEach((card) => {
-        const cardValue = normalize(card.dataset.serviceQuery);
-        const cardSystem = normalize(card.dataset.serviceSystem || "");
-        const isAvailable = String(card.dataset.serviceAvailable || "false") === "true";
-        const isCaution = String(card.dataset.serviceCaution || "false") === "true";
-        const isRestricted = String(card.dataset.serviceRestricted || "false") === "true";
+      if (activeSystem.length > 0) {
+        url.searchParams.set("system_filter", activeSystem);
+      } else {
+        url.searchParams.delete("system_filter");
+      }
 
-        const matchesSystem = activeSystem.length === 0 || cardSystem === activeSystem;
-        let matchesStatus = true;
+      if (activeStatus !== "all") {
+        url.searchParams.set("status_filter", activeStatus);
+      } else {
+        url.searchParams.delete("status_filter");
+      }
 
-        if (activeStatus === "available") {
-          matchesStatus = isAvailable;
-        } else if (activeStatus === "unavailable") {
-          matchesStatus = !isAvailable;
-        } else if (activeStatus === "caution") {
-          matchesStatus = isCaution;
-        } else if (activeStatus === "restricted") {
-          matchesStatus = isRestricted;
-        }
+      if (window.Turbo && typeof window.Turbo.visit === "function") {
+        window.Turbo.visit(url.toString(), { action: "replace" });
+      } else {
+        window.location.href = url.toString();
+      }
+    };
 
-        card.classList.toggle("hidden", (query.length > 0 && !cardValue.includes(query)) || !matchesSystem || !matchesStatus);
-      });
+    const updateClearButton = () => {
+      clearButton.classList.toggle("hidden", activeQuery.length === 0);
     };
 
     const updateServiceSystemFilterStyles = () => {
       serviceSystemButtons.forEach((button) => {
-        const systemValue = normalize(button.dataset.serviceSystemFilter || "");
+        const systemValue = String(button.dataset.serviceSystemFilter || "").trim();
         const isActive = systemValue === activeSystem;
 
         button.classList.toggle("bg-sky-600", isActive);
@@ -338,19 +347,29 @@
       });
     };
 
-    searchInput.addEventListener("input", applyFilter);
+    searchInput.addEventListener("input", () => {
+      activeQuery = String(searchInput.value || "").trim();
+      updateClearButton();
+
+      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        visitWithFilters();
+      }, 250);
+    });
 
     clearButton.addEventListener("click", () => {
       searchInput.value = "";
-      applyFilter();
+      activeQuery = "";
+      updateClearButton();
       searchInput.focus();
+      visitWithFilters();
     });
 
     serviceSystemButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        activeSystem = normalize(button.dataset.serviceSystemFilter || "");
+        activeSystem = String(button.dataset.serviceSystemFilter || "").trim();
         updateServiceSystemFilterStyles();
-        applyFilter();
+        visitWithFilters();
       });
     });
 
@@ -358,23 +377,25 @@
       button.addEventListener("click", () => {
         activeStatus = String(button.dataset.serviceStatusFilter || "all").trim();
         updateServiceStatusFilterStyles();
-        applyFilter();
+        visitWithFilters();
       });
     });
 
-    if (searchInput.dataset.frameFilterBound !== "true") {
-      searchInput.dataset.frameFilterBound = "true";
+    if (!document.body.dataset.servicesFramesBound) {
+      document.body.dataset.servicesFramesBound = "true";
       document.addEventListener("turbo:frame-load", (event) => {
-        const frameId = String(event?.target?.id || "");
+        const frame = event?.target;
+        const frameId = String(frame?.id || "");
         if (!frameId.startsWith("services-")) return;
 
-        applyFilter();
+        frame.classList.remove("col-span-full");
+        frame.classList.add("contents");
       });
     }
 
     updateServiceSystemFilterStyles();
     updateServiceStatusFilterStyles();
-    applyFilter();
+    updateClearButton();
   });
 </script>
 <%= render "services/styles" %>

@@ -186,18 +186,28 @@
     border: 1px solid #e2e8f0;
     transition: transform 0.25s ease, box-shadow 0.25s ease;
     animation: services-rise 0.82s ease both;
-  }
-
-  .services-frame-flow {
-    display: contents;
-  }
-
-  .services-scope turbo-frame.services-frame-flow {
-    display: contents !important;
+    min-height: 31rem;
   }
 
   .services-cards-grid {
     grid-auto-flow: row dense;
+    align-items: stretch;
+  }
+
+  .services-card-pricing {
+    margin-top: auto;
+  }
+
+  .services-card-costs {
+    min-height: 7.5rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .services-card-costs-list {
+    max-height: 9.5rem;
+    overflow-y: auto;
+    padding-right: 0.15rem;
   }
 
   html[data-turbo-preview] .services-card,

@@ -20,6 +20,12 @@ class ServicesController < ApplicationController
                       ])
     scoped_services = scoped_services.visible_for_user(Current.user)
 
+    @active_query_text = params[:query_text].to_s.strip
+    @active_system_filter = params[:system_filter].to_s.strip
+    @active_status_filter = params[:status_filter].to_s.strip
+    @active_status_filter = 'all' unless %w[all available unavailable caution
+                                            restricted].include?(@active_status_filter)
+
     services_for_badges = scoped_services.reorder(nil)
     @services_total_count = services_for_badges.count
     @service_systems = services_for_badges
@@ -36,14 +42,34 @@ class ServicesController < ApplicationController
       restricted: services_for_badges.where(restricted_service: true).count
     }
 
-    @services = if params[:query_text].present?
-                  scoped_services
-                    .joins(:system_service)
-                    .whose_name_starts_with(params[:query_text])
+    @services = scoped_services
+
+    if @active_query_text.present?
+      @services = @services
+                  .joins(:system_service)
+                  .whose_name_starts_with(@active_query_text)
+    end
+
+    if @active_system_filter.present?
+      @services = @services
+                  .joins(:system_service)
+                  .where(system_services: { name: @active_system_filter })
+    end
+
+    @services = case @active_status_filter
+                when 'available'
+                  @services.where(available: true)
+                when 'unavailable'
+                  @services.where(available: false)
+                when 'caution'
+                  @services.where(caution_service: true)
+                when 'restricted'
+                  @services.where(restricted_service: true)
                 else
-                  scoped_services
-                    .order('system_services.name ASC, services.description ASC')
+                  @services
                 end
+
+    @services = @services.order('system_services.name ASC, services.description ASC')
 
     @pagy, @services = pagy_countless(@services, items: 25)
   end
@@ -534,10 +560,10 @@ class ServicesController < ApplicationController
 
   def export_excel
     services = current_business
-      .services
-      .includes(:system_service, service_managers: :manager)
-      .order('system_services.name ASC NULLS LAST, services.description ASC')
-      .references(:system_service)
+               .services
+               .includes(:system_service, service_managers: :manager)
+               .order('system_services.name ASC NULLS LAST, services.description ASC')
+               .references(:system_service)
 
     rates = TasaCambio.pluck(:description, :valor).to_h
     tasa_dolar_bcv = rates['Dolar BCV'].to_f
@@ -756,7 +782,7 @@ class ServicesController < ApplicationController
         id: service.id,
         name: service.description.to_s,
         coverage_prices: service.service_print_coverage_prices
-                                .ordered_by_coverage
+                         .ordered_by_coverage
                                 .map do |price_row|
                                   {
                                     coverage_percent: price_row.coverage_percent.to_d.to_f,
@@ -764,7 +790,7 @@ class ServicesController < ApplicationController
                                   }
                                 end,
         material_options: service.service_print_material_surcharges
-                                 .sort_by { |row| [row.created_at || Time.at(0), row.id.to_i] }
+                          .sort_by { |row| [row.created_at || Time.at(0), row.id.to_i] }
                                  .map do |material_row|
                                    {
                                      id: material_row.id,
@@ -1233,7 +1259,7 @@ class ServicesController < ApplicationController
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.stock_lot_variations.find_by(product_variation_id: variation_id)
+      row = lot.variation_row_for(variation_id, create_if_missing: true)
       next unless row
 
       current_remaining = row.quantity_remaining.to_d
@@ -1417,10 +1443,10 @@ class ServicesController < ApplicationController
                             .venta_items
                             .select { |item| item.producto_id.blank? }
                             .group_by do |item|
-                              [
-                                normalized_pending_cost_lookup_value(item.product_name),
-                                normalized_pending_cost_lookup_value(item.variation_name)
-                              ]
+        [
+          normalized_pending_cost_lookup_value(item.product_name),
+          normalized_pending_cost_lookup_value(item.variation_name)
+        ]
       end
 
       service_item_groups.each do |(name_key, _system_key), grouped_items|
@@ -2592,10 +2618,10 @@ class ServicesController < ApplicationController
         end
         .reverse_each
         .each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |payment, grouped|
-          line_id = pending_cost_line_id_from_payment_notes(payment.notes)
-          next if line_id.blank?
+      line_id = pending_cost_line_id_from_payment_notes(payment.notes)
+      next if line_id.blank?
 
-          grouped[line_id] << payment
+      grouped[line_id] << payment
     end
   end
 

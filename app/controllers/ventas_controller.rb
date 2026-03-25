@@ -14,10 +14,10 @@ class VentasController < ApplicationController
     @products_next_page = next_page_for(total_count: @productos_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
 
     @product_categories = current_business.productos
-                .joins(:categoria)
-                .group('categorias.nombre')
-                .count
-                .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
+                                          .joins(:categoria)
+                                          .group('categorias.nombre')
+                                          .count
+                                          .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
     @accounts = current_business.accounts.with_attached_payment_method_image.where(active: true).order(:name)
     @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
@@ -36,12 +36,12 @@ class VentasController < ApplicationController
     @services_next_page = next_page_for(total_count: @services_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
 
     @service_systems = current_business.services
-               .where(available: true)
-               .visible_for_user(Current.user)
-               .joins(:system_service)
-               .group('system_services.name')
-               .count
-               .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
+                                       .where(available: true)
+                                       .visible_for_user(Current.user)
+                                       .joins(:system_service)
+                                       .group('system_services.name')
+                                       .count
+                                       .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
     @services_payload = build_services_payload(
       @services,
@@ -998,7 +998,7 @@ class VentasController < ApplicationController
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.stock_lot_variations.find_by(product_variation_id: variation_id)
+      row = lot.variation_row_for(variation_id, create_if_missing: true)
       next unless row
 
       current_remaining = row.quantity_remaining.to_d
