@@ -57,25 +57,25 @@
       <div class="w-full rounded-2xl px-3 py-2.5 pr-12 <%= price_on_request ? 'bg-amber-50 ring-1 ring-amber-100' : 'bg-cyan-50 ring-1 ring-cyan-100' %>">
         <h3 class="font-bold text-slate-800 text-sm truncate"><%= service.description.to_s %></h3>
         <div class="mt-3 flex items-end justify-between gap-3">
-          <p class="text-xs text-slate-500">Base: <%= request_reference == 'Bs' ? 'Bs' : "#{request_symbol} #{request_reference}" %></p>
+          <p class="text-xs text-slate-500 whitespace-nowrap">Base: <%= request_reference == 'Bs' ? 'Bs' : "#{request_symbol} #{request_reference}" %></p>
           <% if price_on_request %>
             <div class="text-right">
-              <p class="text-amber-600 font-bold">A convenir</p>
+              <p class="text-amber-600 font-bold whitespace-nowrap">A convenir</p>
               <p class="text-xs text-slate-500">Se define al cobrar</p>
             </div>
           <% elsif price_available %>
             <div class="text-right">
               <% if unidad_vi_reference %>
-                <p class="text-cyan-700 font-bold"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
-                <p class="text-xs text-slate-500"><%= price_usd_value&.positive? ? format_money(price_usd_value, unit: '$') : '$ --' %></p>
+                <p class="text-cyan-700 font-bold whitespace-nowrap"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                <p class="text-xs text-slate-500 whitespace-nowrap"><%= price_usd_value&.positive? ? format_money(price_usd_value, unit: '$') : '$ --' %></p>
               <% else %>
-                <p class="text-cyan-700 font-bold"><%= format_money(price_usd_value, unit: '$') %></p>
-                <p class="text-xs text-slate-500"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+                <p class="text-cyan-700 font-bold whitespace-nowrap"><%= format_money(price_usd_value, unit: '$') %></p>
+                <p class="text-xs text-slate-500 whitespace-nowrap"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
               <% end %>
             </div>
           <% else %>
             <div class="text-right">
-              <p class="text-rose-600 font-bold">Sin precio</p>
+              <p class="text-rose-600 font-bold whitespace-nowrap">Sin precio</p>
               <p class="text-xs text-slate-500">Configura este servicio</p>
             </div>
           <% end %>

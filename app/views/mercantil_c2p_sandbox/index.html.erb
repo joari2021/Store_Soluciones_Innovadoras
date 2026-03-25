@@ -20,6 +20,7 @@
       <%= form_with url: sandbox_mercantil_c2p_search_path,
                     method: :post,
                     local: true,
+                    data: { turbo: false },
                     scope: :mercantil_c2p_search,
                     class: 'mt-4 space-y-4' do |form| %>
         <div>
@@ -53,6 +54,15 @@
                                 class: 'block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
           </div>
           <p class="mt-1 text-xs text-slate-500">Se envia cifrado como 58 + prefijo + numero.</p>
+        </div>
+        <div>
+          <%= form.label :payer_id, 'Documento pagador', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
+          <%= form.text_field :payer_id,
+                              value: @form[:payer_id],
+                              required: false,
+                              placeholder: 'V12345678',
+                              class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          <p class="mt-1 text-xs text-slate-500">Usa el prefijo y numero del pagador (ej: V18367443). Se envia cifrado.</p>
         </div>
         <div>
           <%= form.label :payment_reference, 'Numero de referencia', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>

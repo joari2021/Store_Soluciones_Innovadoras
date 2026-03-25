@@ -49,8 +49,56 @@
         </button>
       </nav>
     </div>
+    <div id="turbo-preloader" class="turbo-preloader is-active" aria-hidden="true">
+      <div class="atom-loader" aria-hidden="true">
+        <div class="line line-1"></div>
+        <div class="line line-2"></div>
+        <div class="line line-3"></div>
+      </div>
+    </div>
     <div id="materialize-datepicker-portal" class="materialize-datepicker-scope"></div>
     <script>
+      if (!window.showTurboPreloader) {
+        window.showTurboPreloader = () => {
+          const preloader = document.getElementById('turbo-preloader');
+          if (!preloader) return;
+          preloader.classList.remove('is-hiding');
+          preloader.classList.add('is-active');
+        };
+      }
+
+      if (!window.hideTurboPreloader) {
+        window.hideTurboPreloader = () => {
+          const preloader = document.getElementById('turbo-preloader');
+          if (!preloader) return;
+          if (!preloader.classList.contains('is-active')) return;
+          preloader.classList.add('is-hiding');
+          window.setTimeout(() => {
+            preloader.classList.remove('is-active');
+            preloader.classList.remove('is-hiding');
+          }, 780);
+        };
+      }
+
+      if (!window.__turboPreloaderBound) {
+        window.__turboPreloaderBound = true;
+        document.addEventListener('turbo:before-visit', window.showTurboPreloader);
+        document.addEventListener('turbo:visit', window.showTurboPreloader);
+        document.addEventListener('turbo:load', window.hideTurboPreloader);
+        document.addEventListener('turbo:before-cache', window.hideTurboPreloader);
+        document.addEventListener('DOMContentLoaded', window.hideTurboPreloader);
+        window.addEventListener('load', window.hideTurboPreloader);
+      }
+
+      if (!window.handleTurboBeforeRender) {
+        window.handleTurboBeforeRender = (event) => {
+          const newBody = event?.detail?.newBody;
+          if (newBody && newBody.hasAttribute('data-turbo-preview')) return;
+          window.hideTurboPreloader();
+        };
+        document.addEventListener('turbo:before-render', window.handleTurboBeforeRender);
+      }
+
       if (!window.initializeLucideIcons) {
         window.initializeLucideIcons = function(attemptsRemaining = 20) {
           if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -69,6 +117,127 @@
         document.addEventListener('DOMContentLoaded', window.initializeLucideIcons);
         document.addEventListener('turbo:load', window.initializeLucideIcons);
       }
+
+      if (!window.applySidebarState) {
+        window.applySidebarState = (collapsed) => {
+          document.body.classList.toggle('sidebar-collapsed', collapsed);
+          window.localStorage.setItem('sidebar-collapsed', collapsed ? '1' : '0');
+        };
+      }
+
+      if (!window.applyTheme) {
+        window.applyTheme = (theme) => {
+          const normalized = theme === 'dark' ? 'dark' : 'light';
+          document.body.dataset.theme = normalized;
+          window.localStorage.setItem('theme-preference', normalized);
+
+          const toggle = document.getElementById('theme-toggle');
+          if (!toggle) return;
+          const darkIcon = toggle.querySelector('[data-theme-icon="dark"]');
+          const lightIcon = toggle.querySelector('[data-theme-icon="light"]');
+          if (!darkIcon || !lightIcon) return;
+
+          if (normalized === 'dark') {
+            darkIcon.classList.add('hidden');
+            lightIcon.classList.remove('hidden');
+          } else {
+            lightIcon.classList.add('hidden');
+            darkIcon.classList.remove('hidden');
+          }
+        };
+      }
+
+      if (!window.bindUiToggles) {
+        window.bindUiToggles = () => {
+          const savedCollapsed = window.localStorage.getItem('sidebar-collapsed') === '1';
+          window.applySidebarState(savedCollapsed);
+
+          const savedTheme = window.localStorage.getItem('theme-preference');
+          window.applyTheme(savedTheme || 'light');
+
+          const sidebarToggle = document.getElementById('sidebar-toggle');
+          if (sidebarToggle && !sidebarToggle.dataset.boundToggle) {
+            sidebarToggle.dataset.boundToggle = 'true';
+            sidebarToggle.addEventListener('click', () => {
+              const collapsed = !document.body.classList.contains('sidebar-collapsed');
+              window.applySidebarState(collapsed);
+            });
+          }
+
+          const themeToggle = document.getElementById('theme-toggle');
+          if (themeToggle && !themeToggle.dataset.boundToggle) {
+            themeToggle.dataset.boundToggle = 'true';
+            themeToggle.addEventListener('click', () => {
+              const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+              window.applyTheme(next);
+            });
+          }
+
+          document.querySelectorAll('aside .nav-btn[data-tooltip]').forEach((btn) => {
+            const label = btn.dataset.tooltip || '';
+            if (!btn.getAttribute('aria-label')) {
+              btn.setAttribute('aria-label', label);
+            }
+          });
+        };
+      }
+
+      window.bindUiToggles();
+      document.addEventListener('turbo:load', window.bindUiToggles);
+
+      if (!window.ensureSidebarTooltip) {
+        window.ensureSidebarTooltip = () => {
+          let tooltip = document.querySelector('.sidebar-tooltip');
+          if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.className = 'sidebar-tooltip';
+            document.body.appendChild(tooltip);
+          }
+          return tooltip;
+        };
+      }
+
+      if (!window.showSidebarTooltip) {
+        window.showSidebarTooltip = (event) => {
+          if (!document.body.classList.contains('sidebar-collapsed')) return;
+          const target = event.currentTarget;
+          const label = target?.dataset?.tooltip || '';
+          if (!label) return;
+          const tooltip = window.ensureSidebarTooltip();
+          tooltip.textContent = label;
+          const rect = target.getBoundingClientRect();
+          const top = rect.top + rect.height / 2;
+          const left = rect.right + 12;
+          tooltip.style.top = `${top}px`;
+          tooltip.style.left = `${left}px`;
+          tooltip.style.transform = 'translate3d(0, -50%, 0)';
+          tooltip.classList.add('is-visible');
+        };
+      }
+
+      if (!window.hideSidebarTooltip) {
+        window.hideSidebarTooltip = () => {
+          const tooltip = document.querySelector('.sidebar-tooltip');
+          if (tooltip) tooltip.classList.remove('is-visible');
+        };
+      }
+
+      if (!window.bindSidebarTooltips) {
+        window.bindSidebarTooltips = () => {
+          window.ensureSidebarTooltip();
+          document.querySelectorAll('aside .nav-btn[data-tooltip]').forEach((btn) => {
+            if (btn.dataset.tooltipBound) return;
+            btn.dataset.tooltipBound = 'true';
+            btn.addEventListener('mouseenter', window.showSidebarTooltip);
+            btn.addEventListener('focus', window.showSidebarTooltip);
+            btn.addEventListener('mouseleave', window.hideSidebarTooltip);
+            btn.addEventListener('blur', window.hideSidebarTooltip);
+          });
+        };
+      }
+
+      window.bindSidebarTooltips();
+      document.addEventListener('turbo:load', window.bindSidebarTooltips);
 
       if (!window.getTabIdFromPath) {
         window.getTabIdFromPath = function(path) {

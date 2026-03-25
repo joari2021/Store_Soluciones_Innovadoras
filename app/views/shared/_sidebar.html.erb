@@ -1,9 +1,14 @@
  <!--==================== NAV ====================-->
-<aside class="w-72 bg-white/80 border-r border-sky-100 hidden md:flex flex-col backdrop-blur-md z-20">
-  <div class="p-8">
+<aside class="app-sidebar w-72 bg-white/80 border-r border-sky-100 hidden md:flex flex-col backdrop-blur-md z-20">
+  <div class="flex items-center justify-center px-6 pt-5">
+    <button id="sidebar-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-50" aria-label="Colapsar sidebar">
+      <i data-lucide="panel-left" class="h-5 w-5"></i>
+    </button>
+  </div>
+  <div class="p-5">
     <% active_business = current_business %>
     <div class="flex justify-center">
-      <div class="h-20 w-20 overflow-hidden rounded-full border border-sky-100 bg-white shadow-md">
+      <div class="sidebar-logo h-20 w-20 overflow-hidden rounded-full border border-sky-100 bg-white shadow-md">
         <% if active_business&.logo&.attached? %>
           <%= image_tag active_business.logo, class: 'h-full w-full object-cover', alt: "Logo de #{active_business.name}" %>
         <% else %>
@@ -16,109 +21,98 @@
   </div>
   <nav class="sidebar-nav-scroll flex-1 min-h-0 overflow-y-auto px-6 pr-4 space-y-2 mt-2">
     <% if can_access_module?(:ventas) %>
-      <%= link_to ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Ventas' } do %>
         <i data-lucide="shopping-cart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Ventas</span>
+        <span class="sidebar-label">Ventas</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:historial_ventas) %>
-      <%= link_to historial_ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to historial_ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Historial de Ventas' } do %>
         <i data-lucide="list" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Historial de Ventas</span>
+        <span class="sidebar-label">Historial de Ventas</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:cash_shifts) %>
-      <%= link_to cash_shifts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to cash_shifts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Cierres de Turno' } do %>
         <i data-lucide="clock-3" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Cierres de Turno</span>
+        <span class="sidebar-label">Cierres de Turno</span>
       <% end %>
     <% end %>
-
-    <% if can_access_module?(:productos) %>
-      <%= link_to productos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+    <% if can_access_module?(:productos) && current_user_admin? %>
+      <%= link_to productos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Productos' } do %>
         <i data-lucide="package" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Productos</span>
+        <span class="sidebar-label">Productos</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:services) %>
-      <%= link_to services_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to services_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Servicios' } do %>
         <i data-lucide="zap" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Servicios</span>
+        <span class="sidebar-label">Servicios</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:deudas) %>
-      <%= link_to debts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to debts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Deudas' } do %>
         <i data-lucide="hand-coins" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Deudas</span>
+        <span class="sidebar-label">Deudas</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:expenses) %>
-      <%= link_to expenses_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to expenses_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Gastos' } do %>
         <i data-lucide="receipt" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Gastos</span>
+        <span class="sidebar-label">Gastos</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:accounts) %>
-      <%= link_to accounts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to accounts_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Cuentas' } do %>
         <i data-lucide="wallet" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Cuentas</span>
+        <span class="sidebar-label">Cuentas</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:purchase_invoices) %>
-      <%= link_to purchase_invoices_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to purchase_invoices_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Facturas de Compra' } do %>
         <i data-lucide="file-text" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Facturas de Compra</span>
+        <span class="sidebar-label">Facturas de Compra</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:suppliers) %>
-      <%= link_to suppliers_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to suppliers_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Proveedores' } do %>
         <i data-lucide="truck" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Proveedores</span>
+        <span class="sidebar-label">Proveedores</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:clientes) %>
-      <%= link_to clientes_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to clientes_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Clientes' } do %>
         <i data-lucide="users" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Clientes</span>
+        <span class="sidebar-label">Clientes</span>
       <% end %>
     <% end %>
-
     <% if can_access_module?(:rates) %>
-      <%= link_to tasa_cambios_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700" do %>
+      <%= link_to tasa_cambios_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Tasas de Divisas' } do %>
         <i data-lucide="arrow-left-right" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span>Tasas de Divisas</span>
+        <span class="sidebar-label">Tasas de Divisas</span>
       <% end %>
     <% end %>
   </nav>
-  <div class="p-6 border-t border-sky-100/50">
-    <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-sky-50 to-white rounded-2xl border border-sky-100">
-      <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-sky-100">
+  <div class="p-4 border-t border-sky-100/50">
+    <div class="sidebar-user-card flex items-center gap-3 p-2.5 bg-gradient-to-r from-sky-50 to-white rounded-2xl border border-sky-100">
+      <div class="sidebar-user-avatar flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-white shadow-md">
         <% if Current.user&.avatar&.attached? %>
           <%= image_tag Current.user.avatar, class: 'h-full w-full object-cover', alt: Current.user.display_name %>
         <% else %>
           <span class="text-sm font-bold text-sky-700"><%= Current.user&.display_name.to_s.first&.upcase || 'U' %></span>
         <% end %>
       </div>
-      <div class="text-sm overflow-hidden">
+      <div class="sidebar-user-details text-sm overflow-hidden">
         <p class="font-bold text-slate-700 truncate"><%= Current.user&.display_name %></p>
         <p class="text-xs text-sky-500 truncate"><%= current_user_role_label %></p>
         <p class="text-[11px] text-slate-400 truncate"><%= current_business&.name %></p>
       </div>
     </div>
     <%= link_to logout_path,
-                data: { turbo_method: :delete, swal_delete: 'logout' },
-                class: 'mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100' do %>
+          data: { turbo_method: :delete, swal_delete: 'logout', tooltip: 'Cerrar sesion' },
+          class: 'sidebar-logout nav-btn mt-3 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100' do %>
       <i data-lucide="log-out" class="h-4 w-4"></i>
-      Cerrar sesion
+      <span class="sidebar-logout-label">Cerrar sesion</span>
     <% end %>
   </div>
 </aside>

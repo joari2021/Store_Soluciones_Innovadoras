@@ -17,6 +17,7 @@ class MercantilC2pSandboxController < ApplicationController
     result = client.search(
       amount: @form[:amount],
       customer_phone_number: @form[:customer_phone_number],
+      payer_id: @form[:payer_id],
       payment_reference: @form[:payment_reference],
       transaction_date: @form[:transaction_date]
     )
@@ -34,12 +35,13 @@ class MercantilC2pSandboxController < ApplicationController
 
   def assign_default_form
     @form = {
-      amount: '1.00',
-      customer_phone_prefix: '414',
-      customer_phone_line: '',
+      amount: '1318144',
+      customer_phone_prefix: '424',
+      customer_phone_line: '1513063',
       customer_phone_number: '',
-      payment_reference: '',
-      transaction_date: Date.current.strftime('%Y-%m-%d')
+      payer_id: 'V18367443',
+      payment_reference: '87860014874',
+      transaction_date: '2026-03-03'
     }
     @request_ok = nil
     @http_status = nil
@@ -53,6 +55,7 @@ class MercantilC2pSandboxController < ApplicationController
       :amount,
       :customer_phone_prefix,
       :customer_phone_line,
+      :payer_id,
       :payment_reference,
       :transaction_date
     )
@@ -63,8 +66,9 @@ class MercantilC2pSandboxController < ApplicationController
     @form[:customer_phone_prefix] = @form[:customer_phone_prefix].to_s.gsub(/\D/, '')
     @form[:customer_phone_line] = @form[:customer_phone_line].to_s.gsub(/\D/, '')
     @form[:customer_phone_number] = "58#{@form[:customer_phone_prefix]}#{@form[:customer_phone_line]}"
+    @form[:payer_id] = @form[:payer_id].to_s.strip.upcase
     @form[:payment_reference] = @form[:payment_reference].to_s.strip
-    @form[:transaction_date] = @form[:transaction_date].to_s.tr('-', '/')
+    @form[:transaction_date] = @form[:transaction_date].to_s
   end
 
   def ensure_development_mode

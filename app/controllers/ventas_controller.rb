@@ -9,7 +9,7 @@ class VentasController < ApplicationController
 
   def index
     products_scope = ventas_products_scope
-    @productos_total_count = products_scope.count
+    @productos_total_count = products_scope.except(:includes, :order).count
     @productos = paginate_scope(products_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
     @products_next_page = next_page_for(total_count: @productos_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
 
@@ -30,26 +30,22 @@ class VentasController < ApplicationController
     unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
     effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
 
-    services_scope = ventas_services_scope
-    @services_total_count = services_scope.count
-    @services = paginate_scope(services_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
-    @services_next_page = next_page_for(total_count: @services_total_count, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
+    services_count_scope = current_business.services
+                                           .where(available: true)
+                                           .visible_for_user(Current.user)
+    @services_total_count = services_count_scope.count
+    @services = []
+    @services_next_page = @services_total_count.positive? ? 1 : nil
+    @services_preloaded = false
 
-    @service_systems = current_business.services
-                                       .where(available: true)
-                                       .visible_for_user(Current.user)
-                                       .joins(:system_service)
-                                       .group('system_services.name')
-                                       .count
-                                       .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
+    @service_systems = services_count_scope
+                       .joins(:system_service)
+                       .group('system_services.name')
+                       .count
+                       .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
-    @services_payload = build_services_payload(
-      @services,
-      tasa_dolar: tasa_dolar,
-      unidad_vi: unidad_vi,
-      effective_bcv_rate: effective_bcv_rate
-    )
-    @services_payload_by_id = @services_payload.index_by { |row| row[:id] }
+    @services_payload = []
+    @services_payload_by_id = {}
 
     @accounts_payload = @accounts.map do |account|
       {
@@ -1288,6 +1284,28 @@ class VentasController < ApplicationController
   end
 
   def build_services_payload(services, tasa_dolar:, unidad_vi:, effective_bcv_rate:)
+    reference_cache = {}
+    symbol_cache = {}
+    service_references = services.map do |service|
+      reference = service.currency_base_price.to_s.strip.presence || Service::DEFAULT_REFERENCE
+      reference == Service::LEGACY_USD_REFERENCE ? Service::DEFAULT_REFERENCE : reference
+    end.uniq
+
+    service_references.each do |reference|
+      reference_cache[reference] = case reference
+                                   when Service::BOLIVAR_REFERENCE
+                                     1.to_d
+                                   when Service::DEFAULT_REFERENCE
+                                     effective_bcv_rate
+                                   else
+                                     TasaCambio.latest_value(reference).to_d
+                                   end
+
+      symbol_cache[reference] = TasaCambio.latest_symbol(reference).presence ||
+                                TasaCambio::DEFAULT_SYMBOLS[reference] ||
+                                (reference == Service::BOLIVAR_REFERENCE ? 'Bs' : '$')
+    end
+
     services.map do |service|
       unit_price_usd = service.fixed? ? service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
       unit_price_bs = service.fixed? ? service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) : nil
@@ -1297,18 +1315,8 @@ class VentasController < ApplicationController
       currency_base_reference = service.currency_base_price.to_s.strip.presence || Service::DEFAULT_REFERENCE
       currency_base_reference = Service::DEFAULT_REFERENCE if currency_base_reference == Service::LEGACY_USD_REFERENCE
 
-      reference_rate_bs = case currency_base_reference
-                          when Service::BOLIVAR_REFERENCE
-                            1.to_d
-                          when Service::DEFAULT_REFERENCE
-                            effective_bcv_rate
-                          else
-                            TasaCambio.latest_value(currency_base_reference).to_d
-                          end
-
-      currency_symbol = TasaCambio.latest_symbol(currency_base_reference).presence ||
-                        TasaCambio::DEFAULT_SYMBOLS[currency_base_reference] ||
-                        (currency_base_reference == Service::BOLIVAR_REFERENCE ? 'Bs' : '$')
+      reference_rate_bs = reference_cache[currency_base_reference]
+      currency_symbol = symbol_cache[currency_base_reference]
 
       consumable_costs = []
       has_manager_or_variable_expense = false
@@ -3024,6 +3032,25 @@ class VentasController < ApplicationController
       ''
     end
   end
+end
+
+def services_snapshot
+  ids = params[:ids].to_s.split(',').map { |value| value.to_s.strip }.reject(&:blank?).uniq
+  return render json: { services: [] } if ids.empty?
+
+  tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil
+  unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
+  effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
+
+  services = ventas_services_scope.where(id: ids)
+  payload = build_services_payload(
+    services,
+    tasa_dolar: tasa_dolar,
+    unidad_vi: unidad_vi,
+    effective_bcv_rate: effective_bcv_rate
+  )
+
+  render json: { services: payload }
 end
 
 def normalize_service_delivery_presentation(value, service: nil)

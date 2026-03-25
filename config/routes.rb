@@ -68,6 +68,7 @@ Rails.application.routes.draw do
       get :historial
       get :drafts
       get :products_snapshot
+      get :services_snapshot
       get :catalog_products
       get :catalog_services
       get 'drafts/:id', action: :show_draft

@@ -13,12 +13,13 @@ module Mercantil
       @config = config.symbolize_keys
     end
 
-    def search(amount:, customer_phone_number:, payment_reference:, transaction_date:)
+    def search(amount:, customer_phone_number:, payment_reference:, transaction_date:, payer_id: nil)
       validate_config!
 
       payload = build_payload(
         amount: amount,
         customer_phone_number: customer_phone_number,
+        payer_id: payer_id,
         payment_reference: payment_reference,
         transaction_date: transaction_date
       )
@@ -64,7 +65,20 @@ module Mercantil
       raise ArgumentError, "Faltan credenciales/configuracion: #{missing.join(', ')}"
     end
 
-    def build_payload(amount:, customer_phone_number:, payment_reference:, transaction_date:)
+    def build_payload(amount:, customer_phone_number:, payer_id:, payment_reference:, transaction_date:)
+      search_by = {
+        amount: amount.to_s,
+        currency: 'ves',
+        destination_mobile_number: encrypt_value(normalize_phone(customer_phone_number)),
+        origin_mobile_number: encrypt_value(normalize_phone(@config[:origin_phone_number])),
+        payment_reference: payment_reference.to_s,
+        trx_date: transaction_date.to_s
+      }
+
+      if payer_id.to_s.strip != ''
+        search_by[:destination_id] = encrypt_value(payer_id.to_s.strip)
+      end
+
       {
         merchant_identify: {
           integratorId: @config[:integrator_id].to_s,
@@ -78,14 +92,7 @@ module Mercantil
             manufacturer: 'Ruby'
           }
         },
-        search_by: {
-          amount: amount.to_s,
-          currency: 'ves',
-          destination_mobile_number: encrypt_value(customer_phone_number),
-          origin_mobile_number: encrypt_value(@config[:origin_phone_number]),
-          payment_reference: payment_reference.to_s,
-          trx_date: transaction_date.to_s
-        }
+        search_by: search_by
       }
     end
 
@@ -108,7 +115,8 @@ module Mercantil
       secret_key = @config[:secret_key].to_s
       normalized = raw_value.to_s
 
-      key = Digest::SHA256.digest(secret_key).byteslice(0, 16)
+      key_hex = Digest::SHA256.hexdigest(secret_key)
+      key = [key_hex[0, key_hex.length / 2]].pack('H*')
       cipher = OpenSSL::Cipher.new('AES-128-ECB')
       cipher.encrypt
       cipher.key = key
@@ -116,6 +124,10 @@ module Mercantil
 
       encrypted = cipher.update(normalized) + cipher.final
       Base64.strict_encode64(encrypted)
+    end
+
+    def normalize_phone(raw_value)
+      raw_value.to_s.gsub(/\D/, '')
     end
 
     def parse_json(raw_body)

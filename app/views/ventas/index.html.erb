@@ -263,278 +263,311 @@
     <%= raw ERB::Util.json_escape(@services_payload.to_json) %>
   </script>
   <section id="tab-ventas" class="fade-in">
-    <div class="flex flex-col lg:flex-row gap-6 h-full">
-      <div class="lg:w-2/3 space-y-6">
-        <div class="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
-          <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div class="w-full max-w-xl">
-              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Explorador de venta</p>
-              <div class="relative mt-2 flex-1">
-                <input id="ventas-item-search" type="text" placeholder="Buscar productos o servicios" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 pr-11 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500">
-                <button id="ventas-item-search-clear" type="button" class="hidden absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700" aria-label="Limpiar busqueda">
-                  <i data-lucide="x" class="h-4 w-4"></i>
-                </button>
-              </div>
-            </div>
-            <div class="flex flex-col gap-3 xl:items-end">
-              <p class="text-xs text-slate-500">Filtra r&aacute;pido y cambia entre cat&aacute;logos sin perder el contexto de la orden.</p>
-              <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1.5 shadow-inner shadow-slate-100">
-                <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-200">Productos</button>
-                <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Servicios</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div id="ventas-product-panel" class="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
-          <% if @productos.any? %>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Cat&aacute;logo de productos</p>
-                <h2 class="mt-1 text-lg font-bold text-slate-800">Selecciona productos para sumarlos a la orden</h2>
-              </div>
-              <span class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
-                <i data-lucide="boxes" class="h-3.5 w-3.5"></i>
-                <%= @productos_total_count %> disponibles
-              </span>
-            </div>
-            <% if product_categories.any? %>
-              <div class="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-3">
-                <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Categorias activas</p>
-                <div class="mt-2 flex flex-wrap gap-2">
-                  <button type="button" data-product-category-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                    <span>Todas</span>
-                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @productos_total_count %></span>
-                  </button>
-                  <% product_categories.each do |nombre_categoria, cantidad_items| %>
-                    <button type="button" data-product-category-filter="<%= nombre_categoria %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
-                      <span class="max-w-[10rem] truncate"><%= nombre_categoria %></span>
-                      <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-bold text-cyan-700"><%= cantidad_items %></span>
-                    </button>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
-            <div id="ventas-product-grid" class="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <%= render partial: 'ventas/catalog_product_card', collection: @productos, as: :producto, locals: { products_payload_by_id: @products_payload_by_id, bcv_rate: bcv_rate } %>
-            </div>
-            <div id="ventas-products-infinite-sentinel" class="mt-4 flex justify-center <%= @products_next_page.present? ? '' : 'hidden' %>">
-              <div class="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
-                <span class="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-sky-400"></span>
-                Cargando m&aacute;s productos...
-              </div>
-            </div>
-          <% else %>
-            <div class="rounded-3xl border border-dashed border-sky-200 bg-gradient-to-br from-white to-sky-50 p-10 text-center shadow-sm">
-              <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
-                <i data-lucide="package" class="h-6 w-6"></i>
-              </div>
-              <h3 class="text-base font-semibold text-slate-700">No hay productos disponibles</h3>
-              <p class="mt-1 text-sm text-slate-500">Agrega productos para comenzar a vender.</p>
-            </div>
-          <% end %>
-        </div>
-        <div id="ventas-service-panel" class="space-y-4 hidden rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
-          <% if @services.any? %>
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Cat&aacute;logo de servicios</p>
-                <h2 class="mt-1 text-lg font-bold text-slate-800">Activa servicios y precios especiales desde el mismo POS</h2>
-              </div>
-              <span class="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100">
-                <i data-lucide="briefcase-business" class="h-3.5 w-3.5"></i>
-                <%= @services_total_count %> disponibles
-              </span>
-            </div>
-            <% if service_systems.any? %>
-              <div class="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-3">
-                <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Sistemas de servicios</p>
-                <div class="mt-2 flex flex-wrap gap-2">
-                  <button type="button" data-service-system-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                    <span>Todos</span>
-                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @services_total_count %></span>
-                  </button>
-                  <% service_systems.each do |nombre_sistema, cantidad_items| %>
-                    <button type="button" data-service-system-filter="<%= nombre_sistema %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
-                      <span class="max-w-[10rem] truncate"><%= nombre_sistema %></span>
-                      <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-bold text-cyan-700"><%= cantidad_items %></span>
-                    </button>
-                  <% end %>
-                </div>
-              </div>
-            <% end %>
-            <div id="ventas-service-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <%= render partial: 'ventas/catalog_service_card', collection: @services, as: :service, locals: { services_payload_by_id: @services_payload_by_id, bcv_rate: bcv_rate } %>
-            </div>
-            <div id="ventas-services-infinite-sentinel" class="mt-4 flex justify-center <%= @services_next_page.present? ? '' : 'hidden' %>">
-              <div class="inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm">
-                <span class="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-cyan-400"></span>
-                Cargando m&aacute;s servicios...
-              </div>
-            </div>
-          <% else %>
-            <div class="rounded-3xl border border-dashed border-cyan-200 bg-gradient-to-br from-white to-cyan-50 p-10 text-center shadow-sm">
-              <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-600">
-                <i data-lucide="briefcase" class="h-6 w-6"></i>
-              </div>
-              <h3 class="text-base font-semibold text-slate-700">No hay servicios disponibles</h3>
-              <p class="mt-1 text-sm text-slate-500">Registra servicios para facturarlos desde ventas.</p>
-            </div>
-          <% end %>
-        </div>
-      </div>
-      <div class="lg:w-1/3 mt-6 lg:mt-0">
-        <div class="sticky top-4 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
-          <div class="ventas-theme-payment-panel rounded-3xl bg-gradient-to-br from-slate-900 via-sky-900 to-cyan-700 p-5 text-white shadow-lg shadow-sky-200/40">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-100/80">Panel de cobro</p>
-                <h2 class="mt-2 flex items-center gap-2 text-xl font-bold">
-                  <i data-lucide="receipt" class="h-5 w-5 text-sky-200"></i>
-                  Orden actual
-                </h2>
-                <p class="mt-1 text-sm text-sky-100/80">Resumen din&aacute;mico de la orden y sus pagos.</p>
-              </div>
-              <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white ring-1 ring-white/15">Nueva</span>
-            </div>
-          </div>
-          <div class="mt-4 space-y-3">
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button id="ventas-save-draft-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
-                <i data-lucide="save" class="h-4 w-4"></i>
-                Guardar borrador
-              </button>
-              <button id="ventas-clear-panel-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
-                <i data-lucide="trash-2" class="h-4 w-4"></i>
-                Vaciar panel
-              </button>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Borradores</p>
-                <span id="ventas-drafts-count" class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">0</span>
-              </div>
-              <div id="ventas-drafts-list" class="mt-2 flex flex-wrap gap-2"></div>
-              <p id="ventas-drafts-empty" class="mt-2 text-xs text-slate-500">No hay borradores guardados.</p>
-            </div>
-          </div>
-          <% bcv_display = @tasa_dolar_bcv.is_a?(Numeric) ? format_money(@tasa_dolar_bcv, unit: 'Bs ') : @tasa_dolar_bcv.to_s %>
-          <div class="mt-4 rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-4 space-y-3">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Moneda base</p>
-              <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
-                Tasa BCV: <%= bcv_display %>
-              </span>
-            </div>
-            <div class="flex items-center gap-2">
-              <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm">
-                <input type="radio" name="ventas-base-currency" value="usd" class="cursor-pointer text-sky-600 focus:ring-sky-500">
-                USD
-              </label>
-              <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm">
-                <input type="radio" name="ventas-base-currency" value="ves" checked class="cursor-pointer text-sky-600 focus:ring-sky-500">
-                Bs
-              </label>
-            </div>
-          </div>
-          <div class="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="flex items-center justify-between gap-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</p>
-              <span class="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-100">Opcional</span>
-            </div>
-            <div class="relative mt-2">
-              <input id="ventas-client-search" type="text" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500" placeholder="Buscar cliente">
-              <div id="ventas-client-results" class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                <button type="button" id="ventas-client-add" class="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50">
-                  <i data-lucide="user-plus" class="h-4 w-4"></i>
-                  Agregar cliente
-                </button>
-                <div id="ventas-client-list" class="max-h-48 overflow-y-auto"></div>
-              </div>
-            </div>
-            <div id="ventas-client-selected" class="mt-3 hidden items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-              <div>
-                <p class="text-xs text-slate-500">Cliente seleccionado</p>
-                <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
-              </div>
-              <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
+    <div class="space-y-6 h-full">
+      <div class="rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
+        <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div class="w-full max-w-xl">
+            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Explorador de venta</p>
+            <div class="relative mt-2 flex-1">
+              <input id="ventas-item-search" type="text" placeholder="Buscar productos o servicios" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 pr-11 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500">
+              <button id="ventas-item-search-clear" type="button" class="hidden absolute right-3 top-1/2 -translate-y-1/2 inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700" aria-label="Limpiar busqueda">
                 <i data-lucide="x" class="h-4 w-4"></i>
               </button>
             </div>
-            <p id="ventas-client-empty" class="mt-3 text-xs text-slate-500">Cliente general</p>
           </div>
-          <div class="mt-4 rounded-3xl border border-slate-200 bg-slate-50/60 p-4">
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items de la orden</p>
-              <span class="rounded-full bg-slate-900/5 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Resumen en vivo</span>
+          <div class="flex flex-col gap-3 xl:items-end">
+            <p class="text-xs text-slate-500">Filtra r&aacute;pido y cambia entre cat&aacute;logos sin perder el contexto de la orden.</p>
+            <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1.5 shadow-inner shadow-slate-100">
+              <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-200">Productos</button>
+              <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Servicios</button>
             </div>
-            <div class="app-thin-scrollbar max-h-[40vh] overflow-y-auto pr-2">
-              <div id="ventas-cart-list" class="space-y-3"></div>
-              <div id="ventas-cart-empty" class="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center shadow-sm">
-                <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
-                  <i data-lucide="shopping-bag" class="h-5 w-5"></i>
+          </div>
+        </div>
+      </div>
+      <div id="ventas-product-panel" class="space-y-4 rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
+        <% if @productos.any? %>
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Cat&aacute;logo de productos</p>
+              <h2 class="mt-1 text-lg font-bold text-slate-800">Selecciona productos para sumarlos a la orden</h2>
+            </div>
+            <span class="inline-flex items-center gap-2 rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
+              <i data-lucide="boxes" class="h-3.5 w-3.5"></i>
+              <%= @productos_total_count %> disponibles
+            </span>
+          </div>
+          <% if product_categories.any? %>
+            <div class="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Categorias activas</p>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button type="button" data-product-category-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                  <span>Todas</span>
+                  <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @productos_total_count %></span>
+                </button>
+                <% product_categories.each do |nombre_categoria, cantidad_items| %>
+                  <button type="button" data-product-category-filter="<%= nombre_categoria %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
+                    <span class="max-w-[10rem] truncate"><%= nombre_categoria %></span>
+                    <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-bold text-cyan-700"><%= cantidad_items %></span>
+                  </button>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+          <div id="ventas-product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <%= render partial: 'ventas/catalog_product_card', collection: @productos, as: :producto, locals: { products_payload_by_id: @products_payload_by_id, bcv_rate: bcv_rate } %>
+          </div>
+          <div id="ventas-products-infinite-sentinel" class="mt-4 flex justify-center <%= @products_next_page.present? ? '' : 'hidden' %>">
+            <div class="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
+              <span class="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-sky-400"></span>
+              Cargando m&aacute;s productos...
+            </div>
+          </div>
+        <% else %>
+          <div class="rounded-3xl border border-dashed border-sky-200 bg-gradient-to-br from-white to-sky-50 p-10 text-center shadow-sm">
+            <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
+              <i data-lucide="package" class="h-6 w-6"></i>
+            </div>
+            <h3 class="text-base font-semibold text-slate-700">No hay productos disponibles</h3>
+            <p class="mt-1 text-sm text-slate-500">Agrega productos para comenzar a vender.</p>
+          </div>
+        <% end %>
+      </div>
+      <div id="ventas-service-panel" class="space-y-4 hidden rounded-3xl border border-slate-200 bg-white/95 p-4 shadow-sm sm:p-5">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Cat&aacute;logo de servicios</p>
+            <h2 class="mt-1 text-lg font-bold text-slate-800">Activa servicios y precios especiales desde el mismo POS</h2>
+          </div>
+          <span class="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-100">
+            <i data-lucide="briefcase-business" class="h-3.5 w-3.5"></i>
+            <%= @services_total_count %> disponibles
+          </span>
+        </div>
+        <% if service_systems.any? %>
+          <div class="rounded-2xl border border-cyan-100 bg-cyan-50/60 p-3">
+            <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Sistemas de servicios</p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button type="button" data-service-system-filter="" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                <span>Todos</span>
+                <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-[11px] font-bold text-white"><%= @services_total_count %></span>
+              </button>
+              <% service_systems.each do |nombre_sistema, cantidad_items| %>
+                <button type="button" data-service-system-filter="<%= nombre_sistema %>" class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-cyan-200 bg-white px-3 py-1 text-xs font-semibold text-cyan-700 ring-1 ring-cyan-200 transition-colors hover:bg-cyan-50">
+                  <span class="max-w-[10rem] truncate"><%= nombre_sistema %></span>
+                  <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full bg-cyan-100 px-1.5 py-0.5 text-[11px] font-bold text-cyan-700"><%= cantidad_items %></span>
+                </button>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+        <div id="ventas-service-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          <% if @services_preloaded %>
+            <% if @services.any? %>
+              <%= render partial: 'ventas/catalog_service_card', collection: @services, as: :service, locals: { services_payload_by_id: @services_payload_by_id, bcv_rate: bcv_rate } %>
+            <% else %>
+              <div class="col-span-full rounded-3xl border border-dashed border-cyan-200 bg-gradient-to-br from-white to-cyan-50 p-10 text-center shadow-sm">
+                <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-600">
+                  <i data-lucide="briefcase" class="h-6 w-6"></i>
                 </div>
-                <p class="text-sm font-semibold text-slate-700">Orden sin items</p>
-                <p class="mt-1 text-xs text-slate-500">Selecciona productos o servicios para armar la orden.</p>
+                <h3 class="text-base font-semibold text-slate-700">No hay servicios disponibles</h3>
+                <p class="mt-1 text-sm text-slate-500">Registra servicios para facturarlos desde ventas.</p>
               </div>
+            <% end %>
+          <% else %>
+            <div class="col-span-full rounded-3xl border border-cyan-100 bg-cyan-50/60 p-10 text-center shadow-sm" data-services-placeholder>
+              <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-600">
+                <i data-lucide="loader-2" class="h-6 w-6 animate-spin"></i>
+              </div>
+              <h3 class="text-base font-semibold text-slate-700">Cargando servicios...</h3>
+              <p class="mt-1 text-sm text-slate-500">Preparando el cat&aacute;logo para mostrarlo.</p>
             </div>
+          <% end %>
+        </div>
+        <div id="ventas-services-infinite-sentinel" class="mt-4 flex justify-center <%= @services_next_page.present? ? '' : 'hidden' %>">
+          <div class="inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm">
+            <span class="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-cyan-400"></span>
+            Cargando m&aacute;s servicios...
           </div>
-          <div class="mt-4 rounded-3xl border border-amber-200 bg-amber-50/60 p-4">
-            <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">IVA 16%</p>
-            <div class="mt-2 grid grid-cols-3 gap-2 text-[11px]">
-              <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
-                <input type="radio" name="ventas-vat-mode" value="none" checked class="cursor-pointer text-sky-600 focus:ring-sky-500">
-                Sin IVA
-              </label>
-              <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
-                <input type="radio" name="ventas-vat-mode" value="add" class="cursor-pointer text-sky-600 focus:ring-sky-500">
-                Agregar
-              </label>
-              <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
-                <input type="radio" name="ventas-vat-mode" value="included" class="cursor-pointer text-sky-600 focus:ring-sky-500">
-                Invertido
-              </label>
-            </div>
-          </div>
-          <div class="ventas-theme-summary-panel mt-4 rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-4">
-            <div class="space-y-3">
-              <div class="flex justify-between text-sm text-slate-500">
-                <span>Subtotal gravado</span>
-                <span class="text-right">
-                  <span id="ventas-subtotal-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
-                  <span id="ventas-subtotal-bs" class="block text-xs text-slate-400">Bs 0,00</span>
-                </span>
-              </div>
-              <div class="flex justify-between text-sm text-slate-500">
-                <span>Exento</span>
-                <span class="text-right">
-                  <span id="ventas-exento-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
-                  <span id="ventas-exento-bs" class="block text-xs text-slate-400">Bs 0,00</span>
-                </span>
-              </div>
-              <div class="flex justify-between text-sm text-slate-500">
-                <span id="ventas-iva-label">IVA</span>
-                <span class="text-right">
-                  <span id="ventas-iva-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
-                  <span id="ventas-iva-bs" class="block text-xs text-slate-400">Bs 0,00</span>
-                </span>
-              </div>
-              <div class="flex justify-between text-xl font-bold text-slate-800 pt-2">
-                <span>Total</span>
-                <span class="text-right">
-                  <span id="ventas-total-usd" class="block text-2xl text-sky-700"><%= format_money(0, unit: '$') %></span>
-                  <span id="ventas-total-bs" class="block text-xs font-semibold text-slate-400">Bs 0,00</span>
-                </span>
-              </div>
-            </div>
-          </div>
-          <button id="ventas-pay-button" type="button" class="ventas-theme-pay-button mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-700 px-4 py-4 font-bold text-white shadow-xl shadow-sky-200 transition-all hover:from-slate-800 hover:to-sky-600 active:scale-[0.98]">
-            <span>Cobrar</span>
-            <i data-lucide="arrow-right" class="w-4 h-4"></i>
-          </button>
         </div>
       </div>
     </div>
-  </section>
+    <button id="ventas-cart-toggle" type="button" class="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-2xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-slate-800">
+      <i data-lucide="shopping-cart" class="h-5 w-5"></i>
+      <span id="ventas-cart-count" class="absolute -top-2 -right-2 hidden min-w-[1.7rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white shadow">0</span>
+    </button>
+  </div>
+</section>
+<div id="ventas-cart-modal" class="fixed inset-0 z-50 pointer-events-none" aria-hidden="true">
+  <div id="ventas-cart-backdrop" class="absolute inset-0 bg-slate-900/40 opacity-0 transition-opacity duration-300"></div>
+  <div class="absolute right-0 top-0 h-full w-full max-w-xl translate-x-full transform transition-transform duration-300 ease-out" id="ventas-cart-panel">
+    <div class="flex h-full flex-col overflow-hidden rounded-l-3xl border border-slate-200 bg-white/95 shadow-2xl">
+      <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-4">
+        <div class="flex items-center gap-2">
+          <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-900 text-white">
+            <i data-lucide="receipt" class="h-4 w-4"></i>
+          </span>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Panel de cobro</p>
+            <p class="text-base font-bold text-slate-800">Orden actual</p>
+          </div>
+        </div>
+        <button id="ventas-cart-close" type="button" class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 text-rose-600 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 hover:text-rose-700">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div class="app-thin-scrollbar flex-1 overflow-y-auto p-4 sm:p-5">
+        <div class="ventas-theme-payment-panel rounded-3xl bg-gradient-to-br from-slate-900 via-sky-900 to-cyan-700 p-5 text-white shadow-lg shadow-sky-200/40">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-100/80">Panel de cobro</p>
+              <h2 class="mt-2 flex items-center gap-2 text-xl font-bold">
+                <i data-lucide="receipt" class="h-5 w-5 text-sky-200"></i>
+                Orden actual
+              </h2>
+              <p class="mt-1 text-sm text-sky-100/80">Resumen din&aacute;mico de la orden y sus pagos.</p>
+            </div>
+            <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white ring-1 ring-white/15">Nueva</span>
+          </div>
+        </div>
+        <div class="mt-4 space-y-3">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <button id="ventas-save-draft-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
+              <i data-lucide="save" class="h-4 w-4"></i>
+              Guardar borrador
+            </button>
+            <button id="ventas-clear-panel-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
+              <i data-lucide="trash-2" class="h-4 w-4"></i>
+              Vaciar panel
+            </button>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Borradores</p>
+              <span id="ventas-drafts-count" class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">0</span>
+            </div>
+            <div id="ventas-drafts-list" class="mt-2 flex flex-wrap gap-2"></div>
+            <p id="ventas-drafts-empty" class="mt-2 text-xs text-slate-500">No hay borradores guardados.</p>
+          </div>
+        </div>
+        <% bcv_display = @tasa_dolar_bcv.is_a?(Numeric) ? format_money(@tasa_dolar_bcv, unit: 'Bs ') : @tasa_dolar_bcv.to_s %>
+        <div class="mt-4 rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-4 space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Moneda base</p>
+            <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+              Tasa BCV: <%= bcv_display %>
+            </span>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm">
+              <input type="radio" name="ventas-base-currency" value="usd" class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              USD
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm">
+              <input type="radio" name="ventas-base-currency" value="ves" checked class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              Bs
+            </label>
+          </div>
+        </div>
+        <div class="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</p>
+            <span class="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-100">Opcional</span>
+          </div>
+          <div class="relative mt-2">
+            <input id="ventas-client-search" type="text" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500" placeholder="Buscar cliente">
+            <div id="ventas-client-results" class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+              <button type="button" id="ventas-client-add" class="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50">
+                <i data-lucide="user-plus" class="h-4 w-4"></i>
+                Agregar cliente
+              </button>
+              <div id="ventas-client-list" class="max-h-48 overflow-y-auto"></div>
+            </div>
+          </div>
+          <div id="ventas-client-selected" class="mt-3 hidden items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+            <div>
+              <p class="text-xs text-slate-500">Cliente seleccionado</p>
+              <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
+            </div>
+            <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
+              <i data-lucide="x" class="h-4 w-4"></i>
+            </button>
+          </div>
+          <p id="ventas-client-empty" class="mt-3 text-xs text-slate-500">Cliente general</p>
+        </div>
+        <div class="mt-4 rounded-3xl border border-slate-200 bg-slate-50/60 p-4">
+          <div class="mb-3 flex items-center justify-between gap-2">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items de la orden</p>
+            <span class="rounded-full bg-slate-900/5 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Resumen en vivo</span>
+          </div>
+          <div class="app-thin-scrollbar max-h-[40vh] overflow-y-auto pr-2">
+            <div id="ventas-cart-list" class="space-y-3"></div>
+            <div id="ventas-cart-empty" class="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center shadow-sm">
+              <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
+                <i data-lucide="shopping-bag" class="h-5 w-5"></i>
+              </div>
+              <p class="text-sm font-semibold text-slate-700">Orden sin items</p>
+              <p class="mt-1 text-xs text-slate-500">Selecciona productos o servicios para armar la orden.</p>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 rounded-3xl border border-amber-200 bg-amber-50/60 p-4">
+          <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">IVA 16%</p>
+          <div class="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
+              <input type="radio" name="ventas-vat-mode" value="none" checked class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              Sin IVA
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
+              <input type="radio" name="ventas-vat-mode" value="add" class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              Agregar
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
+              <input type="radio" name="ventas-vat-mode" value="included" class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              Invertido
+            </label>
+          </div>
+        </div>
+        <div class="ventas-theme-summary-panel mt-4 rounded-3xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-4">
+          <div class="space-y-3">
+            <div class="flex justify-between text-sm text-slate-500">
+              <span>Subtotal gravado</span>
+              <span class="text-right">
+                <span id="ventas-subtotal-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
+                <span id="ventas-subtotal-bs" class="block text-xs text-slate-400">Bs 0,00</span>
+              </span>
+            </div>
+            <div class="flex justify-between text-sm text-slate-500">
+              <span>Exento</span>
+              <span class="text-right">
+                <span id="ventas-exento-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
+                <span id="ventas-exento-bs" class="block text-xs text-slate-400">Bs 0,00</span>
+              </span>
+            </div>
+            <div class="flex justify-between text-sm text-slate-500">
+              <span id="ventas-iva-label">IVA</span>
+              <span class="text-right">
+                <span id="ventas-iva-usd" class="block font-semibold text-slate-700"><%= format_money(0, unit: '$') %></span>
+                <span id="ventas-iva-bs" class="block text-xs text-slate-400">Bs 0,00</span>
+              </span>
+            </div>
+            <div class="flex justify-between text-xl font-bold text-slate-800 pt-2">
+              <span>Total</span>
+              <span class="text-right">
+                <span id="ventas-total-usd" class="block text-2xl text-sky-700"><%= format_money(0, unit: '$') %></span>
+                <span id="ventas-total-bs" class="block text-xs font-semibold text-slate-400">Bs 0,00</span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <button id="ventas-pay-button" type="button" class="ventas-theme-pay-button mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-700 px-4 py-4 font-bold text-white shadow-xl shadow-sky-200 transition-all hover:from-slate-800 hover:to-sky-600 active:scale-[0.98]">
+          <span>Cobrar</span>
+          <i data-lucide="arrow-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
 </div>
 <script>
   (() => {
@@ -678,6 +711,12 @@
       const draftsListEl = document.getElementById('ventas-drafts-list');
       const draftsEmptyEl = document.getElementById('ventas-drafts-empty');
       const draftsCountEl = document.getElementById('ventas-drafts-count');
+      const cartToggleButton = document.getElementById('ventas-cart-toggle');
+      const cartCountBadge = document.getElementById('ventas-cart-count');
+      const cartModal = document.getElementById('ventas-cart-modal');
+      const cartBackdrop = document.getElementById('ventas-cart-backdrop');
+      const cartPanel = document.getElementById('ventas-cart-panel');
+      const cartCloseButton = document.getElementById('ventas-cart-close');
 
       const parseRate = (value) => {
         if (!value) return 0;
@@ -1298,6 +1337,8 @@
 
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(String(data.error || 'No se pudo cargar más servicios.'));
+
+          servicesGrid.querySelectorAll('[data-services-placeholder]').forEach((node) => node.remove());
 
           if (String(data.cards_html || '').trim()) {
             servicesGrid.insertAdjacentHTML('beforeend', String(data.cards_html));
@@ -2017,6 +2058,11 @@
           updateTabStyles();
           syncCatalogInfiniteSentinels();
           applySearch();
+          if (activeTab === 'services' && servicesGrid && servicesGrid.children.length === 0) {
+            if (!loadingServicesCatalog && Number.isInteger(nextServicesPage) && nextServicesPage > 0) {
+              loadMoreServicesCatalog();
+            }
+          }
         };
 
         searchInput.addEventListener('input', applySearch);
@@ -2092,6 +2138,20 @@
         const payButton = document.getElementById('ventas-pay-button');
         if (!cartList || !emptyState) return;
 
+        const updateCartBadge = () => {
+          if (!cartCountBadge) return;
+          const totalUnits = Array.from(cart.values()).reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+          if (totalUnits > 0) {
+            cartCountBadge.textContent = String(totalUnits);
+            cartCountBadge.classList.remove('hidden');
+            cartCountBadge.classList.add('inline-flex');
+          } else {
+            cartCountBadge.textContent = '0';
+            cartCountBadge.classList.add('hidden');
+            cartCountBadge.classList.remove('inline-flex');
+          }
+        };
+
         if (cart.size === 0) {
           cartList.innerHTML = '';
           emptyState.classList.remove('hidden');
@@ -2102,6 +2162,7 @@
           updateDraftActionButtons();
           renderTotals();
           updateAvailabilityUI();
+          updateCartBadge();
           queueActiveDraftSync();
           return;
         }
@@ -2217,8 +2278,45 @@
           window.lucide.createIcons();
         }
 
+        updateCartBadge();
         queueActiveDraftSync();
       };
+
+      const setCartModalOpen = (isOpen) => {
+        if (!cartModal || !cartBackdrop || !cartPanel) return;
+
+        if (isOpen) {
+          cartModal.classList.remove('pointer-events-none');
+          cartModal.setAttribute('aria-hidden', 'false');
+          cartBackdrop.classList.add('opacity-100');
+          cartPanel.classList.remove('translate-x-full');
+          cartPanel.classList.add('translate-x-0');
+          return;
+        }
+
+        cartBackdrop.classList.remove('opacity-100');
+        cartPanel.classList.remove('translate-x-0');
+        cartPanel.classList.add('translate-x-full');
+        cartModal.setAttribute('aria-hidden', 'true');
+        window.setTimeout(() => {
+          cartModal.classList.add('pointer-events-none');
+        }, 300);
+      };
+
+      if (cartToggleButton && !cartToggleButton.dataset.boundModal) {
+        cartToggleButton.dataset.boundModal = 'true';
+        cartToggleButton.addEventListener('click', () => setCartModalOpen(true));
+      }
+
+      if (cartCloseButton && !cartCloseButton.dataset.boundModal) {
+        cartCloseButton.dataset.boundModal = 'true';
+        cartCloseButton.addEventListener('click', () => setCartModalOpen(false));
+      }
+
+      if (cartBackdrop && !cartBackdrop.dataset.boundModal) {
+        cartBackdrop.dataset.boundModal = 'true';
+        cartBackdrop.addEventListener('click', () => setCartModalOpen(false));
+      }
 
       const addToCart = (productId, variationId, quantity) => {
         const product = productsById.get(String(productId));
@@ -4270,6 +4368,7 @@
             const isBank = account.is_bank;
             const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
             const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
+            const normalizedAccountType = String(account.account_type || '').toLowerCase();
             const typeLabelMap = {
               bank_account: 'Banco',
               cash_box: 'Efectivo',
@@ -4280,7 +4379,8 @@
               digital_wallet: 'Billetera digital',
               crypto_wallet: 'Billetera cripto',
             };
-            const accountTypeLabel = typeLabelMap[account.account_type] || account.account_type || 'Cuenta';
+            const accountTypeLabel = typeLabelMap[normalizedAccountType] || account.account_type || 'Cuenta';
+            const hideTypeBadge = ['biopago', 'pos', 'cashea'].includes(normalizedAccountType);
             const bankFieldsClass = isBank ? '' : 'hidden';
             const extraClass = options.extra ? ' hidden' : '';
             const extraAttr = options.extra ? ' data-bank-extra="true"' : '';
@@ -4313,6 +4413,9 @@
             const equivalentClass = hasPaymentMethodImage
               ? 'mt-2 inline-flex w-fit rounded-lg bg-white/82 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-white/75 backdrop-blur-[1px]'
               : 'mt-2 text-xs font-medium text-slate-500';
+            const typeBadgeHtml = hideTypeBadge
+              ? ''
+              : `<span class="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeBadgeClass}" data-pay-account-type-badge>${escapeHtml(accountTypeLabel)}</span>`;
             return `
               <div class="${cardClasses}${extraClass}" data-pay-row="${account.id}"${extraAttr}${cardStyle}>
                 <div class="flex items-start justify-between gap-3">
@@ -4320,7 +4423,7 @@
                     <input type="checkbox" class="${checkClass}" data-pay-check="${account.id}">
                     <span class="inline-flex flex-col">
                       <span class="inline-flex items-center gap-2 leading-tight" data-pay-account-label><span>${escapeHtml(account.name)}</span></span>
-                      <span class="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeBadgeClass}" data-pay-account-type-badge>${escapeHtml(accountTypeLabel)}</span>
+                      ${typeBadgeHtml}
                     </span>
                   </label>
                   <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${currencyBadgeClass}" data-pay-account-currency-badge>${escapeHtml(account.currency)}</span>
@@ -4347,6 +4450,7 @@
             const isBank = account.is_bank;
             const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
             const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
+            const normalizedAccountType = String(account.account_type || '').toLowerCase();
             const typeLabelMap = {
               bank_account: 'Banco',
               cash_box: 'Efectivo',
@@ -4357,7 +4461,8 @@
               digital_wallet: 'Billetera digital',
               crypto_wallet: 'Billetera cripto',
             };
-            const accountTypeLabel = typeLabelMap[account.account_type] || account.account_type || 'Cuenta';
+            const accountTypeLabel = typeLabelMap[normalizedAccountType] || account.account_type || 'Cuenta';
+            const hideTypeBadge = ['biopago', 'pos', 'cashea'].includes(normalizedAccountType);
             const bankFieldsClass = isBank ? '' : 'hidden';
             const rowClasses = 'rounded-2xl border border-amber-200 bg-white/95 p-3.5 shadow-sm transition-all';
             const rowStyle = hasPaymentMethodImage
@@ -4388,6 +4493,9 @@
             const equivalentClass = hasPaymentMethodImage
               ? 'mt-2 inline-flex w-fit rounded-lg bg-white/82 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-white/75 backdrop-blur-[1px]'
               : 'mt-2 text-xs font-medium text-slate-500';
+            const typeBadgeHtml = hideTypeBadge
+              ? ''
+              : `<span class="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeBadgeClass}">${escapeHtml(accountTypeLabel)}</span>`;
             return `
               <div class="${rowClasses}" data-change-row="${account.id}"${rowStyle}>
                 <div class="flex items-start justify-between gap-3">
@@ -4395,7 +4503,7 @@
                     <input type="checkbox" class="${checkClass}" data-change-check="${account.id}">
                     <span class="inline-flex flex-col">
                       <span class="inline-flex items-center gap-2 leading-tight"><span>${escapeHtml(account.name)}</span></span>
-                      <span class="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeBadgeClass}">${escapeHtml(accountTypeLabel)}</span>
+                      ${typeBadgeHtml}
                     </span>
                   </label>
                   <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${currencyBadgeClass}">${escapeHtml(account.currency)}</span>
@@ -5982,6 +6090,38 @@
         }, 4500);
       };
 
+      const fetchServicesSnapshot = async (serviceIds) => {
+        const ids = Array.from(new Set(serviceIds.map((value) => String(value).trim()).filter(Boolean)));
+        if (ids.length === 0) return;
+
+        const response = await fetch(`/ventas/services_snapshot?ids=${encodeURIComponent(ids.join(','))}`, {
+          headers: {
+            Accept: 'application/json',
+          },
+          credentials: 'same-origin',
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(String(data.error || 'No se pudo cargar los servicios del borrador.'));
+        }
+
+        upsertServicesCollection(data.services || []);
+      };
+
+      const ensureServicesForDraft = async (draft) => {
+        const stateItems = Array.isArray(draft?.state?.items) ? draft.state.items : [];
+        const serviceIds = stateItems
+          .filter((entry) => String(entry.item_type || '').toLowerCase() === 'service' || entry.service_id)
+          .map((entry) => String(entry.service_id || '').trim())
+          .filter(Boolean);
+
+        const missingIds = serviceIds.filter((id) => !servicesById.has(id));
+        if (missingIds.length === 0) return;
+
+        await fetchServicesSnapshot(missingIds);
+      };
+
       const hydrateDraftCart = (draft) => {
         const state = draft?.state || {};
         const stateItems = Array.isArray(state.items) ? state.items : [];
@@ -6142,6 +6282,7 @@
             setSelectedClient(null);
           }
 
+          await ensureServicesForDraft(draft);
           hydrateDraftCart(draft);
           draftSyncedFingerprint = buildDraftFingerprint();
           applySyncedReservationSnapshot(buildProductReservationSnapshot());

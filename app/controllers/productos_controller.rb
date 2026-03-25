@@ -4,7 +4,7 @@ class ProductosController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:productos) }
   before_action :set_producto, only: %i[show edit update destroy]
-  before_action :require_admin, except: %i[index show search]
+  before_action :require_admin
 
   def index
     @query_text = params[:query_text].to_s.strip

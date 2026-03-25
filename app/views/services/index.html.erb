@@ -148,7 +148,7 @@
             </div>
             <h3 class="services-card-title mt-3 text-base font-bold text-slate-800"><%= service.description %></h3>
             <div class="services-card-pricing mt-3 flex items-end justify-between gap-3">
-              <div>
+              <div class="services-card-price">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio</p>
                 <% if service.to_agree? %>
                   <p class="text-lg font-extrabold text-amber-600">A convenir</p>
@@ -168,7 +168,7 @@
                   <% end %>
                 <% end %>
               </div>
-              <div class="flex items-center gap-2">
+              <div class="services-card-actions flex items-center gap-2">
                 <% can_open_show_modal = Current.user&.admin? || service.available? %>
                 <% if can_open_show_modal %>
                   <button type="button"
@@ -194,29 +194,25 @@
             <% if Current.user&.admin? %>
               <div class="services-card-costs mt-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-2 text-[11px] text-slate-600">
                 <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Costos</p>
-                <% if service.cost && service.service_expense_structures.any? %>
+                <% active_cost_structure = service.active_expense_structures_for_sales.first %>
+                <% if service.cost && active_cost_structure.present? %>
+                  <% structure_usd = active_cost_structure.total_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+                  <% structure_bs = active_cost_structure.total_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
                   <div class="services-card-costs-list mt-2">
-                    <% service.service_expense_structures.each_with_index do |structure, structure_index| %>
-                      <% structure_usd = structure.total_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
-                      <% structure_bs = structure.total_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
-                      <div class="space-y-1.5 py-1.5">
-                        <p class="truncate font-semibold text-slate-700"><%= structure.description %></p>
-                        <div class="flex items-center justify-between gap-2 text-[11px]">
-                          <span class="text-slate-500">$ BCV</span>
-                          <span class="font-semibold text-slate-700"><%= format_money(structure_usd, unit: "$ ") %></span>
-                        </div>
-                        <div class="flex items-center justify-between gap-2 text-[11px]">
-                          <span class="text-slate-500">Bs</span>
-                          <span class="font-semibold text-slate-700"><%= format_money(structure_bs, unit: "Bs ") %></span>
-                        </div>
+                    <div class="space-y-1.5 py-1.5">
+                      <p class="truncate font-semibold text-slate-700"><%= active_cost_structure.description %></p>
+                      <div class="flex items-center justify-between gap-2 text-[11px]">
+                        <span class="text-slate-500">$ BCV</span>
+                        <span class="font-semibold text-slate-700"><%= format_money(structure_usd, unit: "$ ") %></span>
                       </div>
-                      <% unless structure_index == service.service_expense_structures.size - 1 %>
-                        <div class="border-t border-slate-200"></div>
-                      <% end %>
-                    <% end %>
+                      <div class="flex items-center justify-between gap-2 text-[11px]">
+                        <span class="text-slate-500">Bs</span>
+                        <span class="font-semibold text-slate-700"><%= format_money(structure_bs, unit: "Bs ") %></span>
+                      </div>
+                    </div>
                   </div>
                 <% else %>
-                  <p class="mt-2 text-slate-400">Sin costo registrado.</p>
+                  <p class="mt-2 text-slate-400">Sin costos.</p>
                 <% end %>
               </div>
             <% end %>

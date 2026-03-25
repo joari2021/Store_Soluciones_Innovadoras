@@ -107,6 +107,14 @@
         Sandbox C2P
       <% end %>
     <% end %>
+    <button id="theme-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 transition-all hover:-translate-y-0.5 hover:bg-slate-50" aria-label="Cambiar modo oscuro">
+      <span data-theme-icon="dark">
+        <i data-lucide="moon" class="h-5 w-5"></i>
+      </span>
+      <span data-theme-icon="light" class="hidden">
+        <i data-lucide="sun" class="h-5 w-5"></i>
+      </span>
+    </button>
     <div id="rates-tooltip" class="relative">
       <button id="rates-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-200/85 text-slate-700 shadow-sm ring-1 ring-slate-300 transition-colors hover:bg-slate-300 hover:text-slate-900 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver tasas">
         <i data-lucide="line-chart" class="w-5 h-5"></i>
