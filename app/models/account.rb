@@ -16,6 +16,7 @@ class Account < ApplicationRecord
   }.freeze
 
   SPECIAL_ACCOUNT_TYPES = %w[biopago pos cashea].freeze
+  SHARED_ACCOUNT_TYPES = (SPECIAL_ACCOUNT_TYPES + %w[cash_box]).freeze
   SETTLEMENT_REQUIRED_TYPES = %w[biopago pos].freeze
   SPECIAL_ACCOUNT_DEFAULTS = {
     'biopago' => { name: 'Biopago', currency: 'VES', theme_color: 'emerald' },
@@ -90,12 +91,14 @@ class Account < ApplicationRecord
   validates :currency, presence: true, inclusion: { in: CURRENCIES.keys }
   validates :theme_color, presence: true, inclusion: { in: COLOR_THEMES.keys }
   validates :balance, presence: true, numericality: true
+  validates :shared_key, presence: true
   validate :primary_requires_bank_account
   validate :settlement_account_rules
   validate :settlement_currency_rules
   validate :validate_logo_attachment
   validate :validate_payment_method_image_attachment
 
+  before_validation :ensure_shared_key
   before_validation :set_default_theme_color
   before_validation :clear_primary_for_non_bank
   before_validation :apply_special_defaults
@@ -117,7 +120,10 @@ class Account < ApplicationRecord
   def self.ensure_special_accounts!(business)
     SPECIAL_ACCOUNT_DEFAULTS.each do |type, defaults|
       account = business.accounts.find_or_initialize_by(account_type: type)
-      next if account.persisted?
+      if account.persisted?
+        account.update_columns(shared_key: SecureRandom.uuid, updated_at: Time.current) if account.shared_key.blank?
+        next
+      end
 
       account.name = defaults[:name]
       account.currency = defaults[:currency]
@@ -126,6 +132,86 @@ class Account < ApplicationRecord
       account.active = false
       account.notes = 'Cuenta especial del sistema'
       account.save!
+    end
+  end
+
+  def self.syncable_account_type?(account_type)
+    SHARED_ACCOUNT_TYPES.include?(account_type.to_s)
+  end
+
+  def self.sync_shared_fields!(source_account)
+    return if source_account.blank?
+    return if source_account.shared_key.blank?
+    return unless source_account.syncable_across_businesses?
+
+    shared_attrs = {
+      name: source_account.name,
+      account_type: source_account.account_type,
+      currency: source_account.currency,
+      theme_color: source_account.theme_color,
+      notes: source_account.notes
+    }
+
+    Business.find_each do |business|
+      target = Account.find_by(business_id: business.id, shared_key: source_account.shared_key)
+
+      if target.present?
+        target.update_columns(shared_attrs.merge(updated_at: Time.current))
+      else
+        target = business.accounts.create!(
+          shared_key: source_account.shared_key,
+          balance: 0,
+          active: false,
+          is_primary: false,
+          **shared_attrs
+        )
+      end
+
+      source_account.sync_shared_attachments!(target) if target.id != source_account.id
+    end
+  end
+
+  def self.seed_from_master!(master_business, target_business)
+    return if master_business.blank? || target_business.blank?
+
+    master_business.accounts.order(:id).find_each do |master_account|
+      next unless master_account.syncable_across_businesses?
+
+      target = target_business.accounts.find_by(shared_key: master_account.shared_key)
+
+      if target.blank?
+        target = target_business.accounts.find_by(
+          name: master_account.name,
+          account_type: master_account.account_type,
+          currency: master_account.currency
+        )
+      end
+
+      if target.present?
+        target.update_columns(
+          shared_key: master_account.shared_key,
+          name: master_account.name,
+          account_type: master_account.account_type,
+          currency: master_account.currency,
+          theme_color: master_account.theme_color,
+          notes: master_account.notes,
+          updated_at: Time.current
+        )
+      else
+        target = target_business.accounts.create!(
+          shared_key: master_account.shared_key,
+          name: master_account.name,
+          account_type: master_account.account_type,
+          currency: master_account.currency,
+          theme_color: master_account.theme_color,
+          notes: master_account.notes,
+          balance: 0,
+          active: false,
+          is_primary: false
+        )
+      end
+
+      master_account.sync_shared_attachments!(target)
     end
   end
 
@@ -157,6 +243,10 @@ class Account < ApplicationRecord
     SPECIAL_ACCOUNT_TYPES.include?(account_type)
   end
 
+  def syncable_across_businesses?
+    self.class.syncable_account_type?(account_type)
+  end
+
   def insufficient_balance_message(required_amount, available_balance: balance)
     required = required_amount.to_d.round(2)
     available = available_balance.to_d.round(2)
@@ -183,7 +273,16 @@ class Account < ApplicationRecord
     update_columns(balance: signed_total, updated_at: Time.current)
   end
 
+  def sync_shared_attachments!(target)
+    sync_attachment(:logo, target)
+    sync_attachment(:payment_method_image, target)
+  end
+
   private
+
+  def ensure_shared_key
+    self.shared_key = SecureRandom.uuid if shared_key.blank?
+  end
 
   def set_default_theme_color
     self.theme_color = 'sky' if theme_color.blank?
@@ -264,6 +363,20 @@ class Account < ApplicationRecord
     return unless attachment.blob.byte_size > 5.megabytes
 
     errors.add(attribute, 'debe pesar menos de 5MB.')
+  end
+
+  def sync_attachment(attribute, target)
+    source_attachment = public_send(attribute)
+    target_attachment = target.public_send(attribute)
+
+    if source_attachment.attached?
+      return if target_attachment.attached? && target_attachment.blob_id == source_attachment.blob_id
+
+      target_attachment.attach(source_attachment.blob)
+      return
+    end
+
+    target_attachment.purge_later if target_attachment.attached?
   end
 
   def format_currency_amount(value)

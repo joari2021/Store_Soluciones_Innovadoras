@@ -60,6 +60,7 @@ class AccountsController < ApplicationController
     @account = current_business.accounts.new(account_params)
 
     if @account.save
+      Account.sync_shared_fields!(@account)
       redirect_to accounts_path, notice: 'Cuenta creada'
     else
       render :new, status: :unprocessable_entity
@@ -70,6 +71,7 @@ class AccountsController < ApplicationController
 
   def update
     if @account.update(account_params)
+      Account.sync_shared_fields!(@account)
       redirect_to account_path(@account), notice: 'Cuenta actualizada'
     else
       render :edit, status: :unprocessable_entity
@@ -77,7 +79,20 @@ class AccountsController < ApplicationController
   end
 
   def destroy
-    @account.destroy
+    shared_key = @account.shared_key
+    accounts_to_delete = if shared_key.present? && @account.syncable_across_businesses?
+                           Account.where(shared_key: shared_key)
+                         else
+                           Account.where(id: @account.id)
+                         end
+
+    account_ids = accounts_to_delete.select(:id)
+    Account.where(settlement_account_id: account_ids)
+           .update_all(settlement_account_id: nil, updated_at: Time.current)
+    AccountSettlement.where(settlement_account_id: account_ids)
+                     .update_all(settlement_account_id: nil, updated_at: Time.current)
+
+    accounts_to_delete.find_each(&:destroy)
     redirect_to accounts_path, notice: 'Cuenta eliminada'
   end
 

@@ -268,7 +268,7 @@ class Business < ApplicationRecord
   validate :validate_banner_attachment
 
   before_validation :set_default_theme_profile
-  after_create :ensure_special_accounts
+  after_create :seed_shared_accounts
 
   def self.theme_profile_config(profile = DEFAULT_THEME_PROFILE)
     THEME_PROFILES[profile.presence || DEFAULT_THEME_PROFILE] || THEME_PROFILES[DEFAULT_THEME_PROFILE]
@@ -358,7 +358,14 @@ class Business < ApplicationRecord
     self.theme_profile = DEFAULT_THEME_PROFILE if theme_profile.blank?
   end
 
-  def ensure_special_accounts
-    Account.ensure_special_accounts!(self)
+  def seed_shared_accounts
+    master_business = Business.order(:created_at).first
+
+    if master_business.blank? || master_business.id == id
+      Account.ensure_special_accounts!(self)
+      return
+    end
+
+    Account.seed_from_master!(master_business, self)
   end
 end

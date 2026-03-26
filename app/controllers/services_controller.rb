@@ -44,9 +44,9 @@ class ServicesController < ApplicationController
 
     @services = scoped_services
 
-    if @active_query_text.present?
+    query_active = @active_query_text.present?
+    if query_active
       @services = @services
-                  .joins(:system_service)
                   .whose_name_starts_with(@active_query_text)
     end
 
@@ -69,9 +69,14 @@ class ServicesController < ApplicationController
                   @services
                 end
 
-    @services = @services.order('system_services.name ASC, services.description ASC')
+    if query_active
+      @services = @services.order('services.description ASC')
+    else
+      @services = @services.left_joins(:system_service)
+      @services = @services.order('system_services.name ASC, services.description ASC')
+    end
 
-    @pagy, @services = pagy_countless(@services, items: 25)
+    @pagy, @services = pagy_countless(@services, items: 30)
   end
 
   def printing_prices

@@ -209,6 +209,191 @@ body.sidebar-collapsed .app-sidebar .sidebar-nav-scroll {
   object-fit: cover;
 }
 
+.ventas-pay-accordion {
+  position: relative;
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+.ventas-pay-accordion.is-open {
+  border-color: #38bdf8;
+  box-shadow: 0 16px 28px rgba(14, 116, 144, 0.18);
+  transform: translateY(-1px);
+}
+
+.ventas-pay-checkbox {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ventas-pay-accordion-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.15rem 0;
+  background: transparent;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ventas-pay-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: #0c4a6e;
+  box-shadow: none;
+  flex-shrink: 0;
+}
+
+.ventas-pay-avatar svg {
+  width: 22px;
+  height: 22px;
+}
+
+.ventas-pay-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+.ventas-pay-title {
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.ventas-pay-title.is-muted {
+  color: #94a3b8;
+}
+
+.ventas-pay-chevron {
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  color: #64748b;
+  transition:
+    transform 0.25s ease,
+    color 0.25s ease;
+}
+
+.ventas-pay-chevron svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ventas-pay-accordion.is-open .ventas-pay-chevron {
+  transform: rotate(180deg);
+  color: #0f172a;
+}
+
+.ventas-pay-accordion-content {
+  margin-top: 0.75rem;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition:
+    max-height 0.35s ease,
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.ventas-pay-accordion.is-open .ventas-pay-accordion-content {
+  opacity: 1;
+  transform: translateY(0);
+  overflow: visible;
+}
+
+.ventas-pay-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.ventas-pay-fields > * {
+  flex: 1 1 150px;
+  min-width: 150px;
+}
+
+.ventas-pay-fields--bank {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.ventas-pay-amount {
+  position: relative;
+  flex: 1 1 150px;
+  min-width: 150px;
+}
+
+.ventas-pay-equivalent {
+  position: absolute;
+  right: 0.65rem;
+  top: -0.97rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.ventas-pay-bank-fields {
+  display: contents;
+}
+
+.ventas-pay-method-image {
+  margin-top: 0.75rem;
+  border-radius: 0.85rem;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.ventas-pay-method-image--fallback {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  color: #0f172a;
+  background: radial-gradient(
+    circle at top,
+    #eef2ff 0%,
+    #e2e8f0 60%,
+    #cbd5f5 100%
+  );
+}
+
+.ventas-pay-method-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.12);
+}
+
+.ventas-pay-method-icon svg {
+  width: 30px;
+  height: 30px;
+}
+
+.ventas-pay-method-image img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  background: #ffffff;
+}
+
 body[data-theme="dark"] {
   background: #0b1220;
   color: #e2e8f0;
@@ -500,6 +685,38 @@ body[data-theme="dark"] #ventas-client-list button:hover {
 
 body[data-theme="dark"] #ventas-client-list .text-slate-400 {
   color: #94a3b8 !important;
+}
+
+body[data-theme="dark"] .ventas-pay-title {
+  color: #e2e8f0;
+}
+
+body[data-theme="dark"] .ventas-pay-title.is-muted {
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .ventas-pay-chevron {
+  color: #94a3b8;
+}
+
+body[data-theme="dark"] .ventas-pay-accordion.is-open {
+  border-color: #1e293b;
+  box-shadow: 0 16px 28px rgba(2, 6, 23, 0.45);
+}
+
+body[data-theme="dark"] .ventas-pay-method-image {
+  border-color: #1e293b;
+  background: #0f172a;
+}
+
+body[data-theme="dark"] .ventas-pay-method-image--fallback {
+  color: #e2e8f0;
+  background: radial-gradient(
+    circle at top,
+    #1e293b 0%,
+    #0f172a 70%,
+    #0b1220 100%
+  );
 }
 
 body[data-theme="dark"] .ventas-theme-summary-panel {

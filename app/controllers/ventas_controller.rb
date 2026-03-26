@@ -19,7 +19,11 @@ class VentasController < ApplicationController
                                           .count
                                           .sort_by { |nombre, _cantidad| nombre.to_s.downcase }
 
-    @accounts = current_business.accounts.with_attached_payment_method_image.where(active: true).order(:name)
+    @accounts = current_business.accounts
+                                .with_attached_payment_method_image
+                                .with_attached_logo
+                                .where(active: true)
+                                .order(:name)
     @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
 
     @products_payload = build_products_payload(@productos)
@@ -56,7 +60,8 @@ class VentasController < ApplicationController
         currency_symbol: account.currency_symbol,
         is_bank: account.account_type == 'bank_account',
         is_primary: account.is_primary,
-        payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?)
+        payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
+        logo_url: (url_for(account.logo) if account.logo.attached?)
       }
     end
 

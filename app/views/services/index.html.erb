@@ -264,41 +264,48 @@
     if (searchInput.dataset.bound === "true") return;
     searchInput.dataset.bound = "true";
 
-    let searchDebounceTimer = null;
     let activeQuery = String(scope.dataset.activeQueryText || "").trim();
     let activeSystem = String(scope.dataset.activeSystemFilter || "").trim();
     let activeStatus = String(scope.dataset.activeStatusFilter || "all").trim() || "all";
 
-    const visitWithFilters = () => {
-      const url = new URL(window.location.href);
+    const normalizeSearchValue = (value) => {
+      return String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+    };
 
-      if (activeQuery.length > 0) {
-        url.searchParams.set("query_text", activeQuery);
-      } else {
-        url.searchParams.delete("query_text");
-      }
+    const applySearch = () => {
+      const query = normalizeSearchValue(activeQuery);
+      const systemFilter = normalizeSearchValue(activeSystem);
+      const statusFilter = normalizeSearchValue(activeStatus);
 
-      if (activeSystem.length > 0) {
-        url.searchParams.set("system_filter", activeSystem);
-      } else {
-        url.searchParams.delete("system_filter");
-      }
+      clearButton.classList.toggle("hidden", query.length === 0);
 
-      if (activeStatus !== "all") {
-        url.searchParams.set("status_filter", activeStatus);
-      } else {
-        url.searchParams.delete("status_filter");
-      }
+      document.querySelectorAll('[data-service-query]').forEach((card) => {
+        const cardQuery = normalizeSearchValue(card.dataset.serviceQuery || '');
+        const cardSystem = normalizeSearchValue(card.dataset.serviceSystem || '');
+        const matchesQuery = query.length === 0 || cardQuery.includes(query);
+        const matchesSystem = systemFilter.length === 0 || cardSystem === systemFilter;
 
-      if (window.Turbo && typeof window.Turbo.visit === "function") {
-        window.Turbo.visit(url.toString(), { action: "replace" });
-      } else {
-        window.location.href = url.toString();
-      }
+        let matchesStatus = true;
+        if (statusFilter === 'available') {
+          matchesStatus = String(card.dataset.serviceAvailable) === 'true';
+        } else if (statusFilter === 'unavailable') {
+          matchesStatus = String(card.dataset.serviceAvailable) === 'false';
+        } else if (statusFilter === 'caution') {
+          matchesStatus = String(card.dataset.serviceCaution) === 'true';
+        } else if (statusFilter === 'restricted') {
+          matchesStatus = String(card.dataset.serviceRestricted) === 'true';
+        }
+
+        card.classList.toggle('hidden', !(matchesQuery && matchesSystem && matchesStatus));
+      });
     };
 
     const updateClearButton = () => {
-      clearButton.classList.toggle("hidden", activeQuery.length === 0);
+      clearButton.classList.toggle("hidden", String(activeQuery || '').trim().length === 0);
     };
 
     const updateServiceSystemFilterStyles = () => {
@@ -345,12 +352,7 @@
 
     searchInput.addEventListener("input", () => {
       activeQuery = String(searchInput.value || "").trim();
-      updateClearButton();
-
-      if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        visitWithFilters();
-      }, 250);
+      applySearch();
     });
 
     clearButton.addEventListener("click", () => {
@@ -358,14 +360,14 @@
       activeQuery = "";
       updateClearButton();
       searchInput.focus();
-      visitWithFilters();
+      applySearch();
     });
 
     serviceSystemButtons.forEach((button) => {
       button.addEventListener("click", () => {
         activeSystem = String(button.dataset.serviceSystemFilter || "").trim();
         updateServiceSystemFilterStyles();
-        visitWithFilters();
+        applySearch();
       });
     });
 
@@ -373,7 +375,7 @@
       button.addEventListener("click", () => {
         activeStatus = String(button.dataset.serviceStatusFilter || "all").trim();
         updateServiceStatusFilterStyles();
-        visitWithFilters();
+        applySearch();
       });
     });
 
@@ -386,12 +388,14 @@
 
         frame.classList.remove("col-span-full");
         frame.classList.add("contents");
+        applySearch();
       });
     }
 
     updateServiceSystemFilterStyles();
     updateServiceStatusFilterStyles();
     updateClearButton();
+    applySearch();
   });
 </script>
 <%= render "services/styles" %>

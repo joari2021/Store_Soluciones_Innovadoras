@@ -499,7 +499,7 @@
             <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items de la orden</p>
             <span class="rounded-full bg-slate-900/5 px-2.5 py-1 text-[11px] font-semibold text-slate-600">Resumen en vivo</span>
           </div>
-          <div class="app-thin-scrollbar max-h-[40vh] overflow-y-auto pr-2">
+          <div class="app-thin-scrollbar pr-2">
             <div id="ventas-cart-list" class="space-y-3"></div>
             <div id="ventas-cart-empty" class="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center shadow-sm">
               <div class="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-2xl bg-sky-100 text-sky-600">
@@ -4367,80 +4367,68 @@
             const symbol = account.currency_symbol || account.currency;
             const isBank = account.is_bank;
             const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
+            const logoUrl = String(account.logo_url || '').trim();
             const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
-            const normalizedAccountType = String(account.account_type || '').toLowerCase();
-            const typeLabelMap = {
-              bank_account: 'Banco',
-              cash_box: 'Efectivo',
-              card: 'Tarjeta',
-              pos: 'Punto de venta',
-              biopago: 'Biopago',
-              cashea: 'Cashea',
-              digital_wallet: 'Billetera digital',
-              crypto_wallet: 'Billetera cripto',
-            };
-            const accountTypeLabel = typeLabelMap[normalizedAccountType] || account.account_type || 'Cuenta';
-            const hideTypeBadge = ['biopago', 'pos', 'cashea'].includes(normalizedAccountType);
-            const bankFieldsClass = isBank ? '' : 'hidden';
+            const hasLogo = logoUrl.length > 0;
+            const bankFieldsClass = isBank ? 'ventas-pay-bank-fields' : 'hidden';
             const extraClass = options.extra ? ' hidden' : '';
             const extraAttr = options.extra ? ' data-bank-extra="true"' : '';
-            const cardClasses = 'rounded-2xl border border-slate-200 bg-white/95 p-3.5 shadow-sm transition-all';
-            const cardStyle = hasPaymentMethodImage
-              ? ` style="background-image: url('${escapeCssUrl(paymentMethodImageUrl)}'); background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #ffffff;"`
-              : '';
-            const titleClass = hasPaymentMethodImage ? 'text-slate-800' : 'text-slate-700';
-            const labelSurfaceClass = hasPaymentMethodImage
-              ? 'rounded-xl bg-white/80 px-2.5 py-1.5 shadow-sm ring-1 ring-white/80 backdrop-blur-[1px]'
-              : '';
-            const checkClass = hasPaymentMethodImage
-              ? 'mt-0.5 h-4 w-4 cursor-pointer rounded border border-slate-300 bg-white text-sky-600 shadow-sm'
-              : 'mt-0.5 h-4 w-4 cursor-pointer text-sky-600';
-            const typeBadgeClass = hasPaymentMethodImage
-              ? 'bg-white/90 text-slate-700 ring-1 ring-slate-200 backdrop-blur-[1px]'
-              : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200';
-            const currencyBadgeClass = hasPaymentMethodImage
-              ? 'bg-white/90 text-cyan-700 ring-1 ring-cyan-200 shadow-sm backdrop-blur-[1px]'
-              : 'bg-cyan-50 text-cyan-700 ring-1 ring-cyan-100';
-            const inputClass = hasPaymentMethodImage
-              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500 disabled:opacity-95'
-              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-90';
-            const bankSelectClass = hasPaymentMethodImage
-              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-500 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500 disabled:opacity-95'
-              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-400 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-90';
-            const bankFieldClass = hasPaymentMethodImage
-              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500 disabled:opacity-95'
-              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-90';
-            const equivalentClass = hasPaymentMethodImage
-              ? 'mt-2 inline-flex w-fit rounded-lg bg-white/82 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-white/75 backdrop-blur-[1px]'
-              : 'mt-2 text-xs font-medium text-slate-500';
-            const typeBadgeHtml = hideTypeBadge
-              ? ''
-              : `<span class="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeBadgeClass}" data-pay-account-type-badge>${escapeHtml(accountTypeLabel)}</span>`;
-            return `
-              <div class="${cardClasses}${extraClass}" data-pay-row="${account.id}"${extraAttr}${cardStyle}>
-                <div class="flex items-start justify-between gap-3">
-                  <label class="flex cursor-pointer items-start gap-2 text-sm font-semibold ${titleClass} ${labelSurfaceClass}">
-                    <input type="checkbox" class="${checkClass}" data-pay-check="${account.id}">
-                    <span class="inline-flex flex-col">
-                      <span class="inline-flex items-center gap-2 leading-tight" data-pay-account-label><span>${escapeHtml(account.name)}</span></span>
-                      ${typeBadgeHtml}
-                    </span>
-                  </label>
-                  <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${currencyBadgeClass}" data-pay-account-currency-badge>${escapeHtml(account.currency)}</span>
-                </div>
-                <div class="mt-3 grid gap-2 md:grid-cols-2">
-                  <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="${inputClass}" data-pay-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
-                  <div class="space-y-2 ${bankFieldsClass}" data-pay-bank-fields="${account.id}">
-                    <select class="${bankSelectClass}" data-bank-method-select="true" data-pay-bank-method="${account.id}" disabled>
-                      <option value="" style="color:#94a3b8;background:#ffffff;">Metodo</option>
-                      <option value="transfer" style="color:#0369a1;background:#ffffff;">Transferencia</option>
-                      <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
-                    </select>
-                    <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-pay-date="${account.id}" value="${todayPaymentDate}" disabled>
-                    <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-pay-reference="${account.id}" disabled>
+            const cardClasses = 'ventas-pay-accordion rounded-2xl border border-slate-200 bg-white/95 p-3.5 shadow-sm transition-all';
+            const inputClass = 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+            const bankSelectClass = 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-500 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+            const bankFieldClass = 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+            const equivalentClass = 'ventas-pay-equivalent text-xs font-medium text-slate-500';
+            const methodImageHtml = hasPaymentMethodImage
+              ? `<div class="ventas-pay-method-image">
+                  <img src="${escapeHtml(paymentMethodImageUrl)}" alt="Imagen del metodo de pago" loading="lazy" data-pay-method-image>
+                </div>`
+              : `<div class="ventas-pay-method-image ventas-pay-method-image--fallback" aria-hidden="true">
+                  <div class="ventas-pay-method-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M3 10h18"></path>
+                      <path d="M4 20h16a1 1 0 0 0 1-1v-8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a1 1 0 0 0 1 1z"></path>
+                      <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                    </svg>
                   </div>
+                </div>`;
+            return `
+              <div class="${cardClasses}${extraClass}" data-pay-row="${account.id}"${extraAttr}>
+                <input type="checkbox" class="ventas-pay-checkbox" data-pay-check="${account.id}">
+                <button type="button" class="ventas-pay-accordion-toggle" data-pay-toggle="${account.id}">
+                  <span class="ventas-pay-avatar" aria-hidden="true">
+                    ${hasLogo
+                      ? `<img src="${escapeHtml(logoUrl)}" alt="Logo de la cuenta" loading="lazy">`
+                      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M3 10h18"></path>
+                          <path d="M4 20h16a1 1 0 0 0 1-1v-8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a1 1 0 0 0 1 1z"></path>
+                          <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                        </svg>`}
+                  </span>
+                  <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
+                  <span class="ventas-pay-chevron" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg>
+                  </span>
+                </button>
+                <div class="ventas-pay-accordion-content" data-pay-content>
+                  <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
+                    <div class="ventas-pay-amount">
+                      <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="${inputClass}" data-pay-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
+                      <p class="${equivalentClass}" data-pay-equivalent="${account.id}"></p>
+                    </div>
+                    <div class="${bankFieldsClass}" data-pay-bank-fields="${account.id}">
+                      <select class="${bankSelectClass}" data-bank-method-select="true" data-pay-bank-method="${account.id}" disabled>
+                        <option value="" style="color:#94a3b8;background:#ffffff;">Metodo</option>
+                        <option value="transfer" style="color:#0369a1;background:#ffffff;">Transferencia</option>
+                        <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
+                      </select>
+                      <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-pay-date="${account.id}" value="${todayPaymentDate}" disabled>
+                      <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-pay-reference="${account.id}" disabled>
+                    </div>
+                  </div>
+                  ${methodImageHtml}
                 </div>
-                <p class="${equivalentClass}" data-pay-equivalent="${account.id}"></p>
               </div>
             `;
           };
@@ -4482,14 +4470,14 @@
               ? 'bg-white/90 text-amber-700 ring-1 ring-amber-200 shadow-sm backdrop-blur-[1px]'
               : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
             const inputClass = hasPaymentMethodImage
-              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500 disabled:opacity-95'
-              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-90';
+              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500'
+              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
             const bankSelectClass = hasPaymentMethodImage
-              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-500 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500 disabled:opacity-95'
-              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-400 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-90';
+              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-500 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500'
+              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-400 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
             const bankFieldClass = hasPaymentMethodImage
-              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500 disabled:opacity-95'
-              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400 disabled:opacity-90';
+              ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500'
+              : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
             const equivalentClass = hasPaymentMethodImage
               ? 'mt-2 inline-flex w-fit rounded-lg bg-white/82 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-white/75 backdrop-blur-[1px]'
               : 'mt-2 text-xs font-medium text-slate-500';
@@ -4611,7 +4599,7 @@
 
           const openPaymentModal = (initialState = null) => {
             window.Swal.fire({
-              title: 'Metodos de pago',
+              title: 'Registrar pago',
               html: paymentHtml,
               confirmButtonText: 'Confirmar',
               cancelButtonText: 'Cancelar',
@@ -4689,10 +4677,21 @@
                   const hasMethod = String(methodSelect.value || '').trim().length > 0;
                   const shouldToneDown = checkbox.checked && !hasMethod;
 
-                  row.querySelectorAll('[data-pay-account-label], [data-pay-account-type-badge], [data-pay-account-currency-badge]').forEach((el) => {
-                    el.classList.toggle('opacity-70', shouldToneDown);
-                    el.classList.toggle('opacity-100', !shouldToneDown);
+                  row.querySelectorAll('[data-pay-account-label]').forEach((el) => {
+                    el.classList.toggle('is-muted', shouldToneDown);
                   });
+                };
+
+                const setPaymentAccordionState = (row, open) => {
+                  if (!row) return;
+                  row.classList.toggle('is-open', open);
+                  const content = row.querySelector('[data-pay-content]');
+                  if (!content) return;
+                  if (open) {
+                    content.style.maxHeight = `${content.scrollHeight}px`;
+                  } else {
+                    content.style.maxHeight = '0px';
+                  }
                 };
 
                 const setRowVisualState = (row, enabled, tone = 'sky') => {
@@ -4736,8 +4735,6 @@
                     'ring-sky-100',
                     'ring-amber-100',
                     'bg-white',
-                    'opacity-70',
-                    'opacity-100',
                     'ventas-payment-modal-field-active',
                     'ventas-payment-modal-field-active-sky',
                     'ventas-payment-modal-field-active-amber',
@@ -4745,14 +4742,14 @@
                   );
 
                   if (enabled) {
-                    field.classList.add('bg-white', 'opacity-100', 'ventas-payment-modal-field-active');
+                    field.classList.add('bg-white', 'ventas-payment-modal-field-active');
                     if (tone === 'amber') {
                       field.classList.add('ventas-payment-modal-field-active-amber');
                     } else {
                       field.classList.add('ventas-payment-modal-field-active-sky');
                     }
                   } else {
-                    field.classList.add('border-transparent', 'opacity-70', 'ventas-payment-modal-field-disabled');
+                    field.classList.add('border-transparent', 'ventas-payment-modal-field-disabled');
                   }
                 };
 
@@ -4998,22 +4995,88 @@
                   });
                 }
 
-                dialog.querySelectorAll('[data-change-check]').forEach((checkbox) => {
+                const rowHasPaymentData = (row) => {
+                  if (!row) return false;
+                  const accountId = row.dataset.payRow;
+                  if (!accountId) return false;
+
+                  const amountInput = row.querySelector(`[data-pay-input="${accountId}"]`);
+                  return parseMoneyInput(amountInput) > 0;
+                };
+
+                const closeOtherPaymentRows = (currentRow) => {
+                  dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                    if (row === currentRow) return;
+                    if (rowHasPaymentData(row)) return;
+
+                    const accountId = row.dataset.payRow;
+                    const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                    if (checkbox?.checked) {
+                      checkbox.checked = false;
+                      checkbox.dispatchEvent(new Event('change'));
+                      return;
+                    }
+
+                    setPaymentAccordionState(row, false);
+                    setRowVisualState(row, false, 'sky');
+                  });
+                };
+
+                dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
                   checkbox.addEventListener('change', () => {
-                    const accountId = checkbox.dataset.changeCheck;
-                    const row = dialog.querySelector(`[data-change-row="${accountId}"]`);
-                    const input = dialog.querySelector(`[data-change-input="${accountId}"]`);
-                    const bankFields = dialog.querySelector(`[data-change-bank-fields="${accountId}"]`);
+                    const accountId = checkbox.dataset.payCheck;
+                    const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                    const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                    const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
                     if (!input) return;
 
-                    setFieldEnabledState(input, checkbox.checked, 'amber');
-                    setBankFieldsEnabled(bankFields, checkbox.checked, 'amber');
+                    setFieldEnabledState(input, checkbox.checked, 'sky');
+                    setBankFieldsEnabled(bankFields, checkbox.checked, 'sky');
 
-                    setRowVisualState(row, checkbox.checked, 'amber');
+                    setRowVisualState(row, checkbox.checked, 'sky');
+                    setPaymentAccordionState(row, checkbox.checked);
+                    syncPaymentRowMethodTone(row);
                     updateRemaining();
                   });
                 });
 
+                dialog.querySelectorAll('[data-pay-toggle]').forEach((button) => {
+                  button.addEventListener('click', () => {
+                    const accountId = button.dataset.payToggle;
+                    const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                    const checkbox = row?.querySelector(`[data-pay-check="${accountId}"]`);
+                    if (!row || !checkbox) return;
+
+                    const isOpen = row.classList.contains('is-open');
+                    if (isOpen) {
+                      if (rowHasPaymentData(row)) return;
+                      if (checkbox.checked) {
+                        checkbox.checked = false;
+                        checkbox.dispatchEvent(new Event('change'));
+                      } else {
+                        setPaymentAccordionState(row, false);
+                        setRowVisualState(row, false, 'sky');
+                      }
+                      return;
+                    }
+
+                    closeOtherPaymentRows(row);
+                    if (!checkbox.checked) {
+                      checkbox.checked = true;
+                      checkbox.dispatchEvent(new Event('change'));
+                    } else {
+                      setPaymentAccordionState(row, true);
+                    }
+                  });
+                });
+
+                dialog.querySelectorAll('[data-pay-method-image]').forEach((image) => {
+                  image.addEventListener('load', () => {
+                    const row = image.closest('[data-pay-row]');
+                    if (!row || !row.classList.contains('is-open')) return;
+                    setPaymentAccordionState(row, true);
+                  });
+                });
                 dialog.querySelectorAll('[data-change-input]').forEach((input) => {
                   input.addEventListener('input', updateRemaining);
                 });
@@ -5094,6 +5157,7 @@
                   setFieldEnabledState(input, Boolean(checkbox?.checked), 'sky');
                   setBankFieldsEnabled(bankFields, Boolean(checkbox?.checked), 'sky');
                   setRowVisualState(row, Boolean(checkbox?.checked), 'sky');
+                  setPaymentAccordionState(row, Boolean(checkbox?.checked));
                   syncPaymentRowMethodTone(row);
                 });
 

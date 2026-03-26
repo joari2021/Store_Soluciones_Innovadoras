@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_22_142000) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -63,12 +63,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_22_142000) do
     t.bigint "business_id", null: false
     t.boolean "is_primary", default: false, null: false
     t.bigint "settlement_account_id"
+    t.string "shared_key", null: false
     t.index ["account_type"], name: "index_accounts_on_account_type"
     t.index ["active"], name: "index_accounts_on_active"
     t.index ["business_id"], name: "index_accounts_on_business_id"
     t.index ["business_id"], name: "index_accounts_primary_bank_per_business", unique: true, where: "(((account_type)::text = 'bank_account'::text) AND is_primary)"
     t.index ["currency"], name: "index_accounts_on_currency"
     t.index ["settlement_account_id"], name: "index_accounts_on_settlement_account_id"
+    t.index ["shared_key"], name: "index_accounts_on_shared_key"
     t.index ["theme_color"], name: "index_accounts_on_theme_color"
   end
 

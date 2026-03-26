@@ -103,19 +103,16 @@
     <% end %>
     <div class="col-span-2 md:col-span-1">
       <%= f.label :logo, 'Imagen para tarjeta en cuentas', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+      <p class="mt-1 text-xs text-slate-500">Se muestra como imagen de fondo en las tarjetas del index de cuentas.</p>
       <% if account.settlement_enabled? %>
-        <div class="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Para Biopago, Punto de venta y Cashea se usa la imagen predefinida en el index de cuentas.
+        <p class="mt-1 text-xs text-slate-400">En cuentas especiales puedes reemplazar la imagen predefinida si lo deseas.</p>
+      <% end %>
+      <% if account.logo.attached? %>
+        <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <%= image_tag account.logo, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para cuentas" %>
+          <span class="text-xs font-medium text-slate-600">Imagen actual</span>
         </div>
-      <% else %>
-        <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
-        <p class="mt-1 text-xs text-slate-500">Se muestra como imagen de fondo en las tarjetas del index de cuentas.</p>
-        <% if account.logo.attached? %>
-          <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-            <%= image_tag account.logo, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para cuentas" %>
-            <span class="text-xs font-medium text-slate-600">Imagen actual</span>
-          </div>
-        <% end %>
       <% end %>
     </div>
     <div class="col-span-2 md:col-span-1">
