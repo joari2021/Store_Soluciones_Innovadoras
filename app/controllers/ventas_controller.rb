@@ -22,6 +22,7 @@ class VentasController < ApplicationController
     @accounts = current_business.accounts
                                 .with_attached_payment_method_image
                                 .with_attached_logo
+                                .with_attached_small_logo
                                 .where(active: true)
                                 .where.not(account_type: 'cash_box', cash_role: 'cash_deposit')
                                 .order(:name)
@@ -66,6 +67,7 @@ class VentasController < ApplicationController
         is_bank: account.account_type == 'bank_account',
         is_primary: account.is_primary,
         payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
+        small_logo_url: (url_for(account.small_logo) if account.small_logo.attached?),
         logo_url: (url_for(account.logo) if account.logo.attached?)
       }
     end

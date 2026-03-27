@@ -126,7 +126,7 @@
                                when 'pos' then 'pos.png'
                                when 'cashea' then 'cashea.png'
                                end %>
-            <% has_uploaded_index_image = account.logo.attached? && special_image.blank? %>
+            <% has_uploaded_index_image = account.logo.attached? && special_image.blank? && !Account::SPECIAL_ACCOUNT_TYPES.include?(account.account_type) %>
             <% has_index_image = special_image.present? || has_uploaded_index_image %>
             <article class="rounded-2xl border p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md <%= theme[:card] %> <%= has_index_image ? 'special-account-card' : '' %>">
               <% if special_image.present? %>

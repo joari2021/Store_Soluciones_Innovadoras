@@ -1207,7 +1207,7 @@
           const symbol = account.currency_symbol || account.currency;
           const isBank = account.is_bank;
           const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
-          const logoUrl = String(account.logo_url || '').trim();
+          const logoUrl = String(account.small_logo_url || account.logo_url || '').trim();
           const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
           const hasLogo = logoUrl.length > 0;
           const bankFieldsClass = isBank ? 'ventas-pay-bank-fields' : 'hidden';
@@ -6655,7 +6655,7 @@
             const symbol = account.currency_symbol || account.currency;
             const isBank = account.is_bank;
             const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
-            const logoUrl = String(account.logo_url || '').trim();
+            const logoUrl = String(account.small_logo_url || account.logo_url || '').trim();
             const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
             const hasLogo = logoUrl.length > 0;
             const bankFieldsClass = isBank ? 'ventas-pay-bank-fields' : 'hidden';
