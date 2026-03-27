@@ -15,6 +15,7 @@ class AccountMovement < ApplicationRecord
 
   belongs_to :account
   belongs_to :account_settlement, optional: true
+  belongs_to :cambio_efectivo, optional: true
 
   validates :movement_kind, presence: true, inclusion: { in: MOVEMENT_KINDS.keys }
   validates :amount, presence: true, numericality: { greater_than: 0 }

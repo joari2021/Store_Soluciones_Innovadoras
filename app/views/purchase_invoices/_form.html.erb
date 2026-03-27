@@ -158,7 +158,17 @@
       <tbody id="factura-items" class="divide-y divide-slate-100 bg-white">
         <%= f.fields_for :purchase_invoice_items do |fi| %>
           <% row_key = fi.object.id || "new_#{fi.object.object_id}" %>
-          <% product_name = fi.object.product_name.presence || fi.object.producto&.descripcion || 'Selecciona un producto' %>
+          <% raw_product_name = fi.object.product_name.to_s.strip %>
+          <% product_name = if raw_product_name.present?
+                              producto_descripcion = fi.object.producto&.descripcion.to_s.strip
+                              if producto_descripcion.present? && raw_product_name.casecmp(producto_descripcion).zero?
+                                fi.object.producto&.display_name_with_presentation.presence || raw_product_name
+                              else
+                                raw_product_name
+                              end
+                            else
+                              fi.object.producto&.display_name_with_presentation || fi.object.producto&.descripcion || 'Selecciona un producto'
+                            end %>
           <% cantidad_packs = fi.object.cantidad.to_d %>
           <% costo_mayor = fi.object.costo_mayor.to_d %>
           <% unid_x_pack = fi.object.unid_x_pack.to_d %>
@@ -279,7 +289,7 @@
           <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= factura.supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>" data-single-variation-id="<%= single_variation&.[](:id) %>" data-single-variation-description="<%= single_variation&.[](:description) %>">
             <%= fi.hidden_field :_destroy, class: 'factura-item-destroy' %>
             <%= fi.hidden_field :producto_id %>
-            <%= fi.hidden_field :product_name %>
+            <%= fi.hidden_field :product_name, value: product_name %>
             <%= fi.hidden_field :id if fi.object.persisted? %>
             <%= fi.hidden_field :variation_breakdown, value: variation_breakdown_json, class: 'row-variation-breakdown' %>
             <td class="px-4 py-3">
@@ -1647,11 +1657,12 @@
           resultsBox.classList.remove('hidden');
           return;
         }
-        resultsBox.innerHTML = items.map((item) => (
-                `<button type="button" class="select-product-result w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(item.descripcion)}" data-costo-mayor="${item.costo_mayor || ''}" data-costo-menor="${item.costo_menor || ''}" data-unid-x-pack="${item.unid_x_pack || ''}" data-variations="${encodeURIComponent(JSON.stringify(item.variations || []))}">
-             <div class="text-sm font-medium text-slate-700">${escapeHtml(item.descripcion)}</div>
-           </button>`
-        )).join('');
+        resultsBox.innerHTML = items.map((item) => {
+          const productName = item.display_name || item.descripcion || '';
+          return (`<button type="button" class="select-product-result w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(productName)}" data-costo-mayor="${item.costo_mayor || ''}" data-costo-menor="${item.costo_menor || ''}" data-unid-x-pack="${item.unid_x_pack || ''}" data-variations="${encodeURIComponent(JSON.stringify(item.variations || []))}">
+             <div class="text-sm font-medium text-slate-700">${escapeHtml(productName)}</div>
+           </button>`);
+        }).join('');
         resultsBox.classList.remove('hidden');
       };
 

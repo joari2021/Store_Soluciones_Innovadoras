@@ -11,11 +11,13 @@ class Service < ApplicationRecord
   belongs_to :print_delivery_material_surcharge,
              class_name: 'ServicePrintMaterialSurcharge',
              optional: true
+  has_one_attached :recarga_image
   has_many :service_managers, dependent: :destroy
   has_many :service_expense_structures, dependent: :destroy
   has_many :service_cost_debts, class_name: 'Debt', dependent: :nullify
   has_many :service_print_coverage_prices, dependent: :destroy
   has_many :service_print_material_surcharges, dependent: :destroy
+  has_many :service_print_volume_discounts, dependent: :destroy
   has_many :print_delivery_dependents,
            class_name: 'Service',
            foreign_key: :print_delivery_service_id,
@@ -26,17 +28,22 @@ class Service < ApplicationRecord
   accepts_nested_attributes_for :service_expense_structures, allow_destroy: true
   accepts_nested_attributes_for :service_print_coverage_prices, allow_destroy: true
   accepts_nested_attributes_for :service_print_material_surcharges, allow_destroy: true
+  accepts_nested_attributes_for :service_print_volume_discounts, allow_destroy: true
 
   enum :pricing_mode, { fixed: 'fixed', to_agree: 'to_agree' }, default: :fixed, validate: true
 
   validates :description, presence: true
   validates :sale_price, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :value_units, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :recarga_min_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :recarga_multiple_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+  validates :recarga_profit_percent, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   before_validation :normalize_masked_sale_price
   before_validation :normalize_currency_base_price
   before_validation :migrate_legacy_value_units_to_sale_price
   before_validation :clear_delivery_configuration_for_printing_service
+  before_validation :normalize_recarga_amounts
 
   validate :validate_fixed_price_fields
   validate :validate_visibility_flags
@@ -249,6 +256,12 @@ class Service < ApplicationRecord
     return unless value_units.to_d.positive?
 
     self.sale_price = value_units
+  end
+
+  def normalize_recarga_amounts
+    self.recarga_min_amount = parse_masked_decimal(recarga_min_amount_before_type_cast)
+    self.recarga_multiple_amount = parse_masked_decimal(recarga_multiple_amount_before_type_cast)
+    self.recarga_profit_percent = parse_masked_decimal(recarga_profit_percent_before_type_cast)
   end
 
   def parse_masked_decimal(raw_value)

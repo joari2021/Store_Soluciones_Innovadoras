@@ -1,13 +1,14 @@
 class CashShiftsController < ApplicationController
-  CLOSING_VERIFICATION_ACCOUNT_TYPES = %w[biopago pos cash_box].freeze
+  CLOSING_VERIFICATION_ACCOUNT_TYPES = %w[biopago pos].freeze
   AUTO_SETTLEMENT_ACCOUNT_TYPES = %w[pos].freeze
 
   before_action :require_business
   before_action -> { require_module_access!(:cash_shifts) }
   before_action :ensure_can_manage_cash_shifts!, only: %i[create]
   before_action :set_open_cash_shift, only: %i[create]
-  before_action :set_cash_shift, only: %i[show close]
+  before_action :set_cash_shift, only: %i[show close destroy]
   before_action :ensure_can_close_shift!, only: %i[close]
+  before_action :ensure_can_destroy_shift!, only: %i[destroy]
 
   def index
     @open_cash_shift = current_business.current_open_cash_shift
@@ -89,8 +90,8 @@ class CashShiftsController < ApplicationController
     end
 
     @cash_shift = current_business.cash_shifts.new(
-      opening_balance_ves: 0,
-      opening_balance_usd: 0,
+      opening_balance_ves: cash_box_balance_for('VES'),
+      opening_balance_usd: cash_box_balance_for('USD'),
       opened_by: Current.user,
       status: 'open',
       opened_at: Time.current
@@ -131,10 +132,26 @@ class CashShiftsController < ApplicationController
   end
 
   def show
+    @close_blocking_drafts_payload = close_blocking_drafts_payload
     load_shift_details
   end
 
   def close
+    blocking_drafts = close_blocking_drafts_payload
+    if blocking_drafts.any?
+      blocking_message = 'Hay borradores pendientes en el panel de cobro. Debes culminarlos o eliminarlos antes de cerrar el turno.'
+      return respond_to do |format|
+        format.html { redirect_to cash_shift_path(@cash_shift), alert: blocking_message }
+        format.json do
+          render json: {
+            error: blocking_message,
+            code: 'drafts_present',
+            drafts: blocking_drafts
+          }, status: :unprocessable_entity
+        end
+      end
+    end
+
     if @cash_shift.closed?
       return respond_to do |format|
         format.html { redirect_to cash_shift_path(@cash_shift), alert: 'Este turno ya fue cerrado.' }
@@ -153,9 +170,12 @@ class CashShiftsController < ApplicationController
 
     settlement_rows = []
     declared_totals = declared_totals_from_verification_rows(verification_rows)
+    close_occurred_at = Time.current
 
     CashShift.transaction do
       settlement_rows = process_turn_settlements_for_shift!(verification_rows: verification_rows)
+      process_cash_withdrawals_for_shift!(verification_rows: verification_rows, occurred_at: close_occurred_at)
+      process_payall_recharge_gain_for_shift!(verification_rows: verification_rows, occurred_at: close_occurred_at)
 
       @cash_shift.close!(
         user: Current.user,
@@ -193,6 +213,19 @@ class CashShiftsController < ApplicationController
       format.html { redirect_to cash_shift_path(@cash_shift), alert: error_message }
       format.json { render json: { error: error_message }, status: :unprocessable_entity }
     end
+  end
+
+  def destroy
+    CashShift.transaction do
+      rollback_cash_shift_data!(@cash_shift)
+      @cash_shift.destroy!
+    end
+
+    redirect_to cash_shifts_path,
+                notice: 'Turno eliminado correctamente. Se revirtieron ventas, movimientos y saldos asociados.'
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
+    redirect_to cash_shift_path(@cash_shift),
+                alert: e.message.presence || 'No se pudo eliminar el turno y revertir los movimientos.'
   end
 
   private
@@ -253,6 +286,29 @@ class CashShiftsController < ApplicationController
     raw_value.to_s.strip
   end
 
+  def close_blocking_drafts
+    current_business
+      .ventas
+      .where(status: 'draft')
+      .includes(:cliente, :user)
+      .order(created_at: :asc)
+  end
+
+  def close_blocking_drafts_payload
+    close_blocking_drafts.map do |draft|
+      {
+        id: draft.id,
+        client_name: draft.cliente_display_name,
+        created_by_name: draft.user&.display_name.presence || 'Sin personal',
+        created_at_label: begin
+          draft.created_at.in_time_zone('America/Caracas').strftime('%I:%M %p')
+        rescue StandardError
+          draft.created_at&.strftime('%I:%M %p')
+        end
+      }
+    end
+  end
+
   def caracas_date_for(timestamp)
     return nil if timestamp.blank?
 
@@ -274,6 +330,175 @@ class CashShiftsController < ApplicationController
     return if can_manage_action?(:manage_cash_shifts)
 
     deny_access('Solo un encargado o administrador puede abrir y cerrar turnos.')
+  end
+
+  def ensure_can_destroy_shift!
+    return if current_user_admin?
+
+    deny_access('Solo el administrador puede eliminar turnos.')
+  end
+
+  def rollback_cash_shift_data!(cash_shift)
+    return if cash_shift.blank?
+
+    ventas = cash_shift.ventas.includes(:venta_items).to_a
+
+    ventas.each do |venta|
+      restore_stock_for_sale!(venta)
+      delete_account_movements_for_sale!(venta)
+      delete_sale_debts_for_sale!(venta)
+      venta.destroy!
+    end
+
+    delete_shift_closing_movements!(cash_shift)
+    delete_shift_settlements!(cash_shift)
+    delete_shift_cash_exchanges!(cash_shift)
+    recalculate_business_account_balances!
+  end
+
+  def delete_shift_closing_movements!(cash_shift)
+    pattern = "%[CASH_SHIFT:#{cash_shift.id}]%"
+
+    AccountMovement
+      .joins(:account)
+      .where(accounts: { business_id: current_business.id })
+      .where('account_movements.description LIKE ?', pattern)
+      .find_each(&:destroy!)
+  end
+
+  def delete_shift_settlements!(cash_shift)
+    settlement_ids = settlement_ids_from_shift_notes(cash_shift)
+    return if settlement_ids.empty?
+
+    AccountSettlement
+      .joins(:account)
+      .where(accounts: { business_id: current_business.id })
+      .where(id: settlement_ids)
+      .find_each(&:destroy!)
+  end
+
+  def settlement_ids_from_shift_notes(cash_shift)
+    payload = parse_shift_notes_payload(cash_shift&.closing_notes)
+
+    Array(payload['auto_settlements']).filter_map do |row|
+      source = row.respond_to?(:to_h) ? row.to_h : {}
+      settlement_id = source['settlement_id'] || source[:settlement_id]
+      parsed = settlement_id.to_i
+      parsed.positive? ? parsed : nil
+    end.uniq
+  end
+
+  def delete_shift_cash_exchanges!(cash_shift)
+    current_business.cambio_efectivos.where(cash_shift_id: cash_shift.id).find_each do |cambio|
+      AccountMovement.where(cambio_efectivo_id: cambio.id).find_each(&:destroy!)
+      cambio.destroy!
+    end
+  end
+
+  def recalculate_business_account_balances!
+    current_business.accounts.find_each(&:recalculate_balance!)
+  end
+
+  def restore_stock_for_sale!(venta)
+    grouped_items = venta.venta_items
+                         .select { |item| item.producto_id.present? && item.product_variation_id.present? }
+                         .group_by { |item| [item.producto_id, item.product_variation_id] }
+
+    grouped_items.each do |(producto_id, variation_id), items|
+      quantity_units = items.sum { |item| item.quantity.to_d }
+      next unless quantity_units.positive?
+
+      restore_product_variation_units!(
+        producto_id: producto_id,
+        variation_id: variation_id,
+        quantity_units: quantity_units,
+        venta: venta
+      )
+    end
+
+    restore_reserved_service_stock_from_notes!(venta)
+  end
+
+  def restore_product_variation_units!(producto_id:, variation_id:, quantity_units:, venta:)
+    producto = current_business.productos.find_by(id: producto_id)
+    return unless producto
+
+    remaining_to_restore = quantity_units.to_d
+
+    producto.stock_lots.ordered_fifo.each do |lot|
+      row = lot.variation_row_for(variation_id, create_if_missing: true)
+      next unless row
+
+      current_remaining = row.quantity_remaining.to_d
+      max_quantity = row.quantity_in.to_d
+      available_capacity = max_quantity - current_remaining
+      next unless available_capacity.positive?
+
+      restored = [available_capacity, remaining_to_restore].min
+      next unless restored.positive?
+
+      row.update!(quantity_remaining: current_remaining + restored)
+      lot.sync_quantity_remaining_from_variations!
+
+      remaining_to_restore -= restored
+      break if remaining_to_restore <= 0
+    end
+
+    return if remaining_to_restore <= 0
+
+    raise ActiveRecord::RecordInvalid.new(venta),
+          "No se pudo restaurar todo el stock de la venta ##{venta.id} (faltan #{remaining_to_restore.to_f.round(4)} unidades)."
+  end
+
+  def parse_sale_notes_payload(raw_notes)
+    return {} if raw_notes.blank?
+
+    parsed = JSON.parse(raw_notes)
+    parsed.is_a?(Hash) ? parsed : {}
+  rescue JSON::ParserError
+    {}
+  end
+
+  def restore_reserved_service_stock_from_notes!(venta)
+    notes_payload = parse_sale_notes_payload(venta.notes)
+    rows = Array(notes_payload['reserved_service_products'])
+
+    rows.each do |row|
+      producto_id = row['product_id'] || row[:product_id]
+      variation_id = row['variation_id'] || row[:variation_id]
+      quantity_units = parse_decimal(row['quantity'] || row[:quantity]).to_d
+      next if producto_id.blank? || variation_id.blank? || !quantity_units.positive?
+
+      restore_product_variation_units!(
+        producto_id: producto_id,
+        variation_id: variation_id,
+        quantity_units: quantity_units,
+        venta: venta
+      )
+    end
+  end
+
+  def delete_account_movements_for_sale!(venta)
+    pattern = "%[VENTA:#{venta.id}]%"
+
+    AccountMovement
+      .joins(:account)
+      .where(accounts: { business_id: current_business.id })
+      .where('account_movements.description LIKE ?', pattern)
+      .find_each(&:destroy!)
+  end
+
+  def delete_sale_debts_for_sale!(venta)
+    current_business
+      .debts
+      .where(venta_id: venta.id)
+      .find_each(&:destroy!)
+
+    pattern = "%[VENTA:#{venta.id}]%"
+    current_business
+      .debts
+      .where('description LIKE ?', pattern)
+      .find_each(&:destroy!)
   end
 
   def load_shift_details
@@ -385,6 +610,37 @@ class CashShiftsController < ApplicationController
 
     listed_account_ids = rows.map { |row| row[:account_id].to_i }
 
+    cash_box_accounts.each do |account|
+      next unless account.cash_box_role?
+
+      expected_amount = account.balance.to_d.round(2)
+      next unless expected_amount.positive?
+
+      rows << {
+        account_id: account.id,
+        account_name: account.name.to_s,
+        account_type: account.account_type,
+        currency: account.currency.to_s.upcase,
+        currency_symbol: account.currency_symbol,
+        expected_amount: expected_amount,
+        carryover_from_previous: 0.to_d
+      }
+    end
+
+    payall = payall_account
+    if payall.present?
+      expected_amount = payall.balance.to_d.round(2)
+      rows << {
+        account_id: payall.id,
+        account_name: payall.name.to_s,
+        account_type: payall.account_type,
+        currency: payall.currency.to_s.upcase,
+        currency_symbol: payall.currency_symbol,
+        expected_amount: expected_amount,
+        carryover_from_previous: 0.to_d
+      }
+    end
+
     pending_biopago_totals_by_account_id.each do |account_id, pending_total|
       normalized_pending_total = pending_total.to_d.round(2)
       next unless normalized_pending_total.positive?
@@ -410,26 +666,6 @@ class CashShiftsController < ApplicationController
       end
 
       listed_account_ids << account_id unless listed_account_ids.include?(account_id)
-    end
-
-    carryover_map.each do |account_id, carryover_amount|
-      normalized_carryover = carryover_amount.to_d.round(2)
-      next unless normalized_carryover.positive?
-      next if listed_account_ids.include?(account_id)
-
-      account = current_business.accounts.find_by(id: account_id)
-      next if account.blank?
-      next unless account.account_type == 'cash_box'
-
-      rows << {
-        account_id: account.id,
-        account_name: account.name.to_s,
-        account_type: account.account_type,
-        currency: account.currency.to_s.upcase,
-        currency_symbol: account.currency_symbol,
-        expected_amount: normalized_carryover,
-        carryover_from_previous: normalized_carryover
-      }
     end
 
     account_type_order = {
@@ -475,6 +711,7 @@ class CashShiftsController < ApplicationController
   def ensure_close_verification_rows!(verification_rows:, expected_rows:)
     expected_by_account_id = Array(expected_rows).index_by { |row| row[:account_id].to_i }
     provided_by_account_id = Array(verification_rows).index_by { |row| row[:account_id].to_i }
+    payall_id = payall_account&.id
 
     expected_by_account_id.each do |account_id, expected_row|
       provided_row = provided_by_account_id[account_id]
@@ -491,6 +728,11 @@ class CashShiftsController < ApplicationController
 
       if declared_amount.to_d.negative?
         @cash_shift.errors.add(:base, "El monto total de #{expected_row[:account_name]} no puede ser negativo.")
+      end
+
+      if payall_id.present? && account_id == payall_id && declared_amount.to_d < expected_row[:expected_amount].to_d
+        @cash_shift.errors.add(:base,
+                               'El saldo real de Payall debe ser mayor o igual al saldo mostrado en el sistema.')
       end
 
       if expected_row[:account_type].to_s == 'cash_box'
@@ -649,37 +891,88 @@ class CashShiftsController < ApplicationController
   def cash_box_carryover_for_shift(cash_shift)
     return {} if cash_shift.blank?
 
-    opened_at = cash_shift.opened_at || Time.current
-    previous_shift = current_business
-                     .cash_shifts
-                     .closed
-                     .where('closed_at < ?', opened_at)
-                     .order(closed_at: :desc)
-                     .first
-    return {} if previous_shift.blank?
+    {}
+  end
 
-    notes_payload = parse_shift_notes_payload(previous_shift.closing_notes)
-    rows = Array(notes_payload['close_verification_rows'])
+  def cash_box_accounts
+    current_business.accounts.where(account_type: 'cash_box')
+  end
 
-    rows.each_with_object(Hash.new(0.to_d)) do |raw_row, hash|
-      row = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
-      account_type = (row['account_type'] || row[:account_type]).to_s
-      next unless account_type == 'cash_box'
+  def payall_account
+    current_business.accounts.find do |account|
+      account.name.to_s.strip.downcase.include?('payall')
+    end
+  end
 
-      account_id = (row['account_id'] || row[:account_id]).to_i
-      next if account_id <= 0
+  def cash_box_balance_for(currency)
+    cash_box_accounts
+      .where(cash_role: 'cash_box', currency: currency.to_s.upcase)
+      .sum(:balance)
+      .to_d
+      .round(2)
+  end
 
-      carryover_raw = row['carryover_amount'] || row[:carryover_amount]
-      carryover_amount = if carryover_raw.nil?
-                           parse_decimal(row['declared_amount'] || row[:declared_amount]).to_d
-                         else
-                           parse_decimal(carryover_raw).to_d
-                         end
+  def process_cash_withdrawals_for_shift!(verification_rows:, occurred_at: nil)
+    cash_rows = Array(verification_rows).select { |row| row[:account_type].to_s == 'cash_box' }
+    cash_rows.each do |row|
+      withdrawn = row[:withdrawn_amount].to_d
+      next unless withdrawn.positive?
 
-      next unless carryover_amount.positive?
+      source_account = current_business.accounts.find_by(id: row[:account_id])
+      next if source_account.blank?
 
-      hash[account_id] += carryover_amount
-    end.transform_values { |value| value.round(2) }
+      if source_account.cash_role != 'cash_box'
+        @cash_shift.errors.add(:base, "La cuenta #{source_account.name} no es una caja operativa.")
+        raise ActiveRecord::RecordInvalid, @cash_shift
+      end
+
+      destination_account = current_business.accounts.find_by(
+        account_type: 'cash_box',
+        cash_role: 'cash_deposit',
+        currency: source_account.currency
+      )
+
+      if destination_account.blank?
+        @cash_shift.errors.add(:base,
+                               "No existe la cuenta deposito en #{source_account.currency} para registrar el retiro.")
+        raise ActiveRecord::RecordInvalid, @cash_shift
+      end
+
+      movement_occurred_at = occurred_at || Time.current
+      source_account.account_movements.create!(
+        movement_kind: 'expense',
+        amount: withdrawn,
+        description: "Retiro de caja por cierre de turno ##{@cash_shift.id} [CASH_SHIFT:#{@cash_shift.id}]",
+        occurred_at: movement_occurred_at
+      )
+
+      destination_account.account_movements.create!(
+        movement_kind: 'income',
+        amount: withdrawn,
+        description: "Deposito desde caja por cierre de turno ##{@cash_shift.id} [CASH_SHIFT:#{@cash_shift.id}]",
+        occurred_at: movement_occurred_at
+      )
+    end
+  end
+
+  def process_payall_recharge_gain_for_shift!(verification_rows:, occurred_at: nil)
+    payall = payall_account
+    return if payall.blank?
+
+    payall_row = Array(verification_rows).find { |row| row[:account_id].to_i == payall.id }
+    return if payall_row.blank?
+
+    reported_amount = payall_row[:declared_amount].to_d
+    current_balance = payall.balance.to_d
+    gain_amount = (reported_amount - current_balance).round(2)
+    return unless gain_amount.positive?
+
+    payall.account_movements.create!(
+      movement_kind: 'income',
+      amount: gain_amount,
+      description: 'Ganancia de Recargas',
+      occurred_at: occurred_at || Time.current
+    )
   end
 
   def close_summary_rows_from_notes(cash_shift)

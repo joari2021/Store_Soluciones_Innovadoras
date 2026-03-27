@@ -15,7 +15,17 @@
      end %>
   <% tasa = @purchase_invoice.tasa_dolar.to_d %>
   <% row_data = @purchase_invoice.purchase_invoice_items.map do |item|
-       product_name = item.product_name.presence || item.producto&.descripcion || 'Selecciona un producto'
+       raw_product_name = item.product_name.to_s.strip
+       product_name = if raw_product_name.present?
+                        producto_descripcion = item.producto&.descripcion.to_s.strip
+                        if producto_descripcion.present? && raw_product_name.casecmp(producto_descripcion).zero?
+                          item.producto&.display_name_with_presentation.presence || raw_product_name
+                        else
+                          raw_product_name
+                        end
+                      else
+                        item.producto&.display_name_with_presentation || item.producto&.descripcion || 'Selecciona un producto'
+                      end
        cantidad_packs = item.cantidad.to_d
        costo_mayor = item.costo_mayor.to_d
        unid_x_pack = item.unid_x_pack.to_d

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_03_27_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -24,9 +24,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.datetime "updated_at", null: false
     t.string "payment_method"
     t.bigint "account_settlement_id"
+    t.bigint "cambio_efectivo_id"
     t.index ["account_id", "occurred_at"], name: "index_account_movements_on_account_id_and_occurred_at"
     t.index ["account_id"], name: "index_account_movements_on_account_id"
     t.index ["account_settlement_id"], name: "index_account_movements_on_account_settlement_id"
+    t.index ["cambio_efectivo_id"], name: "index_account_movements_on_cambio_efectivo_id"
     t.index ["movement_kind"], name: "index_account_movements_on_movement_kind"
     t.index ["payment_method"], name: "index_account_movements_on_payment_method"
   end
@@ -64,10 +66,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.boolean "is_primary", default: false, null: false
     t.bigint "settlement_account_id"
     t.string "shared_key", null: false
+    t.string "cash_role"
     t.index ["account_type"], name: "index_accounts_on_account_type"
     t.index ["active"], name: "index_accounts_on_active"
     t.index ["business_id"], name: "index_accounts_on_business_id"
     t.index ["business_id"], name: "index_accounts_primary_bank_per_business", unique: true, where: "(((account_type)::text = 'bank_account'::text) AND is_primary)"
+    t.index ["cash_role"], name: "index_accounts_on_cash_role"
     t.index ["currency"], name: "index_accounts_on_currency"
     t.index ["settlement_account_id"], name: "index_accounts_on_settlement_account_id"
     t.index ["shared_key"], name: "index_accounts_on_shared_key"
@@ -145,6 +149,27 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.string "state"
     t.index ["name"], name: "index_businesses_on_name"
     t.index ["theme_profile"], name: "index_businesses_on_theme_profile"
+  end
+
+  create_table "cambio_efectivos", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "cash_shift_id"
+    t.decimal "efectivo_vendido", precision: 12, scale: 2, null: false
+    t.decimal "monto_caja_operativa", precision: 12, scale: 2, null: false
+    t.decimal "monto_caja_deposito", precision: 12, scale: 2, null: false
+    t.decimal "monto_recibido", precision: 12, scale: 2, null: false
+    t.decimal "recargo_percent", precision: 5, scale: 2, null: false
+    t.string "payment_group", null: false
+    t.string "currency", default: "VES", null: false
+    t.jsonb "payment_details", default: {}
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_cambio_efectivos_on_business_id"
+    t.index ["cash_shift_id"], name: "index_cambio_efectivos_on_cash_shift_id"
+    t.index ["occurred_at"], name: "index_cambio_efectivos_on_occurred_at"
+    t.index ["user_id"], name: "index_cambio_efectivos_on_user_id"
   end
 
   create_table "cash_shifts", force: :cascade do |t|
@@ -374,6 +399,46 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "pack_unwrap_items", force: :cascade do |t|
+    t.bigint "pack_unwrap_id", null: false
+    t.bigint "source_product_variation_id", null: false
+    t.bigint "destination_product_variation_id", null: false
+    t.bigint "source_stock_lot_id", null: false
+    t.bigint "destination_stock_lot_id", null: false
+    t.decimal "packs_opened", precision: 12, scale: 2, null: false
+    t.decimal "units_created", precision: 12, scale: 2, null: false
+    t.decimal "source_unit_cost_usd", precision: 12, scale: 2, null: false
+    t.decimal "destination_unit_cost_usd", precision: 12, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["destination_product_variation_id"], name: "index_pack_unwrap_items_on_destination_product_variation_id"
+    t.index ["destination_stock_lot_id"], name: "index_pack_unwrap_items_on_destination_stock_lot_id"
+    t.index ["pack_unwrap_id"], name: "index_pack_unwrap_items_on_pack_unwrap_id"
+    t.index ["source_product_variation_id"], name: "index_pack_unwrap_items_on_source_product_variation_id"
+    t.index ["source_stock_lot_id"], name: "index_pack_unwrap_items_on_source_stock_lot_id"
+  end
+
+  create_table "pack_unwraps", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "pack_producto_id", null: false
+    t.bigint "unit_producto_id", null: false
+    t.bigint "user_id", null: false
+    t.integer "cant_presentation", null: false
+    t.decimal "total_packs_opened", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "total_units_created", precision: 12, scale: 2, default: "0.0", null: false
+    t.date "performed_on", null: false
+    t.datetime "performed_at", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "performed_on"], name: "index_pack_unwraps_on_business_id_and_performed_on"
+    t.index ["business_id"], name: "index_pack_unwraps_on_business_id"
+    t.index ["pack_producto_id"], name: "index_pack_unwraps_on_pack_producto_id"
+    t.index ["performed_on"], name: "index_pack_unwraps_on_performed_on"
+    t.index ["unit_producto_id"], name: "index_pack_unwraps_on_unit_producto_id"
+    t.index ["user_id"], name: "index_pack_unwraps_on_user_id"
+  end
+
   create_table "peliculas", force: :cascade do |t|
     t.string "poster"
     t.string "name"
@@ -403,6 +468,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "product_usages", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "producto_id", null: false
+    t.bigint "product_variation_id", null: false
+    t.bigint "user_id", null: false
+    t.decimal "quantity", precision: 14, scale: 2, null: false
+    t.date "used_on", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "used_on"], name: "index_product_usages_on_business_id_and_used_on"
+    t.index ["business_id"], name: "index_product_usages_on_business_id"
+    t.index ["product_variation_id"], name: "index_product_usages_on_product_variation_id"
+    t.index ["producto_id", "product_variation_id"], name: "index_product_usages_on_producto_id_and_product_variation_id"
+    t.index ["producto_id"], name: "index_product_usages_on_producto_id"
+    t.index ["user_id"], name: "index_product_usages_on_user_id"
+  end
+
   create_table "product_variations", force: :cascade do |t|
     t.bigint "producto_id", null: false
     t.string "description", null: false
@@ -422,6 +505,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.bigint "categoria_id", null: false
     t.bigint "profit_margin_preset_id"
     t.boolean "exento", default: false, null: false
+    t.integer "presentation", default: 0, null: false
+    t.integer "cant_presentation", default: 1, null: false
+    t.boolean "allow_unpack", default: false, null: false
+    t.index ["allow_unpack"], name: "index_productos_on_allow_unpack"
     t.index ["business_id"], name: "index_productos_on_business_id"
     t.index ["categoria_id"], name: "index_productos_on_categoria_id"
     t.index ["profit_margin_preset_id"], name: "index_productos_on_profit_margin_preset_id"
@@ -562,6 +649,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.index ["service_id"], name: "index_service_print_material_surcharges_on_service_id"
   end
 
+  create_table "service_print_volume_discounts", force: :cascade do |t|
+    t.bigint "service_id", null: false
+    t.integer "min_quantity", null: false
+    t.decimal "discount_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["service_id", "min_quantity"], name: "idx_service_print_volume_discounts_on_service_min_qty"
+    t.index ["service_id"], name: "index_service_print_volume_discounts_on_service_id"
+  end
+
   create_table "service_product_expenses", force: :cascade do |t|
     t.bigint "service_expense_structure_id", null: false
     t.bigint "producto_id", null: false
@@ -619,6 +716,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.string "print_sale_description"
     t.bigint "print_delivery_material_surcharge_id"
     t.jsonb "print_delivery_extra_products", default: [], null: false
+    t.decimal "recarga_min_amount", precision: 12, scale: 2
+    t.decimal "recarga_multiple_amount", precision: 12, scale: 2
+    t.decimal "recarga_profit_percent", precision: 5, scale: 2
     t.index ["auto_cost_stock_discount"], name: "index_services_on_auto_cost_stock_discount"
     t.index ["business_id"], name: "index_services_on_business_id"
     t.index ["caution_service"], name: "index_services_on_caution_service"
@@ -647,7 +747,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
 
   create_table "stock_lots", force: :cascade do |t|
     t.bigint "producto_id", null: false
-    t.bigint "factura_item_id", null: false
+    t.bigint "factura_item_id"
     t.bigint "supplier_id"
     t.decimal "unit_cost_usd", precision: 12, scale: 2, default: "0.0", null: false
     t.decimal "quantity_in", precision: 12, scale: 2, default: "0.0", null: false
@@ -696,6 +796,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
     t.string "name"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.decimal "recarga_min_amount", precision: 12, scale: 2
+    t.decimal "recarga_multiple_amount", precision: 12, scale: 2
+    t.decimal "recarga_profit_percent", precision: 5, scale: 2
   end
 
   create_table "tasa_cambios", force: :cascade do |t|
@@ -809,6 +912,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
 
   add_foreign_key "account_movements", "account_settlements"
   add_foreign_key "account_movements", "accounts"
+  add_foreign_key "account_movements", "cambio_efectivos"
   add_foreign_key "account_settlements", "accounts"
   add_foreign_key "account_settlements", "accounts", column: "settlement_account_id"
   add_foreign_key "accounts", "accounts", column: "settlement_account_id"
@@ -816,6 +920,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "appointments", "saime_users"
+  add_foreign_key "cambio_efectivos", "businesses"
+  add_foreign_key "cambio_efectivos", "cash_shifts"
+  add_foreign_key "cambio_efectivos", "users"
   add_foreign_key "cash_shifts", "businesses"
   add_foreign_key "cash_shifts", "users", column: "closed_by_id"
   add_foreign_key "cash_shifts", "users", column: "opened_by_id"
@@ -842,7 +949,20 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
   add_foreign_key "generos_peliculas", "peliculas"
   add_foreign_key "generos_serie_tvs", "generos"
   add_foreign_key "generos_serie_tvs", "serie_tvs"
+  add_foreign_key "pack_unwrap_items", "pack_unwraps"
+  add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id"
+  add_foreign_key "pack_unwrap_items", "product_variations", column: "source_product_variation_id"
+  add_foreign_key "pack_unwrap_items", "stock_lots", column: "destination_stock_lot_id"
+  add_foreign_key "pack_unwrap_items", "stock_lots", column: "source_stock_lot_id"
+  add_foreign_key "pack_unwraps", "businesses"
+  add_foreign_key "pack_unwraps", "productos", column: "pack_producto_id"
+  add_foreign_key "pack_unwraps", "productos", column: "unit_producto_id"
+  add_foreign_key "pack_unwraps", "users"
   add_foreign_key "peliculas", "users"
+  add_foreign_key "product_usages", "businesses"
+  add_foreign_key "product_usages", "product_variations"
+  add_foreign_key "product_usages", "productos"
+  add_foreign_key "product_usages", "users"
   add_foreign_key "product_variations", "productos"
   add_foreign_key "productos", "businesses"
   add_foreign_key "productos", "categorias"
@@ -861,6 +981,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_03_26_120000) do
   add_foreign_key "service_print_coverage_prices", "services"
   add_foreign_key "service_print_material_surcharges", "productos"
   add_foreign_key "service_print_material_surcharges", "services"
+  add_foreign_key "service_print_volume_discounts", "services"
   add_foreign_key "service_product_expenses", "product_variations"
   add_foreign_key "service_product_expenses", "productos"
   add_foreign_key "service_product_expenses", "service_expense_structures"

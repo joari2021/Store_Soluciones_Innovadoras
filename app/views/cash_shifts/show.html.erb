@@ -24,6 +24,16 @@
             Cerrar turno
           </button>
         <% end %>
+        <% if current_user_admin? %>
+          <%= link_to cash_shift_path(@cash_shift),
+                      data: {
+                        turbo_method: :delete,
+                        turbo_confirm: "Se eliminara el turno ##{@cash_shift.id} y se revertiran ventas, pagos, cambios de efectivo y movimientos asociados. Esta accion no se puede deshacer."
+                      },
+                      class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow-sm transition-colors hover:bg-rose-100' do %>
+            Eliminar turno
+          <% end %>
+        <% end %>
         <span class="inline-flex items-center rounded-full px-3 py-1.5 text-xs font-semibold <%= @cash_shift.open? ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700' %>">
           <%= @cash_shift.status_label %>
         </span>
@@ -306,12 +316,16 @@
   <script type="application/json" id="cash-shift-close-rows-data">
     <%= raw ERB::Util.json_escape(close_verification_rows.to_json) %>
   </script>
+  <script type="application/json" id="cash-shift-close-drafts-data">
+    <%= raw ERB::Util.json_escape((@close_blocking_drafts_payload || []).to_json) %>
+  </script>
   <script>
     (() => {
       const initCashShiftCloseModal = () => {
         const trigger = document.getElementById('cash-shift-close-trigger');
         const rowsDataEl = document.getElementById('cash-shift-close-rows-data');
-        if (!trigger || !rowsDataEl || trigger.dataset.boundCloseModal === 'true') return;
+        const draftsDataEl = document.getElementById('cash-shift-close-drafts-data');
+        if (!trigger || !rowsDataEl || !draftsDataEl || trigger.dataset.boundCloseModal === 'true') return;
 
         trigger.dataset.boundCloseModal = 'true';
 
@@ -321,6 +335,14 @@
         } catch (error) {
           rowsData = [];
         }
+
+        let blockingDrafts = [];
+        try {
+          blockingDrafts = JSON.parse(draftsDataEl.textContent || '[]');
+        } catch (_error) {
+          blockingDrafts = [];
+        }
+        if (!Array.isArray(blockingDrafts)) blockingDrafts = [];
 
         const parseRawAmount = (rawValue) => {
           const compact = String(rawValue || '').trim().replace(/\s/g, '');
@@ -361,6 +383,48 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#39;');
+
+        const showDraftsBlockingModal = async () => {
+          if (!window.Swal) return;
+
+          const rowsHtml = blockingDrafts.map((row) => {
+            const clientName = escapeHtml(String(row.client_name || 'Consumidor final'));
+            const createdBy = escapeHtml(String(row.created_by_name || 'Sin personal'));
+            const createdAt = escapeHtml(String(row.created_at_label || '-'));
+
+            return `
+              <tr>
+                <td class="px-3 py-2 text-sm text-slate-700">${clientName}</td>
+                <td class="px-3 py-2 text-sm text-slate-700">${createdBy}</td>
+                <td class="px-3 py-2 text-sm text-slate-700">${createdAt}</td>
+              </tr>
+            `;
+          }).join('');
+
+          await window.Swal.fire({
+            icon: 'warning',
+            title: 'Borradores pendientes',
+            html: `
+              <div class="text-left">
+                <p class="text-sm text-slate-600">Hay ventas guardadas como borradores en el panel de cobro, debe culminar las ventas o eliminar si ya no se van a concretar antes de cerrar el turno, comunicarse con el personal que inicio la venta de ser necesario.</p>
+                <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                  <table class="min-w-full bg-white">
+                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                      <tr>
+                        <th class="px-3 py-2 text-left">Cliente</th>
+                        <th class="px-3 py-2 text-left">Iniciado Por</th>
+                        <th class="px-3 py-2 text-left">Hora</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">${rowsHtml}</tbody>
+                  </table>
+                </div>
+              </div>
+            `,
+            confirmButtonText: 'Entendido',
+            heightAuto: false,
+          });
+        };
 
         const accountTypeLabel = (type) => {
           const labels = {
@@ -410,8 +474,9 @@
             const symbol = symbolForRow(row);
             const expected = Number(row.expected_amount || 0);
             const isCashBox = String(row.account_type || '') === 'cash_box';
+            const isPayall = String(row.account_name || '').toLowerCase().includes('payall');
             const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
-            const declared = isCashBox ? parseAmountFromInput(declaredInput) : expected;
+            const declared = (isCashBox || isPayall) ? parseAmountFromInput(declaredInput) : expected;
             const normalizedDeclared = Number.isFinite(declared) ? declared : 0;
             const difference = Number((normalizedDeclared - expected).toFixed(2));
             const diffBadge = differenceMeta(difference);
@@ -497,8 +562,9 @@
           for (let index = 0; index < rowsData.length; index += 1) {
             const row = rowsData[index];
             const isCashBox = String(row.account_type || '') === 'cash_box';
+            const isPayall = String(row.account_name || '').toLowerCase().includes('payall');
             const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
-            let declaredAmount = isCashBox ? parseAmountFromInput(declaredInput) : Number(row.expected_amount || 0);
+            let declaredAmount = (isCashBox || isPayall) ? parseAmountFromInput(declaredInput) : Number(row.expected_amount || 0);
 
             if (!Number.isFinite(declaredAmount) || declaredAmount < 0) {
               window.Swal.showValidationMessage(`Monto declarado invalido para ${row.account_name}.`);
@@ -548,10 +614,16 @@
         trigger.addEventListener('click', async () => {
           if (!window.Swal) return;
 
+          if (blockingDrafts.length > 0) {
+            await showDraftsBlockingModal();
+            return;
+          }
+
           const rowsHtml = rowsData.length > 0
             ? rowsData.map((row, index) => {
                 const symbol = symbolForRow(row);
                 const isCashBox = String(row.account_type || '') === 'cash_box';
+                const isPayall = String(row.account_name || '').toLowerCase().includes('payall');
                 const carryoverFromPrevious = Number(row.carryover_from_previous || 0);
 
                 return `
@@ -567,6 +639,12 @@
                     ${isCashBox ? `
                       <div class="mt-2">
                         <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto total reportado</label>
+                        <input type="text" inputmode="decimal" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="${symbol} 0,00" data-close-declared="${index}" data-money-mask="true" data-money-symbol="${symbol}">
+                        <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
+                      </div>
+                    ` : isPayall ? `
+                      <div class="mt-2">
+                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo real Payall</label>
                         <input type="text" inputmode="decimal" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="${symbol} 0,00" data-close-declared="${index}" data-money-mask="true" data-money-symbol="${symbol}">
                         <div class="mt-2 flex items-center justify-between gap-2" data-close-diff-label="${index}"></div>
                       </div>
@@ -595,18 +673,22 @@
           const result = await window.Swal.fire({
             title: 'Cerrar turno',
             html: `
-              <div class="space-y-3 text-left">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Verificacion de metodos</p>
-                <p class="text-sm text-slate-600">Confirma montos de caja. POS se registrara como cierre pendiente de procesamiento y Biopago permanecera pendiente para su cierre manual diario.</p>
-                <div class="space-y-2">${rowsHtml}</div>
-                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen de diferencias</p>
-                  <div class="mt-2 grid gap-2" data-close-summary-list></div>
-                  <p class="mt-2 text-xs" data-close-summary-note></p>
+              <div class="flex max-h-[70vh] flex-col text-left">
+                <div class="border-b border-slate-200 pb-3">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Verificacion de metodos</p>
+                  <p class="mt-1 text-sm text-slate-600">Confirma montos de caja. POS se registrara como cierre pendiente de procesamiento y Biopago permanecera pendiente para su cierre manual diario.</p>
                 </div>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Notas de cierre (opcional)</label>
-                  <textarea rows="3" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Observaciones del cierre" data-close-notes></textarea>
+                <div class="app-thin-scrollbar mt-3 flex-1 overflow-y-auto pr-1">
+                  <div class="space-y-2">${rowsHtml}</div>
+                  <div class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen de diferencias</p>
+                    <div class="mt-2 grid gap-2" data-close-summary-list></div>
+                    <p class="mt-2 text-xs" data-close-summary-note></p>
+                  </div>
+                  <div class="mt-3">
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Notas de cierre (opcional)</label>
+                    <textarea rows="3" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Observaciones del cierre" data-close-notes></textarea>
+                  </div>
                 </div>
               </div>
             `,
@@ -622,8 +704,7 @@
 
               rowsData.forEach((row, index) => {
                 const symbol = symbolForRow(row);
-                const expected = Number(row.expected_amount || 0);
-                const initialAmount = String(row.account_type || '') === 'cash_box' ? 0 : expected;
+                const initialAmount = 0;
                 const declaredInput = dialog.querySelector(`[data-close-declared="${index}"]`);
 
                 if (declaredInput) {
@@ -638,9 +719,9 @@
                   const withdrawnInput = dialog.querySelector(`[data-close-withdrawn="${index}"]`);
                   if (withdrawnInput) {
                     if (window.MoneyInputMask?.setValue) {
-                      window.MoneyInputMask.setValue(withdrawnInput, initialAmount, symbol);
+                      window.MoneyInputMask.setValue(withdrawnInput, 0, symbol);
                     } else {
-                      withdrawnInput.value = formatMoney(initialAmount, symbol);
+                      withdrawnInput.value = formatMoney(0, symbol);
                     }
                   }
                 }
@@ -732,6 +813,11 @@
 
             const data = await response.json().catch(() => ({}));
             if (!response.ok) {
+              if (String(data.code || '') === 'drafts_present') {
+                blockingDrafts = Array.isArray(data.drafts) ? data.drafts : blockingDrafts;
+                await showDraftsBlockingModal();
+                return;
+              }
               throw new Error(String(data.error || 'No se pudo cerrar el turno.'));
             }
 

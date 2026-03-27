@@ -41,6 +41,61 @@
           return `${day}-${month}-${year}`;
         };
 
+        let openingBalances = [];
+        try {
+          openingBalances = JSON.parse(String(trigger.dataset.openingBalances || '[]'));
+        } catch (_error) {
+          openingBalances = [];
+        }
+        if (!Array.isArray(openingBalances)) openingBalances = [];
+
+        const lastClosedShiftUrl = String(trigger.dataset.lastClosedShiftUrl || '').trim();
+
+        const requestOpeningBalancesConfirmation = async () => {
+          const rowsHtml = openingBalances.map((row) => {
+            const label = escapeHtml(String(row?.label || ''));
+            const symbol = escapeHtml(String(row?.currency_symbol || ''));
+            const amount = escapeHtml(formatAmount(row?.balance, symbol));
+            return `
+              <tr>
+                <td class="px-3 py-2 text-sm font-semibold text-slate-700">${label}</td>
+                <td class="px-3 py-2 text-right text-sm font-bold text-slate-800">${amount}</td>
+              </tr>
+            `;
+          }).join('');
+
+          if (window.Swal) {
+            const result = await window.Swal.fire({
+              title: 'Verifica saldos antes de abrir turno',
+              html: `
+                <div class="text-left">
+                  <div class="overflow-hidden rounded-xl border border-slate-200">
+                    <table class="min-w-full bg-white">
+                      <tbody class="divide-y divide-slate-100">${rowsHtml}</tbody>
+                    </table>
+                  </div>
+                  <p class="mt-3 text-xs text-slate-600">Rectifica los saldos que son los indicados antes de continuar si vez alguna diferenccia comunicarse con el encargado que cerro el turno anterior.</p>
+                </div>
+              `,
+              confirmButtonText: 'Si, confirmo que son los montos correctos',
+              showCancelButton: true,
+              cancelButtonText: 'Cancelar',
+              showDenyButton: Boolean(lastClosedShiftUrl),
+              denyButtonText: 'Ver ultimo turno',
+              heightAuto: false,
+            });
+
+            if (result.isDenied && lastClosedShiftUrl) {
+              window.location.href = lastClosedShiftUrl;
+              return false;
+            }
+
+            return Boolean(result.isConfirmed);
+          }
+
+          return window.confirm('Rectifica los saldos antes de continuar y confirma solo si son correctos.');
+        };
+
         const buildRatesHtml = (snapshot) => {
           const safeSnapshot = snapshot && typeof snapshot === 'object' ? snapshot : {};
           const bcvRates = Array.isArray(safeSnapshot.bcv_rates) ? safeSnapshot.bcv_rates : [];
@@ -102,6 +157,9 @@
         };
 
         const openShift = async () => {
+          const balancesConfirmed = await requestOpeningBalancesConfirmation();
+          if (!balancesConfirmed) return;
+
           const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
           if (!csrfToken) {
             if (window.Swal) {
@@ -256,6 +314,9 @@
   <script type="application/json" id="ventas-accounts-data">
     <%= raw ERB::Util.json_escape(@accounts_payload.to_json) %>
   </script>
+  <script type="application/json" id="ventas-cash-boxes-data">
+    <%= raw ERB::Util.json_escape(@cash_box_accounts_payload.to_json) %>
+  </script>
   <script type="application/json" id="ventas-drafts-data">
     <%= raw ERB::Util.json_escape(@drafts_payload.to_json) %>
   </script>
@@ -277,9 +338,15 @@
           </div>
           <div class="flex flex-col gap-3 xl:items-end">
             <p class="text-xs text-slate-500">Filtra r&aacute;pido y cambia entre cat&aacute;logos sin perder el contexto de la orden.</p>
-            <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1.5 shadow-inner shadow-slate-100">
-              <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-200">Productos</button>
-              <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Servicios</button>
+            <div class="flex flex-wrap items-center gap-2">
+              <button id="ventas-cash-exchange-button" type="button" class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100">
+                <i data-lucide="repeat" class="h-4 w-4"></i>
+                Cambio de efectivo
+              </button>
+              <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1.5 shadow-inner shadow-slate-100">
+                <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-200">Productos</button>
+                <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Servicios</button>
+              </div>
             </div>
           </div>
         </div>
@@ -514,15 +581,15 @@
           <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">IVA 16%</p>
           <div class="mt-2 grid grid-cols-3 gap-2 text-[11px]">
             <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
-              <input type="radio" name="ventas-vat-mode" value="none" checked class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              <input type="radio" name="ventas-vat-mode" value="none" checked class="cursor-pointer text-sky-600 focus:ring-sky-500" onchange="window.__ventasForceVatRecalc && window.__ventasForceVatRecalc(this.value)">
               Sin IVA
             </label>
             <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
-              <input type="radio" name="ventas-vat-mode" value="add" class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              <input type="radio" name="ventas-vat-mode" value="add" class="cursor-pointer text-sky-600 focus:ring-sky-500" onchange="window.__ventasForceVatRecalc && window.__ventasForceVatRecalc(this.value)">
               Agregar
             </label>
             <label class="flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-2.5 py-2 text-slate-600 shadow-sm">
-              <input type="radio" name="ventas-vat-mode" value="included" class="cursor-pointer text-sky-600 focus:ring-sky-500">
+              <input type="radio" name="ventas-vat-mode" value="included" class="cursor-pointer text-sky-600 focus:ring-sky-500" onchange="window.__ventasForceVatRecalc && window.__ventasForceVatRecalc(this.value)">
               Invertido
             </label>
           </div>
@@ -571,18 +638,20 @@
 </div>
 <script>
   (() => {
-    if (window.ventasPosListenersBound) return;
-    window.ventasPosListenersBound = true;
+    if (!window.ventasPosBoundRoots) {
+      window.ventasPosBoundRoots = new WeakSet();
+    }
 
     const initVentasPOS = () => {
       const root = document.getElementById('ventas-pos-root');
-      if (!root || root.dataset.bound === 'true') return;
-      root.dataset.bound = 'true';
+      if (!root) return;
+      if (window.ventasPosBoundRoots.has(root)) return;
 
       const hasOpenCashShift = root.dataset.openShift === 'true';
 
       const productsDataEl = document.getElementById('ventas-products-data');
       if (!productsDataEl) return;
+      window.ventasPosBoundRoots.add(root);
 
       let products = [];
       try {
@@ -608,6 +677,16 @@
           accounts = JSON.parse(accountsDataEl.textContent || '[]');
         } catch (error) {
           accounts = [];
+        }
+      }
+
+      const cashBoxesDataEl = document.getElementById('ventas-cash-boxes-data');
+      let cashBoxes = [];
+      if (cashBoxesDataEl) {
+        try {
+          cashBoxes = JSON.parse(cashBoxesDataEl.textContent || '[]');
+        } catch (error) {
+          cashBoxes = [];
         }
       }
 
@@ -732,7 +811,6 @@
       const baseCurrencyInputs = root.querySelectorAll('input[name="ventas-base-currency"]');
       const checkedBase = Array.from(baseCurrencyInputs).find((input) => input.checked);
       if (checkedBase) baseCurrency = checkedBase.value;
-
       if (bcvRate <= 0) {
         baseCurrencyInputs.forEach((input) => {
           if (input.value === 'ves') {
@@ -814,6 +892,69 @@
       const formatCurrencyValue = (value, currencyCode) => {
         if (currencyCode === 'VES') return formatMoney(value, 'Bs ');
         return formatMoney(value, '$');
+      };
+
+      const normalizeServiceName = (value) =>
+        String(value || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .trim();
+
+      const normalizeServiceGroupingName = (service) => normalizeServiceName(
+        service?.sale_display_name || service?.name || service?.description || service?.system_name || ''
+      );
+
+      const resolvePrintVolumeDiscountPercent = (service) => {
+        if (!service?.printing_type_service) return 0;
+        const rules = Array.isArray(service.print_volume_discounts) ? service.print_volume_discounts : [];
+        if (rules.length === 0) return 0;
+
+        const serviceKey = normalizeServiceGroupingName(service);
+        if (!serviceKey) return 0;
+
+        let totalQty = 0;
+        cart.forEach((entry) => {
+          if ((entry.itemType || 'product') !== 'service') return;
+          const entryService = servicesById.get(String(entry.serviceId));
+          if (!entryService || !entryService.printing_type_service) return;
+          const entryKey = normalizeServiceGroupingName(entryService);
+          if (!entryKey || entryKey !== serviceKey) return;
+          totalQty += Number(entry.quantity) || 0;
+        });
+
+        if (!(totalQty > 0)) return 0;
+
+        let best = 0;
+        rules.forEach((rule) => {
+          const minQty = Number(rule.min_quantity);
+          const percent = Number(rule.discount_percent);
+          if (!(minQty > 0) || !(percent > 0)) return;
+          if (totalQty >= minQty && percent > best) best = percent;
+        });
+
+        return best > 0 ? best : 0;
+      };
+
+      const isRecargaService = (service) => {
+        if (!service) return false;
+        if (service.recarga_service === true) return true;
+        const systemName = normalizeServiceName(service.system_name);
+        return systemName.includes('recarga');
+      };
+
+      const findPayallAccount = () => {
+        return accounts.find((account) => normalizeServiceName(account?.name).includes('payall')) || null;
+      };
+
+      const recargaReservedInCart = () => {
+        let total = 0;
+        cart.forEach((item) => {
+          if ((item.itemType || 'product') !== 'service') return;
+          const amount = Number(item.recarga_base_amount || 0);
+          if (Number.isFinite(amount) && amount > 0) total += amount;
+        });
+        return roundTo(total, 2);
       };
 
       const currentBaseCurrencyCode = () => (baseCurrency === 'ves' ? 'VES' : 'USD');
@@ -919,6 +1060,1798 @@
         }
       };
 
+      const padDatePart = (value) => String(value).padStart(2, '0');
+
+      const formatDisplayDate = (date) => {
+        if (!(date instanceof Date)) return '';
+        return `${padDatePart(date.getDate())}-${padDatePart(date.getMonth() + 1)}-${date.getFullYear()}`;
+      };
+
+      const formatIsoDate = (date) => {
+        if (!(date instanceof Date)) return '';
+        return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+      };
+
+      const parsePaymentDateInput = (rawValue) => {
+        const normalized = String(rawValue || '').trim();
+        if (!normalized) return null;
+
+        const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (isoMatch) {
+          const year = Number(isoMatch[1]);
+          const month = Number(isoMatch[2]);
+          const day = Number(isoMatch[3]);
+          const parsedDate = new Date(year, month - 1, day);
+
+          if (
+            parsedDate.getFullYear() !== year ||
+            parsedDate.getMonth() !== month - 1 ||
+            parsedDate.getDate() !== day
+          ) {
+            return null;
+          }
+
+          return parsedDate;
+        }
+
+        const displayMatch = normalized.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+        if (!displayMatch) return null;
+
+        const day = Number(displayMatch[1]);
+        const month = Number(displayMatch[2]);
+        const year = Number(displayMatch[3]);
+        const parsedDate = new Date(year, month - 1, day);
+
+        if (
+          parsedDate.getFullYear() !== year ||
+          parsedDate.getMonth() !== month - 1 ||
+          parsedDate.getDate() !== day
+        ) {
+          return null;
+        }
+
+        return parsedDate;
+      };
+
+      const normalizePaymentDateInput = (rawValue) => {
+        const parsedDate = parsePaymentDateInput(rawValue);
+        if (!parsedDate) return null;
+
+        return {
+          date: parsedDate,
+          display: formatDisplayDate(parsedDate),
+          iso: formatIsoDate(parsedDate),
+        };
+      };
+
+      const openPaymentModalWithConfig = (config = {}) => {
+        const modalTotals = config.totals || {};
+        const totalBase = Number(modalTotals.totalBase || 0);
+        const subtotalBase = Number(modalTotals.subtotalBase || 0);
+        const exentoBase = Number(modalTotals.exentoBase || 0);
+        const vatBase = Number(modalTotals.vatBase || 0);
+        const vatLabel = String(config.vatLabel || 'Sin IVA');
+        const allowCredit = config.allowCredit !== false;
+        const allowChange = config.allowChange !== false;
+        const allowedAccountFilter = typeof config.allowedAccountFilter === 'function'
+          ? config.allowedAccountFilter
+          : null;
+        const accountsList = Array.isArray(config.accountsList) ? config.accountsList : accounts;
+        const filteredAccounts = allowedAccountFilter
+          ? accountsList.filter((account) => allowedAccountFilter(account))
+          : accountsList;
+        const orderedAccounts = orderAccountsForPaymentModal(filteredAccounts);
+        const specialAccounts = orderedAccounts.filter((account) => isSpecialAccount(account));
+        const bankAccounts = orderedAccounts.filter((account) => account.is_bank);
+        const cashAccounts = orderedAccounts.filter((account) => {
+          const type = accountTypeKey(account);
+          return !account.is_bank && !isSpecialAccount(account) && type === 'cash_box';
+        });
+        const typedOtherAccounts = orderedAccounts.filter((account) => {
+          const type = accountTypeKey(account);
+          return !account.is_bank && !isSpecialAccount(account) && type !== 'cash_box';
+        });
+
+        const primaryBankAccount = bankAccounts.find((account) => account.is_primary);
+        const previousBaseCurrency = baseCurrency;
+        if (config.baseCurrencyOverride) {
+          baseCurrency = config.baseCurrencyOverride;
+        }
+        const baseCurrencyCode = baseCurrency === 'ves' ? 'VES' : 'USD';
+
+        const todayPaymentDate = formatDisplayDate(new Date());
+
+        const capturePaymentModalState = (dialog) => {
+          if (!dialog) return null;
+
+          const payments = Array.from(dialog.querySelectorAll('[data-pay-row]')).map((row) => {
+            const accountId = row.dataset.payRow;
+            return {
+              accountId: String(accountId),
+              checked: Boolean(row.querySelector(`[data-pay-check="${accountId}"]`)?.checked),
+              amount: row.querySelector(`[data-pay-input="${accountId}"]`)?.value || '',
+              method: row.querySelector(`[data-pay-bank-method="${accountId}"]`)?.value || '',
+              reference: row.querySelector(`[data-pay-reference="${accountId}"]`)?.value || '',
+              paymentDate: row.querySelector(`[data-pay-date="${accountId}"]`)?.value || '',
+            };
+          });
+
+          const changeToggle = dialog.querySelector('[data-change-toggle]');
+          const creditToggle = dialog.querySelector('[data-credit-toggle]');
+          const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
+          const change = Array.from(dialog.querySelectorAll('[data-change-row]')).map((row) => {
+            const accountId = row.dataset.changeRow;
+            return {
+              accountId: String(accountId),
+              checked: Boolean(row.querySelector(`[data-change-check="${accountId}"]`)?.checked),
+              amount: row.querySelector(`[data-change-input="${accountId}"]`)?.value || '',
+              method: row.querySelector(`[data-change-bank-method="${accountId}"]`)?.value || '',
+              reference: row.querySelector(`[data-change-reference="${accountId}"]`)?.value || '',
+            };
+          });
+
+          const showExtraBankAccounts = Array.from(dialog.querySelectorAll('[data-bank-extra="true"]'))
+            .some((row) => !row.classList.contains('hidden'));
+
+          return {
+            payments,
+            change,
+            changeEnabled: Boolean(changeToggle?.checked),
+            creditEnabled: Boolean(creditToggle?.checked),
+            creditDueOn: creditDueOnInput?.value || '',
+            showExtraBankAccounts,
+          };
+        };
+
+        const buildPaymentRow = (account, options = {}) => {
+          const symbol = account.currency_symbol || account.currency;
+          const isBank = account.is_bank;
+          const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
+          const logoUrl = String(account.logo_url || '').trim();
+          const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
+          const hasLogo = logoUrl.length > 0;
+          const bankFieldsClass = isBank ? 'ventas-pay-bank-fields' : 'hidden';
+          const extraClass = options.extra ? ' hidden' : '';
+          const extraAttr = options.extra ? ' data-bank-extra="true"' : '';
+          const cardClasses = 'ventas-pay-accordion rounded-2xl border border-slate-200 bg-white/95 p-3.5 shadow-sm transition-all';
+          const inputClass = 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+          const bankSelectClass = 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-500 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+          const bankFieldClass = 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-slate-50/70 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+          const equivalentClass = 'ventas-pay-equivalent text-xs font-medium text-slate-500';
+          const methodImageHtml = hasPaymentMethodImage
+            ? `<div class="ventas-pay-method-image">
+                <img src="${escapeHtml(paymentMethodImageUrl)}" alt="Imagen del metodo de pago" loading="lazy" data-pay-method-image>
+              </div>`
+            : `<div class="ventas-pay-method-image ventas-pay-method-image--fallback" aria-hidden="true">
+                <div class="ventas-pay-method-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 10h18"></path>
+                    <path d="M4 20h16a1 1 0 0 0 1-1v-8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a1 1 0 0 0 1 1z"></path>
+                    <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                  </svg>
+                </div>
+              </div>`;
+          return `
+            <div class="${cardClasses}${extraClass}" data-pay-row="${account.id}"${extraAttr}>
+              <input type="checkbox" class="ventas-pay-checkbox" data-pay-check="${account.id}">
+              <button type="button" class="ventas-pay-accordion-toggle" data-pay-toggle="${account.id}">
+                <span class="ventas-pay-avatar" aria-hidden="true">
+                  ${hasLogo
+                    ? `<img src="${escapeHtml(logoUrl)}" alt="Logo de la cuenta" loading="lazy">`
+                    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 10h18"></path>
+                        <path d="M4 20h16a1 1 0 0 0 1-1v-8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a1 1 0 0 0 1 1z"></path>
+                        <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                      </svg>`}
+                </span>
+                <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
+                <span class="ventas-pay-chevron" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M6 9l6 6 6-6"></path>
+                  </svg>
+                </span>
+              </button>
+              <div class="ventas-pay-accordion-content" data-pay-content>
+                <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
+                  <div class="ventas-pay-amount">
+                    <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="${inputClass}" data-pay-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
+                    <p class="${equivalentClass}" data-pay-equivalent="${account.id}"></p>
+                  </div>
+                  <div class="${bankFieldsClass}" data-pay-bank-fields="${account.id}">
+                    <select class="${bankSelectClass}" data-bank-method-select="true" data-pay-bank-method="${account.id}" disabled>
+                      <option value="" style="color:#94a3b8;background:#ffffff;">Metodo</option>
+                      <option value="transfer" style="color:#0369a1;background:#ffffff;">Transferencia</option>
+                      <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
+                    </select>
+                    <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-pay-date="${account.id}" value="${todayPaymentDate}" disabled>
+                    <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-pay-reference="${account.id}" disabled>
+                  </div>
+                </div>
+                ${methodImageHtml}
+              </div>
+            </div>
+          `;
+        };
+
+        const buildChangeRow = (account) => {
+          const symbol = account.currency_symbol || account.currency;
+          const isBank = account.is_bank;
+          const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
+          const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
+          const normalizedAccountType = String(account.account_type || '').toLowerCase();
+          const typeLabelMap = {
+            bank_account: 'Banco',
+            cash_box: 'Efectivo',
+            card: 'Tarjeta',
+            pos: 'Punto de venta',
+            biopago: 'Biopago',
+            cashea: 'Cashea',
+            digital_wallet: 'Billetera digital',
+            crypto_wallet: 'Billetera cripto',
+          };
+          const accountTypeLabel = typeLabelMap[normalizedAccountType] || account.account_type || 'Cuenta';
+          const hideTypeBadge = ['biopago', 'pos', 'cashea'].includes(normalizedAccountType);
+          const bankFieldsClass = isBank ? '' : 'hidden';
+          const rowClasses = 'rounded-2xl border border-amber-200 bg-white/95 p-3.5 shadow-sm transition-all';
+          const rowStyle = hasPaymentMethodImage
+            ? ` style="background-image: url('${escapeCssUrl(paymentMethodImageUrl)}'); background-size: cover; background-position: center; background-repeat: no-repeat; background-color: #ffffff;"`
+            : '';
+          const labelClass = hasPaymentMethodImage ? 'text-slate-800' : 'text-slate-700';
+          const labelSurfaceClass = hasPaymentMethodImage
+            ? 'rounded-xl bg-white/80 px-2.5 py-1.5 shadow-sm ring-1 ring-white/80 backdrop-blur-[1px]'
+            : '';
+          const checkClass = hasPaymentMethodImage
+            ? 'mt-0.5 h-4 w-4 cursor-pointer rounded border border-slate-300 bg-white text-amber-600 shadow-sm'
+            : 'mt-0.5 h-4 w-4 cursor-pointer text-amber-600';
+          const typeBadgeClass = hasPaymentMethodImage
+            ? 'bg-white/90 text-amber-700 ring-1 ring-amber-200 backdrop-blur-[1px]'
+            : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
+          const currencyBadgeClass = hasPaymentMethodImage
+            ? 'bg-white/90 text-amber-700 ring-1 ring-amber-200 shadow-sm backdrop-blur-[1px]'
+            : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200';
+          const inputClass = hasPaymentMethodImage
+            ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500'
+            : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+          const bankSelectClass = hasPaymentMethodImage
+            ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-500 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500'
+            : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-400 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+          const bankFieldClass = hasPaymentMethodImage
+            ? 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white/86 px-3 py-2 text-sm text-slate-700 shadow-sm backdrop-blur-[1px] disabled:cursor-not-allowed disabled:border-transparent disabled:bg-white/70 disabled:text-slate-500'
+            : 'ventas-payment-modal-field w-full rounded-xl border border-transparent bg-amber-50/40 px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400';
+          const equivalentClass = hasPaymentMethodImage
+            ? 'mt-2 inline-flex w-fit rounded-lg bg-white/82 px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-white/75 backdrop-blur-[1px]'
+            : 'mt-2 text-xs font-medium text-slate-500';
+          const typeBadgeHtml = hideTypeBadge
+            ? ''
+            : `<span class="mt-1 inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${typeBadgeClass}">${escapeHtml(accountTypeLabel)}</span>`;
+          return `
+            <div class="${rowClasses}" data-change-row="${account.id}"${rowStyle}>
+              <div class="flex items-start justify-between gap-3">
+                <label class="flex cursor-pointer items-start gap-2 text-sm font-semibold ${labelClass} ${labelSurfaceClass}">
+                  <input type="checkbox" class="${checkClass}" data-change-check="${account.id}">
+                  <span class="inline-flex flex-col">
+                    <span class="inline-flex items-center gap-2 leading-tight"><span>${escapeHtml(account.name)}</span></span>
+                    ${typeBadgeHtml}
+                  </span>
+                </label>
+                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${currencyBadgeClass}">${escapeHtml(account.currency)}</span>
+              </div>
+              <div class="mt-3 grid gap-2 md:grid-cols-2">
+                <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="${inputClass}" data-change-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
+                <div class="space-y-2 ${bankFieldsClass}" data-change-bank-fields="${account.id}">
+                  <select class="${bankSelectClass}" data-bank-method-select="true" data-change-bank-method="${account.id}" disabled>
+                    <option value="">Metodo</option>
+                    <option value="transfer">Transferencia</option>
+                    <option value="mobile">Pago movil</option>
+                  </select>
+                  <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-change-reference="${account.id}" disabled>
+                </div>
+              </div>
+              <p class="${equivalentClass}" data-change-equivalent="${account.id}"></p>
+            </div>
+          `;
+        };
+
+        const extraBankAccounts = primaryBankAccount
+          ? bankAccounts.filter((account) => !account.is_primary)
+          : [];
+        const orderedAccountsForChange = [
+          ...specialAccounts,
+          ...bankAccounts,
+          ...cashAccounts,
+          ...typedOtherAccounts,
+        ];
+
+        const specialRowsHtml = specialAccounts.map((account) => buildPaymentRow(account)).join('');
+        const bankRowsHtml = primaryBankAccount
+          ? buildPaymentRow(primaryBankAccount)
+          : bankAccounts.map((account) => buildPaymentRow(account)).join('');
+        const toggleBankHtml = primaryBankAccount && extraBankAccounts.length > 0
+          ? '<button type="button" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition-colors hover:bg-slate-50" data-toggle-bank-accounts>Ver mas cuentas</button>'
+          : '';
+        const extraBankRowsHtml = primaryBankAccount
+          ? extraBankAccounts.map((account) => buildPaymentRow(account, { extra: true })).join('')
+          : '';
+        const cashRowsHtml = cashAccounts.map((account) => buildPaymentRow(account)).join('');
+        const otherRowsHtml = typedOtherAccounts.map((account) => buildPaymentRow(account)).join('');
+        const paymentRowsHtml = `${specialRowsHtml}${bankRowsHtml}${toggleBankHtml}${extraBankRowsHtml}${cashRowsHtml}${otherRowsHtml}`;
+        const changeRowsHtml = allowChange
+          ? orderedAccountsForChange.map((account) => buildChangeRow(account)).join('')
+          : '';
+
+        const creditSectionHtml = allowCredit
+          ? `
+            <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 space-y-3">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-emerald-700">Saldo a credito (opcional)</span>
+                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-emerald-700">
+                  <input type="checkbox" class="h-4 w-4 cursor-pointer text-emerald-600" data-credit-toggle>
+                  Registrar saldo pendiente
+                </label>
+              </div>
+              <p class="text-xs text-emerald-700">Si queda saldo pendiente, se creara una deuda por cobrar vinculada a esta venta.</p>
+              <div class="hidden" data-credit-fields>
+                <label class="block text-xs font-semibold uppercase tracking-wide text-emerald-700">Vence (opcional)</label>
+                <input type="text" class="ventas-payment-modal-field js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-transparent bg-white px-3 py-2 text-sm text-slate-700" placeholder="dd-mm-aaaa" data-credit-due-on disabled>
+              </div>
+            </div>
+          `
+          : '';
+
+        const changeSectionHtml = allowChange
+          ? `
+            <div id="ventas-change-section" class="hidden rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-sm font-semibold text-amber-700">Vuelto (opcional)</span>
+                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-amber-700">
+                  <input type="checkbox" class="h-4 w-4 cursor-pointer text-amber-600" data-change-toggle>
+                  Registrar vuelto
+                </label>
+              </div>
+              <p class="text-xs text-amber-700" data-change-hint></p>
+              <div class="space-y-2 hidden" data-change-rows>
+                ${changeRowsHtml}
+              </div>
+            </div>
+          `
+          : '';
+
+        const paymentHtml = `
+          <div class="space-y-4 text-left">
+            <div class="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-4 shadow-sm">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total a cobrar</p>
+                  <p class="mt-1 text-2xl font-extrabold text-slate-800">${formatBaseMoney(totalBase)}</p>
+                  <p class="text-xs font-semibold text-slate-500">${formatAltFromBase(totalBase)}</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">Base ${escapeHtml(baseCurrencyCode)}</span>
+                  <span class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">${escapeHtml(vatLabel)}</span>
+                </div>
+              </div>
+              <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Subtotal gravado: <span class="font-semibold text-slate-700">${formatBaseMoney(subtotalBase)}</span></div>
+                <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Exento: <span class="font-semibold text-slate-700">${formatBaseMoney(exentoBase)}</span></div>
+                <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">IVA: <span class="font-semibold text-slate-700">${formatBaseMoney(vatBase)}</span></div>
+              </div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Metodos de pago</p>
+                <span class="text-[11px] font-semibold text-slate-500">Selecciona cuenta y monto</span>
+              </div>
+              <div class="mt-3 space-y-2">${paymentRowsHtml}</div>
+            </div>
+            ${creditSectionHtml}
+            ${changeSectionHtml}
+          </div>
+        `;
+
+        const openPaymentModal = (initialState = null) => {
+          window.Swal.fire({
+            title: 'Registrar pago',
+            html: paymentHtml,
+            confirmButtonText: 'Confirmar',
+            cancelButtonText: 'Cancelar',
+            showCancelButton: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            focusConfirm: false,
+            buttonsStyling: false,
+            customClass: {
+              popup: 'ventas-payment-modal',
+              title: 'ventas-payment-modal-title',
+              actions: 'ventas-payment-modal-actions',
+              confirmButton: 'ventas-payment-modal-confirm cursor-pointer',
+              cancelButton: 'ventas-payment-modal-cancel cursor-pointer',
+            },
+            heightAuto: false,
+            didOpen: () => {
+              const dialog = window.Swal.getHtmlContainer();
+              if (!dialog) return;
+
+              const popup = window.Swal.getPopup();
+              const actionsContainer = popup?.querySelector('.swal2-actions');
+
+              if (actionsContainer && !actionsContainer.querySelector('[data-payment-footer-balance]')) {
+                const balancePanel = document.createElement('div');
+                balancePanel.className = 'ventas-payment-modal-balance';
+                balancePanel.dataset.paymentFooterBalance = 'true';
+                balancePanel.innerHTML = `
+                  <span class="font-semibold text-slate-600">Falta por cancelar</span>
+                  <span class="text-right">
+                    <span id="ventas-pay-remaining" class="block font-semibold text-slate-700"></span>
+                    <span id="ventas-pay-remaining-alt" class="block text-xs text-slate-400"></span>
+                  </span>
+                `;
+                actionsContainer.prepend(balancePanel);
+              }
+
+              initMoneyMasks(dialog);
+
+              const changeSection = dialog.querySelector('#ventas-change-section');
+              const changeToggle = dialog.querySelector('[data-change-toggle]');
+              const changeRowsContainer = dialog.querySelector('[data-change-rows]');
+              const changeHintEl = dialog.querySelector('[data-change-hint]');
+              const creditToggle = dialog.querySelector('[data-credit-toggle]');
+              const creditFields = dialog.querySelector('[data-credit-fields]');
+              const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
+
+              const syncMethodSelectTone = (select) => {
+                if (!select) return;
+
+                if (select.disabled) {
+                  select.classList.add('text-slate-400');
+                  select.classList.remove('text-slate-700');
+                  select.style.color = '#94a3b8';
+                  return;
+                }
+
+                const isPlaceholderSelected = String(select.value || '').trim() === '';
+
+                select.classList.toggle('text-slate-400', isPlaceholderSelected);
+                select.classList.toggle('text-slate-700', !isPlaceholderSelected);
+                select.style.color = isPlaceholderSelected ? '#94a3b8' : '#334155';
+              };
+
+              const syncPaymentRowMethodTone = (row) => {
+                if (!row) return;
+
+                const accountId = row.dataset.payRow;
+                if (!accountId) return;
+
+                const methodSelect = row.querySelector(`[data-pay-bank-method="${accountId}"]`);
+                const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                if (!methodSelect || !checkbox) return;
+
+                const hasMethod = String(methodSelect.value || '').trim().length > 0;
+                const shouldToneDown = checkbox.checked && !hasMethod;
+
+                row.querySelectorAll('[data-pay-account-label]').forEach((el) => {
+                  el.classList.toggle('is-muted', shouldToneDown);
+                });
+              };
+
+              const setPaymentAccordionState = (row, open) => {
+                if (!row) return;
+                row.classList.toggle('is-open', open);
+                const content = row.querySelector('[data-pay-content]');
+                if (!content) return;
+                if (open) {
+                  content.style.maxHeight = `${content.scrollHeight}px`;
+                } else {
+                  content.style.maxHeight = '0px';
+                }
+              };
+
+              const setRowVisualState = (row, enabled, tone = 'sky') => {
+                if (!row) return;
+
+                row.classList.toggle('ventas-payment-row-active', enabled);
+                row.classList.toggle('ventas-payment-row-inactive', !enabled);
+
+                if (tone === 'amber') {
+                  row.classList.toggle('border-amber-300', enabled);
+                  row.classList.toggle('bg-amber-50', enabled);
+                  row.classList.toggle('ring-1', enabled);
+                  row.classList.toggle('ring-amber-200', enabled);
+                  row.classList.remove('border-sky-300', 'bg-sky-50', 'ring-sky-200');
+                } else {
+                  row.classList.toggle('border-sky-300', enabled);
+                  row.classList.toggle('bg-sky-50', enabled);
+                  row.classList.toggle('ring-1', enabled);
+                  row.classList.toggle('ring-sky-200', enabled);
+                  row.classList.remove('border-amber-300', 'bg-amber-50', 'ring-amber-200');
+                }
+              };
+
+              const setFieldEnabledState = (field, enabled, tone = 'sky') => {
+                if (!field) return;
+
+                const isPayDateField = field.matches('input[data-pay-date]');
+
+                field.disabled = !enabled;
+                if (!enabled) field.value = '';
+                if (!enabled) field.blur();
+                if (enabled && isPayDateField && String(field.value || '').trim() === '') {
+                  field.value = todayPaymentDate;
+                }
+
+                field.classList.remove(
+                  'border-sky-300',
+                  'border-amber-300',
+                  'border-transparent',
+                  'ring-2',
+                  'ring-sky-100',
+                  'ring-amber-100',
+                  'bg-white',
+                  'ventas-payment-modal-field-active',
+                  'ventas-payment-modal-field-active-sky',
+                  'ventas-payment-modal-field-active-amber',
+                  'ventas-payment-modal-field-disabled',
+                );
+
+                if (enabled) {
+                  field.classList.add('bg-white', 'ventas-payment-modal-field-active');
+                  if (tone === 'amber') {
+                    field.classList.add('ventas-payment-modal-field-active-amber');
+                  } else {
+                    field.classList.add('ventas-payment-modal-field-active-sky');
+                  }
+                } else {
+                  field.classList.add('border-transparent', 'ventas-payment-modal-field-disabled');
+                }
+              };
+
+              const setBankFieldsEnabled = (container, enabled, tone) => {
+                if (!container) return;
+                container.querySelectorAll('select, input').forEach((field) => {
+                  setFieldEnabledState(field, enabled, tone);
+                  if (field.matches('select[data-bank-method-select]')) {
+                    syncMethodSelectTone(field);
+                  }
+                });
+              };
+
+              const toggleChangeSection = (visible) => {
+                if (!changeSection) return;
+                changeSection.classList.toggle('hidden', !visible);
+              };
+
+              const resetChangeRow = (row) => {
+                const accountId = row.dataset.changeRow;
+                const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                const bankFields = row.querySelector(`[data-change-bank-fields="${accountId}"]`);
+                const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
+
+                if (checkbox) checkbox.checked = false;
+                setFieldEnabledState(input, false, 'amber');
+                setBankFieldsEnabled(bankFields, false, 'amber');
+                setRowVisualState(row, false, 'amber');
+                if (equivalentEl) equivalentEl.textContent = '';
+              };
+
+              const setChangeRowsEnabled = (enabled) => {
+                if (!changeRowsContainer) return;
+                changeRowsContainer.classList.toggle('hidden', !enabled);
+                if (!enabled) {
+                  changeRowsContainer.querySelectorAll('[data-change-row]').forEach((row) => {
+                    resetChangeRow(row);
+                  });
+                }
+              };
+
+              const setCreditFieldsEnabled = (enabled) => {
+                if (creditFields) {
+                  creditFields.classList.toggle('hidden', !enabled);
+                }
+
+                if (creditDueOnInput) {
+                  setFieldEnabledState(creditDueOnInput, enabled, 'sky');
+                }
+              };
+
+              const updateRemaining = () => {
+                let paidBase = 0;
+                let paidAlt = 0;
+                const altCurrencyCode = baseCurrencyCode === 'USD' ? 'VES' : 'USD';
+                const altAvailable = bcvRate > 0;
+                dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                  const accountId = row.dataset.payRow;
+                  const account = accountsById.get(String(accountId));
+                  if (!account) return;
+
+                  const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                  const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                  const equivalentEl = row.querySelector(`[data-pay-equivalent="${accountId}"]`);
+                  const amount = parseMoneyInput(input);
+
+                  if (!checkbox?.checked || amount <= 0) {
+                    if (equivalentEl) equivalentEl.textContent = '';
+                    return;
+                  }
+
+                  const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                  if (baseAmount === null) {
+                    if (equivalentEl) {
+                      equivalentEl.textContent = 'Sin tasa de conversion';
+                      equivalentEl.classList.add('text-red-500');
+                    }
+                    return;
+                  }
+
+                  if (equivalentEl) {
+                    equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
+                    equivalentEl.classList.remove('text-red-500');
+                  }
+                  paidBase += baseAmount;
+
+                  if (altAvailable) {
+                    const altAmount = convertAmount(amount, account.currency, altCurrencyCode);
+                    if (altAmount !== null) {
+                      paidAlt += altAmount;
+                    }
+                  }
+                });
+
+                let remaining = roundTo(totalBase - paidBase, 2);
+                if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
+
+                let remainingAlt = null;
+                if (altAvailable) {
+                  const totalAlt = convertAmount(totalBase, baseCurrencyCode, altCurrencyCode);
+                  if (totalAlt !== null) {
+                    remainingAlt = roundTo(totalAlt - paidAlt, 2);
+                  }
+                }
+
+                const remainingEl = popup?.querySelector('#ventas-pay-remaining');
+                const remainingAltEl = popup?.querySelector('#ventas-pay-remaining-alt');
+                if (!remainingEl) return;
+
+                const remainingAbs = Math.abs(remaining);
+                const remainingAltAbs = remainingAlt !== null ? Math.abs(remainingAlt) : 0;
+                const altTolerance = 0.02;
+
+                const changeDueBase = remaining < -paymentTolerance ? remainingAbs : 0;
+                const changeDueAlt = remainingAlt !== null && remainingAlt < -altTolerance ? remainingAltAbs : 0;
+                const shouldShowChange = changeDueBase > 0 || changeDueAlt > 0;
+
+                if (changeSection) {
+                  toggleChangeSection(shouldShowChange);
+                  if (!shouldShowChange) {
+                    if (changeToggle) changeToggle.checked = false;
+                    setChangeRowsEnabled(false);
+                  }
+                }
+
+                if (changeHintEl) {
+                  if (shouldShowChange) {
+                    const hints = [];
+                    if (changeDueBase > 0) hints.push(formatBaseMoney(changeDueBase));
+                    if (changeDueAlt > 0 && altAvailable) hints.push(formatCurrencyValue(changeDueAlt, altCurrencyCode));
+                    changeHintEl.textContent = hints.length ? `Sugerido: ${hints.join(' · ')}` : '';
+                  } else {
+                    changeHintEl.textContent = '';
+                  }
+                }
+
+                if (remaining > paymentTolerance) {
+                  remainingEl.textContent = `Faltan ${formatBaseMoney(remaining)}`;
+                  remainingEl.classList.remove('text-emerald-600');
+                  remainingEl.classList.add('text-amber-600');
+                } else if (remaining < -paymentTolerance) {
+                  remainingEl.textContent = `Vuelto ${formatBaseMoney(remainingAbs)}`;
+                  remainingEl.classList.remove('text-amber-600');
+                  remainingEl.classList.add('text-emerald-600');
+                } else {
+                  remainingEl.textContent = 'Completo';
+                  remainingEl.classList.remove('text-amber-600');
+                  remainingEl.classList.add('text-emerald-600');
+                }
+
+                if (remainingAltEl) {
+                  if (!altAvailable || remainingAlt === null) {
+                    remainingAltEl.textContent = '--';
+                  } else if (remainingAlt > altTolerance) {
+                    remainingAltEl.textContent = `Faltan ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
+                  } else if (remainingAlt < -altTolerance) {
+                    remainingAltEl.textContent = `Vuelto ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
+                  } else {
+                    remainingAltEl.textContent = formatCurrencyValue(0, altCurrencyCode);
+                  }
+                }
+
+                if (changeToggle?.checked) {
+                  dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                    const accountId = row.dataset.changeRow;
+                    const account = accountsById.get(String(accountId));
+                    if (!account) return;
+                    const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                    const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
+                    const amount = parseMoneyInput(input);
+                    if (amount <= 0) {
+                      if (equivalentEl) equivalentEl.textContent = '';
+                      return;
+                    }
+
+                    const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                    if (baseAmount === null) {
+                      if (equivalentEl) {
+                        equivalentEl.textContent = 'Sin tasa de conversion';
+                        equivalentEl.classList.add('text-red-500');
+                      }
+                      return;
+                    }
+
+                    if (equivalentEl) {
+                      equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
+                      equivalentEl.classList.remove('text-red-500');
+                    }
+                  });
+                }
+              };
+
+              const toggleBankButton = dialog.querySelector('[data-toggle-bank-accounts]');
+              const extraBankRows = Array.from(dialog.querySelectorAll('[data-bank-extra="true"]'));
+              let expanded = Boolean(config.initialState?.showExtraBankAccounts || initialState?.showExtraBankAccounts);
+
+              const resetExtraBankRow = (row) => {
+                const accountId = row.dataset.payRow;
+                const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
+                const equivalentEl = row.querySelector(`[data-pay-equivalent="${accountId}"]`);
+
+                if (checkbox) checkbox.checked = false;
+                setFieldEnabledState(input, false, 'sky');
+                setBankFieldsEnabled(bankFields, false, 'sky');
+                setRowVisualState(row, false, 'sky');
+                if (equivalentEl) equivalentEl.textContent = '';
+                syncPaymentRowMethodTone(row);
+              };
+
+              if (toggleBankButton && extraBankRows.length > 0) {
+                const syncExtraBankRows = (resetWhenHidden = true) => {
+                  extraBankRows.forEach((row) => {
+                    row.classList.toggle('hidden', !expanded);
+                    if (!expanded && resetWhenHidden) resetExtraBankRow(row);
+                  });
+                  toggleBankButton.textContent = expanded ? 'Ocultar cuentas' : 'Ver mas cuentas';
+                };
+
+                toggleBankButton.addEventListener('click', () => {
+                  expanded = !expanded;
+                  syncExtraBankRows();
+                  updateRemaining();
+                });
+
+                syncExtraBankRows(!initialState || !expanded);
+              }
+
+              if (changeToggle) {
+                changeToggle.addEventListener('change', () => {
+                  setChangeRowsEnabled(changeToggle.checked);
+                  updateRemaining();
+                });
+              }
+
+              if (creditToggle) {
+                creditToggle.addEventListener('change', () => {
+                  setCreditFieldsEnabled(creditToggle.checked);
+                  updateRemaining();
+                });
+              }
+
+              const rowHasPaymentData = (row) => {
+                if (!row) return false;
+                const accountId = row.dataset.payRow;
+                if (!accountId) return false;
+
+                const amountInput = row.querySelector(`[data-pay-input="${accountId}"]`);
+                return parseMoneyInput(amountInput) > 0;
+              };
+
+              const closeOtherPaymentRows = (currentRow) => {
+                dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                  if (row === currentRow) return;
+                  if (rowHasPaymentData(row)) return;
+
+                  const accountId = row.dataset.payRow;
+                  const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                  if (checkbox?.checked) {
+                    checkbox.checked = false;
+                    checkbox.dispatchEvent(new Event('change'));
+                    return;
+                  }
+
+                  setPaymentAccordionState(row, false);
+                  setRowVisualState(row, false, 'sky');
+                });
+              };
+
+              dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
+                checkbox.addEventListener('change', () => {
+                  const accountId = checkbox.dataset.payCheck;
+                  const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                  const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                  const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
+                  if (!input) return;
+
+                  setFieldEnabledState(input, checkbox.checked, 'sky');
+                  setBankFieldsEnabled(bankFields, checkbox.checked, 'sky');
+
+                  setRowVisualState(row, checkbox.checked, 'sky');
+                  setPaymentAccordionState(row, checkbox.checked);
+                  syncPaymentRowMethodTone(row);
+                  updateRemaining();
+                });
+              });
+
+              dialog.querySelectorAll('[data-pay-toggle]').forEach((button) => {
+                button.addEventListener('click', () => {
+                  const accountId = button.dataset.payToggle;
+                  const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                  const checkbox = row?.querySelector(`[data-pay-check="${accountId}"]`);
+                  if (!row || !checkbox) return;
+
+                  const isOpen = row.classList.contains('is-open');
+                  if (isOpen) {
+                    if (rowHasPaymentData(row)) return;
+                    if (checkbox.checked) {
+                      checkbox.checked = false;
+                      checkbox.dispatchEvent(new Event('change'));
+                    } else {
+                      setPaymentAccordionState(row, false);
+                      setRowVisualState(row, false, 'sky');
+                    }
+                    return;
+                  }
+
+                  closeOtherPaymentRows(row);
+                  if (!checkbox.checked) {
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('change'));
+                  } else {
+                    setPaymentAccordionState(row, true);
+                  }
+                });
+              });
+
+              dialog.querySelectorAll('[data-pay-method-image]').forEach((image) => {
+                image.addEventListener('load', () => {
+                  const row = image.closest('[data-pay-row]');
+                  if (!row || !row.classList.contains('is-open')) return;
+                  setPaymentAccordionState(row, true);
+                });
+              });
+              dialog.querySelectorAll('[data-change-input]').forEach((input) => {
+                input.addEventListener('input', updateRemaining);
+              });
+
+              dialog.querySelectorAll('[data-change-bank-method]').forEach((select) => {
+                syncMethodSelectTone(select);
+                select.addEventListener('change', () => {
+                  syncMethodSelectTone(select);
+                  updateRemaining();
+                });
+              });
+
+              dialog.querySelectorAll('[data-change-reference]').forEach((input) => {
+                input.addEventListener('input', updateRemaining);
+              });
+
+              dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
+                checkbox.addEventListener('change', () => {
+                  const accountId = checkbox.dataset.payCheck;
+                  const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                  const input = dialog.querySelector(`[data-pay-input="${accountId}"]`);
+                  const bankFields = dialog.querySelector(`[data-pay-bank-fields="${accountId}"]`);
+                  if (!input) return;
+
+                  setFieldEnabledState(input, checkbox.checked, 'sky');
+                  setBankFieldsEnabled(bankFields, checkbox.checked, 'sky');
+
+                  setRowVisualState(row, checkbox.checked, 'sky');
+                  syncPaymentRowMethodTone(row);
+                  updateRemaining();
+                });
+              });
+
+              dialog.querySelectorAll('[data-pay-input]').forEach((input) => {
+                input.addEventListener('input', updateRemaining);
+              });
+
+              dialog.querySelectorAll('[data-pay-bank-method]').forEach((select) => {
+                syncMethodSelectTone(select);
+                select.addEventListener('change', () => {
+                  syncMethodSelectTone(select);
+                  const accountId = select.dataset.payBankMethod;
+                  const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                  syncPaymentRowMethodTone(row);
+                  updateRemaining();
+                });
+              });
+
+              dialog.querySelectorAll('[data-pay-reference]').forEach((input) => {
+                input.addEventListener('input', updateRemaining);
+              });
+
+              dialog.querySelectorAll('[data-pay-date]').forEach((input) => {
+                input.addEventListener('change', () => {
+                  const normalized = normalizePaymentDateInput(input.value);
+                  input.value = normalized ? normalized.display : '';
+                  updateRemaining();
+                });
+              });
+
+              if (creditDueOnInput) {
+                creditDueOnInput.addEventListener('change', () => {
+                  const normalized = normalizePaymentDateInput(creditDueOnInput.value);
+                  creditDueOnInput.value = normalized ? normalized.display : '';
+                  updateRemaining();
+                });
+              }
+
+              dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                const accountId = row.dataset.payRow;
+                if (!accountId) return;
+
+                const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
+
+                setFieldEnabledState(input, Boolean(checkbox?.checked), 'sky');
+                setBankFieldsEnabled(bankFields, Boolean(checkbox?.checked), 'sky');
+                setRowVisualState(row, Boolean(checkbox?.checked), 'sky');
+                setPaymentAccordionState(row, Boolean(checkbox?.checked));
+                syncPaymentRowMethodTone(row);
+              });
+
+              dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                const accountId = row.dataset.changeRow;
+                if (!accountId) return;
+
+                const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                const bankFields = row.querySelector(`[data-change-bank-fields="${accountId}"]`);
+
+                setFieldEnabledState(input, Boolean(checkbox?.checked), 'amber');
+                setBankFieldsEnabled(bankFields, Boolean(checkbox?.checked), 'amber');
+                setRowVisualState(row, Boolean(checkbox?.checked), 'amber');
+              });
+
+              if (allowCredit) {
+                setCreditFieldsEnabled(Boolean(creditToggle?.checked));
+              }
+
+              if (typeof window.initializeMaterializeDatepickers === 'function') {
+                window.initializeMaterializeDatepickers(dialog);
+              }
+
+              if (initialState) {
+                (initialState.payments || []).forEach((entry) => {
+                  const accountId = String(entry.accountId || '');
+                  const checkbox = dialog.querySelector(`[data-pay-check="${accountId}"]`);
+                  if (!checkbox) return;
+
+                  checkbox.checked = Boolean(entry.checked);
+                  checkbox.dispatchEvent(new Event('change'));
+
+                  const input = dialog.querySelector(`[data-pay-input="${accountId}"]`);
+                  if (input && typeof entry.amount === 'string') {
+                    input.value = entry.amount;
+                    input.dispatchEvent(new Event('input'));
+                  }
+
+                  const methodSelect = dialog.querySelector(`[data-pay-bank-method="${accountId}"]`);
+                  if (methodSelect && typeof entry.method === 'string') {
+                    methodSelect.value = entry.method;
+                    syncMethodSelectTone(methodSelect);
+                    const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
+                    syncPaymentRowMethodTone(row);
+                  }
+
+                  const paymentDateInput = dialog.querySelector(`[data-pay-date="${accountId}"]`);
+                  if (paymentDateInput && typeof entry.paymentDate === 'string') {
+                    const normalizedDate = normalizePaymentDateInput(entry.paymentDate);
+                    paymentDateInput.value = normalizedDate ? normalizedDate.display : '';
+                  }
+
+                  const referenceInput = dialog.querySelector(`[data-pay-reference="${accountId}"]`);
+                  if (referenceInput && typeof entry.reference === 'string') {
+                    referenceInput.value = entry.reference;
+                  }
+                });
+
+                dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                  syncPaymentRowMethodTone(row);
+                });
+
+                if (changeToggle && initialState.changeEnabled) {
+                  changeToggle.checked = true;
+                  changeToggle.dispatchEvent(new Event('change'));
+                }
+
+                if (creditToggle) {
+                  creditToggle.checked = Boolean(initialState.creditEnabled);
+                  setCreditFieldsEnabled(creditToggle.checked);
+                }
+
+                if (creditDueOnInput && typeof initialState.creditDueOn === 'string') {
+                  const normalizedCreditDueOn = normalizePaymentDateInput(initialState.creditDueOn);
+                  creditDueOnInput.value = normalizedCreditDueOn ? normalizedCreditDueOn.display : '';
+                }
+
+                (initialState.change || []).forEach((entry) => {
+                  const accountId = String(entry.accountId || '');
+                  const checkbox = dialog.querySelector(`[data-change-check="${accountId}"]`);
+                  if (!checkbox) return;
+
+                  checkbox.checked = Boolean(entry.checked);
+                  checkbox.dispatchEvent(new Event('change'));
+
+                  const input = dialog.querySelector(`[data-change-input="${accountId}"]`);
+                  if (input && typeof entry.amount === 'string') {
+                    input.value = entry.amount;
+                    input.dispatchEvent(new Event('input'));
+                  }
+
+                  const methodSelect = dialog.querySelector(`[data-change-bank-method="${accountId}"]`);
+                  if (methodSelect && typeof entry.method === 'string') {
+                    methodSelect.value = entry.method;
+                    syncMethodSelectTone(methodSelect);
+                  }
+
+                  const referenceInput = dialog.querySelector(`[data-change-reference="${accountId}"]`);
+                  if (referenceInput && typeof entry.reference === 'string') {
+                    referenceInput.value = entry.reference;
+                  }
+                });
+              } else {
+                setCreditFieldsEnabled(false);
+              }
+
+              updateRemaining();
+            },
+            preConfirm: () => {
+              const dialog = window.Swal.getHtmlContainer();
+              if (!dialog) return null;
+
+              const modalState = capturePaymentModalState(dialog);
+              const creditToggle = dialog.querySelector('[data-credit-toggle]');
+              const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
+              const creditEnabled = allowCredit && Boolean(creditToggle?.checked);
+              const creditDueOn = String(creditDueOnInput?.value || '').trim();
+              const normalizedCreditDueOn = creditDueOn ? normalizePaymentDateInput(creditDueOn) : null;
+              let paidBase = 0;
+              const payments = [];
+              let missingMethod = false;
+              let missingConversion = false;
+              let missingReference = false;
+              let missingPaymentDate = false;
+
+              dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
+                const accountId = row.dataset.payRow;
+                const account = accountsById.get(String(accountId));
+                if (!account) return;
+
+                const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                if (!checkbox?.checked) return;
+
+                const input = row.querySelector(`[data-pay-input="${accountId}"]`);
+                const amount = parseMoneyInput(input);
+                if (amount <= 0) return;
+
+                let method = 'cash';
+                if (account.account_type === 'bank_account') {
+                  const methodSelect = row.querySelector(`[data-pay-bank-method="${accountId}"]`);
+                  method = methodSelect?.value || '';
+                  if (!method) missingMethod = true;
+
+                  const paymentDateInput = row.querySelector(`[data-pay-date="${accountId}"]`);
+                  const paymentDateValue = String(paymentDateInput?.value || '').trim();
+                  const normalizedPaymentDate = normalizePaymentDateInput(paymentDateValue);
+                  if (!normalizedPaymentDate) missingPaymentDate = true;
+
+                  const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
+                  const referenceValue = referenceInput?.value || '';
+                  if (!/^\d{6}$/.test(referenceValue)) missingReference = true;
+                } else if (account.account_type === 'cash_box') {
+                  method = 'cash';
+                } else if (account.account_type === 'card') {
+                  method = 'card';
+                } else if (account.account_type === 'pos') {
+                  method = 'pos';
+                } else if (account.account_type === 'biopago') {
+                  method = 'biopago';
+                } else if (account.account_type === 'cashea') {
+                  method = 'cashea';
+                } else if (account.account_type === 'digital_wallet') {
+                  method = 'wallet';
+                } else if (account.account_type === 'crypto_wallet') {
+                  method = 'crypto';
+                }
+
+                const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                if (baseAmount === null) {
+                  missingConversion = true;
+                  return;
+                }
+
+                const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
+                const reference = referenceInput?.value || '';
+                const paymentDateInput = row.querySelector(`[data-pay-date="${accountId}"]`);
+                const normalizedPaymentDate = normalizePaymentDateInput(paymentDateInput?.value || '');
+                const paymentDate = normalizedPaymentDate?.iso || '';
+
+                payments.push({
+                  account_id: accountId,
+                  method: method,
+                  amount: amount,
+                  currency: account.currency,
+                  reference: reference.trim(),
+                  payment_date: paymentDate,
+                });
+
+                paidBase += baseAmount;
+              });
+
+              if (missingMethod) {
+                window.Swal.showValidationMessage('Selecciona el metodo de pago para cuentas bancarias.');
+                return null;
+              }
+
+              if (missingReference) {
+                window.Swal.showValidationMessage('La referencia debe tener 6 digitos.');
+                return null;
+              }
+
+              if (missingPaymentDate) {
+                window.Swal.showValidationMessage('Debes indicar la fecha del pago para cuentas bancarias.');
+                return null;
+              }
+
+              if (missingConversion) {
+                window.Swal.showValidationMessage('Hay pagos sin tasa de conversion disponible.');
+                return null;
+              }
+
+              if (allowCredit && creditEnabled && !selectedClient?.id) {
+                window.Swal.showValidationMessage('Debes seleccionar un cliente para registrar saldo en deuda por cobrar.');
+                return null;
+              }
+
+              if (allowCredit && creditEnabled && String(selectedClient?.phone || '').trim().length === 0) {
+                window.Swal.showValidationMessage('El cliente registrado no posee numero de telefono, ese dato es obligatorio.');
+                return null;
+              }
+
+              if (allowCredit && creditEnabled && creditDueOn && !normalizedCreditDueOn) {
+                window.Swal.showValidationMessage('La fecha de vencimiento del credito es invalida.');
+                return null;
+              }
+
+              let remaining = roundTo(totalBase - paidBase, 2);
+              if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
+              const creditCoversPendingBalance = allowCredit && creditEnabled && remaining > paymentTolerance;
+
+              if (payments.length === 0 && !creditCoversPendingBalance) {
+                window.Swal.showValidationMessage('Registra al menos un pago.');
+                return null;
+              }
+
+              if (remaining > paymentTolerance && !creditCoversPendingBalance) {
+                window.Swal.showValidationMessage(`Falta por cancelar ${formatBaseMoney(remaining)}`);
+                return null;
+              }
+
+              if (!allowChange && remaining < -paymentTolerance) {
+                window.Swal.showValidationMessage('El monto excede el total a cobrar.');
+                return null;
+              }
+
+              const suggestedChangeBase = allowChange && remaining < -paymentTolerance ? Math.abs(remaining) : 0;
+              const changeToggle = dialog.querySelector('[data-change-toggle]');
+              const changeEntries = [];
+              let missingChangeMethod = false;
+              let missingChangeReference = false;
+              let missingChangeConversion = false;
+
+              if (allowChange && changeToggle?.checked) {
+                dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                  const accountId = row.dataset.changeRow;
+                  const account = accountsById.get(String(accountId));
+                  if (!account) return;
+
+                  const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                  if (!checkbox?.checked) return;
+
+                  const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                  const amount = parseMoneyInput(input);
+                  if (amount <= 0) return;
+
+                  let method = 'cash';
+                  if (account.account_type === 'bank_account') {
+                    const methodSelect = row.querySelector(`[data-change-bank-method="${accountId}"]`);
+                    method = methodSelect?.value || '';
+                    if (!method) missingChangeMethod = true;
+                    const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
+                    const referenceValue = referenceInput?.value || '';
+                    if (!/^\d{6}$/.test(referenceValue)) missingChangeReference = true;
+                  } else if (account.account_type === 'cash_box') {
+                    method = 'cash';
+                  } else if (account.account_type === 'card') {
+                    method = 'card';
+                  } else if (account.account_type === 'pos') {
+                    method = 'pos';
+                  } else if (account.account_type === 'biopago') {
+                    method = 'biopago';
+                  } else if (account.account_type === 'cashea') {
+                    method = 'cashea';
+                  } else if (account.account_type === 'digital_wallet') {
+                    method = 'wallet';
+                  } else if (account.account_type === 'crypto_wallet') {
+                    method = 'crypto';
+                  }
+
+                  const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                  if (baseAmount === null) {
+                    missingChangeConversion = true;
+                    return;
+                  }
+
+                  const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
+                  const reference = referenceInput?.value || '';
+
+                  changeEntries.push({
+                    account_id: accountId,
+                    method: method,
+                    amount: amount,
+                    currency: account.currency,
+                    reference: reference.trim(),
+                  });
+                });
+
+                if (missingChangeMethod) {
+                  window.Swal.showValidationMessage('Selecciona el metodo del vuelto para cuentas bancarias.');
+                  return null;
+                }
+
+                if (missingChangeReference) {
+                  window.Swal.showValidationMessage('La referencia del vuelto debe tener 6 digitos.');
+                  return null;
+                }
+
+                if (missingChangeConversion) {
+                  window.Swal.showValidationMessage('Hay vueltos sin tasa de conversion disponible.');
+                  return null;
+                }
+
+                if (changeEntries.length === 0) {
+                  window.Swal.showValidationMessage('Registra al menos un monto de vuelto o desactiva la opcion.');
+                  return null;
+                }
+              }
+
+              return {
+                payments,
+                change: changeEntries,
+                credit_sale: {
+                  enabled: creditCoversPendingBalance,
+                  due_on: creditCoversPendingBalance ? (normalizedCreditDueOn?.iso || '') : '',
+                },
+                totalBase,
+                suggestedChangeBase,
+                hasPendingSuggestedChange: allowChange && suggestedChangeBase > paymentTolerance && changeEntries.length === 0,
+                modalState,
+              };
+            },
+          }).then(async (result) => {
+            const restoreCurrency = () => {
+              if (config.baseCurrencyOverride) {
+                baseCurrency = previousBaseCurrency;
+              }
+            };
+
+            if (!result.isConfirmed) {
+              restoreCurrency();
+              return;
+            }
+
+            const payload = result.value || {};
+            if (payload.hasPendingSuggestedChange && window.Swal) {
+              const changeConfirmation = await window.Swal.fire({
+                icon: 'warning',
+                title: 'Vuelto sugerido sin registrar',
+                html: `<p class="text-sm text-slate-600">Se detecto un vuelto sugerido de <strong>${formatBaseMoney(payload.suggestedChangeBase || 0)}</strong>. ¿Deseas continuar sin registrarlo?</p>`,
+                showCancelButton: true,
+                confirmButtonText: 'Continuar sin vuelto',
+                cancelButtonText: 'Volver al cobro',
+                buttonsStyling: false,
+                customClass: {
+                  popup: 'rounded-2xl border border-amber-200 shadow-xl',
+                  title: 'text-lg font-extrabold text-slate-800',
+                  actions: 'w-full flex flex-wrap items-center justify-end gap-2 mt-5',
+                  confirmButton: 'inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-500',
+                  cancelButton: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
+                },
+                heightAuto: false,
+              });
+
+              if (!changeConfirmation.isConfirmed) {
+                restoreCurrency();
+                openPaymentModal(payload.modalState || null);
+                return;
+              }
+            }
+
+            if (typeof config.onBeforeSubmit === 'function') {
+              const canContinue = await config.onBeforeSubmit(payload);
+              if (!canContinue) {
+                restoreCurrency();
+                openPaymentModal(payload.modalState || null);
+                return;
+              }
+            }
+
+            if (typeof config.onSubmit === 'function') {
+              await config.onSubmit(payload);
+            }
+
+            restoreCurrency();
+          });
+        };
+
+        openPaymentModal(config.initialState || null);
+      };
+
+      const submitCambioEfectivo = async (exchangeData, payload) => {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        if (!csrfToken) {
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'Token CSRF no disponible',
+              text: 'Recarga la pagina e intenta de nuevo.',
+              heightAuto: false,
+            });
+          }
+          return false;
+        }
+
+        if (window.Swal) {
+          window.Swal.fire({
+            title: 'Procesando cambio',
+            text: 'Registrando el cambio de efectivo, espera...',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => window.Swal.showLoading(),
+            heightAuto: false,
+          });
+        }
+
+        const requestPayload = {
+          efectivo_vendido: exchangeData.efectivo_vendido,
+          monto_caja_operativa: exchangeData.monto_caja_operativa,
+          monto_caja_deposito: exchangeData.monto_caja_deposito,
+          monto_recibido: exchangeData.monto_recibido,
+          recargo_percent: exchangeData.recargo_percent,
+          payment_group: exchangeData.payment_group,
+          payments: payload?.payments || [],
+        };
+
+        try {
+          const response = await fetch('/cambios-efectivo', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': csrfToken,
+            },
+            body: JSON.stringify({ cambio_efectivo: requestPayload }),
+          });
+
+          let data = {};
+          try {
+            data = await response.json();
+          } catch (error) {
+            data = {};
+          }
+
+          if (!response.ok) {
+            throw new Error(data.error || 'No se pudo registrar el cambio de efectivo.');
+          }
+
+          const updateAccountBalance = (accountId, delta) => {
+            const account = accountsById.get(String(accountId));
+            if (!account) return;
+            account.balance = roundTo(Number(account.balance || 0) + delta, 2);
+          };
+
+          const updateCashBoxBalance = (role, delta) => {
+            const entry = cashBoxes.find((acc) => acc.account_type === 'cash_box'
+              && acc.cash_role === role
+              && String(acc.currency || '').toUpperCase() === 'VES');
+            if (!entry) return;
+            entry.balance = roundTo(Number(entry.balance || 0) + delta, 2);
+          };
+
+          updateCashBoxBalance('cash_box', -exchangeData.monto_caja_operativa);
+          updateCashBoxBalance('cash_deposit', -exchangeData.monto_caja_deposito);
+
+          (payload?.payments || []).forEach((payment) => {
+            updateAccountBalance(payment.account_id, Number(payment.amount || 0));
+          });
+
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'success',
+              title: 'Cambio registrado',
+              text: data.message || 'Cambio de efectivo registrado correctamente.',
+              heightAuto: false,
+            });
+          }
+
+          return true;
+        } catch (error) {
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'Error al registrar',
+              text: error.message,
+              heightAuto: false,
+            });
+          }
+          return false;
+        }
+      };
+
+      const openCashExchangeModal = () => {
+        if (!window.Swal) return;
+
+        const cashBoxAccount = cashBoxes.find((account) => account.account_type === 'cash_box'
+          && account.cash_role === 'cash_box'
+          && String(account.currency || '').toUpperCase() === 'VES');
+        const cashDepositAccount = cashBoxes.find((account) => account.account_type === 'cash_box'
+          && account.cash_role === 'cash_deposit'
+          && String(account.currency || '').toUpperCase() === 'VES');
+
+        if (!cashBoxAccount || !cashDepositAccount) {
+          window.Swal.fire({
+            icon: 'error',
+            title: 'Cajas no configuradas',
+            text: 'No se encontraron las cajas en Bs configuradas.',
+            heightAuto: false,
+          });
+          return;
+        }
+
+        const modalHtml = `
+          <div class="space-y-4 text-left">
+            <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
+              <strong>Importante!!:</strong> El monto a cobrar al cliente debe ser completo en el metodo seleccionado, no fraccionado.
+            </div>
+            <div class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Calculo de montos y metodo</p>
+              <div class="mt-3 grid gap-3 md:grid-cols-3">
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Efectivo a vender</label>
+                  <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-amount class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs">
+                </div>
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Metodo de pago</label>
+                  <select data-cash-exchange-method class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                    <option value="bank">Pago movil/Transferencia (+5%)</option>
+                    <option value="pos_biopago">Biopago/Punto de venta (+8%)</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Monto a cobrar</label>
+                  <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-charge class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs">
+                </div>
+              </div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Origen de los fondos (Bs)</p>
+              <div class="mt-3 grid gap-3 md:grid-cols-2">
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Caja Bs (Caja)</label>
+                  <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-box class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs">
+                  <div data-cash-exchange-badge-box class="mt-2 inline-flex items-center rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"></div>
+                </div>
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Caja Bs (Deposito)</label>
+                  <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-deposit class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs">
+                  <div data-cash-exchange-badge-deposit class="mt-2 inline-flex items-center rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const openCashExchangePaymentModal = (exchangeData, initialState = null) => {
+          const paymentGroup = exchangeData.payment_group;
+          const filteredAccounts = accounts.filter((account) => {
+            const currency = String(account.currency || '').toUpperCase();
+            if (currency !== 'VES') return false;
+            if (paymentGroup === 'bank') return account.account_type === 'bank_account';
+            return ['pos', 'biopago'].includes(String(account.account_type || '').toLowerCase());
+          });
+
+          if (filteredAccounts.length === 0) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'Sin cuentas disponibles',
+              text: paymentGroup === 'bank'
+                ? 'No hay cuentas bancarias en Bs disponibles para registrar el pago.'
+                : 'No hay cuentas Biopago o Punto de venta disponibles para registrar el pago.',
+              heightAuto: false,
+            });
+            return;
+          }
+
+          openPaymentModalWithConfig({
+            totals: {
+              totalBase: exchangeData.monto_recibido,
+              subtotalBase: exchangeData.monto_recibido,
+              exentoBase: 0,
+              vatBase: 0,
+            },
+            vatLabel: 'Cambio de efectivo',
+            allowCredit: false,
+            allowChange: false,
+            baseCurrencyOverride: 'ves',
+            accountsList: filteredAccounts,
+            initialState,
+            onSubmit: async (payload) => {
+              const success = await submitCambioEfectivo(exchangeData, payload);
+              if (!success) {
+                openCashExchangePaymentModal(exchangeData, payload?.modalState || null);
+              }
+            },
+          });
+        };
+
+        window.Swal.fire({
+          title: 'Cambio de efectivo',
+          html: modalHtml,
+          confirmButtonText: 'Procesar cambio',
+          cancelButtonText: 'Cancelar',
+          showCancelButton: true,
+          allowOutsideClick: false,
+          allowEscapeKey: false,
+          focusConfirm: false,
+          buttonsStyling: false,
+          customClass: {
+            popup: 'ventas-payment-modal',
+            title: 'ventas-payment-modal-title',
+            actions: 'ventas-payment-modal-actions',
+            confirmButton: 'ventas-payment-modal-confirm cursor-pointer',
+            cancelButton: 'ventas-payment-modal-cancel cursor-pointer',
+          },
+          heightAuto: false,
+          didOpen: () => {
+            const dialog = window.Swal.getHtmlContainer();
+            if (!dialog) return;
+
+            initMoneyMasks(dialog);
+
+            const amountInput = dialog.querySelector('[data-cash-exchange-amount]');
+            const methodSelect = dialog.querySelector('[data-cash-exchange-method]');
+            const chargeInput = dialog.querySelector('[data-cash-exchange-charge]');
+            const boxInput = dialog.querySelector('[data-cash-exchange-box]');
+            const depositInput = dialog.querySelector('[data-cash-exchange-deposit]');
+            const boxBadge = dialog.querySelector('[data-cash-exchange-badge-box]');
+            const depositBadge = dialog.querySelector('[data-cash-exchange-badge-deposit]');
+
+            const updateBadge = (badge, balance, used) => {
+              if (!badge) return;
+              const remaining = roundTo(Number(balance || 0) - Number(used || 0), 2);
+              const isNegative = remaining < 0;
+              badge.textContent = isNegative
+                ? 'Este monto excede el disponible'
+                : `Disponible: ${formatMoney(remaining, 'Bs ')}`;
+              badge.classList.toggle('bg-emerald-100', !isNegative);
+              badge.classList.toggle('text-emerald-700', !isNegative);
+              badge.classList.toggle('ring-emerald-200', !isNegative);
+              badge.classList.toggle('bg-red-100', isNegative);
+              badge.classList.toggle('text-red-700', isNegative);
+              badge.classList.toggle('ring-red-200', isNegative);
+            };
+
+            const percentForMethod = () => (methodSelect?.value === 'pos_biopago' ? 0.08 : 0.05);
+            let lastEdited = 'cash';
+            let lastBoxEdited = 'box';
+
+            const syncChargeFromCash = () => {
+              if (!amountInput || !chargeInput) return;
+              const baseAmount = parseMoneyInput(amountInput);
+              const charge = roundTo(baseAmount * (1 + percentForMethod()), 2);
+              setMoneyInputValue(chargeInput, charge, 'Bs ');
+            };
+
+            const syncCashFromCharge = () => {
+              if (!amountInput || !chargeInput) return;
+              const charge = parseMoneyInput(chargeInput);
+              const baseAmount = roundTo(charge / (1 + percentForMethod()), 2);
+              setMoneyInputValue(amountInput, baseAmount, 'Bs ');
+            };
+
+            const syncBoxesFromCash = () => {
+              if (!amountInput || !boxInput || !depositInput) return;
+              const cashAmount = parseMoneyInput(amountInput);
+              const boxAmount = parseMoneyInput(boxInput);
+              const depositAmount = parseMoneyInput(depositInput);
+
+              if (lastBoxEdited === 'deposit') {
+                const nextBox = Math.max(0, roundTo(cashAmount - depositAmount, 2));
+                setMoneyInputValue(boxInput, nextBox, 'Bs ');
+              } else {
+                const nextDeposit = Math.max(0, roundTo(cashAmount - boxAmount, 2));
+                setMoneyInputValue(depositInput, nextDeposit, 'Bs ');
+              }
+            };
+
+            const refreshBadges = () => {
+              const boxAmount = parseMoneyInput(boxInput);
+              const depositAmount = parseMoneyInput(depositInput);
+              updateBadge(boxBadge, cashBoxAccount.balance, boxAmount);
+              updateBadge(depositBadge, cashDepositAccount.balance, depositAmount);
+            };
+
+            if (methodSelect) {
+              methodSelect.value = methodSelect.value || 'bank';
+            }
+
+            if (amountInput) {
+              setMoneyInputValue(amountInput, 0, 'Bs ');
+            }
+            if (chargeInput) {
+              setMoneyInputValue(chargeInput, 0, 'Bs ');
+            }
+            if (boxInput) {
+              setMoneyInputValue(boxInput, 0, 'Bs ');
+            }
+            if (depositInput) {
+              setMoneyInputValue(depositInput, 0, 'Bs ');
+            }
+            refreshBadges();
+
+            amountInput?.addEventListener('input', () => {
+              lastEdited = 'cash';
+              lastBoxEdited = 'deposit';
+              syncChargeFromCash();
+              syncBoxesFromCash();
+              refreshBadges();
+            });
+
+            chargeInput?.addEventListener('input', () => {
+              lastEdited = 'charge';
+              lastBoxEdited = 'deposit';
+              syncCashFromCharge();
+              syncBoxesFromCash();
+              refreshBadges();
+            });
+
+            methodSelect?.addEventListener('change', () => {
+              if (lastEdited === 'charge') {
+                syncCashFromCharge();
+              } else {
+                syncChargeFromCash();
+              }
+              syncBoxesFromCash();
+              refreshBadges();
+            });
+
+            boxInput?.addEventListener('input', () => {
+              lastBoxEdited = 'box';
+              syncBoxesFromCash();
+              refreshBadges();
+            });
+
+            depositInput?.addEventListener('input', () => {
+              lastBoxEdited = 'deposit';
+              syncBoxesFromCash();
+              refreshBadges();
+            });
+          },
+          preConfirm: async () => {
+            const dialog = window.Swal.getHtmlContainer();
+            if (!dialog) return null;
+
+            const amountInput = dialog.querySelector('[data-cash-exchange-amount]');
+            const methodSelect = dialog.querySelector('[data-cash-exchange-method]');
+            const chargeInput = dialog.querySelector('[data-cash-exchange-charge]');
+            const boxInput = dialog.querySelector('[data-cash-exchange-box]');
+            const depositInput = dialog.querySelector('[data-cash-exchange-deposit]');
+
+            const efectivoVendido = roundTo(parseMoneyInput(amountInput), 2);
+            const montoRecibido = roundTo(parseMoneyInput(chargeInput), 2);
+            const montoCajaOperativa = roundTo(parseMoneyInput(boxInput), 2);
+            const montoCajaDeposito = roundTo(parseMoneyInput(depositInput), 2);
+            const paymentGroup = String(methodSelect?.value || 'bank');
+            const recargoPercent = paymentGroup === 'pos_biopago' ? 8 : 5;
+
+            if (!(efectivoVendido > 0)) {
+              window.Swal.showValidationMessage('Debes indicar el efectivo a vender.');
+              return null;
+            }
+
+            if (!(montoRecibido > 0)) {
+              window.Swal.showValidationMessage('Debes indicar el monto a cobrar.');
+              return null;
+            }
+
+            if ((montoCajaOperativa + montoCajaDeposito - efectivoVendido) > 0.01
+              || (montoCajaOperativa + montoCajaDeposito - efectivoVendido) < -0.01) {
+              window.Swal.showValidationMessage('Los montos de caja no cuadran con el efectivo a vender.');
+              return null;
+            }
+
+            if (montoCajaOperativa > Number(cashBoxAccount.balance || 0)) {
+              window.Swal.showValidationMessage('El monto en caja operativa excede el disponible.');
+              return null;
+            }
+
+            if (montoCajaDeposito > Number(cashDepositAccount.balance || 0)) {
+              window.Swal.showValidationMessage('El monto en caja deposito excede el disponible.');
+              return null;
+            }
+
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!csrfToken) {
+              window.Swal.showValidationMessage('Token CSRF no disponible.');
+              return null;
+            }
+
+            const response = await fetch('/cambios-efectivo/validate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+              },
+              body: JSON.stringify({
+                cambio_efectivo: {
+                  efectivo_vendido: efectivoVendido,
+                  monto_caja_operativa: montoCajaOperativa,
+                  monto_caja_deposito: montoCajaDeposito,
+                  monto_recibido: montoRecibido,
+                  payment_group: paymentGroup,
+                },
+              }),
+            });
+
+            let data = {};
+            try {
+              data = await response.json();
+            } catch (error) {
+              data = {};
+            }
+
+            if (!response.ok) {
+              window.Swal.showValidationMessage(data.error || 'No se pudo validar el cambio de efectivo.');
+              return null;
+            }
+
+            return {
+              efectivo_vendido: efectivoVendido,
+              monto_caja_operativa: montoCajaOperativa,
+              monto_caja_deposito: montoCajaDeposito,
+              monto_recibido: montoRecibido,
+              recargo_percent: recargoPercent,
+              payment_group: paymentGroup,
+            };
+          },
+        }).then((result) => {
+          if (!result.isConfirmed) return;
+          const exchangeData = result.value;
+          if (!exchangeData) return;
+          openCashExchangePaymentModal(exchangeData);
+        });
+      };
+
       const buildKey = (itemType, itemId, variationId) => `${normalizeItemType(itemType)}:${itemId}::${normalizeVariationId(variationId) || 'none'}`;
 
       const buildProductReservationSnapshot = () => {
@@ -991,10 +2924,44 @@
         return Number(syncedReservedProductQuantities.get(key)) || 0;
       };
 
-      const getVatMode = () => {
-        const selected = root.querySelector('input[name="ventas-vat-mode"]:checked');
-        return selected ? selected.value : 'none';
+      const normalizeVatMode = (mode) => {
+        const normalized = String(mode || '').toLowerCase();
+        return ['none', 'add', 'included'].includes(normalized) ? normalized : 'none';
       };
+
+      const readCheckedVatMode = () => {
+        const selected = root.querySelector('input[name="ventas-vat-mode"]:checked');
+        return normalizeVatMode(selected ? selected.value : root.dataset.vatMode);
+      };
+
+      let currentVatMode = readCheckedVatMode();
+      let vatRenderReady = false;
+
+      const syncVatModeInputs = (mode) => {
+        const safeMode = normalizeVatMode(mode);
+        root.querySelectorAll('input[name="ventas-vat-mode"]').forEach((radio) => {
+          radio.checked = radio.value === safeMode;
+        });
+      };
+
+      const setVatMode = (mode, options = {}) => {
+        const shouldRender = options.render !== false;
+        const safeMode = normalizeVatMode(mode);
+        const changed = currentVatMode !== safeMode;
+
+        currentVatMode = safeMode;
+        root.dataset.vatMode = safeMode;
+        syncVatModeInputs(safeMode);
+
+        if (shouldRender && changed && vatRenderReady) {
+          renderCart();
+        }
+      };
+
+      const getVatMode = () => currentVatMode;
+
+      root.dataset.vatMode = currentVatMode;
+      syncVatModeInputs(currentVatMode);
 
       const computePricing = (baseUnitUsd, quantity, options = {}) => {
         const vatMode = getVatMode();
@@ -1072,10 +3039,12 @@
         const baseCode = currentBaseCurrencyCode();
         const persistedBaseAmount = Number(item.unit_price_base_amount);
         const persistedBaseCurrency = normalizeCurrencyCode(item.unit_price_base_currency);
+        const discountPercent = resolvePrintVolumeDiscountPercent(service);
+        const discountMultiplier = discountPercent > 0 ? (1 - discountPercent / 100) : 1;
         if (Number.isFinite(persistedBaseAmount) && persistedBaseAmount > 0 && persistedBaseCurrency === baseCode) {
           const vatMode = getVatMode();
           const safeQty = Number(item.quantity) || 0;
-          let unitNet = roundTo(persistedBaseAmount, 2);
+          let unitNet = roundTo(persistedBaseAmount * discountMultiplier, 2);
 
           if (vatMode === 'included' && vatRate > 0) {
             unitNet = roundTo(unitNet / (1 + vatRate), 2);
@@ -1090,7 +3059,8 @@
         }
 
         const unitPriceUsd = resolveServiceUnitPriceUsd(service, item);
-        return computePricing(unitPriceUsd, item.quantity, { exento: false });
+        const discountedUnitPriceUsd = unitPriceUsd * discountMultiplier;
+        return computePricing(discountedUnitPriceUsd, item.quantity, { exento: false });
       };
 
       const calculateCartTotals = () => {
@@ -1370,12 +3340,35 @@
         }
       };
 
-      const setVatModeSelection = (nextMode) => {
-        const normalized = String(nextMode || '').toLowerCase();
-        const safeMode = ['none', 'add', 'included'].includes(normalized) ? normalized : 'none';
-        root.querySelectorAll('input[name="ventas-vat-mode"]').forEach((radio) => {
-          radio.checked = radio.value === safeMode;
-        });
+      const setVatModeSelection = (nextMode, options = {}) => {
+        setVatMode(nextMode, options);
+      };
+
+      window.__ventasForceVatRecalc = (mode) => {
+        if (mode) {
+          setVatModeSelection(mode, { render: true });
+          return;
+        }
+
+        renderCart();
+      };
+
+      const startVatModeWatcher = () => {
+        if (root.__ventasVatWatcherId) return;
+
+        let previousMode = getVatMode();
+        root.__ventasVatWatcherId = window.setInterval(() => {
+          const currentMode = readCheckedVatMode();
+          if (currentMode === previousMode) return;
+          previousMode = currentMode;
+          setVatMode(currentMode, { render: true });
+        }, 250);
+
+        document.addEventListener('turbo:before-cache', () => {
+          if (!root.__ventasVatWatcherId) return;
+          window.clearInterval(root.__ventasVatWatcherId);
+          root.__ventasVatWatcherId = null;
+        }, { once: true });
       };
 
       const updateDraftActionButtons = () => {
@@ -1413,6 +3406,10 @@
             const clientName = String(draft.client_name || 'Cliente general');
             const itemsCount = Number(draft.items_count || 0);
             const updatedAt = formatDraftUpdatedAt(draft.updated_at);
+            const createdBy = String(draft.created_by_name || '').trim() || 'Sin usuario';
+            const createdLabel = updatedAt
+              ? `Orden Creada por <span class="text-[12px] font-bold">${escapeHtml(createdBy)}</span> ${escapeHtml(updatedAt)}`
+              : `Orden Creada por <span class="text-[12px] font-bold">${escapeHtml(createdBy)}</span>`;
             const activeBadge = isActive
               ? '<span class="inline-flex rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Activo</span>'
               : '';
@@ -1429,7 +3426,7 @@
                 <span class="max-w-[12rem] truncate">${escapeHtml(clientName)}</span>
                 <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${countBadgeClass}">${itemsCount}</span>
                 ${activeBadge}
-                ${updatedAt ? `<span class="text-[10px] font-medium ${dateTextClass}">${escapeHtml(updatedAt)}</span>` : ''}
+                ${updatedAt ? `<span class="text-[10px] font-medium ${dateTextClass}">${createdLabel}</span>` : ''}
               </button>
             `;
           })
@@ -2103,6 +4100,7 @@
       setupCatalogInfiniteScroll();
       syncCatalogInfiniteSentinels();
       maybeAutoLoadVisibleCatalog();
+      startVatModeWatcher();
 
       const renderTotals = () => {
         const vatMode = getVatMode();
@@ -2136,7 +4134,6 @@
         const cartList = document.getElementById('ventas-cart-list');
         const emptyState = document.getElementById('ventas-cart-empty');
         const payButton = document.getElementById('ventas-pay-button');
-        if (!cartList || !emptyState) return;
 
         const updateCartBadge = () => {
           if (!cartCountBadge) return;
@@ -2152,9 +4149,19 @@
           }
         };
 
+        // Keep totals/IVA reactive even if the visual cart container changes.
+        if (!cartList) {
+          renderTotals();
+          updateDraftActionButtons();
+          updateAvailabilityUI();
+          updateCartBadge();
+          queueActiveDraftSync();
+          return;
+        }
+
         if (cart.size === 0) {
           cartList.innerHTML = '';
-          emptyState.classList.remove('hidden');
+          emptyState?.classList.remove('hidden');
           if (payButton) {
             payButton.classList.add('opacity-60', 'cursor-not-allowed');
             payButton.disabled = true;
@@ -2167,7 +4174,7 @@
           return;
         }
 
-        emptyState.classList.add('hidden');
+        emptyState?.classList.add('hidden');
         if (payButton) {
           if (hasOpenCashShift) {
             payButton.classList.remove('opacity-60', 'cursor-not-allowed');
@@ -2188,13 +4195,22 @@
             const pricing = computeServicePricing(service, item);
             if (!(pricing.unitDisplay > 0)) return '';
             const saleBaseName = String(service.sale_display_name || service.name || 'Servicio').trim();
-            const displayName = saleBaseName;
-            const deliveryLabel = item.delivery_presentation === 'physical'
-              ? 'Entrega fisica'
-              : (item.delivery_presentation === 'digital' ? 'Entrega digital' : null);
+            const isPrintingService = Boolean(service?.printing_type_service);
+            const recargaBaseAmount = Number(item.recarga_base_amount || 0);
+            const recargaTotalAmount = Number(item.recarga_total_amount || 0);
             const materialLabels = normalizeServiceMaterialRowsForCart(item.selected_print_material_rows)
               .map((row) => String(row.label || '').trim())
               .filter((label, index, array) => label.length > 0 && array.indexOf(label) === index);
+            const selectedMaterialLabel = String(item.selected_print_material_label || '').trim()
+              || (materialLabels[0] || '');
+            const displayName = isRecargaService(service) && recargaBaseAmount > 0
+              ? `Recarga ${saleBaseName} ${formatMoney(recargaBaseAmount, 'Bs ')}`
+              : (isPrintingService && selectedMaterialLabel
+                ? `${saleBaseName} ${selectedMaterialLabel}`
+                : saleBaseName);
+            const deliveryLabel = item.delivery_presentation === 'physical'
+              ? 'Entrega fisica'
+              : (item.delivery_presentation === 'digital' ? 'Entrega digital' : null);
             const materialLabel = materialLabels.length > 0
               ? ` · Materiales: ${escapeHtml(materialLabels.join(' / '))}`
               : '';
@@ -2208,13 +4224,16 @@
             const agreedDisplay = service.price_on_request && item.agreed_price_display
               ? ` · Acordado: ${escapeHtml(item.agreed_price_display)}`
               : '';
+            const recargaDisplay = isRecargaService(service) && recargaTotalAmount > 0
+              ? ` · Total recarga: ${escapeHtml(formatMoney(recargaTotalAmount, 'Bs '))}`
+              : '';
 
             return `
               <div class="rounded-xl border border-slate-200 bg-white px-3 py-3" data-cart-key="${key}">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <p class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(displayName)}</p>
-                      <p class="mt-1 text-[11px] text-slate-400">Servicio${service.price_on_request ? ` (a convenir${agreedReference})` : ''}${deliveryLabel ? ` · ${deliveryLabel}` : ''}${materialLabel} · Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}${physicalPrintingLabel}${agreedDisplay}</p>
+                      <p class="mt-1 text-[11px] text-slate-400">Servicio${service.price_on_request ? ` (a convenir${agreedReference})` : ''}${deliveryLabel ? ` · ${deliveryLabel}` : ''}${materialLabel} · Unit: ${formatBaseMoney(pricing.unitDisplay)} · ${formatAltFromBase(pricing.unitDisplay)}${physicalPrintingLabel}${agreedDisplay}${recargaDisplay}</p>
                   </div>
                   <button type="button" class="text-slate-300 hover:text-red-500" data-cart-action="remove" data-cart-key="${key}">
                     <i data-lucide="x" class="w-4 h-4"></i>
@@ -2281,6 +4300,8 @@
         updateCartBadge();
         queueActiveDraftSync();
       };
+
+      vatRenderReady = true;
 
       const setCartModalOpen = (isOpen) => {
         if (!cartModal || !cartBackdrop || !cartPanel) return;
@@ -3330,6 +5351,168 @@
         return Boolean(service.has_manager_or_variable_expense);
       };
 
+      const promptRecargaService = async (service) => {
+        if (!window.Swal) return null;
+
+        const payallAccount = findPayallAccount();
+        if (!payallAccount) {
+          await window.Swal.fire({
+            icon: 'warning',
+            title: 'Cuenta Payall no encontrada',
+            text: 'No existe una cuenta Payall. Accion que debe realizar el administrador.',
+            heightAuto: false,
+          });
+          return null;
+        }
+
+        const minAmount = Number(service.recarga_min_amount || 0);
+        const multipleAmount = Number(service.recarga_multiple_amount || 0);
+        const profitPercent = Number(service.recarga_profit_percent || 0);
+        const availableBalance = roundTo(Number(payallAccount.balance || 0) - recargaReservedInCart(), 2);
+
+        const amountInputId = `recarga-amount-${service.id}`;
+        const badgeId = `recarga-badge-${service.id}`;
+        const totalId = `recarga-total-${service.id}`;
+
+        const imageHtml = service.system_service_image_url
+          ? `<img src="${escapeHtml(service.system_service_image_url)}" alt="${escapeHtml(service.system_name || 'Recarga')}" class="h-full w-full object-cover">`
+          : `<div class="flex h-full w-full items-center justify-center text-slate-300"><i data-lucide="smartphone" class="h-8 w-8"></i></div>`;
+        const recargaImageHtml = service.recarga_image_url
+          ? `<img src="${escapeHtml(service.recarga_image_url)}" alt="${escapeHtml(service.name || 'Recarga')}" class="h-full w-full object-contain">`
+          : '';
+
+        const modalHtml = `
+          <div class="space-y-3 text-left">
+            ${recargaImageHtml
+              ? `<div class="flex justify-center">
+                  <div class="h-40 w-64 overflow-hidden">${recargaImageHtml}</div>
+                </div>`
+              : ''}
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Monto a recargar</p>
+              <input id="${amountInputId}" type="text" inputmode="decimal" autocomplete="off"
+                class="mt-2 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                placeholder="Bs 0,00" data-money-mask="true" data-money-symbol="Bs">
+              <div id="${badgeId}" class="mt-2 inline-flex items-center rounded-lg bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 ring-1 ring-rose-200">
+                Ingresa un monto valido.
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="h-16 w-24 overflow-hidden bg-slate-100">
+                  ${imageHtml}
+                </div>
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Saldo Payall</p>
+                  <p class="text-lg font-extrabold text-slate-800">${formatMoney(availableBalance, 'Bs ')}</p>
+                </div>
+              </div>
+              <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-right">
+                <p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Monto total a cobrar</p>
+                <p id="${totalId}" class="text-lg font-extrabold text-emerald-700">Bs 0,00</p>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const updateRecargaPreview = (dialog) => {
+          const amountInput = dialog.querySelector(`#${amountInputId}`);
+          const badgeEl = dialog.querySelector(`#${badgeId}`);
+          const totalEl = dialog.querySelector(`#${totalId}`);
+          if (!amountInput || !badgeEl || !totalEl) return;
+
+          const baseAmount = roundTo(parseMoneyInput(amountInput), 2);
+          const totalAmount = roundTo(baseAmount * (1 + profitPercent / 100), 2);
+          totalEl.textContent = formatMoney(totalAmount, 'Bs ');
+
+          let message = '';
+          let valid = true;
+
+          if (!(baseAmount > 0)) {
+            valid = false;
+            message = 'Ingresa un monto valido.';
+          } else if (minAmount > 0 && baseAmount < minAmount) {
+            valid = false;
+            message = `El monto minimo es ${formatMoney(minAmount, 'Bs ')}.`;
+          } else if (multipleAmount > 0 && (baseAmount % multipleAmount) > 0.01) {
+            valid = false;
+            message = `Debe ser multiplo de ${formatMoney(multipleAmount, 'Bs ')}.`;
+          } else if (baseAmount > availableBalance) {
+            valid = false;
+            message = 'Saldo Payall insuficiente.';
+          } else {
+            message = 'Monto valido.';
+          }
+
+          badgeEl.textContent = message;
+          badgeEl.classList.toggle('bg-emerald-100', valid);
+          badgeEl.classList.toggle('text-emerald-700', valid);
+          badgeEl.classList.toggle('ring-emerald-200', valid);
+          badgeEl.classList.toggle('bg-rose-100', !valid);
+          badgeEl.classList.toggle('text-rose-700', !valid);
+          badgeEl.classList.toggle('ring-rose-200', !valid);
+
+          return { baseAmount, totalAmount, valid };
+        };
+
+        const result = await window.Swal.fire({
+          title: `Recarga ${escapeHtml(service.name || service.sale_display_name || 'Servicio')}`,
+          html: modalHtml,
+          showCancelButton: true,
+          confirmButtonText: 'Agregar',
+          cancelButtonText: 'Cancelar',
+          heightAuto: false,
+          didOpen: () => {
+            const dialog = window.Swal.getHtmlContainer();
+            if (!dialog) return;
+            initMoneyMasks(dialog);
+            if (window.lucide?.createIcons) window.lucide.createIcons();
+            const amountInput = dialog.querySelector(`#${amountInputId}`);
+            if (amountInput) {
+              amountInput.addEventListener('input', () => updateRecargaPreview(dialog));
+              updateRecargaPreview(dialog);
+            }
+          },
+          preConfirm: () => {
+            const dialog = window.Swal.getHtmlContainer();
+            if (!dialog) return null;
+
+            const preview = updateRecargaPreview(dialog);
+            if (!preview || !preview.valid) {
+              window.Swal.showValidationMessage('Revisa el monto de recarga.');
+              return null;
+            }
+
+            if (!(bcvRate > 0)) {
+              window.Swal.showValidationMessage('No hay tasa BCV disponible para calcular la recarga.');
+              return null;
+            }
+
+            return preview;
+          },
+        });
+
+        if (!result.isConfirmed) return null;
+
+        const baseAmount = roundTo(result.value.baseAmount, 2);
+        const totalAmount = roundTo(result.value.totalAmount, 2);
+        const unitPriceUsd = roundTo(totalAmount / bcvRate, 6);
+        const unitPriceBaseAmount = baseCurrency === 'ves'
+          ? totalAmount
+          : roundTo(totalAmount / bcvRate, 2);
+        const unitPriceBaseCurrency = baseCurrency === 'ves' ? 'VES' : 'USD';
+
+        return {
+          baseAmount,
+          totalAmount,
+          profitPercent,
+          unitPriceUsd,
+          unitPriceBaseAmount,
+          unitPriceBaseCurrency,
+          priceSignature: `recarga:${baseAmount.toFixed(2)}:${profitPercent.toFixed(2)}`,
+        };
+      };
+
       const promptServicePriceOnRequest = async (service) => {
         if (!window.Swal) return null;
 
@@ -3793,8 +5976,27 @@
       };
 
       const buildVentaPayload = (payments, change, creditSale = null) => {
+        const currentTotals = calculateCartTotals();
         const items = Array.from(cart.entries()).map(([cartKey, item]) => {
           if (item.itemType === 'service') {
+            const service = servicesById.get(String(item.serviceId));
+            const discountPercent = service?.printing_type_service
+              ? resolvePrintVolumeDiscountPercent(service)
+              : 0;
+            let unitPriceUsd = item.unit_price_usd;
+            let unitPriceBaseAmount = item.unit_price_base_amount;
+
+            if (service?.printing_type_service && discountPercent > 0) {
+              const baseUnitBs = Number(item.selected_print_unit_price_bs);
+              if (Number.isFinite(baseUnitBs) && baseUnitBs > 0 && bcvRate > 0) {
+                const discountedBs = roundTo(baseUnitBs * (1 - discountPercent / 100), 2);
+                unitPriceUsd = roundTo(discountedBs / bcvRate, 6);
+                unitPriceBaseAmount = baseCurrency === 'ves'
+                  ? discountedBs
+                  : roundTo(discountedBs / bcvRate, 2);
+              }
+            }
+
             const signatureFromKey = String(cartKey || '').split('::')[1] || '';
             const signatureTokens = signatureFromKey && signatureFromKey !== 'none'
               ? String(signatureFromKey).split('|').filter(Boolean)
@@ -3832,18 +6034,22 @@
               selected_print_price_bs: item.selected_print_price_bs,
               selected_print_surcharge_percent: item.selected_print_surcharge_percent,
               selected_print_unit_price_bs: item.selected_print_unit_price_bs,
+              printing_discount_percent: discountPercent,
               selected_print_material_surcharge_id: String(item.selected_print_material_surcharge_id || materialFromKey || '').trim() || null,
               selected_print_material_product_id: String(item.selected_print_material_product_id || '').trim() || null,
               selected_print_material_label: String(item.selected_print_material_label || '').trim() || null,
               selected_print_material_rows: toServiceMaterialRowsPayload(item.selected_print_material_rows),
               quantity: item.quantity,
-              unit_price_usd: item.unit_price_usd,
-              unit_price_base_amount: item.unit_price_base_amount,
+              unit_price_usd: unitPriceUsd,
+              unit_price_base_amount: unitPriceBaseAmount,
               unit_price_base_currency: item.unit_price_base_currency,
               agreed_price_display: item.agreed_price_display,
               agreed_reference_name: item.agreed_reference_name,
               agreed_reference_amount: item.agreed_reference_amount,
               agreed_reference_symbol: item.agreed_reference_symbol,
+              recarga_base_amount: item.recarga_base_amount,
+              recarga_total_amount: item.recarga_total_amount,
+              recarga_profit_percent: item.recarga_profit_percent,
               price_signature: normalizedSignature,
               consumable_decisions: Array.isArray(item.consumable_decisions) ? item.consumable_decisions : [],
             };
@@ -3864,6 +6070,12 @@
           tasa_dolar: bcvRate,
           base_currency: baseCurrency === 'ves' ? 'VES' : 'USD',
           cliente_id: selectedClient ? selectedClient.id : null,
+          totals: {
+            taxable_subtotal_base: currentTotals.taxableSubtotalBase,
+            exento_subtotal_base: currentTotals.exentoSubtotalBase,
+            vat_base: currentTotals.vatBase,
+            total_base: currentTotals.totalBase,
+          },
           items: items,
           payments: payments || [],
         };
@@ -4005,6 +6217,12 @@
         }
       };
 
+      const cashExchangeButton = document.getElementById('ventas-cash-exchange-button');
+      if (cashExchangeButton && !cashExchangeButton.dataset.boundCashExchange) {
+        cashExchangeButton.dataset.boundCashExchange = 'true';
+        cashExchangeButton.addEventListener('click', openCashExchangeModal);
+      }
+
       const productGrid = document.getElementById('ventas-product-grid');
       if (productGrid) {
         productGrid.addEventListener('click', (event) => {
@@ -4040,6 +6258,32 @@
                 heightAuto: false,
               });
             }
+            return;
+          }
+
+          if (isRecargaService(service)) {
+            const recarga = await promptRecargaService(service);
+            if (!recarga) return;
+
+            const keyParts = [recarga.priceSignature];
+            const key = buildKey('service', serviceId, keyParts.join('|'));
+            const existing = cart.get(key) || {
+              itemType: 'service',
+              serviceId: String(serviceId),
+              quantity: 0,
+              unit_price_usd: recarga.unitPriceUsd,
+              unit_price_base_amount: recarga.unitPriceBaseAmount,
+              unit_price_base_currency: recarga.unitPriceBaseCurrency,
+              recarga_base_amount: recarga.baseAmount,
+              recarga_total_amount: recarga.totalAmount,
+              recarga_profit_percent: recarga.profitPercent,
+              price_signature: recarga.priceSignature,
+              consumable_decisions: [],
+            };
+
+            existing.quantity += 1;
+            cart.set(key, existing);
+            renderCart();
             return;
           }
 
@@ -4168,10 +6412,54 @@
         });
       }
 
+      const safeRecalculateForVatChange = (nextMode = null) => {
+        try {
+          if (nextMode) {
+            setVatMode(nextMode, { render: true });
+          } else {
+            renderCart();
+          }
+        } catch (_error) {
+          // Fallback: at least refresh totals panel if cart rendering fails unexpectedly.
+          renderTotals();
+        }
+      };
+
       root.querySelectorAll('input[name="ventas-vat-mode"]').forEach((radio) => {
         radio.addEventListener('change', () => {
-          renderCart();
+          safeRecalculateForVatChange(radio.value);
         });
+      });
+
+      // Delegated VAT handler keeps recalculation working even if radio nodes are recreated.
+      root.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (!target.matches('input[name="ventas-vat-mode"]')) return;
+        safeRecalculateForVatChange(target.value);
+      });
+
+      root.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (!target.matches('input[name="ventas-vat-mode"]')) return;
+        safeRecalculateForVatChange(target.value);
+      });
+
+      root.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const directRadio = target.closest('input[name="ventas-vat-mode"]');
+        if (directRadio) {
+          safeRecalculateForVatChange(directRadio.value);
+          return;
+        }
+
+        const label = target.closest('label');
+        if (!label) return;
+        const nestedRadio = label.querySelector('input[name="ventas-vat-mode"]');
+        if (!nestedRadio) return;
+        safeRecalculateForVatChange(nestedRadio.value);
       });
 
       baseCurrencyInputs.forEach((input) => {
@@ -6453,7 +8741,13 @@
       refreshLiveProducts({ silent: true });
     };
 
-    document.addEventListener('DOMContentLoaded', initVentasPOS);
-    document.addEventListener('turbo:load', initVentasPOS);
+    if (!window.ventasPosInitHooked) {
+      document.addEventListener('DOMContentLoaded', initVentasPOS);
+      document.addEventListener('turbo:load', initVentasPOS);
+      window.ventasPosInitHooked = true;
+    }
+
+    // Run immediately in case the script is evaluated after DOM is already ready.
+    initVentasPOS();
   })();
 </script>

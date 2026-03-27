@@ -4,4 +4,9 @@ class SystemService < ApplicationRecord
 
   # Validaciones
   validates :name, presence: true, uniqueness: true
+
+  def recarga_system?
+    normalized = I18n.transliterate(name.to_s).downcase.strip
+    normalized.include?('recarga')
+  end
 end

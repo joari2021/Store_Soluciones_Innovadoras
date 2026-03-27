@@ -491,6 +491,15 @@ document.addEventListener("turbo:load", initializeLucideIcons);
 document.addEventListener("DOMContentLoaded", initializeLucideIcons);
 document.addEventListener("turbo:render", initializeLucideIcons);
 document.addEventListener("turbo:frame-load", initializeLucideIcons);
+document.addEventListener("turbo:before-stream-render", (event) => {
+  const streamRender = event.detail?.render;
+  if (typeof streamRender !== "function") return;
+
+  event.detail.render = (streamElement) => {
+    streamRender(streamElement);
+    initializeLucideIcons();
+  };
+});
 document.addEventListener("turbo:load", displayFlashToasts);
 document.addEventListener("DOMContentLoaded", displayFlashToasts);
 document.addEventListener("turbo:render", displayFlashToasts);
@@ -609,6 +618,10 @@ document.addEventListener(
       purchase_invoice: {
         title: "¿Eliminar factura de compra?",
         text: "Esta accion eliminara la factura y revertira sus efectos asociados: pagos, deudas pendientes y lotes de inventario.",
+      },
+      unpack_history: {
+        title: "¿Eliminar desempaque?",
+        text: "Esta accion revertira el desempaque y restaurara el stock de origen si aplica.",
       },
       venta: {
         title: "¿Eliminar venta?",

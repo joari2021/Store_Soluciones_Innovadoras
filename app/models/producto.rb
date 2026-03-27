@@ -16,20 +16,36 @@ class Producto < ApplicationRecord
   has_many :product_variations, dependent: :destroy
   has_many :stock_lots, dependent: :destroy
   has_many :stock_lot_variations, through: :stock_lots
+  has_many :product_usages, dependent: :destroy
   has_many :venta_items, dependent: :nullify
   has_many :ventas, through: :venta_items
   has_many :service_product_expenses, dependent: :nullify
+  has_many :pack_unwraps_as_pack,
+           class_name: 'PackUnwrap',
+           foreign_key: :pack_producto_id,
+           dependent: :restrict_with_error,
+           inverse_of: :pack_producto
+  has_many :pack_unwraps_as_unit,
+           class_name: 'PackUnwrap',
+           foreign_key: :unit_producto_id,
+           dependent: :restrict_with_error,
+           inverse_of: :unit_producto
+
+  enum :presentation, { unidad: 0, pack: 1 }, default: :unidad
 
   accepts_nested_attributes_for :product_variations, allow_destroy: true
 
   has_many :purchase_invoice_items, class_name: 'PurchaseInvoiceItem', foreign_key: :producto_id, dependent: :nullify
 
   validates :descripcion, presence: true
+  validates :cant_presentation,
+            numericality: { only_integer: true, greater_than: 0 }
   validates :porcentaje_ganancia,
             numericality: { greater_than_or_equal_to: 0, less_than: 1000 },
             allow_nil: true
 
   before_validation :ensure_default_variation, on: :create
+  before_validation :normalize_presentation_values
   before_validation :normalize_localized_monetary_fields
   pg_search_scope :whose_name_starts_with,
                   against: {
@@ -50,6 +66,16 @@ class Producto < ApplicationRecord
     return total_from_variations if total_from_variations.positive?
 
     stock_lots.sum(:quantity_remaining).to_d
+  end
+
+  def presentation_display_suffix
+    return '(unidad)' if unidad?
+
+    "(pack de #{cant_presentation.to_i} unid)"
+  end
+
+  def display_name_with_presentation
+    "#{descripcion} #{presentation_display_suffix}".squish
   end
 
   def inventory_lots
@@ -121,6 +147,12 @@ class Producto < ApplicationRecord
     return if product_variations.any?
 
     product_variations.build(description: 'Unica', safety_stock: 0)
+  end
+
+  def normalize_presentation_values
+    self.presentation = :unidad if presentation.blank?
+    self.cant_presentation = 1 if cant_presentation.blank?
+    self.cant_presentation = 1 if unidad?
   end
 
   def normalize_localized_monetary_fields

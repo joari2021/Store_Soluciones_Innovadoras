@@ -63,6 +63,15 @@
                      class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
       <% end %>
     </div>
+    <% cash_role_visible = account.account_type == 'cash_box' %>
+    <div id="cash-role-field" class="col-span-2 md:col-span-1" style="<%= 'display: none;' unless cash_role_visible %>">
+      <%= f.label :cash_role, 'Rol de caja', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.select :cash_role,
+                   options_for_select(Account::CASH_ROLES.map { |key, label| [label, key] }, account.cash_role),
+                   { include_blank: 'Selecciona un rol' },
+                   class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+      <p class="mt-1 text-xs text-slate-500">Solo aplica para cuentas tipo Caja.</p>
+    </div>
     <div class="col-span-2 md:col-span-1">
       <%= f.label :currency, 'Moneda', class: 'block text-sm font-medium text-slate-700' %>
       <% if account.settlement_enabled? %>
@@ -155,6 +164,8 @@
       const currencySelect = form.querySelector('#account_currency');
       const colorSelect = form.querySelector('#account_theme_color');
       const previewCard = document.getElementById('account-preview-card');
+      const cashRoleField = document.getElementById('cash-role-field');
+      const cashRoleSelect = form.querySelector('#account_cash_role');
       const typeBadge = document.getElementById('account-preview-type-badge');
       const currencyBadge = document.getElementById('account-preview-currency-badge');
       const typeIconEl = document.getElementById('account-preview-type-icon');
@@ -175,6 +186,15 @@
 
       const cardBaseClasses = 'mt-3 rounded-xl border p-3 transition-colors';
       const badgeBaseClasses = 'inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-semibold';
+
+      const refreshCashRole = () => {
+        if (!cashRoleField || !typeSelect) return;
+        const isCashBox = typeSelect.value === 'cash_box';
+        cashRoleField.style.display = isCashBox ? '' : 'none';
+        if (!isCashBox && cashRoleSelect) {
+          cashRoleSelect.value = '';
+        }
+      };
 
       const refreshPreview = () => {
         const selectedType = typeSelect.value;
@@ -198,9 +218,11 @@
       };
 
       typeSelect.addEventListener('change', refreshPreview);
+      typeSelect.addEventListener('change', refreshCashRole);
       currencySelect.addEventListener('change', refreshPreview);
       colorSelect.addEventListener('change', refreshPreview);
       refreshPreview();
+      refreshCashRole();
     };
 
     if (!window.__accountFormPreviewListenersBound) {

@@ -1,6 +1,6 @@
 class StockLot < ApplicationRecord
   belongs_to :producto
-  belongs_to :purchase_invoice_item, class_name: 'PurchaseInvoiceItem', foreign_key: :factura_item_id
+  belongs_to :purchase_invoice_item, class_name: 'PurchaseInvoiceItem', foreign_key: :factura_item_id, optional: true
   belongs_to :supplier, optional: true
   has_many :stock_lot_variations, dependent: :destroy
 

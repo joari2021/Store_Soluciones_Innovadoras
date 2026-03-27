@@ -9,27 +9,22 @@
       <div>
         <p class="services-kicker">Catalogo activo</p>
         <h1 class="services-title text-3xl font-extrabold text-slate-900 md:text-4xl">Servicios</h1>
-        <p class="mt-1 text-sm text-slate-500">Organiza planes, precios y disponibilidad con una vista clara para ventas.</p>
       </div>
       <div class="flex flex-wrap gap-2">
         <% if current_user_admin? %>
           <% if Rails.env.development? %>
-            <%= link_to sandbox_mercantil_c2p_search_path, class: "inline-flex items-center gap-2 rounded-2xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-semibold text-violet-700 shadow-sm transition-colors hover:bg-violet-100", data: { turbo_frame: "_top" } do %>
-              <i data-lucide="flask-conical" class="h-4 w-4"></i>
-              Sandbox C2P Search
-            <% end %>
           <% end %>
           <%= link_to printing_prices_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm transition-colors hover:bg-cyan-100", data: { turbo_frame: "_top" } do %>
             <i data-lucide="printer" class="h-4 w-4"></i>
             Precios de Impresiones
           <% end %>
+          <%= link_to recarga_parameters_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100", data: { turbo_frame: "_top" } do %>
+            <i data-lucide="smartphone" class="h-4 w-4"></i>
+            Parametros de recargas
+          <% end %>
           <%= link_to pending_costs_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm transition-colors hover:bg-rose-100", data: { turbo_frame: "_top" } do %>
             <i data-lucide="wallet" class="h-4 w-4"></i>
-            Costos pendientes
-          <% end %>
-          <%= link_to export_excel_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100", data: { turbo: false } do %>
-            <i data-lucide="download" class="h-4 w-4"></i>
-            Descargar Excel
+            Servicios Vendidos
           <% end %>
           <%= link_to new_service_path, class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95", data: { turbo_frame: "_top" } do %>
             <i data-lucide="plus" class="h-4 w-4"></i>
@@ -132,7 +127,9 @@
               </span>
             </div>
             <div class="relative mt-3 aspect-[16/10] overflow-hidden rounded-xl bg-slate-100">
-              <% if service.system_service&.image&.attached? %>
+              <% if service.system_service&.recarga_system? && service.recarga_image&.attached? %>
+                <%= image_tag service.recarga_image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.description %>
+              <% elsif service.system_service&.image&.attached? %>
                 <%= image_tag service.system_service.image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.system_service.name %>
               <% else %>
                 <div class="flex h-full items-center justify-center text-slate-300">

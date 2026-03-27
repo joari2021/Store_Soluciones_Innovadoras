@@ -1,7 +1,7 @@
 class AccountsController < ApplicationController
   before_action :require_business
   before_action :require_admin
-  before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer]
+  before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
@@ -200,7 +200,8 @@ class AccountsController < ApplicationController
       end
     end
 
-    occurred_at = transfer_date.in_time_zone('America/Caracas').end_of_day
+    caracas_now = Time.current.in_time_zone('America/Caracas')
+    occurred_at = caracas_now.change(year: transfer_date.year, month: transfer_date.month, day: transfer_date.day)
 
     AccountMovement.transaction do
       outgoing = @account.account_movements.create!(
@@ -237,6 +238,64 @@ class AccountsController < ApplicationController
     redirect_to accounts_path, notice: 'Transferencia registrada correctamente.'
   rescue ActiveRecord::RecordInvalid => e
     redirect_to accounts_path, alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def register_payment
+    if Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type)
+      return redirect_to account_path(@account), alert: 'No se pueden registrar pagos en cuentas especiales.'
+    end
+
+    concept = params[:concept].to_s.strip
+    return redirect_to account_path(@account), alert: 'Indica el concepto del pago.' if concept.blank?
+
+    payment_date = parse_transfer_date(params[:payment_date])
+    return redirect_to account_path(@account), alert: 'Indica una fecha valida para el pago.' if payment_date.blank?
+
+    amount = parse_transfer_decimal(params[:amount])
+    return redirect_to account_path(@account), alert: 'Indica un monto valido mayor a 0.' unless amount.positive?
+
+    include_commission = ActiveModel::Type::Boolean.new.cast(params[:include_commission])
+    commission_amount = include_commission ? parse_transfer_decimal(params[:commission_amount]) : 0.to_d
+    if include_commission && !commission_amount.positive?
+      return redirect_to account_path(@account), alert: 'Indica un monto de comision valido mayor a 0.'
+    end
+
+    total_debit = (amount + commission_amount).round(2)
+
+    if total_debit > @account.balance.to_d
+      return redirect_to account_path(@account), alert: @account.insufficient_balance_message(total_debit)
+    end
+
+    caracas_now = Time.current.in_time_zone('America/Caracas')
+    occurred_at = caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
+
+    payment_method = @account.account_type == 'bank_account' ? 'transfer' : nil
+
+    movement = nil
+
+    AccountMovement.transaction do
+      movement = @account.account_movements.create!(
+        movement_kind: 'expense',
+        amount: amount,
+        occurred_at: occurred_at,
+        payment_method: payment_method,
+        description: "Pago: #{concept}"
+      )
+
+      if include_commission && commission_amount.positive?
+        @account.account_movements.create!(
+          movement_kind: 'expense',
+          amount: commission_amount,
+          occurred_at: occurred_at,
+          payment_method: payment_method,
+          description: "Comision de pago: #{concept}"
+        )
+      end
+    end
+
+    redirect_to account_path(@account, movement_id: movement.id), notice: 'Pago registrado correctamente.'
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to account_path(@account), alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
   private
@@ -407,6 +466,7 @@ class AccountsController < ApplicationController
       :account_type,
       :currency,
       :balance,
+      :cash_role,
       :theme_color,
       :active,
       :settlement_account_id,

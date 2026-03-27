@@ -83,6 +83,7 @@ class ServicesController < ApplicationController
     @printing_services = current_business
                          .services
                          .includes(:system_service, :service_print_coverage_prices,
+                                   :service_print_volume_discounts,
                                    service_print_material_surcharges: :producto)
                          .printing_type_candidates
                          .order(:description)
@@ -108,6 +109,29 @@ class ServicesController < ApplicationController
                   notice: "Configuracion de impresion actualizada para #{service.description}."
     else
       redirect_to printing_prices_services_path(anchor: "service-print-card-#{service.id}"),
+                  alert: service.errors.full_messages.to_sentence
+    end
+  end
+
+  def recarga_parameters
+    services_scope = current_business.services.includes(:system_service).where.not(system_service_id: nil)
+    @recarga_services = services_scope.select { |service| service.system_service&.recarga_system? }
+    @recarga_services.sort_by! { |service| service.description.to_s.downcase }
+  end
+
+  def update_recarga_parameters
+    service = current_business.services.includes(:system_service).find(params[:id])
+
+    unless service.system_service&.recarga_system?
+      return redirect_to recarga_parameters_services_path,
+                         alert: 'Solo puedes configurar recargas para servicios del sistema Recarga.'
+    end
+
+    if service.update(recarga_parameters_params)
+      redirect_to recarga_parameters_services_path(anchor: "recarga-service-card-#{service.id}"),
+                  notice: "Parametros de recarga actualizados para #{service.description}."
+    else
+      redirect_to recarga_parameters_services_path(anchor: "recarga-service-card-#{service.id}"),
                   alert: service.errors.full_messages.to_sentence
     end
   end
@@ -894,10 +918,20 @@ class ServicesController < ApplicationController
       .permit(
         :print_sale_description,
         service_print_coverage_prices_attributes: %i[id coverage_percent price_bs _destroy],
+        service_print_volume_discounts_attributes: %i[id min_quantity discount_percent _destroy],
         service_print_material_surcharges_attributes: %i[id producto_id description surcharge_percent
                                                          required_quantity
                                                          include_product_price_in_sale _destroy]
       )
+  end
+
+  def recarga_parameters_params
+    params.require(:service).permit(
+      :recarga_image,
+      :recarga_min_amount,
+      :recarga_multiple_amount,
+      :recarga_profit_percent
+    )
   end
 
   def normalize_print_delivery_pages_param!(permitted:)
@@ -1498,7 +1532,7 @@ class ServicesController < ApplicationController
           parent_service_name: nil,
           parent_service_system_name: nil,
           service_id: resolved_service&.id,
-          service_name: resolved_service&.description.to_s.strip.presence || service_name_snapshot,
+          service_name: service_name_snapshot,
           service_system_name: resolved_service&.system_service&.name.to_s.strip.presence || system_name_snapshot,
           system_service_id: resolved_service&.system_service_id,
           quantity: quantity,

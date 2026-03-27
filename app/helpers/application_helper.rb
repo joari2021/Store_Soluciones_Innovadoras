@@ -38,15 +38,27 @@ module ApplicationHelper
     return formatted_debt_description if formatted_debt_description.present?
 
     cleaned = description
-              .gsub(/\s*\[(?:DEBT|DP|VENTA|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM):\d+\]/i, '')
+          .gsub(/\s*\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i, '')
               .gsub(/\s*\[LINE:[^\]]+\]/i, '')
               .gsub(/\s*\[COMMISSION\]/i, '')
-    cleaned.gsub(/\s{2,}/, ' ').strip
+    if description.match?(/CAMBIO_EFECTIVO/i) || description.match?(/cambio de efectivo/i)
+      cleaned = cleaned.gsub(/\s*#\d+\b/, '')
+    end
+    cleaned = cleaned.gsub(/\s{2,}/, ' ').strip
+    turno_match = cleaned.match(/^(.*\bcierre de turno\b)/i)
+    return turno_match[1].strip if turno_match.present?
+
+    cleaned
   end
 
   def account_movement_source_link_data(movement)
     description = movement.description.to_s
     return nil if description.blank?
+
+    if (cambio_id = extract_movement_source_id(description, 'CAMBIO_EFECTIVO')).present?
+      cambio = current_business&.cambio_efectivos&.select(:id)&.find_by(id: cambio_id)
+      return { label: 'Ver cambios', path: cambio_efectivos_path } if cambio.present?
+    end
 
     if (related_movement_id = extract_movement_source_id(description, 'AM')).present?
       related_movement = AccountMovement
@@ -66,6 +78,11 @@ module ApplicationHelper
     if (related_account_id = extract_movement_source_id(description, 'ACCOUNT')).present?
       related_account = current_business&.accounts&.select(:id)&.find_by(id: related_account_id)
       return { label: 'Ver cuenta relacionada', path: account_path(related_account) } if related_account.present?
+    end
+
+    if (cash_shift_id = extract_movement_source_id(description, 'CASH_SHIFT')).present?
+      cash_shift = current_business&.cash_shifts&.select(:id)&.find_by(id: cash_shift_id)
+      return { label: 'Ver turno', path: cash_shift_path(cash_shift) } if cash_shift.present?
     end
 
     if (debt_id = debt_source_id_for_description(description)).present?

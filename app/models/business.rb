@@ -255,6 +255,9 @@ class Business < ApplicationRecord
   has_many :ventas, dependent: :destroy
   has_many :venta_payments, through: :ventas
   has_many :cash_shifts, dependent: :destroy
+  has_many :cambio_efectivos, dependent: :destroy
+  has_many :pack_unwraps, dependent: :destroy
+  has_many :product_usages, dependent: :destroy
   has_many :expenses, dependent: :destroy
   has_many :expense_payments, through: :expenses
   has_many :debts, dependent: :destroy
@@ -363,9 +366,11 @@ class Business < ApplicationRecord
 
     if master_business.blank? || master_business.id == id
       Account.ensure_special_accounts!(self)
+      Account.ensure_cash_accounts!(self)
       return
     end
 
     Account.seed_from_master!(master_business, self)
+    Account.ensure_cash_accounts!(self)
   end
 end

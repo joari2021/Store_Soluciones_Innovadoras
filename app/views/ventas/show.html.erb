@@ -51,6 +51,7 @@
                      end %>
 <% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
 <% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_item_discounts = @sale_item_discounts || {} %>
 <div class="space-y-6">
   <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
@@ -188,6 +189,7 @@
               <% service_system_label = item.variation_name.to_s.strip.presence || 'Servicio' %>
               <% default_item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
               <% display_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
+              <% discount_percent = service_item_discounts[item.id.to_s].to_d %>
               <% service_snapshot = if is_service_item
                                       service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
                                     end %>
@@ -280,7 +282,12 @@
               <tr class="transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/50">
                 <td class="px-6 py-4">
                   <div class="flex flex-col gap-1">
-                    <span class="font-semibold text-slate-800"><%= display_item_name %></span>
+                    <span class="flex flex-wrap items-center gap-2">
+                      <span class="font-semibold text-slate-800"><%= display_item_name %></span>
+                      <% if is_service_item && discount_percent.positive? %>
+                        <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200">Descuento</span>
+                      <% end %>
+                    </span>
                     <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= item_kind_class %>"><%= item.producto.present? ? 'Producto' : service_system_label %></span>
                     <% if item.producto.present? && item_exento %>
                       <span class="inline-flex w-fit items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Exento IVA</span>

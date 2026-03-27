@@ -11,20 +11,21 @@ class User < ApplicationRecord
                                 dependent: :restrict_with_error
   has_many :closed_cash_shifts, class_name: 'CashShift', foreign_key: :closed_by_id, inverse_of: :closed_by,
                                 dependent: :nullify
+  has_many :product_usages, dependent: :restrict_with_error
 
   has_one_attached :avatar
 
   validates :email, presence: true, uniqueness: true,
-    format: {
-      with: /\A([\w+\-].?)+@[a-z\d\-]+(\.[a-z]+)*\.[a-z]+\z/i,
-      message: :invalid
-    }
+                    format: {
+                      with: /\A([\w+-].?)+@[a-z\d-]+(\.[a-z]+)*\.[a-z]+\z/i,
+                      message: :invalid
+                    }
   validates :username, presence: true, uniqueness: true,
-    length: { in: 3..15 },
-    format: {
-      with: /\A[a-z0-9A-Z]+\z/,
-      message: :invalid
-    }
+                       length: { in: 3..15 },
+                       format: {
+                         with: /\A[a-z0-9A-Z]+\z/,
+                         message: :invalid
+                       }
   validates :full_name, length: { maximum: 80 }, allow_blank: true
   validates :password, length: { minimum: MIN_PASSWORD_LENGTH }, if: :password_required?
   validate :password_complexity, if: :password_required?

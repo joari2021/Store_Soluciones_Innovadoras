@@ -89,6 +89,8 @@
         <button type="button"
                 id="ventas-open-cash-shift-trigger"
                 data-create-url="<%= cash_shifts_path %>"
+                data-opening-balances="<%= ERB::Util.json_escape((@open_shift_balance_checks_payload || []).to_json) %>"
+          data-last-closed-shift-url="<%= @last_closed_cash_shift.present? ? cash_shift_path(@last_closed_cash_shift) : '' %>"
                 class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100">
           <i data-lucide="play" class="h-4 w-4"></i>
           <span class="hidden lg:inline">Abrir turno</span>

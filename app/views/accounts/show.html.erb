@@ -8,6 +8,11 @@
         <p class="mt-1 text-sm text-slate-500">Historial de movimientos de la cuenta.</p>
       </div>
       <div class="flex items-center gap-2">
+        <% unless Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
+          <button id="account-payment-open" type="button" class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100">
+            Registrar pago
+          </button>
+        <% end %>
         <%= link_to 'Editar', edit_account_path(@account), class: 'inline-flex items-center justify-center rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300' %>
         <%= link_to 'Volver', accounts_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300' %>
       </div>
@@ -16,6 +21,34 @@
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div class="rounded-2xl border p-4 shadow-sm <%= theme[:card] %>">
       <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de cuenta</p>
+      <div class="col-md-6 d-flex align-items-end">
+        <div class="form-check mt-2">
+          <input class="form-check-input"
+                           type="checkbox"
+                           value="1"
+                           id="registerPaymentIncludeCommission"
+                           name="include_commission">
+          <label class="form-check-label" for="registerPaymentIncludeCommission">
+            Incluir comision
+          </label>
+        </div>
+      </div>
+      <div class="col-md-6 d-none" id="registerPaymentCommissionGroup">
+        <label class="form-label" for="registerPaymentCommissionAmount">Monto comision</label>
+        <div class="input-group">
+          <span class="input-group-text">$</span>
+          <input type="text"
+                           class="form-control"
+                           id="registerPaymentCommissionAmount"
+                           name="commission_amount"
+                           inputmode="decimal"
+                           data-money-mask="true"
+                           data-money-symbol="$"
+                           data-money-decimals="2"
+                           data-money-max-integers="11"
+                           autocomplete="off">
+        </div>
+      </div>
       <div class="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 <%= theme[:tag] %>">
         <i data-lucide="<%= @account.account_type_icon %>" class="h-4 w-4"></i>
         <span class="text-sm font-semibold"><%= @account.account_type_label %></span>
@@ -97,6 +130,13 @@
           <p class="mt-1 text-lg font-bold text-slate-800"><%= format_money(@pending_movements_total || 0, unit: @account.currency_symbol) %></p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+          const registerPaymentCommissionAmount = document.getElementById('registerPaymentCommissionAmount');
+          const registerPaymentIncludeCommission = document.getElementById('registerPaymentIncludeCommission');
+          registerPaymentCommissionAmount?.addEventListener('input', syncRemaining);
+          registerPaymentIncludeCommission?.addEventListener('change', () => {
+          syncCommissionVisibility();
+          syncRemaining();
+          });
           <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Periodo</p>
           <p class="mt-1 text-sm font-semibold text-slate-700">
             <% if @pending_period_start && @pending_period_end %>
@@ -261,3 +301,159 @@
     <% end %>
   </div>
 </div>
+<% unless Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
+  <div id="account-payment-modal"
+       class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-900/45 p-4"
+       data-available="<%= @account.balance.to_d.to_f %>"
+       data-currency-symbol="<%= @account.currency_symbol %>">
+    <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+        <div>
+          <h3 class="text-base font-bold text-slate-800">Registrar pago</h3>
+          <p class="text-xs text-slate-500">Registra un egreso directo desde la cuenta.</p>
+        </div>
+        <button type="button" class="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200" data-payment-close="true">Cerrar</button>
+      </div>
+      <form action="<%= register_payment_account_path(@account) %>" method="post" class="space-y-4 px-5 py-4">
+        <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Concepto</label>
+          <input type="text" name="concept" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Ej: Pago de proveedor" data-payment-concept required>
+        </div>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto</label>
+            <input type="text" name="amount" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="0,00" data-payment-amount data-money-mask="true" data-money-symbol="<%= @account.currency_symbol %>" inputmode="decimal" autocomplete="off" required>
+            <p class="mt-1 text-[11px] text-slate-500" data-payment-available>Disponible: <%= format_money(@account.balance, unit: @account.currency_symbol) %></p>
+            <p class="mt-1 text-[11px] font-semibold text-rose-600 hidden" data-payment-error>Saldo insuficiente para este pago.</p>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha</label>
+            <input type="text" name="payment_date" autocomplete="off" placeholder="dd-mm-aaaa"
+                   class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+                   data-payment-date required>
+            <p class="mt-1 text-[11px] text-slate-500" data-payment-remaining>Saldo restante: -</p>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="include_commission" value="1" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500" data-payment-include-commission>
+            Incluir comision
+          </label>
+          <div class="hidden" data-payment-commission-wrapper>
+            <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto comision</label>
+            <input type="text" name="commission_amount" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="0,00" data-payment-commission-amount data-money-mask="true" data-money-symbol="<%= @account.currency_symbol %>" inputmode="decimal" autocomplete="off">
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+          <button type="button" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-payment-close="true">Cancelar</button>
+          <button type="submit" class="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" data-payment-submit>Registrar pago</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <script>
+    (() => {
+      const modal = document.getElementById('account-payment-modal');
+      const openButton = document.getElementById('account-payment-open');
+      if (!modal || !openButton) return;
+
+      const available = Number(modal.dataset.available || 0) || 0;
+      const currencySymbol = String(modal.dataset.currencySymbol || '$').trim() || '$';
+      const amountInput = modal.querySelector('[data-payment-amount]');
+      const conceptInput = modal.querySelector('[data-payment-concept]');
+      const dateInput = modal.querySelector('[data-payment-date]');
+      const includeCommissionInput = modal.querySelector('[data-payment-include-commission]');
+      const commissionWrapper = modal.querySelector('[data-payment-commission-wrapper]');
+      const commissionAmountInput = modal.querySelector('[data-payment-commission-amount]');
+      const errorEl = modal.querySelector('[data-payment-error]');
+      const remainingEl = modal.querySelector('[data-payment-remaining]');
+      const submitButton = modal.querySelector('[data-payment-submit]');
+
+      const parseAmount = (input) => {
+        if (!input) return 0;
+        if (window.MoneyInputMask?.parseValue) return Number(window.MoneyInputMask.parseValue(input) || 0);
+        const raw = String(input.value || '').replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+        const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const formatAmount = (value) => {
+        const amount = Number.isFinite(value) ? value : 0;
+        return `${currencySymbol} ${amount.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      };
+
+      const pad = (value) => String(value).padStart(2, '0');
+      const defaultDateLabel = () => {
+        const now = new Date();
+        return `${pad(now.getDate())}-${pad(now.getMonth() + 1)}-${now.getFullYear()}`;
+      };
+
+      const commissionEnabled = () => Boolean(includeCommissionInput?.checked);
+
+      const syncCommissionUI = () => {
+        const enabled = commissionEnabled();
+        if (commissionWrapper) commissionWrapper.classList.toggle('hidden', !enabled);
+        if (!enabled && commissionAmountInput) commissionAmountInput.value = '';
+      };
+
+      const syncRemaining = () => {
+        const amount = parseAmount(amountInput);
+        const commission = commissionEnabled() ? parseAmount(commissionAmountInput) : 0;
+        const total = amount + commission;
+        const remaining = available - total;
+        const hasError = total > 0 && remaining < 0;
+        const commissionOk = !commissionEnabled() || commission > 0;
+        if (errorEl) errorEl.classList.toggle('hidden', !hasError);
+        if (remainingEl) {
+          const label = total > 0 ? formatAmount(Math.max(remaining, 0)) : '-';
+          remainingEl.textContent = `Saldo restante: ${label}`;
+        }
+        if (submitButton) {
+          const conceptOk = String(conceptInput?.value || '').trim().length > 0;
+          const dateOk = String(dateInput?.value || '').trim().length > 0;
+          submitButton.disabled = hasError || amount <= 0 || !commissionOk || !conceptOk || !dateOk;
+          submitButton.classList.toggle('opacity-60', submitButton.disabled);
+          submitButton.classList.toggle('cursor-not-allowed', submitButton.disabled);
+        }
+      };
+
+      const openModal = () => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        if (window.MoneyInputMask?.init) window.MoneyInputMask.init(modal);
+        if (window.initializeMaterializeDatepickers) window.initializeMaterializeDatepickers(modal);
+        if (dateInput && !dateInput.value) dateInput.value = defaultDateLabel();
+        if (includeCommissionInput) includeCommissionInput.checked = false;
+        if (commissionAmountInput) commissionAmountInput.value = '';
+        syncCommissionUI();
+        syncRemaining();
+      };
+
+      const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+
+      openButton.addEventListener('click', openModal);
+      modal.querySelectorAll('[data-payment-close="true"]').forEach((button) => {
+        button.addEventListener('click', closeModal);
+      });
+
+      if (amountInput) amountInput.addEventListener('input', syncRemaining);
+      if (commissionAmountInput) commissionAmountInput.addEventListener('input', syncRemaining);
+      if (includeCommissionInput) {
+        includeCommissionInput.addEventListener('change', () => {
+          syncCommissionUI();
+          syncRemaining();
+        });
+      }
+      if (conceptInput) conceptInput.addEventListener('input', syncRemaining);
+      if (dateInput) dateInput.addEventListener('change', syncRemaining);
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeModal();
+      });
+    })();
+  </script>
+<% end %>

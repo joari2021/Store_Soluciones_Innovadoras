@@ -146,6 +146,13 @@
                   <span class="inline-flex items-center rounded-lg px-2.5 py-1 text-xs font-semibold <%= account.active? ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600' %>">
                     <%= account.active? ? 'Activa' : 'Inactiva' %>
                   </span>
+                  <% if account.account_type == 'cash_box' && account.cash_role.present? %>
+                    <% cash_role_class = account.cash_role == 'cash_deposit' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700' %>
+                    <span class="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-semibold <%= cash_role_class %>">
+                      <i data-lucide="briefcase" class="h-3.5 w-3.5"></i>
+                      <%= Account::CASH_ROLES[account.cash_role] || account.cash_role.humanize %>
+                    </span>
+                  <% end %>
                   <% if account.account_type == 'bank_account' && account.is_primary? %>
                     <span class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
                       <i data-lucide="star" class="h-3.5 w-3.5"></i>

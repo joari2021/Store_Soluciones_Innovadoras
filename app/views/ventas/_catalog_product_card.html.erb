@@ -16,7 +16,7 @@
 <% available_variation_names = available_variation_rows.map { |row| (row[:name] || row['name']).to_s.strip }.reject(&:blank?) %>
 <% visible_variations = available_variation_names.first(3) %>
 <% extra_count = [available_variation_names.size - visible_variations.size, 0].max %>
-<% product_query = ([producto.descripcion] + variation_names).join(' ').downcase %>
+<% product_query = ([producto.display_name_with_presentation] + variation_names).join(' ').downcase %>
 <% stock_badge_class = if available_total <= 0
                          'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
                        elsif available_total < 6
@@ -49,7 +49,7 @@
     </div>
     <div class="relative mt-3 aspect-square overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
       <% if producto.foto.attached? %>
-        <%= image_tag producto.foto, class: 'h-full w-full object-cover', alt: producto.descripcion.to_s %>
+        <%= image_tag producto.foto, class: 'h-full w-full object-cover', alt: producto.display_name_with_presentation.to_s %>
       <% else %>
         <i data-lucide="package" class="w-12 h-12"></i>
       <% end %>
@@ -68,7 +68,7 @@
       </div>
     </div>
     <div class="px-1 pt-3">
-      <h3 class="font-bold text-slate-800 text-sm truncate"><%= producto.descripcion.to_s %></h3>
+      <h3 class="font-bold text-slate-800 text-sm truncate"><%= producto.display_name_with_presentation.to_s %></h3>
       <div class="mt-2 flex flex-wrap gap-1 min-h-[1.5rem]" data-product-variations="<%= producto.id %>">
         <% if visible_variations.any? %>
           <% visible_variations.each do |variation_name| %>

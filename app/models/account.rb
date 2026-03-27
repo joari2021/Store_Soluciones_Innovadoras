@@ -17,6 +17,10 @@ class Account < ApplicationRecord
 
   SPECIAL_ACCOUNT_TYPES = %w[biopago pos cashea].freeze
   SHARED_ACCOUNT_TYPES = (SPECIAL_ACCOUNT_TYPES + %w[cash_box]).freeze
+  CASH_ROLES = {
+    'cash_box' => 'Caja',
+    'cash_deposit' => 'Deposito'
+  }.freeze
   SETTLEMENT_REQUIRED_TYPES = %w[biopago pos].freeze
   SPECIAL_ACCOUNT_DEFAULTS = {
     'biopago' => { name: 'Biopago', currency: 'VES', theme_color: 'emerald' },
@@ -92,6 +96,7 @@ class Account < ApplicationRecord
   validates :theme_color, presence: true, inclusion: { in: COLOR_THEMES.keys }
   validates :balance, presence: true, numericality: true
   validates :shared_key, presence: true
+  validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true
   validate :primary_requires_bank_account
   validate :settlement_account_rules
   validate :settlement_currency_rules
@@ -102,6 +107,7 @@ class Account < ApplicationRecord
   before_validation :set_default_theme_color
   before_validation :clear_primary_for_non_bank
   before_validation :apply_special_defaults
+  before_validation :normalize_cash_role
   before_save :unset_other_primary_bank_accounts, if: :will_save_change_to_is_primary?
 
   def self.account_type_options(include_special: false)
@@ -135,6 +141,31 @@ class Account < ApplicationRecord
     end
   end
 
+  def self.ensure_cash_accounts!(business)
+    cash_definitions = [
+      { name: 'Efectivo Bs (Caja)', currency: 'VES', cash_role: 'cash_box' },
+      { name: 'Efectivo $ (Caja)', currency: 'USD', cash_role: 'cash_box' },
+      { name: 'Efectivo Bs (Deposito)', currency: 'VES', cash_role: 'cash_deposit' },
+      { name: 'Efectivo $ (Deposito)', currency: 'USD', cash_role: 'cash_deposit' }
+    ]
+
+    cash_definitions.each do |definition|
+      account = business.accounts.find_or_initialize_by(
+        account_type: 'cash_box',
+        currency: definition[:currency],
+        cash_role: definition[:cash_role]
+      )
+      next if account.persisted?
+
+      account.name = definition[:name]
+      account.theme_color = 'sky'
+      account.balance = 0
+      account.active = true
+      account.notes = 'Cuenta de efectivo del sistema'
+      account.save!
+    end
+  end
+
   def self.syncable_account_type?(account_type)
     SHARED_ACCOUNT_TYPES.include?(account_type.to_s)
   end
@@ -148,6 +179,7 @@ class Account < ApplicationRecord
       name: source_account.name,
       account_type: source_account.account_type,
       currency: source_account.currency,
+      cash_role: source_account.cash_role,
       theme_color: source_account.theme_color,
       notes: source_account.notes
     }
@@ -193,6 +225,7 @@ class Account < ApplicationRecord
           name: master_account.name,
           account_type: master_account.account_type,
           currency: master_account.currency,
+          cash_role: master_account.cash_role,
           theme_color: master_account.theme_color,
           notes: master_account.notes,
           updated_at: Time.current
@@ -203,6 +236,7 @@ class Account < ApplicationRecord
           name: master_account.name,
           account_type: master_account.account_type,
           currency: master_account.currency,
+          cash_role: master_account.cash_role,
           theme_color: master_account.theme_color,
           notes: master_account.notes,
           balance: 0,
@@ -241,6 +275,18 @@ class Account < ApplicationRecord
 
   def settlement_enabled?
     SPECIAL_ACCOUNT_TYPES.include?(account_type)
+  end
+
+  def cash_box_account?
+    account_type == 'cash_box'
+  end
+
+  def cash_box_role?
+    cash_box_account? && cash_role == 'cash_box'
+  end
+
+  def cash_deposit_role?
+    cash_box_account? && cash_role == 'cash_deposit'
   end
 
   def syncable_across_businesses?
@@ -299,6 +345,18 @@ class Account < ApplicationRecord
 
   def clear_primary_for_non_bank
     self.is_primary = false unless account_type == 'bank_account'
+  end
+
+  def normalize_cash_role
+    if cash_box_account?
+      self.cash_role = infer_cash_role_from_name if cash_role.blank?
+    else
+      self.cash_role = nil
+    end
+  end
+
+  def infer_cash_role_from_name
+    name.to_s.downcase.include?('deposito') ? 'cash_deposit' : 'cash_box'
   end
 
   def unset_other_primary_bank_accounts

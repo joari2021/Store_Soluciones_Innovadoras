@@ -21,6 +21,14 @@ Rails.application.routes.draw do
     collection do
       get :search
       get :export_excel
+      get :internal_usages, path: 'uso-interno'
+      post :internal_usages, action: :create_internal_usage, path: 'uso-interno'
+      get :unpack_packs, path: 'destapar-pack'
+      post :process_unpack, path: 'destapar-pack'
+      get :unpack_histories, path: 'destapar-pack/historial'
+      get 'destapar-pack/historial/:id/editar', action: :edit_unpack_history, as: :edit_unpack_history
+      patch 'destapar-pack/historial/:id', action: :update_unpack_history, as: :update_unpack_history
+      delete 'destapar-pack/historial/:id', action: :destroy_unpack_history, as: :destroy_unpack_history
     end
   end
   resources :profit_margin_presets, path: 'porcentajes-ganancia', only: %i[index create edit update destroy]
@@ -46,6 +54,7 @@ Rails.application.routes.draw do
       patch :set_primary
       patch :unset_primary
       post :transfer
+      post :register_payment
     end
     resources :account_settlements, path: 'cierres', only: %i[index show create update]
   end
@@ -77,7 +86,12 @@ Rails.application.routes.draw do
       delete 'drafts/:id', action: :destroy_draft
     end
   end
-  resources :cash_shifts, path: 'cierres-turno', only: %i[index create show] do
+  resources :cambio_efectivos, path: 'cambios-efectivo', only: %i[index create destroy] do
+    collection do
+      post :validate
+    end
+  end
+  resources :cash_shifts, path: 'cierres-turno', only: %i[index create show destroy] do
     member do
       patch :close
     end
@@ -97,6 +111,8 @@ Rails.application.routes.draw do
       get 'sale_services/:debt_id', action: :pending_cost_detail, as: :pending_cost_detail
       get :pending_cost_rates
       get :printing_prices
+      get :recarga_parameters, path: 'parametros-recargas'
+      patch 'parametros-recargas/:id', action: :update_recarga_parameters, as: :update_recarga_parameters
       post :pay_pending_cost_line
       delete :remove_pending_cost_line_payment
     end

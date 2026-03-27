@@ -1,6 +1,7 @@
 class ProductVariation < ApplicationRecord
   belongs_to :producto
   has_many :stock_lot_variations, dependent: :nullify
+  has_many :product_usages, dependent: :restrict_with_error
   has_many :venta_items, dependent: :nullify
   has_many :service_product_expenses, dependent: :nullify
 

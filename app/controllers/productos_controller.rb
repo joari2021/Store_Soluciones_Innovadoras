@@ -4,7 +4,12 @@ class ProductosController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:productos) }
   before_action :set_producto, only: %i[show edit update destroy]
-  before_action :require_admin
+  before_action :set_pack_unwrap, only: %i[edit_unpack_history update_unpack_history destroy_unpack_history]
+  before_action :require_admin, except: %i[index search unpack_packs process_unpack unpack_histories edit_unpack_history
+                                           update_unpack_history destroy_unpack_history internal_usages create_internal_usage]
+  before_action :require_unpack_access!, only: %i[unpack_packs process_unpack unpack_histories edit_unpack_history
+                                                  update_unpack_history destroy_unpack_history]
+  before_action :require_internal_usage_access!, only: %i[internal_usages create_internal_usage]
 
   def index
     @query_text = params[:query_text].to_s.strip
@@ -63,8 +68,7 @@ class ProductosController < ApplicationController
              .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
              .limit(10)
              .select(
-               :id,
-               :descripcion,
+               'productos.*',
                'supplier_products.costo_mayor AS supplier_costo_mayor',
                'supplier_products.costo_menor AS supplier_costo_menor',
                'supplier_products.cantidad AS supplier_unid_x_pack'
@@ -74,6 +78,7 @@ class ProductosController < ApplicationController
         {
           id: row.id,
           descripcion: row.descripcion,
+          display_name: row.display_name_with_presentation,
           costo_mayor: row.attributes['supplier_costo_mayor'],
           costo_menor: row.attributes['supplier_costo_menor'],
           unid_x_pack: row.attributes['supplier_unid_x_pack'],
@@ -96,6 +101,7 @@ class ProductosController < ApplicationController
       {
         id: row.id,
         descripcion: row.descripcion,
+        display_name: row.display_name_with_presentation,
         costo_mayor: nil,
         costo_menor: nil,
         unid_x_pack: nil,
@@ -115,6 +121,9 @@ class ProductosController < ApplicationController
 
   def create
     @producto = current_business.productos.new(producto_params)
+    if params[:producto].is_a?(ActionController::Parameters) && params[:producto].key?(:allow_unpack)
+      @producto.allow_unpack = extract_allow_unpack_param
+    end
     if @producto.save
       if request.headers['Turbo-Frame'].present?
         # Render turbo_stream that appends the new row into the index tbody and clears the modal frame
@@ -155,8 +164,8 @@ class ProductosController < ApplicationController
 
   def export_excel
     productos = current_business.productos
-                               .includes(:categoria, :profit_margin_preset, :product_variations, :stock_lots)
-                               .order(Arel.sql('LOWER(productos.descripcion) ASC'))
+                                .includes(:categoria, :profit_margin_preset, :product_variations, :stock_lots)
+                                .order(Arel.sql('LOWER(productos.descripcion) ASC'))
 
     headers = [
       'Producto ID',
@@ -184,7 +193,7 @@ class ProductosController < ApplicationController
         producto.categoria&.nombre,
         product_available_for_export?(producto) ? 'Si' : 'No',
         producto.precio_venta_usd,
-        (producto.respond_to?(:exento) && producto.exento?) ? 'Si' : 'No',
+        producto.respond_to?(:exento) && producto.exento? ? 'Si' : 'No',
         producto.respond_to?(:porcentaje_ganancia) ? producto.porcentaje_ganancia : nil,
         product_profit_margin_preset_for_export(producto),
         producto.highest_active_lot_unit_cost_usd,
@@ -234,7 +243,12 @@ class ProductosController < ApplicationController
   end
 
   def update
-    if @producto.update(producto_params)
+    update_attrs = producto_params.to_h
+    if params[:producto].is_a?(ActionController::Parameters) && params[:producto].key?(:allow_unpack)
+      update_attrs['allow_unpack'] = extract_allow_unpack_param
+    end
+
+    if @producto.update(update_attrs)
       if request.headers['Turbo-Frame'].present?
         row_payload = view_context.turbo_stream.append(
           'products-live-updates',
@@ -291,6 +305,204 @@ class ProductosController < ApplicationController
     end
   end
 
+  def unpack_packs
+    @query_text = params[:query_text].to_s.strip
+    scope = current_business.productos
+                            .includes(:product_variations, :stock_lot_variations, :stock_lots)
+                            .where(presentation: Producto.presentations[:pack])
+                            .where(allow_unpack: true)
+                            .order(Arel.sql('LOWER(productos.descripcion) ASC'))
+
+    if @query_text.present?
+      escaped = ActiveRecord::Base.sanitize_sql_like(@query_text)
+      scope = scope.where('productos.descripcion ILIKE ?', "%#{escaped}%")
+    end
+
+    @pack_products = scope.to_a
+    @pack_products_payload = @pack_products.map do |producto|
+      {
+        id: producto.id,
+        name: producto.display_name_with_presentation,
+        cant_presentation: producto.cant_presentation.to_i,
+        total_stock: producto.total_quantity.to_d.to_f,
+        variations: producto.product_variations.sort_by(&:id).map do |variation|
+          {
+            id: variation.id,
+            name: variation.description.to_s,
+            available: available_variation_quantity(producto: producto, variation: variation).to_d.to_f
+          }
+        end
+      }
+    end
+  end
+
+  def process_unpack
+    pack_product = current_business.productos.find_by(id: params[:product_id])
+    return redirect_to unpack_packs_productos_path, alert: 'Producto pack no encontrado.' if pack_product.blank?
+    unless pack_product.pack?
+      return redirect_to unpack_packs_productos_path, alert: 'Solo se pueden destapar productos tipo pack.'
+    end
+
+    parsed_rows = parse_unpack_rows(params[:rows])
+    if parsed_rows.empty?
+      return redirect_to unpack_packs_productos_path,
+                         alert: 'Debes seleccionar al menos una variacion con packs a destapar.'
+    end
+
+    performed_on = parse_filter_date(params[:performed_on]) || Time.current.in_time_zone('America/Caracas').to_date
+
+    ActiveRecord::Base.transaction do
+      apply_unpack!(pack_product: pack_product, parsed_rows: parsed_rows, performed_on: performed_on)
+    end
+
+    redirect_to unpack_packs_productos_path, notice: 'Desempaque registrado correctamente.'
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to unpack_packs_productos_path, alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def unpack_histories
+    @selected_fecha_desde = parse_filter_date(params[:fecha_desde])
+    @selected_fecha_hasta = parse_filter_date(params[:fecha_hasta])
+    if @selected_fecha_desde.present? && @selected_fecha_hasta.present? && @selected_fecha_desde > @selected_fecha_hasta
+      @selected_fecha_desde, @selected_fecha_hasta = @selected_fecha_hasta, @selected_fecha_desde
+    end
+
+    scope = current_business.pack_unwraps
+                            .includes(:user, :pack_producto, :unit_producto, pack_unwrap_items: %i[source_product_variation])
+                            .order(performed_at: :desc, id: :desc)
+
+    scope = scope.where('performed_on >= ?', @selected_fecha_desde) if @selected_fecha_desde.present?
+    scope = scope.where('performed_on <= ?', @selected_fecha_hasta) if @selected_fecha_hasta.present?
+
+    @pack_unwraps = scope
+  end
+
+  def internal_usages
+    @selected_fecha_desde = parse_filter_date(params[:fecha_desde])
+    @selected_fecha_hasta = parse_filter_date(params[:fecha_hasta])
+    if @selected_fecha_desde.present? && @selected_fecha_hasta.present? && @selected_fecha_desde > @selected_fecha_hasta
+      @selected_fecha_desde, @selected_fecha_hasta = @selected_fecha_hasta, @selected_fecha_desde
+    end
+
+    scope = current_business.product_usages
+                            .includes(:producto, :product_variation, :user)
+                            .order(used_on: :desc, id: :desc)
+
+    scope = scope.where('used_on >= ?', @selected_fecha_desde) if @selected_fecha_desde.present?
+    scope = scope.where('used_on <= ?', @selected_fecha_hasta) if @selected_fecha_hasta.present?
+
+    @product_usages = scope
+
+    @usage_products = current_business.productos
+                                      .includes(:product_variations, :stock_lot_variations, :stock_lots)
+                                      .order(Arel.sql('LOWER(productos.descripcion) ASC'))
+
+    default_date = Time.current.in_time_zone('America/Caracas').to_date
+    @usage_form_date = default_date.strftime('%d-%m-%Y')
+    @usage_products_payload = @usage_products.map do |producto|
+      {
+        id: producto.id,
+        name: producto.display_name_with_presentation,
+        variations: producto.product_variations.sort_by(&:id).map do |variation|
+          {
+            id: variation.id,
+            name: variation.description.to_s,
+            available: available_variation_quantity(producto: producto, variation: variation).to_d.to_f
+          }
+        end
+      }
+    end
+  end
+
+  def create_internal_usage
+    producto = current_business.productos.find_by(id: usage_form_params[:producto_id])
+    return redirect_to internal_usages_productos_path, alert: 'Producto no encontrado.' if producto.blank?
+
+    variation = producto.product_variations.find_by(id: usage_form_params[:product_variation_id])
+    if variation.blank?
+      return redirect_to internal_usages_productos_path,
+                         alert: 'Debes seleccionar una variacion valida para registrar el uso.'
+    end
+
+    quantity = parse_unpack_decimal(usage_form_params[:quantity])
+    used_on = parse_filter_date(usage_form_params[:used_on]) || Time.current.in_time_zone('America/Caracas').to_date
+
+    usage = current_business.product_usages.new(
+      producto: producto,
+      product_variation: variation,
+      user: Current.user,
+      quantity: quantity,
+      used_on: used_on,
+      notes: usage_form_params[:notes]
+    )
+
+    ActiveRecord::Base.transaction do
+      producto.consume_variation_stock!(variation_id: variation.id, quantity_units: quantity)
+      usage.save!
+    end
+
+    redirect_to internal_usages_productos_path, notice: 'Uso interno registrado y descontado del inventario.'
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to internal_usages_productos_path,
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def edit_unpack_history
+    @pack_producto = @pack_unwrap.pack_producto
+    @unit_producto = @pack_unwrap.unit_producto
+
+    @rows = @pack_producto.product_variations.sort_by(&:id).map do |variation|
+      current_packs = @pack_unwrap.pack_unwrap_items
+                                  .select { |item| item.source_product_variation_id == variation.id }
+                                  .sum { |item| item.packs_opened.to_d }
+
+      available_now = available_variation_quantity(producto: @pack_producto, variation: variation)
+      max_editable = (available_now + current_packs).to_d
+
+      {
+        variation: variation,
+        current_packs: current_packs,
+        max_editable: max_editable
+      }
+    end
+  end
+
+  def update_unpack_history
+    parsed_rows = parse_unpack_rows(params[:rows])
+    if parsed_rows.empty?
+      return redirect_to edit_unpack_history_productos_path(@pack_unwrap),
+                         alert: 'Debes indicar al menos una variacion con packs.'
+    end
+
+    performed_on = parse_filter_date(params[:performed_on]) || @pack_unwrap.performed_on
+
+    ActiveRecord::Base.transaction do
+      revert_unpack!(@pack_unwrap, destroy_record: false)
+      apply_unpack!(
+        pack_product: @pack_unwrap.pack_producto,
+        parsed_rows: parsed_rows,
+        performed_on: performed_on,
+        target_unwrap: @pack_unwrap
+      )
+    end
+
+    redirect_to unpack_histories_productos_path, notice: 'Desempaque actualizado correctamente.'
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_unpack_history_productos_path(@pack_unwrap),
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def destroy_unpack_history
+    ActiveRecord::Base.transaction do
+      revert_unpack!(@pack_unwrap, destroy_record: true)
+    end
+
+    redirect_to unpack_histories_productos_path, notice: 'Desempaque revertido correctamente.'
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to unpack_histories_productos_path,
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
   private
 
   def product_available_for_export?(producto)
@@ -320,9 +532,40 @@ class ProductosController < ApplicationController
     @producto = current_business.productos.find(params[:id])
   end
 
+  def set_pack_unwrap
+    @pack_unwrap = current_business.pack_unwraps
+                                   .includes(:pack_producto, :unit_producto, :pack_unwrap_items)
+                                   .find(params[:id])
+  end
+
+  def require_unpack_access!
+    return if current_user_admin? || current_user_manager?
+
+    deny_access('Solo encargado o administrador puede usar destapar pack e historial.')
+  end
+
+  def require_internal_usage_access!
+    return if current_user_admin? || current_user_manager?
+
+    deny_access('Solo encargado o administrador puede registrar uso interno de productos.')
+  end
+
+  def usage_form_params
+    params.permit(:producto_id, :product_variation_id, :quantity, :used_on, :notes)
+  end
+
+  def extract_allow_unpack_param
+    raw_value = params.dig(:producto, :allow_unpack)
+    raw_value = raw_value.last if raw_value.is_a?(Array)
+    ActiveModel::Type::Boolean.new.cast(raw_value)
+  end
+
   def producto_params
     allowed = [
       :descripcion,
+      :presentation,
+      :cant_presentation,
+      :allow_unpack,
       :precio_venta_usd,
       :categoria_id,
       :foto,
@@ -341,6 +584,242 @@ class ProductosController < ApplicationController
 
   def load_profit_margin_presets_for_select
     @profit_margin_presets_for_select = current_business.profit_margin_presets.order(percentage: :asc)
+  end
+
+  def parse_unpack_rows(raw_rows)
+    row_list =
+      case raw_rows
+      when ActionController::Parameters
+        raw_rows.to_unsafe_h.values
+      when Hash
+        raw_rows.values
+      else
+        Array(raw_rows)
+      end
+
+    row_list.filter_map do |raw_row|
+      row = if raw_row.is_a?(ActionController::Parameters)
+              raw_row.permit(:variation_id, :packs).to_h
+            elsif raw_row.respond_to?(:to_h)
+              raw_row.to_h
+            else
+              {}
+            end
+
+      variation_id = row[:variation_id] || row['variation_id']
+      packs = parse_unpack_decimal(row[:packs] || row['packs'])
+
+      next if variation_id.blank? || !packs.positive?
+
+      {
+        variation_id: variation_id.to_i,
+        packs: packs.to_d.round(2)
+      }
+    end
+  end
+
+  def parse_filter_date(raw_value)
+    value = raw_value.to_s.strip
+    return nil if value.blank?
+
+    Date.strptime(value, '%Y-%m-%d')
+  rescue ArgumentError
+    begin
+      Date.strptime(value, '%d-%m-%Y')
+    rescue ArgumentError
+      nil
+    end
+  end
+
+  def parse_unpack_decimal(raw_value)
+    return raw_value.to_d if raw_value.is_a?(Numeric)
+
+    compact = raw_value.to_s.strip
+    return 0.to_d if compact.blank?
+
+    normalized = if compact.include?(',')
+                   compact.gsub('.', '').tr(',', '.')
+                 elsif compact.count('.') > 1 && compact.split('.').drop(1).all? { |group| group.length == 3 }
+                   compact.delete('.')
+                 else
+                   compact
+                 end
+
+    BigDecimal(normalized)
+  rescue ArgumentError
+    0.to_d
+  end
+
+  def normalize_product_base_description(raw_value)
+    value = raw_value.to_s.strip.downcase
+    return '' if value.blank?
+
+    value = value.gsub(/\s*\(pack\s+de\s+\d+\s+unid\)\s*\z/i, '')
+    value = value.gsub(/\s*\(unidad\)\s*\z/i, '')
+    value.strip
+  end
+
+  def available_variation_quantity(producto:, variation:)
+    variation_rows = producto.stock_lot_variations.to_a
+    grouped = variation_rows.group_by(&:product_variation_id)
+    total = grouped[variation.id].to_a.sum { |row| row.quantity_remaining.to_d }
+    return total if total.positive?
+
+    if variation_rows.empty? && producto.product_variations.size == 1
+      return producto.stock_lots.to_a.sum { |lot| lot.quantity_remaining.to_d }
+    end
+
+    0.to_d
+  end
+
+  def apply_unpack!(pack_product:, parsed_rows:, performed_on:, target_unwrap: nil)
+    pack_base_description = normalize_product_base_description(pack_product.descripcion)
+
+    unit_scope = current_business.productos.where(presentation: :unidad)
+    unit_product = unit_scope.find_by('LOWER(TRIM(descripcion)) = ?', pack_base_description)
+    unit_product ||= unit_scope.detect do |producto|
+      normalize_product_base_description(producto.descripcion) == pack_base_description
+    end
+
+    if unit_product.blank?
+      raise ActiveRecord::RecordInvalid.new(pack_product),
+            'No existe el producto unidad con el mismo nombre para realizar el desempaque.'
+    end
+
+    cant_presentation = pack_product.cant_presentation.to_i
+    if cant_presentation <= 0
+      raise ActiveRecord::RecordInvalid.new(pack_product), 'La cantidad por presentacion del pack es invalida.'
+    end
+
+    unwrap = target_unwrap || current_business.pack_unwraps.build
+    unwrap.pack_unwrap_items.destroy_all if target_unwrap.present?
+
+    unwrap.assign_attributes(
+      pack_producto: pack_product,
+      unit_producto: unit_product,
+      user: Current.user,
+      cant_presentation: cant_presentation,
+      total_packs_opened: 0,
+      total_units_created: 0,
+      performed_on: performed_on,
+      performed_at: Time.current,
+      notes: 'Lote por desempaque'
+    )
+    unwrap.save!
+
+    parsed_rows.each do |row|
+      source_variation = pack_product.product_variations.find_by(id: row[:variation_id])
+      if source_variation.blank?
+        raise ActiveRecord::RecordInvalid.new(pack_product), 'La variacion seleccionada no existe en el producto pack.'
+      end
+
+      destination_variation = unit_product.product_variations.find_by('LOWER(description) = ?',
+                                                                      source_variation.description.to_s.strip.downcase)
+      if destination_variation.blank?
+        raise ActiveRecord::RecordInvalid.new(unit_product),
+              "No se puede destapar: la variacion '#{source_variation.description}' no existe en el producto unidad destino."
+      end
+
+      remaining_packs = row[:packs].to_d
+      next unless remaining_packs.positive?
+
+      pack_product.stock_lots.ordered_fifo.each do |source_lot|
+        break unless remaining_packs.positive?
+
+        available_in_lot = source_lot.available_variation_units(source_variation.id)
+        next unless available_in_lot.positive?
+
+        packs_to_open = [available_in_lot, remaining_packs].min.round(2)
+        next unless packs_to_open.positive?
+
+        consumed_packs = source_lot.consume_variation_units!(variation_id: source_variation.id,
+                                                             quantity_units: packs_to_open)
+        next unless consumed_packs.positive?
+
+        units_created = (consumed_packs * cant_presentation).round(2)
+        destination_unit_cost = (source_lot.unit_cost_usd.to_d / cant_presentation.to_d).round(2)
+
+        destination_lot = unit_product.stock_lots.create!(
+          factura_item_id: nil,
+          unit_cost_usd: destination_unit_cost,
+          quantity_in: units_created,
+          quantity_remaining: units_created,
+          purchased_at: Time.current,
+          supplier_name: 'Lote por desempaque',
+          description: 'Lote por desempaque'
+        )
+
+        destination_lot.stock_lot_variations.create!(
+          product_variation_id: destination_variation.id,
+          variation_description: destination_variation.description.to_s,
+          quantity_in: units_created,
+          quantity_remaining: units_created
+        )
+        destination_lot.sync_quantity_remaining_from_variations!
+
+        unwrap.pack_unwrap_items.create!(
+          source_product_variation: source_variation,
+          destination_product_variation: destination_variation,
+          source_stock_lot: source_lot,
+          destination_stock_lot: destination_lot,
+          packs_opened: consumed_packs,
+          units_created: units_created,
+          source_unit_cost_usd: source_lot.unit_cost_usd.to_d,
+          destination_unit_cost_usd: destination_unit_cost
+        )
+
+        unwrap.total_packs_opened = unwrap.total_packs_opened.to_d + consumed_packs
+        unwrap.total_units_created = unwrap.total_units_created.to_d + units_created
+
+        remaining_packs -= consumed_packs
+      end
+
+      if remaining_packs.positive?
+        raise ActiveRecord::RecordInvalid.new(pack_product),
+              "Stock insuficiente para la variacion #{source_variation.description} (faltan #{remaining_packs.to_d.round(2).to_s('F')} packs)."
+      end
+    end
+
+    unwrap.save!
+  end
+
+  def revert_unpack!(unwrap, destroy_record: true)
+    destination_lots_to_destroy = []
+
+    unwrap.pack_unwrap_items.includes(:source_stock_lot, :destination_stock_lot).find_each do |item|
+      source_lot = item.source_stock_lot
+      destination_lot = item.destination_stock_lot
+
+      if destination_lot.present?
+        destination_row = destination_lot.stock_lot_variations.find_by(product_variation_id: item.destination_product_variation_id)
+        if destination_row.blank? || destination_row.quantity_remaining.to_d < item.units_created.to_d
+          raise ActiveRecord::RecordInvalid.new(unwrap),
+                'No se puede revertir el desempaque porque parte de las unidades generadas ya fueron consumidas.'
+        end
+      end
+
+      if source_lot.present?
+        source_row = source_lot.variation_row_for(item.source_product_variation_id, create_if_missing: true)
+        if source_row.blank?
+          raise ActiveRecord::RecordInvalid.new(unwrap),
+                'No se pudo restaurar el stock de origen para una de las variaciones.'
+        end
+
+        source_row.update!(quantity_remaining: source_row.quantity_remaining.to_d + item.packs_opened.to_d)
+        source_lot.sync_quantity_remaining_from_variations!
+      end
+
+      destination_lots_to_destroy << destination_lot if destination_lot.present?
+    end
+
+    unwrap.pack_unwrap_items.destroy_all
+    destination_lots_to_destroy.uniq.each(&:destroy!)
+
+    if destroy_record
+      unwrap.destroy!
+    else
+      unwrap.update!(total_packs_opened: 0, total_units_created: 0)
+    end
   end
 
   def paginated_productos_payload

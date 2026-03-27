@@ -63,7 +63,7 @@
             <% costo_menor = sp.object.costo_menor.to_d %>
             <% tasa = (@tasa_dolar_bcv || 0).to_d %>
             <tr class="supplier-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= sp.object.producto_id %>">
-              <td class="px-4 py-3 font-semibold text-slate-800"><%= sp.object.producto&.descripcion || 'Producto' %></td>
+              <td class="px-4 py-3 font-semibold text-slate-800"><%= sp.object.producto&.display_name_with_presentation || sp.object.producto&.descripcion || 'Producto' %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_mayor, unit: '$') %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_mayor * tasa, unit: 'Bs') %></td>
               <td class="px-4 py-3 text-center"><%= format_quantity(sp.object.cantidad) %></td>
@@ -90,7 +90,7 @@
               <%= sp.hidden_field :id if sp.object.persisted? %>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
-                <input type="text" value="<%= sp.object.producto&.descripcion || 'Producto' %>" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
+                <input type="text" value="<%= sp.object.producto&.display_name_with_presentation || sp.object.producto&.descripcion || 'Producto' %>" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
               </td>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
@@ -457,16 +457,17 @@
 
       const associatedInDom = findAssociatedProductIdsInDom();
 
-      resultsBox.innerHTML = items.map((item) => (
-        `<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(item.descripcion)}">
+      resultsBox.innerHTML = items.map((item) => {
+        const productName = item.display_name || item.descripcion || '';
+        return (`<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(productName)}">
            <div class="flex items-center gap-2">
-             <span class="text-sm font-medium text-slate-700">${escapeHtml(item.descripcion)}</span>
+             <span class="text-sm font-medium text-slate-700">${escapeHtml(productName)}</span>
              ${associatedInDom.has(String(item.id))
                ? '<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-3.5 w-3.5"><path d="M9 12.75 11.25 15 15 9.75"/><path fill-rule="evenodd" d="M12 3a8.25 8.25 0 1 0 0 16.5A8.25 8.25 0 0 0 12 3Zm0 15a6.75 6.75 0 1 1 0-13.5A6.75 6.75 0 0 1 12 18Z" clip-rule="evenodd"/></svg>Asociado</span>'
                : ''}
            </div>
-         </button>`
-      )).join('');
+         </button>`);
+      }).join('');
       resultsBox.classList.remove('hidden');
     };
 

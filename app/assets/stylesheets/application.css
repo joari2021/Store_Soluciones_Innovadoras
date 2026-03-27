@@ -394,6 +394,7 @@ body.sidebar-collapsed .app-sidebar .sidebar-nav-scroll {
   background: #ffffff;
 }
 
+
 body[data-theme="dark"] {
   background: #0b1220;
   color: #e2e8f0;
@@ -504,6 +505,13 @@ body[data-theme="dark"] #ventas-item-search-clear {
 body[data-theme="dark"] #ventas-item-search-clear:hover {
   background-color: #111f33 !important;
   color: #e2e8f0 !important;
+}
+
+body[data-theme="dark"] #ventas-cash-exchange-button:hover {
+  background-color: #064e3b !important;
+  border-color: #10b981 !important;
+  color: #ecfdf5 !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.22);
 }
 
 body[data-theme="dark"] .services-search-input,

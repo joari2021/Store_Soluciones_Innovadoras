@@ -921,6 +921,7 @@ body[data-turbo-preview] #content-container * {
   outline: none !important;
 }
 
+
 .swal2-popup.ventas-payment-modal .ventas-payment-modal-field:disabled {
   border-color: transparent !important;
   box-shadow: none !important;

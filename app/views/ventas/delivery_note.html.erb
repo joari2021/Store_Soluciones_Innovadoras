@@ -16,6 +16,7 @@
                               end %>
 <% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
 <% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_item_discounts = @sale_item_discounts || {} %>
 <style>
   .note-banner {
     position: relative;
@@ -310,15 +311,13 @@
   </thead>
   <tbody>
     <% internet_service_name = 'Servicio de internet' %>
-    <% allowed_service_terms = %w[impresion plastificacion encuadernacion] %>
+    <% allowed_service_terms = %w[impresion plastificacion encuadernacion recarga] %>
     <% normalized_text = lambda { |value| I18n.transliterate(value.to_s).downcase } %>
     <% service_description_for_note = lambda do |description, system_reference: nil|
          text = [description, system_reference].compact.map { |entry| normalized_text.call(entry) }.join(' ')
-         if allowed_service_terms.any? { |term| text.include?(term) }
-           description
-         else
-           internet_service_name
-         end
+         return description if allowed_service_terms.any? { |term| text.include?(term) }
+
+         internet_service_name
        end %>
     <% product_like_classification = lambda do |classification, label|
          key = normalized_text.call(classification)
@@ -338,6 +337,7 @@
       <% service_system_label = item.variation_name.to_s.strip.presence || 'Servicio' %>
       <% default_item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
       <% display_item_name = @sale_item_masked_names&.fetch(item.id, default_item_name).presence || default_item_name %>
+      <% discount_percent = service_item_discounts[item.id.to_s].to_d %>
       <% service_snapshot = if is_service_item
                               service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
                             end %>
@@ -437,7 +437,12 @@
       <tr class="<%= row_number.odd? ? 'row-odd' : 'row-even' %>">
         <td class="text-center"><%= row_number %></td>
         <td>
-          <div class="item-title"><%= display_description %></div>
+          <div class="item-title">
+            <%= display_description %>
+            <% if is_service_item && discount_percent.positive? %>
+              <span style="margin-left: 6px; display: inline-block; padding: 2px 6px; font-size: 10px; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;">Descuento</span>
+            <% end %>
+          </div>
         </td>
         <td class="text-center"><%= format_quantity(item.quantity, precision: 2) %></td>
         <td class="text-right"><%= format_money(unit_base, unit: base_symbol) %></td>
