@@ -1,0 +1,109 @@
+<section class="space-y-6">
+  <div class="rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Historial de desempaque</h1>
+        <p class="mt-1 text-sm text-slate-500">Consulta, edita o revierte operaciones de destape de packs.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= link_to unpack_packs_productos_path, class: 'inline-flex items-center justify-center rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100' do %>
+          Destapar pack
+        <% end %>
+        <%= link_to productos_path, class: 'inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800' do %>
+          Volver
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <%= form_with url: unpack_histories_productos_path, method: :get, local: true, class: 'flex flex-wrap items-end gap-3' do %>
+      <div class="w-[11rem]">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Desde</label>
+        <%= text_field_tag :fecha_desde,
+                           (@selected_fecha_desde&.strftime('%d-%m-%Y') || ''),
+                           autocomplete: 'off',
+                           placeholder: 'dd-mm-aaaa',
+                           class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-cyan-500 focus:ring-cyan-500' %>
+      </div>
+      <div class="w-[11rem]">
+        <label class="block text-xs font-bold uppercase tracking-wider text-slate-500">Hasta</label>
+        <%= text_field_tag :fecha_hasta,
+                           (@selected_fecha_hasta&.strftime('%d-%m-%Y') || ''),
+                           autocomplete: 'off',
+                           placeholder: 'dd-mm-aaaa',
+                           class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-cyan-500 focus:ring-cyan-500' %>
+      </div>
+      <button type="submit" class="inline-flex w-auto items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">Filtrar</button>
+      <%= link_to unpack_histories_productos_path, class: 'inline-flex w-auto items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+        Limpiar
+      <% end %>
+    <% end %>
+  </div>
+  <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-left text-sm text-slate-700">
+        <thead class="border-b border-sky-100 bg-sky-50/70 text-xs font-bold uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-6 py-4">Fecha</th>
+            <th class="px-6 py-4">Pack</th>
+            <th class="px-6 py-4">Unidad destino</th>
+            <th class="px-6 py-4 text-right">Packs abiertos</th>
+            <th class="px-6 py-4 text-right">Unidades creadas</th>
+            <th class="px-6 py-4">Usuario</th>
+            <th class="px-6 py-4 text-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          <% @pack_unwraps.each do |unwrap| %>
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <p class="font-semibold text-slate-700"><%= unwrap.performed_on.strftime('%d/%m/%Y') %></p>
+                <p class="text-xs text-slate-500"><%= unwrap.performed_at.in_time_zone('America/Caracas').strftime('%H:%M') %></p>
+              </td>
+              <td class="px-6 py-4">
+                <p class="font-semibold text-slate-800"><%= unwrap.pack_producto&.display_name_with_presentation || '-' %></p>
+              </td>
+              <td class="px-6 py-4">
+                <p class="font-semibold text-slate-800"><%= unwrap.unit_producto&.display_name_with_presentation || '-' %></p>
+              </td>
+              <td class="px-6 py-4 text-right font-semibold text-slate-700"><%= format_quantity(unwrap.total_packs_opened, precision: 2) %></td>
+              <td class="px-6 py-4 text-right font-semibold text-emerald-700"><%= format_quantity(unwrap.total_units_created, precision: 2) %></td>
+              <td class="px-6 py-4"><%= unwrap.user&.display_name || '-' %></td>
+              <td class="px-6 py-4">
+                <div class="flex justify-end gap-2">
+                  <%= link_to edit_unpack_history_productos_path(unwrap), class: 'inline-flex items-center justify-center rounded-lg bg-sky-50 p-2 text-sky-600 transition-colors hover:bg-sky-100' do %>
+                    <i data-lucide="edit-3" class="h-4 w-4"></i>
+                  <% end %>
+                  <%= link_to destroy_unpack_history_productos_path(unwrap),
+                              class: 'inline-flex items-center justify-center rounded-lg bg-rose-50 p-2 text-rose-600 transition-colors hover:bg-rose-100',
+                              data: { turbo_method: :delete, swal_delete: 'unpack_history' } do %>
+                    <i data-lucide="trash-2" class="h-4 w-4"></i>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+            <% if unwrap.pack_unwrap_items.any? %>
+              <tr class="bg-slate-50/60">
+                <td class="px-6 py-3 text-xs text-slate-500" colspan="7">
+                  <div class="flex flex-wrap gap-x-4 gap-y-1">
+                    <% unwrap.pack_unwrap_items.each do |item| %>
+                      <span>
+                        <strong><%= item.source_product_variation&.description || 'Variación' %>:</strong>
+                        <%= format_quantity(item.packs_opened, precision: 2) %> pack(s) => <%= format_quantity(item.units_created, precision: 2) %> unidad(es)
+                      </span>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          <% end %>
+          <% if @pack_unwraps.empty? %>
+            <tr>
+              <td class="px-6 py-8 text-center text-sm text-slate-500" colspan="7">No hay desempaques registrados en el rango seleccionado.</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>

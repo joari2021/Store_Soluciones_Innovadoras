@@ -1,0 +1,79 @@
+<section class="space-y-6">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Editar desempaque #<%= @pack_unwrap.id %></h1>
+        <p class="mt-1 text-sm text-slate-500">Se revierte la operación anterior y se aplica esta nueva configuración.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= link_to unpack_histories_productos_path, class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+          Volver al historial
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="grid gap-3 md:grid-cols-2">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Producto pack</p>
+        <p class="mt-1 text-sm font-bold text-slate-800"><%= @pack_producto.display_name_with_presentation %></p>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Producto unidad</p>
+        <p class="mt-1 text-sm font-bold text-slate-800"><%= @unit_producto.display_name_with_presentation %></p>
+      </div>
+    </div>
+
+    <%= form_with url: update_unpack_history_productos_path(@pack_unwrap), method: :patch, local: true, class: 'mt-4 space-y-4' do %>
+      <div class="max-w-xs">
+        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Fecha del movimiento</label>
+        <%= text_field_tag :performed_on,
+                           @pack_unwrap.performed_on.strftime('%d-%m-%Y'),
+                           autocomplete: 'off',
+                           placeholder: 'dd-mm-aaaa',
+                           class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                           required: true %>
+      </div>
+
+      <div class="overflow-hidden rounded-2xl border border-slate-200">
+        <table class="min-w-full text-left text-sm text-slate-700">
+          <thead class="border-b border-slate-200 bg-slate-50 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-4 py-3">Variación</th>
+              <th class="px-4 py-3 text-right">Packs actuales</th>
+              <th class="px-4 py-3 text-right">Máximo editable</th>
+              <th class="px-4 py-3 text-right">Nuevo packs</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @rows.each_with_index do |row, index| %>
+              <tr>
+                <td class="px-4 py-3 font-semibold text-slate-800"><%= row[:variation].description %></td>
+                <td class="px-4 py-3 text-right"><%= format_quantity(row[:current_packs], precision: 2) %></td>
+                <td class="px-4 py-3 text-right text-slate-600"><%= format_quantity(row[:max_editable], precision: 2) %></td>
+                <td class="px-4 py-3 text-right">
+                  <input type="number"
+                         min="0"
+                         step="1"
+                         max="<%= row[:max_editable].to_i %>"
+                         name="rows[<%= index %>][packs]"
+                         value="<%= row[:current_packs].to_i %>"
+                         class="w-24 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-right text-sm text-slate-700">
+                  <input type="hidden" name="rows[<%= index %>][variation_id]" value="<%= row[:variation].id %>">
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center justify-end gap-2">
+        <%= link_to unpack_histories_productos_path, class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50' do %>
+          Cancelar
+        <% end %>
+        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800">Guardar cambios</button>
+      </div>
+    <% end %>
+  </div>
+</section>

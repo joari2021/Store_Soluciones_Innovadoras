@@ -1,0 +1,218 @@
+<section class="space-y-6 fade-in">
+  <div class="rounded-3xl border border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Uso interno de productos</h1>
+        <p class="mt-1 text-sm text-slate-500">Registra insumos consumidos por el negocio para descontarlos del inventario.</p>
+      </div>
+      <%= link_to productos_path,
+                  class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 md:w-auto' do %>
+        <i data-lucide="arrow-left" class="h-4 w-4"></i>
+        Volver a productos
+      <% end %>
+    </div>
+  </div>
+  <div class="grid gap-5 xl:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+    <div class="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm sm:p-5">
+      <h2 class="text-base font-semibold text-slate-800">Registrar consumo</h2>
+      <p class="mt-1 text-xs text-slate-500">Solo encargado y administrador pueden registrar consumos.</p>
+      <%= form_with url: internal_usages_productos_path, method: :post, local: true, class: 'mt-4 space-y-3', data: { internal_usage_form: true } do %>
+        <div>
+          <label for="internal_usage_producto_id" class="block text-sm font-medium text-slate-700">Producto</label>
+          <select id="internal_usage_producto_id"
+                  name="producto_id"
+                  class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                  data-internal-usage-product="true"
+                  required>
+            <option value="">Selecciona un producto</option>
+            <% @usage_products.each do |producto| %>
+              <option value="<%= producto.id %>"><%= producto.display_name_with_presentation %></option>
+            <% end %>
+          </select>
+        </div>
+        <div>
+          <label for="internal_usage_variation_id" class="block text-sm font-medium text-slate-700">Variacion</label>
+          <select id="internal_usage_variation_id"
+                  name="product_variation_id"
+                  class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                  data-internal-usage-variation="true"
+                  required>
+            <option value="">Selecciona una variacion</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500">Stock disponible para la variacion: <span class="font-semibold text-slate-700" data-internal-usage-available="true">0</span></p>
+        </div>
+        <div>
+          <label for="internal_usage_quantity" class="block text-sm font-medium text-slate-700">Cantidad usada</label>
+          <input id="internal_usage_quantity"
+                 name="quantity"
+                 type="text"
+                 inputmode="decimal"
+                 placeholder="0,00"
+                 class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                 required>
+        </div>
+        <div>
+          <label for="internal_usage_used_on" class="block text-sm font-medium text-slate-700">Fecha</label>
+          <%= text_field_tag :used_on,
+                             @usage_form_date,
+                             id: 'internal_usage_used_on',
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500',
+                             required: true %>
+        </div>
+        <div>
+          <label for="internal_usage_notes" class="block text-sm font-medium text-slate-700">Nota (opcional)</label>
+          <textarea id="internal_usage_notes"
+                    name="notes"
+                    rows="2"
+                    placeholder="Ej: consumo de oficina, merma, prueba interna"
+                    class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"></textarea>
+        </div>
+        <button type="submit" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700">
+          <i data-lucide="check" class="h-4 w-4"></i>
+          Registrar uso interno
+        </button>
+      <% end %>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 class="text-base font-semibold text-slate-800">Historial de consumo</h2>
+          <p class="mt-1 text-xs text-slate-500">Filtra por fecha para revisar el uso de insumos.</p>
+        </div>
+        <%= form_with url: internal_usages_productos_path, method: :get, local: true, class: 'grid w-full gap-2 sm:w-auto sm:grid-cols-[9.5rem_9.5rem_auto_auto] sm:items-end' do %>
+          <div class="w-full sm:w-[9.5rem]">
+            <label for="fecha_desde" class="block text-xs font-medium text-slate-700">Desde</label>
+            <%= text_field_tag :fecha_desde,
+                               (@selected_fecha_desde&.strftime('%d-%m-%Y') || ''),
+                               id: 'fecha_desde',
+                               autocomplete: 'off',
+                               placeholder: 'dd-mm-aaaa',
+                               class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500' %>
+          </div>
+          <div class="w-full sm:w-[9.5rem]">
+            <label for="fecha_hasta" class="block text-xs font-medium text-slate-700">Hasta</label>
+            <%= text_field_tag :fecha_hasta,
+                               (@selected_fecha_hasta&.strftime('%d-%m-%Y') || ''),
+                               id: 'fecha_hasta',
+                               autocomplete: 'off',
+                               placeholder: 'dd-mm-aaaa',
+                               class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500' %>
+          </div>
+          <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">Filtrar</button>
+          <%= link_to internal_usages_productos_path,
+                      class: 'inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50' do %>
+            Limpiar
+          <% end %>
+        <% end %>
+      </div>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-left text-xs text-slate-700 sm:text-sm">
+            <thead class="border-b border-emerald-100 bg-emerald-50/70 text-[11px] font-bold uppercase tracking-wider text-slate-500 sm:text-xs">
+              <tr>
+                <th class="px-4 py-3">Fecha</th>
+                <th class="px-4 py-3">Producto</th>
+                <th class="px-4 py-3">Variacion</th>
+                <th class="px-4 py-3 text-right">Cantidad</th>
+                <th class="px-4 py-3">Registrado por</th>
+                <th class="px-4 py-3">Nota</th>
+                <th class="px-4 py-3">Registro</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% if @product_usages.any? %>
+                <% @product_usages.each do |usage| %>
+                  <tr>
+                    <td class="whitespace-nowrap px-4 py-3"><%= usage.used_on&.strftime('%d-%m-%Y') %></td>
+                    <td class="px-4 py-3 font-medium text-slate-800"><%= usage.producto&.display_name_with_presentation || usage.producto&.descripcion || 'Producto eliminado' %></td>
+                    <td class="px-4 py-3"><%= usage.product_variation&.description.presence || 'Sin variacion' %></td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right font-semibold text-emerald-700"><%= number_with_precision(usage.quantity.to_d, precision: 2, delimiter: '.', separator: ',') %></td>
+                    <td class="px-4 py-3"><%= usage.user&.display_name || usage.user&.username || 'Usuario eliminado' %></td>
+                    <td class="px-4 py-3 text-slate-600"><%= usage.notes.to_s.strip.presence || '-' %></td>
+                    <td class="whitespace-nowrap px-4 py-3 text-slate-500"><%= usage.created_at&.in_time_zone('America/Caracas')&.strftime('%d-%m-%Y %I:%M %p') %></td>
+                  </tr>
+                <% end %>
+              <% else %>
+                <tr>
+                  <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No hay consumos registrados con esos filtros.</td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<script id="internal-usage-products-payload" type="application/json">
+  <%= raw(@usage_products_payload.to_json) %>
+</script>
+<script>
+  (() => {
+    const scriptNode = document.getElementById("internal-usage-products-payload");
+    const form = document.querySelector("[data-internal-usage-form='true']");
+    if (!scriptNode || !form) return;
+
+    let products = [];
+
+    try {
+      products = JSON.parse(scriptNode.textContent || "[]");
+    } catch (_error) {
+      products = [];
+    }
+
+    const productSelect = form.querySelector("[data-internal-usage-product='true']");
+    const variationSelect = form.querySelector("[data-internal-usage-variation='true']");
+    const availableNode = form.querySelector("[data-internal-usage-available='true']");
+
+    if (!productSelect || !variationSelect || !availableNode) return;
+
+    const formatAvailable = (value) => {
+      const numeric = Number(value || 0);
+      return numeric.toLocaleString("es-VE", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      });
+    };
+
+    const refreshVariationOptions = () => {
+      const selectedProductId = Number(productSelect.value || 0);
+      const selectedProduct = products.find((item) => Number(item.id) === selectedProductId);
+      const variations = selectedProduct?.variations || [];
+
+      variationSelect.innerHTML = "";
+
+      if (variations.length === 0) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Sin variaciones disponibles";
+        variationSelect.append(option);
+        availableNode.textContent = "0";
+        return;
+      }
+
+      variations.forEach((variation, index) => {
+        const option = document.createElement("option");
+        option.value = String(variation.id);
+        option.textContent = variation.name;
+        option.dataset.available = String(variation.available || 0);
+        if (index === 0) option.selected = true;
+        variationSelect.append(option);
+      });
+
+      const selected = variationSelect.selectedOptions[0];
+      availableNode.textContent = formatAvailable(selected?.dataset?.available || 0);
+    };
+
+    const refreshAvailable = () => {
+      const selected = variationSelect.selectedOptions[0];
+      availableNode.textContent = formatAvailable(selected?.dataset?.available || 0);
+    };
+
+    productSelect.addEventListener("change", refreshVariationOptions);
+    variationSelect.addEventListener("change", refreshAvailable);
+    refreshVariationOptions();
+  })();
+</script>
