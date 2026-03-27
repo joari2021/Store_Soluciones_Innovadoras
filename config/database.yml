@@ -79,6 +79,4 @@ test:
 #
 production:
   <<: *default
-  database: store_soluciones_innovadoras_production
-  username: store_soluciones_innovadoras
-  password: <%= ENV["STORE_SOLUCIONES_INNOVADORAS_DATABASE_PASSWORD"] %>
+  url: <%= ENV["DATABASE_URL"] %>

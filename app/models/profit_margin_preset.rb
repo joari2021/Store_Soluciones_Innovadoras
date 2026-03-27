@@ -1,9 +1,7 @@
 class ProfitMarginPreset < ApplicationRecord
   belongs_to :business
-  if Producto.column_names.include?('profit_margin_preset_id')
-    has_many :productos, foreign_key: :profit_margin_preset_id,
-                         dependent: :nullify
-  end
+  has_many :productos, foreign_key: :profit_margin_preset_id,
+                       dependent: :nullify
 
   validates :percentage,
             presence: true,

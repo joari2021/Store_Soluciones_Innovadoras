@@ -1,15 +1,9 @@
 class Producto < ApplicationRecord
   include PgSearch::Model
 
-  attr_accessor :porcentaje_ganancia unless column_names.include?('porcentaje_ganancia')
-
-  attr_accessor :profit_margin_preset_id unless column_names.include?('profit_margin_preset_id')
-
-  attr_accessor :exento unless column_names.include?('exento')
-
   belongs_to :business
   belongs_to :categoria
-  belongs_to :profit_margin_preset, optional: true if column_names.include?('profit_margin_preset_id')
+  belongs_to :profit_margin_preset, optional: true
   has_one_attached :foto
   has_many :supplier_products, dependent: :destroy
   has_many :suppliers, through: :supplier_products
