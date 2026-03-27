@@ -21,34 +21,6 @@
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div class="rounded-2xl border p-4 shadow-sm <%= theme[:card] %>">
       <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Tipo de cuenta</p>
-      <div class="col-md-6 d-flex align-items-end">
-        <div class="form-check mt-2">
-          <input class="form-check-input"
-                           type="checkbox"
-                           value="1"
-                           id="registerPaymentIncludeCommission"
-                           name="include_commission">
-          <label class="form-check-label" for="registerPaymentIncludeCommission">
-            Incluir comision
-          </label>
-        </div>
-      </div>
-      <div class="col-md-6 d-none" id="registerPaymentCommissionGroup">
-        <label class="form-label" for="registerPaymentCommissionAmount">Monto comision</label>
-        <div class="input-group">
-          <span class="input-group-text">$</span>
-          <input type="text"
-                           class="form-control"
-                           id="registerPaymentCommissionAmount"
-                           name="commission_amount"
-                           inputmode="decimal"
-                           data-money-mask="true"
-                           data-money-symbol="$"
-                           data-money-decimals="2"
-                           data-money-max-integers="11"
-                           autocomplete="off">
-        </div>
-      </div>
       <div class="mt-2 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 <%= theme[:tag] %>">
         <i data-lucide="<%= @account.account_type_icon %>" class="h-4 w-4"></i>
         <span class="text-sm font-semibold"><%= @account.account_type_label %></span>
@@ -130,13 +102,6 @@
           <p class="mt-1 text-lg font-bold text-slate-800"><%= format_money(@pending_movements_total || 0, unit: @account.currency_symbol) %></p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
-          const registerPaymentCommissionAmount = document.getElementById('registerPaymentCommissionAmount');
-          const registerPaymentIncludeCommission = document.getElementById('registerPaymentIncludeCommission');
-          registerPaymentCommissionAmount?.addEventListener('input', syncRemaining);
-          registerPaymentIncludeCommission?.addEventListener('change', () => {
-          syncCommissionVisibility();
-          syncRemaining();
-          });
           <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Periodo</p>
           <p class="mt-1 text-sm font-semibold text-slate-700">
             <% if @pending_period_start && @pending_period_end %>

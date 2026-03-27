@@ -2,6 +2,7 @@ class Account < ApplicationRecord
   belongs_to :business
   has_many :account_movements, -> { order(occurred_at: :desc, created_at: :desc) }, dependent: :destroy
   has_one_attached :logo
+  has_one_attached :small_logo
   has_one_attached :payment_method_image
 
   ACCOUNT_TYPES = {
@@ -101,6 +102,7 @@ class Account < ApplicationRecord
   validate :settlement_account_rules
   validate :settlement_currency_rules
   validate :validate_logo_attachment
+  validate :validate_small_logo_attachment
   validate :validate_payment_method_image_attachment
 
   before_validation :ensure_shared_key
@@ -321,6 +323,7 @@ class Account < ApplicationRecord
 
   def sync_shared_attachments!(target)
     sync_attachment(:logo, target)
+    sync_attachment(:small_logo, target)
     sync_attachment(:payment_method_image, target)
   end
 
@@ -404,6 +407,10 @@ class Account < ApplicationRecord
 
   def validate_logo_attachment
     validate_image_attachment(:logo)
+  end
+
+  def validate_small_logo_attachment
+    validate_image_attachment(:small_logo)
   end
 
   def validate_payment_method_image_attachment

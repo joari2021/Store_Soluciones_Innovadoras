@@ -94,10 +94,18 @@
     }
   </style>
   <% if @accounts.any? %>
+    <% prioritized_cash_boxes = {
+      ['cash_box', 'VES'] => 0,
+      ['cash_box', 'USD'] => 1,
+      ['cash_deposit', 'VES'] => 2,
+      ['cash_deposit', 'USD'] => 3
+    } %>
+    <% cash_accounts = @accounts.select { |account| account.account_type == 'cash_box' }
+                              .sort_by { |account| [prioritized_cash_boxes.fetch([account.cash_role, account.currency], 99), account.name.to_s.downcase] } %>
     <% grouped_accounts = [
       ['Cuentas bancarias', @accounts.select { |account| account.account_type == 'bank_account' }],
       ['Metodos especiales', @accounts.select { |account| Account::SPECIAL_ACCOUNT_TYPES.include?(account.account_type) }],
-      ['Cajas', @accounts.select { |account| account.account_type == 'cash_box' }],
+      ['Cajas', cash_accounts],
       ['Billeteras cripto', @accounts.select { |account| account.account_type == 'crypto_wallet' }],
       ['Billeteras digitales', @accounts.select { |account| account.account_type == 'digital_wallet' }],
       ['Tarjetas', @accounts.select { |account| account.account_type == 'card' }]
@@ -109,7 +117,8 @@
           <h2 class="text-sm font-bold uppercase tracking-wider text-slate-600"><%= title %></h2>
           <div class="h-px flex-1 bg-slate-200"></div>
         </div>
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <% grid_classes = title == 'Cajas' ? 'grid gap-4 sm:grid-cols-2 lg:grid-cols-4' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-3' %>
+        <div class="<%= grid_classes %>">
           <% accounts.each do |account| %>
             <% theme = account.theme_config %>
             <% special_image = case account.account_type

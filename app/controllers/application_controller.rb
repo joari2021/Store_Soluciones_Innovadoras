@@ -6,6 +6,7 @@ class ApplicationController < ActionController::Base
   before_action :set_tasas
   before_action :set_business_context
   before_action :set_header_notifications
+  before_action :set_header_recarga_summary
 
   private
 
@@ -156,6 +157,27 @@ class ApplicationController < ActionController::Base
     end
 
     @header_notifications_count = @header_notifications.size
+  end
+
+  def set_header_recarga_summary
+    @header_recarga_summary = []
+    return unless request.format.html? || request.format.turbo_stream?
+    return if current_business.blank?
+
+    services = current_business
+               .services
+               .joins(:system_service)
+               .where('LOWER(system_services.name) LIKE ?', '%recarga%')
+               .select('services.description', 'services.recarga_min_amount', 'system_services.name AS system_name')
+               .order('system_services.name ASC, services.description ASC')
+
+    @header_recarga_summary = services.map do |service|
+      {
+        service_name: service.description,
+        system_name: service.read_attribute(:system_name),
+        min_amount: service.recarga_min_amount
+      }
+    end
   end
 
   def dismissed_header_notification_kinds

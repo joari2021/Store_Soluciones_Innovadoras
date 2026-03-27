@@ -472,6 +472,7 @@ class AccountsController < ApplicationController
       :settlement_account_id,
       :notes,
       :logo,
+      :small_logo,
       :payment_method_image
     )
   end

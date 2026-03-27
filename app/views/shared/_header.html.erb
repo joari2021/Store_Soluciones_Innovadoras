@@ -144,6 +144,54 @@
         </div>
       </div>
     </div>
+    <div id="recarga-summary-tooltip" class="relative">
+      <button id="recarga-summary-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center rounded-full bg-cyan-100 text-cyan-700 shadow-sm ring-1 ring-cyan-200 transition-colors hover:bg-cyan-200 hover:text-cyan-900 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver resumen de recargas">
+        <i data-lucide="smartphone" class="w-5 h-5"></i>
+      </button>
+      <div id="recarga-summary-panel" class="absolute right-0 mt-3 hidden w-96 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Resumen de parametros de recarga</p>
+          <p class="mt-1 text-sm font-semibold text-slate-800">Recarga minima configurada por servicio</p>
+        </div>
+        <div class="max-h-80 overflow-y-auto p-3">
+          <% if @header_recarga_summary.present? %>
+            <table class="w-full text-left text-sm text-slate-700">
+              <thead>
+                <tr class="border-b border-slate-200 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                  <th class="px-2 py-2">Sistema</th>
+                  <th class="px-2 py-2 text-right">Recarga minima</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% @header_recarga_summary.each do |row| %>
+                  <tr class="border-b border-slate-100 last:border-0">
+                    <td class="px-2 py-2">
+                      <p class="font-semibold text-slate-800"><%= row[:service_name] %></p>
+                      <p class="text-xs text-slate-500"><%= row[:system_name] %></p>
+                    </td>
+                    <td class="px-2 py-2 text-right font-semibold text-slate-800">
+                      <%= row[:min_amount].present? ? format_money(row[:min_amount], unit: 'Bs') : '-' %>
+                    </td>
+                  </tr>
+                <% end %>
+              </tbody>
+            </table>
+          <% else %>
+            <p class="px-2 py-2 text-sm text-slate-500">No hay servicios de recarga configurados.</p>
+          <% end %>
+        </div>
+        <% if current_user_admin? %>
+          <div class="border-t border-slate-100 bg-slate-50 px-4 py-3">
+            <%= link_to recarga_parameters_services_path,
+                        class: 'inline-flex items-center gap-2 text-sm font-semibold text-cyan-700 hover:text-cyan-900',
+                        data: { turbo_frame: '_top' } do %>
+              <i data-lucide="settings-2" class="h-4 w-4"></i>
+              Configurar parametros de recarga
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
     <%= render 'shared/header_notifications' %>
     <!-- Mobile Profile Icon -->
     <div class="md:hidden h-8 w-8 overflow-hidden rounded-full border border-sky-200 bg-sky-100">
@@ -255,6 +303,51 @@
       if (!wrapper) return null;
       const button = document.getElementById('notifications-toggle');
       const panel = document.getElementById('notifications-panel');
+      if (!button || !panel) return null;
+      return { button, panel };
+    };
+
+    const closePanel = () => {
+      const elements = getElements();
+      if (!elements) return;
+      elements.panel.classList.add('hidden');
+      elements.button.setAttribute('aria-expanded', 'false');
+    };
+
+    document.addEventListener('click', (event) => {
+      const elements = getElements();
+      if (!elements) return;
+
+      const { button, panel } = elements;
+      const clickedButton = button.contains(event.target);
+      const clickedPanel = panel.contains(event.target);
+
+      if (clickedButton) {
+        panel.classList.toggle('hidden');
+        button.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
+        return;
+      }
+
+      if (!clickedPanel) {
+        closePanel();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      closePanel();
+    });
+  })();
+
+  (() => {
+    if (window.recargaSummaryTooltipHandlersBound) return;
+    window.recargaSummaryTooltipHandlersBound = true;
+
+    const getElements = () => {
+      const wrapper = document.getElementById('recarga-summary-tooltip');
+      if (!wrapper) return null;
+      const button = document.getElementById('recarga-summary-toggle');
+      const panel = document.getElementById('recarga-summary-panel');
       if (!button || !panel) return null;
       return { button, panel };
     };

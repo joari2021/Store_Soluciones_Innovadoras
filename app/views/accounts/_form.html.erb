@@ -111,7 +111,7 @@
       </div>
     <% end %>
     <div class="col-span-2 md:col-span-1">
-      <%= f.label :logo, 'Imagen para tarjeta en cuentas', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.label :logo, 'Logo Mediano', class: 'block text-sm font-medium text-slate-700' %>
       <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
       <p class="mt-1 text-xs text-slate-500">Se muestra como imagen de fondo en las tarjetas del index de cuentas.</p>
       <% if account.settlement_enabled? %>
@@ -125,7 +125,18 @@
       <% end %>
     </div>
     <div class="col-span-2 md:col-span-1">
-      <%= f.label :payment_method_image, 'Imagen para metodos de pago en ventas', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.label :small_logo, 'Imagen Logo Pequeño', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.file_field :small_logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+      <p class="mt-1 text-xs text-slate-500">Puedes usarla como version compacta del logo para vistas pequenas.</p>
+      <% if account.small_logo.attached? %>
+        <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <%= image_tag account.small_logo, class: 'h-12 w-12 rounded-lg border border-slate-200 object-cover', alt: "Logo pequeño de #{account.name}" %>
+          <span class="text-xs font-medium text-slate-600">Imagen actual</span>
+        </div>
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :payment_method_image, 'Imagen Banner', class: 'block text-sm font-medium text-slate-700' %>
       <%= f.file_field :payment_method_image, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
       <p class="mt-1 text-xs text-slate-500">Se muestra en el modal de metodos de pago de ventas.</p>
       <% if account.payment_method_image.attached? %>
