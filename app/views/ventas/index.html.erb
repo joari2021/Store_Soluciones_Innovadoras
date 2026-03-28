@@ -5224,9 +5224,10 @@
         requested_quantity: row.requestedQuantity,
       }));
 
-      const addServiceToCart = async (serviceId, quantity) => {
+      const addServiceToCart = async (serviceId, quantity, options = {}) => {
         const service = servicesById.get(String(serviceId));
         if (!service) return;
+        const agreedPricing = options?.agreedPricing || null;
 
         if (service.printing_type_service) {
           const rows = await promptPrintingRowsSelection(service);
@@ -5282,11 +5283,13 @@
 
         const firstConfiguredMaterial = selectedMaterialRows[0] || null;
 
-        const resolvedUnitPriceUsd = resolveServiceUnitPriceUsd(service, {
-          unit_price_usd: service.price_usd,
-        }, {
-          preferBsReference: isLaminationService,
-        });
+        const resolvedUnitPriceUsd = agreedPricing
+          ? Number(agreedPricing.unitPriceUsd || 0)
+          : resolveServiceUnitPriceUsd(service, {
+              unit_price_usd: service.price_usd,
+            }, {
+              preferBsReference: isLaminationService,
+            });
 
         if (!(resolvedUnitPriceUsd > 0)) {
           if (window.Swal) {
@@ -5303,6 +5306,7 @@
         }
 
         const keyParts = [];
+        if (agreedPricing?.priceSignature) keyParts.push(String(agreedPricing.priceSignature));
         if (deliveryPresentation) keyParts.push(`delivery-${deliveryPresentation}`);
         if (firstConfiguredMaterial?.surchargeId) keyParts.push(`print-material-${firstConfiguredMaterial.surchargeId}`);
         const materialSetToken = materialRowsSignatureToken(selectedMaterialRows);
@@ -5318,8 +5322,12 @@
           selected_print_material_rows: toServiceMaterialRowsPayload(selectedMaterialRows),
           quantity: 0,
           unit_price_usd: resolvedUnitPriceUsd,
-          unit_price_base_amount: null,
-          unit_price_base_currency: null,
+          unit_price_base_amount: agreedPricing?.invoiceUnitAmount || null,
+          unit_price_base_currency: agreedPricing?.invoiceCurrencyCode || null,
+          agreed_price_display: agreedPricing?.priceDisplay || null,
+          agreed_reference_name: agreedPricing?.referenceName || null,
+          agreed_reference_amount: agreedPricing?.referenceAmount || null,
+          agreed_reference_symbol: agreedPricing?.referenceSymbol || null,
           consumable_decisions: [],
         };
 
@@ -5332,11 +5340,24 @@
           ? toServiceMaterialRowsPayload(selectedMaterialRows)
           : (existing.selected_print_material_rows || []);
         existing.unit_price_usd = resolvedUnitPriceUsd;
-        const resolvedUnitPriceBaseAmount = resolveServiceUnitPriceBaseAmount(service, {
-          preferBsReference: isLaminationService,
-        });
-        existing.unit_price_base_amount = resolvedUnitPriceBaseAmount > 0 ? resolvedUnitPriceBaseAmount : existing.unit_price_base_amount;
-        existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
+        if (agreedPricing) {
+          existing.unit_price_base_amount = agreedPricing.invoiceUnitAmount;
+          existing.unit_price_base_currency = agreedPricing.invoiceCurrencyCode;
+          existing.agreed_price_display = agreedPricing.priceDisplay;
+          existing.agreed_reference_name = agreedPricing.referenceName;
+          existing.agreed_reference_amount = agreedPricing.referenceAmount;
+          existing.agreed_reference_symbol = agreedPricing.referenceSymbol;
+        } else {
+          const resolvedUnitPriceBaseAmount = resolveServiceUnitPriceBaseAmount(service, {
+            preferBsReference: isLaminationService,
+          });
+          existing.unit_price_base_amount = resolvedUnitPriceBaseAmount > 0 ? resolvedUnitPriceBaseAmount : existing.unit_price_base_amount;
+          existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
+          existing.agreed_price_display = null;
+          existing.agreed_reference_name = null;
+          existing.agreed_reference_amount = null;
+          existing.agreed_reference_symbol = null;
+        }
         existing.quantity += quantity;
         cart.set(key, existing);
         renderCart();
@@ -6298,97 +6319,7 @@
           if (service.price_on_request) {
             const agreedPricing = await promptServicePriceOnRequest(service);
             if (!agreedPricing) return;
-
-            const isLaminationService = Boolean(service.lamination_type_service);
-            const deliveryPresentation = isLaminationService ? null : await promptServiceDeliveryPresentation(service);
-            if (!isLaminationService && !deliveryPresentation) return;
-
-            const configuredPhysicalMaterials = resolveConfiguredRequiredMaterials(service, deliveryPresentation);
-            if (configuredPhysicalMaterials === null) {
-              if (isLaminationService && window.Swal) {
-                await window.Swal.fire({
-                  icon: 'warning',
-                  title: 'Configura materiales de plastificacion',
-                  text: 'Este servicio requiere materiales configurados en el formulario del servicio.',
-                  heightAuto: false,
-                });
-              }
-              return;
-            }
-
-            const normalizedMaterialRows = normalizeServiceMaterialRowsForCart(configuredPhysicalMaterials);
-            if (isLaminationService && normalizedMaterialRows.length === 0) return;
-
-            const configuredPhysicalExtraRows = isLaminationService
-              ? []
-              : resolveConfiguredPhysicalDeliveryExtraRows(service, deliveryPresentation);
-            const resolvedPhysicalExtraRows = await resolvePhysicalExtraRowsWithAvailability({
-              service,
-              extraRows: configuredPhysicalExtraRows,
-              serviceUnits: agreedPricing.quantity,
-            });
-            if (resolvedPhysicalExtraRows === false) return;
-
-            const hasMaterialStock = await ensureServiceMaterialsAvailability({
-              service,
-              materialRows: normalizedMaterialRows,
-              serviceUnits: agreedPricing.quantity,
-              materialContext: {
-                sourceLabel: isLaminationService ? 'Plastificacion directa' : 'Presentacion fisica',
-              },
-            });
-            if (!hasMaterialStock) return;
-
-            const selectedMaterialRows = normalizeServiceMaterialRowsForCart([
-              ...normalizedMaterialRows,
-              ...(Array.isArray(resolvedPhysicalExtraRows) ? resolvedPhysicalExtraRows : []),
-            ]);
-
-            const firstConfiguredMaterial = selectedMaterialRows[0] || null;
-
-            const keyParts = [`${agreedPricing.priceSignature || 'agree'}`];
-            if (deliveryPresentation) keyParts.push(`delivery-${deliveryPresentation}`);
-            if (firstConfiguredMaterial?.surchargeId) keyParts.push(`print-material-${firstConfiguredMaterial.surchargeId}`);
-            const materialSetToken = materialRowsSignatureToken(selectedMaterialRows);
-            if (materialSetToken) keyParts.push(materialSetToken);
-            const key = buildKey('service', serviceId, keyParts.join('|'));
-            const existing = cart.get(key) || {
-              itemType: 'service',
-              serviceId: String(serviceId),
-              delivery_presentation: deliveryPresentation,
-              selected_print_material_surcharge_id: firstConfiguredMaterial?.surchargeId || null,
-              selected_print_material_label: firstConfiguredMaterial?.label || null,
-              selected_print_material_product_id: firstConfiguredMaterial?.productId || null,
-              selected_print_material_rows: toServiceMaterialRowsPayload(selectedMaterialRows),
-              quantity: 0,
-              unit_price_usd: agreedPricing.unitPriceUsd,
-              unit_price_base_amount: agreedPricing.invoiceUnitAmount,
-              unit_price_base_currency: agreedPricing.invoiceCurrencyCode,
-              agreed_price_display: agreedPricing.priceDisplay,
-              agreed_reference_name: agreedPricing.referenceName,
-              agreed_reference_amount: agreedPricing.referenceAmount,
-              agreed_reference_symbol: agreedPricing.referenceSymbol,
-              consumable_decisions: [],
-            };
-
-            if (!Array.isArray(existing.consumable_decisions)) existing.consumable_decisions = [];
-            existing.delivery_presentation = deliveryPresentation;
-            existing.selected_print_material_surcharge_id = firstConfiguredMaterial?.surchargeId || existing.selected_print_material_surcharge_id;
-            existing.selected_print_material_label = firstConfiguredMaterial?.label || existing.selected_print_material_label;
-            existing.selected_print_material_product_id = firstConfiguredMaterial?.productId || existing.selected_print_material_product_id;
-            existing.selected_print_material_rows = selectedMaterialRows.length > 0
-              ? toServiceMaterialRowsPayload(selectedMaterialRows)
-              : (existing.selected_print_material_rows || []);
-            existing.unit_price_usd = agreedPricing.unitPriceUsd;
-            existing.unit_price_base_amount = agreedPricing.invoiceUnitAmount;
-            existing.unit_price_base_currency = agreedPricing.invoiceCurrencyCode;
-            existing.agreed_price_display = agreedPricing.priceDisplay;
-            existing.agreed_reference_name = agreedPricing.referenceName;
-            existing.agreed_reference_amount = agreedPricing.referenceAmount;
-            existing.agreed_reference_symbol = agreedPricing.referenceSymbol;
-            existing.quantity += agreedPricing.quantity;
-            cart.set(key, existing);
-            renderCart();
+            await addServiceToCart(serviceId, agreedPricing.quantity, { agreedPricing });
             return;
           }
 
