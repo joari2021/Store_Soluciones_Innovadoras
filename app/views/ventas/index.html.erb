@@ -4594,6 +4594,11 @@
           return resolveConfiguredLaminationMaterials(service);
         }
 
+        // For digital deliveries, no physical consumables are required.
+        if (String(deliveryPresentation || '').toLowerCase() === 'digital') {
+          return [];
+        }
+
         return resolveConfiguredPhysicalMaterials(service, deliveryPresentation);
       };
 
