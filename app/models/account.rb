@@ -97,7 +97,7 @@ class Account < ApplicationRecord
   validates :theme_color, presence: true, inclusion: { in: COLOR_THEMES.keys }
   validates :balance, presence: true, numericality: true
   validates :shared_key, presence: true
-  validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true
+  validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true, if: :supports_cash_role?
   validate :primary_requires_bank_account
   validate :settlement_account_rules
   validate :settlement_currency_rules
@@ -109,7 +109,7 @@ class Account < ApplicationRecord
   before_validation :set_default_theme_color
   before_validation :clear_primary_for_non_bank
   before_validation :apply_special_defaults
-  before_validation :normalize_cash_role
+  before_validation :normalize_cash_role, if: :supports_cash_role?
   before_save :unset_other_primary_bank_accounts, if: :will_save_change_to_is_primary?
 
   def self.account_type_options(include_special: false)
@@ -284,11 +284,11 @@ class Account < ApplicationRecord
   end
 
   def cash_box_role?
-    cash_box_account? && cash_role == 'cash_box'
+    supports_cash_role? && cash_box_account? && cash_role == 'cash_box'
   end
 
   def cash_deposit_role?
-    cash_box_account? && cash_role == 'cash_deposit'
+    supports_cash_role? && cash_box_account? && cash_role == 'cash_deposit'
   end
 
   def syncable_across_businesses?
@@ -356,6 +356,10 @@ class Account < ApplicationRecord
     else
       self.cash_role = nil
     end
+  end
+
+  def supports_cash_role?
+    self.class.column_names.include?('cash_role')
   end
 
   def infer_cash_role_from_name
