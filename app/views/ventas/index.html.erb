@@ -3044,10 +3044,16 @@
         const persistedBaseCurrency = normalizeCurrencyCode(item.unit_price_base_currency);
         const discountPercent = resolvePrintVolumeDiscountPercent(service);
         const discountMultiplier = discountPercent > 0 ? (1 - discountPercent / 100) : 1;
-        if (Number.isFinite(persistedBaseAmount) && persistedBaseAmount > 0 && persistedBaseCurrency === baseCode) {
+        const convertedPersistedBaseAmount = Number.isFinite(persistedBaseAmount) && persistedBaseAmount > 0
+          ? (persistedBaseCurrency === baseCode
+              ? roundTo(persistedBaseAmount, 2)
+              : convertAmount(persistedBaseAmount, persistedBaseCurrency, baseCode))
+          : null;
+
+        if (Number.isFinite(convertedPersistedBaseAmount) && convertedPersistedBaseAmount > 0) {
           const vatMode = getVatMode();
           const safeQty = Number(item.quantity) || 0;
-          let unitNet = roundTo(persistedBaseAmount * discountMultiplier, 2);
+          let unitNet = roundTo(convertedPersistedBaseAmount * discountMultiplier, 2);
 
           if (vatMode === 'included' && vatRate > 0) {
             unitNet = roundTo(unitNet / (1 + vatRate), 2);
@@ -5328,6 +5334,7 @@
           agreed_reference_name: agreedPricing?.referenceName || null,
           agreed_reference_amount: agreedPricing?.referenceAmount || null,
           agreed_reference_symbol: agreedPricing?.referenceSymbol || null,
+          price_signature: agreedPricing?.priceSignature || null,
           consumable_decisions: [],
         };
 
@@ -5347,6 +5354,7 @@
           existing.agreed_reference_name = agreedPricing.referenceName;
           existing.agreed_reference_amount = agreedPricing.referenceAmount;
           existing.agreed_reference_symbol = agreedPricing.referenceSymbol;
+          existing.price_signature = agreedPricing.priceSignature || existing.price_signature;
         } else {
           const resolvedUnitPriceBaseAmount = resolveServiceUnitPriceBaseAmount(service, {
             preferBsReference: isLaminationService,
@@ -5357,6 +5365,7 @@
           existing.agreed_reference_name = null;
           existing.agreed_reference_amount = null;
           existing.agreed_reference_symbol = null;
+          existing.price_signature = existing.price_signature || null;
         }
         existing.quantity += quantity;
         cart.set(key, existing);
