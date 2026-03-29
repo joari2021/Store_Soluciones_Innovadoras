@@ -151,15 +151,13 @@
                   <p class="text-lg font-extrabold text-amber-600">A convenir</p>
                   <p class="text-xs text-slate-500">Se define al facturar</p>
                 <% else %>
-                  <% unit_price_usd = service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
-                  <% unit_price_bs = service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
-                  <% if unit_price_usd.present? %>
-                    <p class="text-lg font-extrabold text-slate-800"><%= format_money(unit_price_usd, unit: "$ ") %></p>
-                    <% if unit_price_bs.present? %>
-                      <p class="text-xs text-slate-500"><%= format_money(unit_price_bs, unit: "Bs ") %></p>
+                  <% primary_price_label = service_primary_price_label(service) %>
+                  <% reference_price_label = service_reference_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+                  <% if primary_price_label.present? %>
+                    <p class="text-lg font-extrabold text-slate-800"><%= primary_price_label %></p>
+                    <% if reference_price_label.present? %>
+                      <p class="text-xs text-slate-500"><%= reference_price_label %></p>
                     <% end %>
-                  <% elsif unit_price_bs.present? %>
-                    <p class="text-lg font-extrabold text-slate-800"><%= format_money(unit_price_bs, unit: "Bs ") %></p>
                   <% else %>
                     <p class="text-xs text-amber-600">Precio no disponible</p>
                   <% end %>

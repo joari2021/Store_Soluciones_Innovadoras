@@ -96,6 +96,9 @@
         document.addEventListener('turbo:before-visit', window.showTurboPreloader);
         document.addEventListener('turbo:visit', window.showTurboPreloader);
         document.addEventListener('turbo:load', window.hideTurboPreloader);
+        document.addEventListener('turbo:submit-end', window.hideTurboPreloader);
+        document.addEventListener('turbo:frame-load', window.hideTurboPreloader);
+        document.addEventListener('turbo:fetch-request-error', window.hideTurboPreloader);
         document.addEventListener('turbo:before-cache', window.hideTurboPreloader);
         document.addEventListener('DOMContentLoaded', window.hideTurboPreloader);
         window.addEventListener('load', window.hideTurboPreloader);

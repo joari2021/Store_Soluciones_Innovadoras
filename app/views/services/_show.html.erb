@@ -2,28 +2,27 @@
 <% unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil %>
 <div class="services-modal-content space-y-6 text-slate-700">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-    <% unit_price_usd = service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
-    <% unit_price_bs = service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+    <% primary_price_label = service_primary_price_label(service) %>
+    <% reference_price_label = service_reference_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
+    <% price_reference_name = service_reference_name(service) %>
     <div class="services-price-card flex-1">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Precio</p>
       <div class="mt-2 flex flex-wrap items-baseline gap-2 text-slate-800" data-service-price>
         <% if service.to_agree? %>
           <span class="text-2xl font-extrabold text-amber-600">A convenir</span>
           <span class="text-sm text-slate-500">Se define durante la factura</span>
-        <% elsif unit_price_usd.present? %>
-          <span class="text-2xl font-extrabold"><%= format_money(unit_price_usd, unit: "$ ") %></span>
-          <% if unit_price_bs.present? %>
-            <span class="text-sm text-slate-500">(<%= format_money(unit_price_bs, unit: "Bs ") %>)</span>
+        <% elsif primary_price_label.present? %>
+          <span class="text-2xl font-extrabold"><%= primary_price_label %></span>
+          <% if reference_price_label.present? %>
+            <span class="text-sm text-slate-500">(<%= reference_price_label %>)</span>
           <% end %>
-        <% elsif unit_price_bs.present? %>
-          <span class="text-2xl font-extrabold"><%= format_money(unit_price_bs, unit: "Bs ") %></span>
         <% else %>
           <span class="text-sm text-amber-600">Precio no disponible</span>
         <% end %>
       </div>
       <p class="mt-2 text-xs text-slate-500">Modo: <%= service.to_agree? ? 'A convenir' : 'Precio fijo' %></p>
       <% unless service.to_agree? %>
-        <p class="text-xs text-slate-500">Referencia: <%= service.currency_base_price.presence || '-' %></p>
+        <p class="text-xs text-slate-500">Referencia: <%= price_reference_name.presence || '-' %></p>
       <% end %>
     </div>
     <button type="button" class="services-copy-btn" id="copy-service-modal" data-service-copy>

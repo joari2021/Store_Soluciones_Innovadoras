@@ -1,4 +1,54 @@
 module ServicesHelper
+  def service_reference_name(service)
+    reference = service.currency_base_price.to_s.strip
+    reference = 'Dolar BCV' if reference == '$'
+    reference.presence || 'Dolar BCV'
+  end
+
+  def service_reference_amount(service)
+    amount = service.sale_price.to_d
+    return amount if amount.positive?
+
+    reference = service_reference_name(service)
+    return service.value_units.to_d if reference == 'Unidad VI' && service.value_units.to_d.positive?
+
+    amount
+  end
+
+  def service_primary_price_label(service)
+    reference = service_reference_name(service)
+    amount = service_reference_amount(service)
+    return nil unless amount.positive?
+
+    symbol = if reference == 'Bs' || reference == 'Unidad VI'
+               'Bs'
+             else
+               TasaCambio.latest_symbol(reference) || TasaCambio::DEFAULT_SYMBOLS[reference] || reference
+             end
+
+    format_money(amount, unit: "#{symbol} ")
+  end
+
+  def service_reference_price_label(service, tasa_dolar:, unidad_vi:)
+    reference = service_reference_name(service)
+
+    if reference == 'Dolar BCV'
+      bs_amount = service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi)
+      return nil unless bs_amount.to_d.positive?
+
+      return "Ref: #{format_money(bs_amount, unit: 'Bs ')}"
+    end
+
+    if reference == 'Unidad VI'
+      usd_amount = service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi)
+      return nil unless usd_amount.to_d.positive?
+
+      return "Ref: #{format_money(usd_amount, unit: '$ ')}"
+    end
+
+    nil
+  end
+
   def link_to_add_service_managers(name, m, association)
     new_object = m.object.send(association).klass.new
     id = new_object.object_id
