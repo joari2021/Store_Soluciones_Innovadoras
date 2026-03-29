@@ -22,9 +22,7 @@ class ProductosController < ApplicationController
     @below_target_margin_total_count = calculate_below_target_margin_total_count
 
     base_scope = current_business.productos
-                                 .includes(:categoria, :profit_margin_preset, :product_variations, stock_lots: [{ stock_lot_variations: :product_variation },
-                                                                                                                { purchase_invoice_item: :purchase_invoice }])
-                                 .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+                   .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
 
     @has_productos = current_business.productos.exists?
     @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?
@@ -40,8 +38,10 @@ class ProductosController < ApplicationController
     filtered_scope = filter_by_low_stock(filtered_scope) if @low_stock_filter
     filtered_scope = filter_by_below_target_margin(filtered_scope) if @below_target_margin_filter
 
-    @matching_productos_count = filtered_scope.except(:includes).count
-    @pagy, @productos = pagy_countless(filtered_scope, items: PRODUCTS_PER_PAGE)
+    @matching_productos_count = filtered_scope.count
+    paginated_scope = filtered_scope.includes(:categoria, :profit_margin_preset, :product_variations, stock_lots: [{ stock_lot_variations: :product_variation },
+                                                              { purchase_invoice_item: :purchase_invoice }])
+    @pagy, @productos = pagy_countless(paginated_scope, items: PRODUCTS_PER_PAGE)
     @next_page = @pagy.next
 
     render json: paginated_productos_payload if request.format.json?
@@ -852,13 +852,27 @@ class ProductosController < ApplicationController
   end
 
   def filter_by_below_target_margin(scope)
-    under_target_ids = scope.select(&:below_target_margin_for_highest_active_lot?).map(&:id)
-    scope.where(id: under_target_ids)
+    scope.where(id: below_target_margin_scope(scope).select(:id))
   end
 
   def calculate_below_target_margin_total_count
-    current_business.productos
-                    .includes(:profit_margin_preset, :stock_lots)
-                    .count(&:below_target_margin_for_highest_active_lot?)
+    base_scope = current_business.productos
+    base_scope.where(id: below_target_margin_scope(base_scope).select(:id)).count
+  end
+
+  def below_target_margin_scope(scope)
+    relation = scope.except(:includes, :preload, :eager_load, :order)
+
+    relation
+      .left_joins(:profit_margin_preset, :stock_lots)
+      .group('productos.id')
+      .having(<<~SQL.squish)
+        MAX(CASE WHEN stock_lots.quantity_remaining > 0 THEN stock_lots.unit_cost_usd ELSE NULL END) IS NOT NULL
+        AND COALESCE(MAX(profit_margin_presets.percentage), MAX(productos.porcentaje_ganancia)) IS NOT NULL
+        AND MAX(productos.precio_venta_usd) < (
+          MAX(CASE WHEN stock_lots.quantity_remaining > 0 THEN stock_lots.unit_cost_usd ELSE NULL END)
+          * (1 + (COALESCE(MAX(profit_margin_presets.percentage), MAX(productos.porcentaje_ganancia)) / 100.0))
+        )
+      SQL
   end
 end

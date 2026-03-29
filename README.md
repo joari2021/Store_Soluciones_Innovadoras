@@ -50,3 +50,29 @@ Compatibilidad con nombres del playground oficial:
 - CLIENTID
 - SECRETKEY
 - PHONE_NUMBER
+
+## Heroku: reduccion de consumo de RAM (R14)
+
+Configura estos valores para un dyno web pequeno (512 MB):
+
+- WEB_CONCURRENCY=1
+- RAILS_MAX_THREADS=3
+- RAILS_MIN_THREADS=3
+- DB_POOL=3
+- MALLOC_ARENA_MAX=2
+
+Comandos sugeridos:
+
+```bash
+heroku config:set WEB_CONCURRENCY=1 RAILS_MAX_THREADS=3 RAILS_MIN_THREADS=3 DB_POOL=3 MALLOC_ARENA_MAX=2 -a TU_APP
+heroku labs:enable log-runtime-metrics -a TU_APP
+heroku ps:scale web=1 -a TU_APP
+```
+
+Luego valida consumo:
+
+```bash
+heroku logs --tail -a TU_APP
+```
+
+Si sigues con R14 luego de estos cambios, reduce temporalmente hilos a 2 o sube el tamano del dyno web.
