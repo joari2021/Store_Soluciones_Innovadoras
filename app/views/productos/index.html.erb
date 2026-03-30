@@ -68,6 +68,7 @@
         <div class="mt-3 flex flex-wrap gap-2">
           <% all_active = @selected_categoria_id.blank? %>
           <%= link_to productos_path(active_filter_params),
+                      data: { products_ajax_link: true, products_category_link: true, products_category_chip: true, products_category_id: '' },
                       class: "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all #{all_active ? 'border-sky-300 bg-sky-100 text-sky-700 shadow-sm' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100'}" do %>
             <span>Todas</span>
             <span class="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-slate-700"><%= @product_counts_by_categoria_id.values.sum %></span>
@@ -75,6 +76,7 @@
           <% @categorias.each do |categoria| %>
             <% is_active = @selected_categoria_id == categoria.id %>
             <%= link_to productos_path(active_filter_params.merge(category_id: categoria.id)),
+                        data: { products_ajax_link: true, products_category_link: true, products_category_chip: true, products_category_id: categoria.id },
                         class: "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all #{is_active ? 'border-cyan-300 bg-cyan-100 text-cyan-800 shadow-sm' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100'}" do %>
               <span><%= categoria.nombre %></span>
               <span class="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-slate-700"><%= @product_counts_by_categoria_id[categoria.id].to_i %></span>
@@ -124,87 +126,20 @@
                          class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                          data: { products_below_target_margin_input: true } %>
         </div>
-        <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">
+        <button type="submit" data-products-submit="true" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70">
           Buscar
         </button>
         <% if @filters_applied %>
-          <%= link_to productos_path, class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+          <%= link_to productos_path, data: { products_ajax_link: true, products_clear_link: true }, class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-60' do %>
             Limpiar
           <% end %>
         <% else %>
           <span></span>
         <% end %>
       <% end %>
-      <div class="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <p>
-          Mostrando <span class="font-semibold text-slate-700" data-products-loaded-count="true"><%= @productos.size %></span>
-          de <span class="font-semibold text-slate-700"><%= @matching_productos_count %></span>
-          <%= @matching_productos_count == 1 ? 'producto' : 'productos' %>.
-        </p>
-        <p>
-          <% if @selected_categoria.present? %>
-            Filtro activo: categoria <span class="font-semibold text-slate-700"><%= @selected_categoria.nombre %></span>.
-          <% elsif @below_target_margin_filter %>
-            Filtro activo: precio por debajo del objetivo segun lote activo de mayor costo.
-          <% elsif @low_stock_filter %>
-            Filtro activo: productos con stock bajo.
-          <% else %>
-            Haz clic en el producto para ver variaciones y luego en cada variacion para ver sus lotes.
-          <% end %>
-        </p>
-      </div>
     </div>
   <% end %>
-  <% if @productos.any? %>
-    <div class="space-y-4" data-products-index="true" data-products-url="<%= productos_path %>" data-products-query-text="<%= @query_text %>" data-products-low-stock="<%= @low_stock_filter %>" data-products-below-target-margin="<%= @below_target_margin_filter %>" data-products-category-id="<%= @selected_categoria_id %>">
-      <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-left text-sm text-slate-700">
-            <thead class="border-b border-sky-100 bg-sky-50/70 text-xs font-bold uppercase tracking-wider text-slate-500">
-              <tr>
-                <th class="px-6 py-4">Producto</th>
-                <th class="px-6 py-4">Categoría</th>
-                <th class="px-6 py-4 text-right">Precio venta$</th>
-                <th class="px-6 py-4 text-right">Existencia</th>
-                <% if can_view_sensitive_inventory %>
-                  <th class="px-6 py-4 text-right">Costo Unit $</th>
-                  <th class="px-6 py-4 text-right">Valor Inventario $</th>
-                  <th class="px-6 py-4 text-right">Valor de venta</th>
-                <% end %>
-                <% if can_manage_products %>
-                  <th class="px-6 py-4 text-right">Acciones</th>
-                <% end %>
-              </tr>
-            </thead>
-            <tbody id="productos_tbody" class="divide-y divide-slate-100">
-              <%= render partial: 'product_table_rows', locals: { productos: @productos } %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <% if @next_page.present? %>
-        <div class="flex justify-center py-2" data-products-pagination="true" data-next-page="<%= @next_page %>">
-          <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
-            <span class="h-2 w-2 animate-pulse rounded-full bg-sky-400"></span>
-            <span data-products-pagination-text="true">Cargando más productos...</span>
-          </div>
-        </div>
-      <% end %>
-    </div>
-  <% elsif @filters_applied %>
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-      <h3 class="text-base font-semibold text-slate-700">No se encontraron productos</h3>
-      <p class="mt-1 text-sm text-slate-500"><%= (@low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?) ? 'No hay coincidencias con los filtros activos. Prueba quitar algun filtro o cambiar la búsqueda.' : 'Prueba con otro nombre o limpia la búsqueda.' %></p>
-      <%= link_to productos_path, class: 'mt-4 inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
-        Limpiar búsqueda
-      <% end %>
-    </div>
-  <% else %>
-    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
-      <h3 class="text-base font-semibold text-slate-700">No hay productos registrados</h3>
-      <p class="mt-1 text-sm text-slate-500">Agrega tu primer producto para iniciar el control de inventario por lotes.</p>
-    </div>
-  <% end %>
+  <%= render partial: 'index_results' %>
   <div id="products-live-updates" class="hidden" aria-hidden="true"></div>
   <%= render partial: 'modal-productos' %>
 </section>
@@ -373,6 +308,250 @@
       );
       if (!form) return;
 
+      const currentResultsContainer = () =>
+        document.querySelector("[data-products-results='true']");
+
+        const ensureCategoryInput = () => {
+          let categoryInput = form.querySelector("input[name='category_id']");
+          if (!categoryInput) {
+            categoryInput = document.createElement("input");
+            categoryInput.type = "hidden";
+            categoryInput.name = "category_id";
+            form.appendChild(categoryInput);
+          }
+          return categoryInput;
+        };
+
+        const setCategoryValue = (value) => {
+          const normalized = String(value || "").trim();
+          const categoryInput = form.querySelector("input[name='category_id']");
+
+          if (!normalized) {
+            categoryInput?.remove();
+            return;
+          }
+
+          const targetInput = categoryInput || ensureCategoryInput();
+          targetInput.value = normalized;
+        };
+
+        const updateCategoryChipState = (selectedCategoryId) => {
+          const normalizedSelected = String(selectedCategoryId || "").trim();
+          const chips = Array.from(document.querySelectorAll("a[data-products-category-chip='true']"));
+
+          chips.forEach((chip) => {
+            const chipCategoryId = String(chip.dataset.productsCategoryId || "").trim();
+            const isAllChip = chipCategoryId === "";
+            const isActive = normalizedSelected ? chipCategoryId === normalizedSelected : isAllChip;
+
+            chip.classList.remove(
+              "border-sky-300",
+              "bg-sky-100",
+              "text-sky-700",
+              "border-cyan-300",
+              "bg-cyan-100",
+              "text-cyan-800",
+              "border-slate-300",
+              "bg-white",
+              "text-slate-600",
+              "hover:border-slate-400",
+              "hover:bg-slate-100",
+              "shadow-sm",
+            );
+
+            if (isAllChip) {
+              if (isActive) {
+                chip.classList.add("border-sky-300", "bg-sky-100", "text-sky-700", "shadow-sm");
+              } else {
+                chip.classList.add("border-slate-300", "bg-white", "text-slate-600", "hover:border-slate-400", "hover:bg-slate-100");
+              }
+              return;
+            }
+
+            if (isActive) {
+              chip.classList.add("border-cyan-300", "bg-cyan-100", "text-cyan-800", "shadow-sm");
+            } else {
+              chip.classList.add("border-slate-300", "bg-white", "text-slate-600", "hover:border-slate-400", "hover:bg-slate-100");
+            }
+          });
+        };
+
+      const buildSearchUrl = () => {
+        const url = new URL(form.action, window.location.origin);
+        const formData = new FormData(form);
+
+        formData.forEach((value, key) => {
+          const normalizedValue = String(value || "").trim();
+          if (normalizedValue === "" || normalizedValue === "0") return;
+          url.searchParams.set(key, normalizedValue);
+        });
+
+        url.searchParams.set("format", "json");
+        return url;
+      };
+
+      const setSearchLoadingState = (loading) => {
+        const tableLoadingOverlay = document.querySelector("[data-products-table-loading='true']");
+        const submitButton = form.querySelector("[data-products-submit='true']");
+        const clearLink = form.querySelector("a[data-products-clear-link='true']");
+        const resultsContainer = currentResultsContainer();
+
+        form.dataset.productsSearchLoading = loading ? "true" : "false";
+        if (tableLoadingOverlay) {
+          tableLoadingOverlay.classList.toggle("hidden", !loading);
+          tableLoadingOverlay.classList.toggle("flex", loading);
+        }
+        if (submitButton) submitButton.disabled = loading;
+        if (lowStockInput) lowStockInput.disabled = loading;
+        if (belowTargetMarginInput) belowTargetMarginInput.disabled = loading;
+
+        if (clearLink) {
+          clearLink.classList.toggle("pointer-events-none", loading);
+          clearLink.classList.toggle("opacity-60", loading);
+        }
+
+        const categoryChips = Array.from(document.querySelectorAll("a[data-products-category-chip='true']"));
+        categoryChips.forEach((chip) => {
+          chip.classList.toggle("pointer-events-none", loading);
+          chip.classList.toggle("opacity-70", loading);
+        });
+
+        if (resultsContainer) {
+          resultsContainer.classList.toggle("transition-opacity", loading);
+        }
+      };
+
+      const syncCurrentRootDataset = () => {
+        const root = document.querySelector("[data-products-index='true']");
+        if (!root) return;
+
+        const queryValue = input ? String(input.value || "").trim() : "";
+        const lowStockValue = lowStockInput ? String(lowStockInput.value || "0") === "1" : false;
+        const belowTargetValue = belowTargetMarginInput ? String(belowTargetMarginInput.value || "0") === "1" : false;
+        const categoryInput = form.querySelector("input[name='category_id']");
+
+        root.dataset.productsQueryText = queryValue;
+        root.dataset.productsLowStock = lowStockValue ? "true" : "false";
+        root.dataset.productsBelowTargetMargin = belowTargetValue ? "true" : "false";
+        root.dataset.productsCategoryId = String(categoryInput?.value || "").trim();
+      };
+
+      const submitSearch = async () => {
+        const resultsContainer = currentResultsContainer();
+        if (!resultsContainer) {
+          form.requestSubmit();
+          return;
+        }
+
+        if (form._productsSearchAbortController) {
+          form._productsSearchAbortController.abort();
+        }
+
+        const abortController = new AbortController();
+        form._productsSearchAbortController = abortController;
+        setSearchLoadingState(true);
+        syncCurrentRootDataset();
+
+        try {
+          const url = buildSearchUrl();
+          const response = await fetch(url.toString(), {
+            headers: {
+              Accept: "application/json",
+              "X-Requested-With": "XMLHttpRequest",
+            },
+            signal: abortController.signal,
+          });
+
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "No se pudo actualizar la búsqueda.");
+
+          if (typeof data.results_html === "string") {
+            const liveResultsContainer = currentResultsContainer();
+            if (liveResultsContainer && liveResultsContainer.parentNode) {
+              const template = document.createElement("template");
+              template.innerHTML = data.results_html.trim();
+              const nextNode = template.content.firstElementChild;
+              if (nextNode) {
+                liveResultsContainer.replaceWith(nextNode);
+              }
+            }
+          }
+
+          const nextUrl = new URL(form.action, window.location.origin);
+          const rawQuery = input ? String(input.value || "").trim() : "";
+          const rawLowStock = lowStockInput ? String(lowStockInput.value || "0") : "0";
+          const rawBelowTarget = belowTargetMarginInput ? String(belowTargetMarginInput.value || "0") : "0";
+          const rawCategory = String(form.querySelector("input[name='category_id']")?.value || "").trim();
+
+          if (rawQuery) nextUrl.searchParams.set("query_text", rawQuery);
+          if (rawLowStock === "1") nextUrl.searchParams.set("low_stock", "1");
+          if (rawBelowTarget === "1") nextUrl.searchParams.set("below_target_margin", "1");
+          if (rawCategory) nextUrl.searchParams.set("category_id", rawCategory);
+
+          window.history.replaceState({}, "", nextUrl.toString());
+
+          initProductsInfiniteScroll(document);
+          if (window.lucide) window.lucide.createIcons();
+        } catch (error) {
+          if (error.name === "AbortError") return;
+          if (window.console && typeof window.console.error === "function") {
+            window.console.error("Error actualizando productos por AJAX", error);
+          }
+        } finally {
+          if (form._productsSearchAbortController === abortController) {
+            form._productsSearchAbortController = null;
+            setSearchLoadingState(false);
+          }
+        }
+      };
+
+      if (form.dataset.ajaxLinksBound !== "true") {
+        form.dataset.ajaxLinksBound = "true";
+        const searchArea = form.closest("#tab-productos") || document;
+
+        searchArea.addEventListener("click", (event) => {
+          const link = event.target.closest("a[data-products-ajax-link='true']");
+          if (!link) return;
+
+          const href = link.getAttribute("href");
+          if (!href) return;
+
+          const normalizePath = (path) => {
+            const normalized = String(path || "").replace(/\/+$/, "");
+            return normalized.length > 0 ? normalized : "/";
+          };
+
+          const currentPath = normalizePath(new URL(form.action, window.location.origin).pathname);
+          const targetUrl = new URL(href, window.location.origin);
+          if (normalizePath(targetUrl.pathname) !== currentPath) return;
+
+          event.preventDefault();
+
+          const nextQuery = targetUrl.searchParams.get("query_text") || "";
+          const nextLowStock = targetUrl.searchParams.get("low_stock") === "1" ? "1" : "0";
+          const nextBelowTarget = targetUrl.searchParams.get("below_target_margin") === "1" ? "1" : "0";
+          const nextCategoryId = targetUrl.searchParams.get("category_id") || "";
+
+          if (input) input.value = nextQuery;
+          if (lowStockInput) lowStockInput.value = nextLowStock;
+          if (belowTargetMarginInput) belowTargetMarginInput.value = nextBelowTarget;
+          setCategoryValue(nextCategoryId);
+          updateCategoryChipState(nextCategoryId);
+
+          void submitSearch();
+        });
+      }
+
+      updateCategoryChipState(String(form.querySelector("input[name='category_id']")?.value || "").trim());
+
+      if (form.dataset.ajaxSubmitBound !== "true") {
+        form.dataset.ajaxSubmitBound = "true";
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+          void submitSearch();
+        });
+      }
+
       if (input && input.dataset.debounceBound !== "true") {
         input.dataset.debounceBound = "true";
         let timer = null;
@@ -381,14 +560,14 @@
           if (timer) clearTimeout(timer);
 
           timer = setTimeout(() => {
-            form.requestSubmit();
+            void submitSearch();
           }, 350);
         });
       }
 
       if (lowStockInput && lowStockInput.dataset.changeBound !== "true") {
         lowStockInput.dataset.changeBound = "true";
-        lowStockInput.addEventListener("change", () => form.requestSubmit());
+        lowStockInput.addEventListener("change", () => void submitSearch());
       }
 
       if (
@@ -397,7 +576,7 @@
       ) {
         belowTargetMarginInput.dataset.changeBound = "true";
         belowTargetMarginInput.addEventListener("change", () =>
-          form.requestSubmit(),
+          void submitSearch(),
         );
       }
     };

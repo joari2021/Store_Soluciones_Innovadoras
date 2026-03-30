@@ -824,10 +824,18 @@ class ProductosController < ApplicationController
 
   def paginated_productos_payload
     {
+      results_html: render_index_results,
       table_rows_html: render_product_table_rows,
       next_page: @next_page,
       batch_count: @productos.size
     }
+  end
+
+  def render_index_results
+    render_to_string(
+      partial: 'productos/index_results',
+      formats: [:html]
+    )
   end
 
   def render_product_table_rows

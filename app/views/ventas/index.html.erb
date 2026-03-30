@@ -812,6 +812,7 @@
       const getBaseCurrencyInputs = () => Array.from(root.querySelectorAll('input[name="ventas-base-currency"]'));
       const checkedBase = getBaseCurrencyInputs().find((input) => input.checked);
       if (checkedBase) baseCurrency = checkedBase.value;
+      root.dataset.baseCurrency = baseCurrency === 'ves' ? 'VES' : 'USD';
       const getSelectedBaseCurrency = () => {
         const checked = getBaseCurrencyInputs().find((input) => input.checked && !input.disabled);
         if (checked && (checked.value === 'ves' || checked.value === 'usd')) return checked.value;
@@ -965,7 +966,91 @@
         return roundTo(total, 2);
       };
 
+      const normalizeBaseCurrencySelection = (value) => (String(value || '').trim().toLowerCase() === 'ves' ? 'ves' : 'usd');
       const currentBaseCurrencyCode = () => (baseCurrency === 'ves' ? 'VES' : 'USD');
+
+      const resolveServiceBaseSnapshotForCurrency = (item, service, targetCurrency = baseCurrency) => {
+        const normalizedCurrency = normalizeBaseCurrencySelection(targetCurrency);
+        const targetCode = normalizedCurrency === 'ves' ? 'VES' : 'USD';
+        const fallbackBaseAmount = Number(item?.unit_price_base_amount);
+        const fallbackBaseCurrency = normalizeCurrencyCode(item?.unit_price_base_currency);
+        let unitPriceUsd = Number(item?.unit_price_usd);
+        let unitPriceBaseAmount = null;
+
+        if (service?.printing_type_service) {
+          const discountPercent = resolvePrintVolumeDiscountPercent(service);
+          const baseUnitBs = Number(item?.selected_print_unit_price_bs);
+          if (Number.isFinite(baseUnitBs) && baseUnitBs > 0) {
+            const discountedBs = discountPercent > 0 ? roundTo(baseUnitBs * (1 - discountPercent / 100), 2) : roundTo(baseUnitBs, 2);
+            unitPriceUsd = bcvRate > 0 ? roundTo(discountedBs / bcvRate, 6) : unitPriceUsd;
+            unitPriceBaseAmount = normalizedCurrency === 'ves'
+              ? discountedBs
+              : (bcvRate > 0 ? roundTo(discountedBs / bcvRate, 2) : null);
+          }
+        }
+
+        if (!(Number.isFinite(unitPriceBaseAmount) && unitPriceBaseAmount > 0) && Number.isFinite(unitPriceUsd) && unitPriceUsd > 0) {
+          unitPriceBaseAmount = normalizedCurrency === 'ves'
+            ? (bcvRate > 0 ? roundTo(unitPriceUsd * bcvRate, 2) : null)
+            : roundTo(unitPriceUsd, 2);
+        }
+
+        if (!(Number.isFinite(unitPriceBaseAmount) && unitPriceBaseAmount > 0) && Number.isFinite(fallbackBaseAmount) && fallbackBaseAmount > 0) {
+          if (fallbackBaseCurrency === targetCode) {
+            unitPriceBaseAmount = roundTo(fallbackBaseAmount, 2);
+          } else {
+            const convertedBaseAmount = convertAmount(fallbackBaseAmount, fallbackBaseCurrency, targetCode);
+            if (Number.isFinite(convertedBaseAmount) && convertedBaseAmount > 0) {
+              unitPriceBaseAmount = roundTo(convertedBaseAmount, 2);
+            }
+          }
+        }
+
+        return {
+          unitPriceUsd: Number.isFinite(unitPriceUsd) && unitPriceUsd > 0 ? unitPriceUsd : 0,
+          unitPriceBaseAmount: Number.isFinite(unitPriceBaseAmount) && unitPriceBaseAmount > 0 ? roundTo(unitPriceBaseAmount, 2) : null,
+          unitPriceBaseCurrency: targetCode,
+        };
+      };
+
+      const syncCartBaseCurrencySnapshots = (targetCurrency = baseCurrency) => {
+        const normalizedCurrency = normalizeBaseCurrencySelection(targetCurrency);
+        cart.forEach((item, key) => {
+          if ((item.itemType || 'product') !== 'service') return;
+          const service = servicesById.get(String(item.serviceId));
+          if (!service) return;
+
+          const snapshot = resolveServiceBaseSnapshotForCurrency(item, service, normalizedCurrency);
+          item.unit_price_usd = snapshot.unitPriceUsd;
+          item.unit_price_base_amount = snapshot.unitPriceBaseAmount;
+          item.unit_price_base_currency = snapshot.unitPriceBaseCurrency;
+          cart.set(key, item);
+        });
+      };
+
+      const applyBaseCurrencySelection = (nextCurrency, options = {}) => {
+        const normalizedCurrency = normalizeBaseCurrencySelection(nextCurrency);
+        const shouldSyncInputs = options.syncInputs !== false;
+        const shouldSyncCart = options.syncCart !== false;
+        const shouldRender = options.render !== false;
+
+        baseCurrency = normalizedCurrency;
+        root.dataset.baseCurrency = currentBaseCurrencyCode();
+
+        if (shouldSyncInputs) {
+          getBaseCurrencyInputs().forEach((input) => {
+            input.checked = input.value === normalizedCurrency;
+          });
+        }
+
+        if (shouldSyncCart) {
+          syncCartBaseCurrencySnapshots(normalizedCurrency);
+        }
+
+        if (shouldRender) {
+          renderCart();
+        }
+      };
 
       const normalizeServiceReferenceName = (service) => {
         const raw = String(service?.currency_base_price || '').trim();
@@ -1164,7 +1249,7 @@
         const primaryBankAccount = bankAccounts.find((account) => account.is_primary);
         const previousBaseCurrency = baseCurrency;
         if (config.baseCurrencyOverride) {
-          baseCurrency = config.baseCurrencyOverride;
+          applyBaseCurrencySelection(config.baseCurrencyOverride, { syncInputs: false, syncCart: false, render: false });
         }
         const baseCurrencyCode = baseCurrency === 'ves' ? 'VES' : 'USD';
 
@@ -2361,7 +2446,7 @@
           }).then(async (result) => {
             const restoreCurrency = () => {
               if (config.baseCurrencyOverride) {
-                baseCurrency = previousBaseCurrency;
+                applyBaseCurrencySelection(previousBaseCurrency, { syncInputs: false, syncCart: false, render: false });
               }
             };
 
@@ -3140,15 +3225,10 @@
       };
 
       const setBaseCurrencySelection = (nextCurrency) => {
-        const normalized = String(nextCurrency || '').toUpperCase();
-        const candidate = normalized === 'VES' ? 'ves' : 'usd';
-        const baseInputs = getBaseCurrencyInputs();
-        const targetInput = baseInputs.find((input) => input.value === candidate && !input.disabled);
+        const candidate = normalizeBaseCurrencySelection(nextCurrency);
+        const targetInput = getBaseCurrencyInputs().find((input) => input.value === candidate && !input.disabled);
         if (!targetInput) return;
-        baseCurrency = targetInput.value;
-        baseInputs.forEach((input) => {
-          input.checked = input.value === baseCurrency;
-        });
+        applyBaseCurrencySelection(targetInput.value);
       };
 
       const upsertProductsCollection = (rows) => {
@@ -6024,7 +6104,7 @@
 
       const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null) => {
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
-        baseCurrency = selectedBaseCurrency;
+        applyBaseCurrencySelection(selectedBaseCurrency, { syncInputs: true, syncCart: true, render: false });
         const currentTotals = calculateCartTotals();
         const items = Array.from(cart.entries()).map(([cartKey, item]) => {
           if (item.itemType === 'service') {
@@ -6033,18 +6113,19 @@
               ? resolvePrintVolumeDiscountPercent(service)
               : 0;
             let unitPriceUsd = item.unit_price_usd;
-            let unitPriceBaseAmount = item.unit_price_base_amount;
 
             if (service?.printing_type_service && discountPercent > 0) {
               const baseUnitBs = Number(item.selected_print_unit_price_bs);
               if (Number.isFinite(baseUnitBs) && baseUnitBs > 0 && bcvRate > 0) {
                 const discountedBs = roundTo(baseUnitBs * (1 - discountPercent / 100), 2);
                 unitPriceUsd = roundTo(discountedBs / bcvRate, 6);
-                unitPriceBaseAmount = baseCurrency === 'ves'
-                  ? discountedBs
-                  : roundTo(discountedBs / bcvRate, 2);
               }
             }
+
+            const baseSnapshot = resolveServiceBaseSnapshotForCurrency({
+              ...item,
+              unit_price_usd: unitPriceUsd,
+            }, service, selectedBaseCurrency);
 
             const signatureFromKey = String(cartKey || '').split('::')[1] || '';
             const signatureTokens = signatureFromKey && signatureFromKey !== 'none'
@@ -6089,9 +6170,9 @@
               selected_print_material_label: String(item.selected_print_material_label || '').trim() || null,
               selected_print_material_rows: toServiceMaterialRowsPayload(item.selected_print_material_rows),
               quantity: item.quantity,
-              unit_price_usd: unitPriceUsd,
-              unit_price_base_amount: unitPriceBaseAmount,
-              unit_price_base_currency: item.unit_price_base_currency,
+              unit_price_usd: baseSnapshot.unitPriceUsd,
+              unit_price_base_amount: baseSnapshot.unitPriceBaseAmount,
+              unit_price_base_currency: baseSnapshot.unitPriceBaseCurrency,
               agreed_price_display: item.agreed_price_display,
               agreed_reference_name: item.agreed_reference_name,
               agreed_reference_amount: item.agreed_reference_amount,
@@ -6426,8 +6507,7 @@
         if (!(target instanceof Element)) return;
         if (!target.matches('input[name="ventas-base-currency"]')) return;
         if (target.disabled) return;
-        baseCurrency = getSelectedBaseCurrency();
-        renderCart();
+        applyBaseCurrencySelection(target.value);
       });
 
       root.addEventListener('input', (event) => {
@@ -6435,15 +6515,24 @@
         if (!(target instanceof Element)) return;
         if (!target.matches('input[name="ventas-base-currency"]')) return;
         if (target.disabled) return;
-        baseCurrency = getSelectedBaseCurrency();
-        renderCart();
+        applyBaseCurrencySelection(target.value);
+      });
+
+      root.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        const radio = target.matches('input[name="ventas-base-currency"]')
+          ? target
+          : target.closest('label')?.querySelector('input[name="ventas-base-currency"]');
+        if (!radio || radio.disabled) return;
+        applyBaseCurrencySelection(radio.value);
       });
 
       const payButton = document.getElementById('ventas-pay-button');
       if (payButton) {
         payButton.addEventListener('click', async () => {
           const checkoutBaseCurrency = getSelectedBaseCurrency();
-          baseCurrency = checkoutBaseCurrency;
+          applyBaseCurrencySelection(checkoutBaseCurrency, { syncInputs: true, syncCart: true, render: false });
           if (!hasOpenCashShift) {
             if (window.Swal) {
               window.Swal.fire({

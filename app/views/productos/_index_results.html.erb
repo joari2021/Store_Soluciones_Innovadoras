@@ -1,0 +1,82 @@
+<% can_manage_products = can_manage_action?(:manage_products) %>
+<% can_view_sensitive_inventory = current_user_admin? %>
+<div data-products-results="true">
+  <% if @has_productos || @filters_applied %>
+    <div class="mt-3 flex flex-col gap-1 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+      <p>
+        Mostrando <span class="font-semibold text-slate-700" data-products-loaded-count="true"><%= @productos.size %></span>
+        de <span class="font-semibold text-slate-700" data-products-total-count="true"><%= @matching_productos_count %></span>
+        <span data-products-total-label="true"><%= @matching_productos_count == 1 ? 'producto' : 'productos' %></span>.
+      </p>
+      <p data-products-active-filter-text="true">
+        <% if @selected_categoria.present? %>
+          Filtro activo: categoria <span class="font-semibold text-slate-700"><%= @selected_categoria.nombre %></span>.
+        <% elsif @below_target_margin_filter %>
+          Filtro activo: precio por debajo del objetivo segun lote activo de mayor costo.
+        <% elsif @low_stock_filter %>
+          Filtro activo: productos con stock bajo.
+        <% else %>
+          Haz clic en el producto para ver variaciones y luego en cada variacion para ver sus lotes.
+        <% end %>
+      </p>
+    </div>
+  <% end %>
+  <% if @productos.any? %>
+    <div class="space-y-4" data-products-index="true" data-products-url="<%= productos_path %>" data-products-query-text="<%= @query_text %>" data-products-low-stock="<%= @low_stock_filter %>" data-products-below-target-margin="<%= @below_target_margin_filter %>" data-products-category-id="<%= @selected_categoria_id %>">
+      <div class="relative" data-products-table-shell="true">
+        <div data-products-table-loading="true" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-2xl bg-white/70 backdrop-blur-[1px]">
+          <div class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
+            <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-sky-500"></span>
+            Cargando productos...
+          </div>
+        </div>
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm text-slate-700">
+              <thead class="border-b border-sky-100 bg-sky-50/70 text-xs font-bold uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th class="px-6 py-4">Producto</th>
+                  <th class="px-6 py-4">Categoría</th>
+                  <th class="px-6 py-4 text-right">Precio venta$</th>
+                  <th class="px-6 py-4 text-right">Existencia</th>
+                  <% if can_view_sensitive_inventory %>
+                    <th class="px-6 py-4 text-right">Costo Unit $</th>
+                    <th class="px-6 py-4 text-right">Valor Inventario $</th>
+                    <th class="px-6 py-4 text-right">Valor de venta</th>
+                  <% end %>
+                  <% if can_manage_products %>
+                    <th class="px-6 py-4 text-right">Acciones</th>
+                  <% end %>
+                </tr>
+              </thead>
+              <tbody id="productos_tbody" class="divide-y divide-slate-100">
+                <%= render partial: 'product_table_rows', locals: { productos: @productos } %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <% if @next_page.present? %>
+          <div class="flex justify-center py-2" data-products-pagination="true" data-next-page="<%= @next_page %>">
+            <div class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-500 shadow-sm">
+              <span class="h-2 w-2 animate-pulse rounded-full bg-sky-400"></span>
+              <span data-products-pagination-text="true">Cargando más productos...</span>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% elsif @filters_applied %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No se encontraron productos</h3>
+      <p class="mt-1 text-sm text-slate-500"><%= (@low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?) ? 'No hay coincidencias con los filtros activos. Prueba quitar algun filtro o cambiar la búsqueda.' : 'Prueba con otro nombre o limpia la búsqueda.' %></p>
+      <%= link_to productos_path, data: { products_ajax_link: true, products_clear_link: true }, class: 'mt-4 inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+        Limpiar búsqueda
+      <% end %>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No hay productos registrados</h3>
+      <p class="mt-1 text-sm text-slate-500">Agrega tu primer producto para iniciar el control de inventario por lotes.</p>
+    </div>
+  <% end %>
+</div>
