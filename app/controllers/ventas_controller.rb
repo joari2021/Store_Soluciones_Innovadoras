@@ -5,7 +5,7 @@ class VentasController < ApplicationController
   before_action -> { require_module_access!(:ventas) }
   before_action :require_admin, only: %i[destroy]
   before_action :set_venta, only: %i[destroy]
-  before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft]
+  before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft borrador destroy_borrador]
 
   def index
     products_scope = ventas_products_scope
@@ -192,11 +192,7 @@ class VentasController < ApplicationController
   end
 
   def destroy_draft
-    Venta.transaction do
-      restore_stock_for_sale!(@draft_venta)
-      delete_payall_draft_movements!(@draft_venta)
-      @draft_venta.destroy!
-    end
+    destroy_draft_record!(@draft_venta)
 
     render json: {
       success: true,
@@ -205,6 +201,30 @@ class VentasController < ApplicationController
     }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     render json: { error: e.message.presence || 'No se pudo eliminar el borrador.' }, status: :unprocessable_entity
+  end
+
+  def borradores
+    @drafts = current_business
+              .ventas
+              .where(status: 'draft')
+              .includes(:cliente, :user, :venta_items)
+              .order(updated_at: :desc)
+  end
+
+  def borrador
+    @draft = @draft_venta
+    @draft_items = @draft
+                   .venta_items
+                   .includes(:producto, :product_variation)
+                   .order(:id)
+  end
+
+  def destroy_borrador
+    destroy_draft_record!(@draft_venta)
+
+    redirect_to borradores_ventas_path, notice: 'Borrador eliminado correctamente.'
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
+    redirect_to borradores_ventas_path, alert: e.message.presence || 'No se pudo eliminar el borrador.'
   end
 
   def historial
@@ -845,6 +865,14 @@ class VentasController < ApplicationController
                    .find(params[:id])
   end
 
+  def destroy_draft_record!(draft)
+    Venta.transaction do
+      restore_stock_for_sale!(draft)
+      delete_payall_draft_movements!(draft)
+      draft.destroy!
+    end
+  end
+
   def sale_item_masked_names_for_view(venta)
     return {} if current_user_admin?
 
@@ -910,6 +938,10 @@ class VentasController < ApplicationController
   def apply_historial_filters(scope)
     @cliente_query = params[:cliente_query].to_s.strip.presence
     @selected_cash_shift_id = params[:cash_shift_id].to_s.strip.presence
+    unless params.key?(:cash_shift_id)
+      latest_shift_id = current_business.cash_shifts.order(opened_at: :desc).limit(1).pick(:id)
+      @selected_cash_shift_id = latest_shift_id.to_s if latest_shift_id.present?
+    end
     @selected_fecha_desde = parse_historial_date(params[:fecha_desde])
     @selected_fecha_hasta = parse_historial_date(params[:fecha_hasta])
 

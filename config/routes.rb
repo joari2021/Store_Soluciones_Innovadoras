@@ -71,10 +71,13 @@ Rails.application.routes.draw do
   resources :ventas, only: %i[index create show destroy] do
     member do
       get :delivery_note, path: 'nota-entrega'
+      get :borrador, path: 'borrador'
+      delete :destroy_borrador, path: 'borrador'
     end
 
     collection do
       get :historial
+      get :borradores
       get :drafts
       get :products_snapshot
       get :services_snapshot

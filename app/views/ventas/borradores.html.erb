@@ -1,0 +1,97 @@
+<% draft_count = @drafts.size %>
+<div class="space-y-6 fade-in">
+  <div class="relative overflow-hidden rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 p-5 shadow-sm md:p-6">
+    <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
+    <div class="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-sky-200/30 blur-2xl"></div>
+    <div class="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <span class="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-700 shadow-sm backdrop-blur">
+          <i data-lucide="files" class="h-3.5 w-3.5"></i>
+          Ventas en borrador
+        </span>
+        <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-800 md:text-4xl">Borradores de ventas</h1>
+        <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Consulta todos los borradores registrados y entra a ver sus detalles antes de eliminarlos.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to historial_ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 md:w-auto" do %>
+          <i data-lucide="history" class="h-4 w-4"></i>
+          Historial
+        <% end %>
+        <%= link_to ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 md:w-auto" do %>
+          <i data-lucide="shopping-cart" class="h-4 w-4"></i>
+          Ir al POS
+        <% end %>
+      </div>
+    </div>
+    <div class="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total borradores</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= draft_count %></p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Con cliente</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @drafts.count { |draft| draft.cliente.present? } %></p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Sin cliente</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @drafts.count { |draft| draft.cliente.blank? } %></p>
+      </div>
+    </div>
+  </div>
+
+  <% if @drafts.any? %>
+    <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-left text-sm text-slate-700">
+          <thead class="border-b border-sky-100 bg-sky-50/70 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-6 py-4">Borrador</th>
+              <th class="px-6 py-4">Cliente</th>
+              <th class="px-6 py-4">Items</th>
+              <th class="px-6 py-4">Moneda base</th>
+              <th class="px-6 py-4">Actualizado</th>
+              <th class="px-6 py-4 text-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @drafts.each do |draft| %>
+              <tr class="transition-all duration-150 hover:bg-slate-50/70">
+                <td class="px-6 py-4">
+                  <p class="font-semibold text-slate-800">Borrador #<%= draft.id %></p>
+                  <p class="text-xs text-slate-500">Creado: <%= draft.created_at.strftime('%d/%m/%Y %H:%M') %></p>
+                </td>
+                <td class="px-6 py-4">
+                  <p class="font-medium text-slate-700"><%= draft.cliente_display_name %></p>
+                  <p class="text-xs text-slate-500"><%= draft.user&.display_name.presence || 'Sin usuario' %></p>
+                </td>
+                <td class="px-6 py-4 font-semibold text-slate-700"><%= draft.venta_items.size %></td>
+                <td class="px-6 py-4">
+                  <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100"><%= draft.base_currency %></span>
+                </td>
+                <td class="px-6 py-4 text-slate-600"><%= draft.updated_at.strftime('%d/%m/%Y %H:%M') %></td>
+                <td class="px-6 py-4">
+                  <div class="flex justify-end gap-2">
+                    <%= link_to borrador_venta_path(draft), class: 'inline-flex cursor-pointer items-center justify-center rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100' do %>
+                      Ver
+                    <% end %>
+                    <%= button_to destroy_borrador_venta_path(draft), method: :delete, form: { data: { turbo_confirm: '¿Seguro que deseas eliminar este borrador?' } }, class: 'inline-flex cursor-pointer items-center justify-center rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 ring-1 ring-rose-100 transition-colors hover:bg-rose-100' do %>
+                      Eliminar
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No hay borradores registrados</h3>
+      <p class="mt-1 text-sm text-slate-500">Cuando guardes una venta como borrador aparecerá aquí.</p>
+      <%= link_to ventas_path, class: 'mt-4 inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800' do %>
+        Ir al POS
+      <% end %>
+    </div>
+  <% end %>
+</div>
