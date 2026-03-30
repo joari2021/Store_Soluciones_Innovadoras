@@ -146,7 +146,8 @@ class VentasController < ApplicationController
       formats: [:html],
       locals: {
         services_payload_by_id: payload_by_id,
-        bcv_rate: current_bcv_rate_for_sales
+        bcv_rate: current_bcv_rate_for_sales,
+        unidad_vi: @unidad_VI
       }
     )
 
@@ -3561,9 +3562,8 @@ class VentasController < ApplicationController
       ''
     end
   end
-end
 
-def services_snapshot
+  def services_snapshot
   ids = params[:ids].to_s.split(',').map { |value| value.to_s.strip }.reject(&:blank?).uniq
   return render json: { services: [] } if ids.empty?
 
@@ -3578,9 +3578,8 @@ def services_snapshot
     unidad_vi: unidad_vi,
     effective_bcv_rate: effective_bcv_rate
   )
-
-  render json: { services: payload }
-end
+    render json: { services: payload }
+  end
 
 def normalize_service_delivery_presentation(value, service: nil)
   normalized = value.to_s.strip.downcase
@@ -3824,4 +3823,6 @@ def build_service_physical_printing_payload(service:, tasa_dolar:)
     cost_bs: cost_bs.to_f,
     cost_usd: cost_usd.to_f
   }
+end
+
 end

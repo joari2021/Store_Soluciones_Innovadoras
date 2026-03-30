@@ -4,6 +4,9 @@
 <% payload_price_bs_value = payload[:price_bs].present? ? payload[:price_bs].to_d : nil %>
 <% price_on_request = payload[:price_on_request] == true %>
 <% request_reference = payload[:currency_base_price].to_s.presence || 'Dolar BCV' %>
+<% unidad_vi_rate = unidad_vi.is_a?(Numeric) ? unidad_vi.to_d : unidad_vi.to_d %>
+<% primary_price_label = service_primary_price_label(service, tasa_dolar: bcv_rate, unidad_vi: unidad_vi_rate) %>
+<% reference_price_label = service_reference_price_label(service, tasa_dolar: bcv_rate, unidad_vi: unidad_vi_rate) %>
 <% price_available = if request_reference == 'Unidad VI'
                        price_on_request || price_usd_value&.positive? || payload_price_bs_value&.positive?
                      else
@@ -67,12 +70,9 @@
             </div>
           <% elsif price_available %>
             <div class="text-right">
-              <% if unidad_vi_reference %>
-                <p class="text-cyan-700 font-bold whitespace-nowrap"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
-                <p class="text-xs text-slate-500 whitespace-nowrap"><%= price_usd_value&.positive? ? format_money(price_usd_value, unit: '$') : '$ --' %></p>
-              <% else %>
-                <p class="text-cyan-700 font-bold whitespace-nowrap"><%= format_money(price_usd_value, unit: '$') %></p>
-                <p class="text-xs text-slate-500 whitespace-nowrap"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+              <p class="text-cyan-700 font-bold whitespace-nowrap"><%= primary_price_label || 'Sin precio' %></p>
+              <% if reference_price_label.present? %>
+                <p class="text-xs text-slate-500 whitespace-nowrap"><%= reference_price_label %></p>
               <% end %>
             </div>
           <% else %>

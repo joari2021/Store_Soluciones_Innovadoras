@@ -15,9 +15,13 @@ module ServicesHelper
     amount
   end
 
-  def service_primary_price_label(service)
+  def service_primary_price_label(service, tasa_dolar:, unidad_vi:)
     reference = service_reference_name(service)
-    amount = service_reference_amount(service)
+    amount = if reference == 'Unidad VI'
+               service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi).to_d
+             else
+               service_reference_amount(service)
+             end
     return nil unless amount.positive?
 
     symbol = if reference == 'Bs' || reference == 'Unidad VI'
@@ -32,7 +36,14 @@ module ServicesHelper
   def service_reference_price_label(service, tasa_dolar:, unidad_vi:)
     reference = service_reference_name(service)
 
-    if reference == 'Dolar BCV'
+    if reference == 'Bs'
+      usd_amount = service.unit_price_usd(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi)
+      return nil unless usd_amount.to_d.positive?
+
+      return "Ref: #{format_money(usd_amount, unit: '$ ')}"
+    end
+
+    if reference == 'Dolar BCV' || reference == 'Euro BCV' || reference == 'USDT'
       bs_amount = service.unit_price_bs(tasa_dolar: tasa_dolar, unidad_vi: unidad_vi)
       return nil unless bs_amount.to_d.positive?
 

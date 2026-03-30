@@ -73,8 +73,18 @@
             const currentPath = window.location.pathname;
             if (currentPath === target.pathname && currentPath.startsWith('/services')) return;
           }
+          if (window.__turboPreloaderWatchdog) {
+            window.clearTimeout(window.__turboPreloaderWatchdog);
+            window.__turboPreloaderWatchdog = null;
+          }
           preloader.classList.remove('is-hiding');
           preloader.classList.add('is-active');
+          window.__turboPreloaderWatchdog = window.setTimeout(() => {
+            const stuckPreloader = document.getElementById('turbo-preloader');
+            if (!stuckPreloader) return;
+            stuckPreloader.classList.remove('is-active');
+            stuckPreloader.classList.remove('is-hiding');
+          }, 12000);
         };
       }
 
@@ -82,7 +92,11 @@
         window.hideTurboPreloader = () => {
           const preloader = document.getElementById('turbo-preloader');
           if (!preloader) return;
-          if (!preloader.classList.contains('is-active')) return;
+          if (window.__turboPreloaderWatchdog) {
+            window.clearTimeout(window.__turboPreloaderWatchdog);
+            window.__turboPreloaderWatchdog = null;
+          }
+          if (!preloader.classList.contains('is-active') && !preloader.classList.contains('is-hiding')) return;
           preloader.classList.add('is-hiding');
           window.setTimeout(() => {
             preloader.classList.remove('is-active');
@@ -96,11 +110,14 @@
         document.addEventListener('turbo:before-visit', window.showTurboPreloader);
         document.addEventListener('turbo:visit', window.showTurboPreloader);
         document.addEventListener('turbo:load', window.hideTurboPreloader);
+        document.addEventListener('turbo:render', window.hideTurboPreloader);
+        document.addEventListener('turbo:before-fetch-response', window.hideTurboPreloader);
         document.addEventListener('turbo:submit-end', window.hideTurboPreloader);
         document.addEventListener('turbo:frame-load', window.hideTurboPreloader);
         document.addEventListener('turbo:fetch-request-error', window.hideTurboPreloader);
         document.addEventListener('turbo:before-cache', window.hideTurboPreloader);
         document.addEventListener('DOMContentLoaded', window.hideTurboPreloader);
+        window.addEventListener('pageshow', window.hideTurboPreloader);
         window.addEventListener('load', window.hideTurboPreloader);
       }
 

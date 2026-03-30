@@ -2,7 +2,7 @@
 <% unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil %>
 <div class="services-modal-content space-y-6 text-slate-700">
   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-    <% primary_price_label = service_primary_price_label(service) %>
+    <% primary_price_label = service_primary_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
     <% reference_price_label = service_reference_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
     <% price_reference_name = service_reference_name(service) %>
     <div class="services-price-card flex-1">

@@ -1,7 +1,8 @@
 <div class="services-scope space-y-6"
   data-active-query-text="<%= @active_query_text %>"
   data-active-system-filter="<%= @active_system_filter %>"
-  data-active-status-filter="<%= @active_status_filter %>">
+  data-active-status-filter="<%= @active_status_filter %>"
+  data-active-currency-filter="all">
   <div class="services-hero relative overflow-hidden rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
     <div class="services-hero-glow services-hero-glow--one"></div>
     <div class="services-hero-glow services-hero-glow--two"></div>
@@ -26,10 +27,6 @@
             <i data-lucide="wallet" class="h-4 w-4"></i>
             Servicios Vendidos
           <% end %>
-          <%= link_to new_service_path, class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95", data: { turbo_frame: "_top" } do %>
-            <i data-lucide="plus" class="h-4 w-4"></i>
-            Nuevo servicio
-          <% end %>
           <%= link_to system_services_path, class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
             <i data-lucide="layers" class="h-4 w-4"></i>
             System services
@@ -37,6 +34,10 @@
           <%= link_to managers_path, class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
             <i data-lucide="users" class="h-4 w-4"></i>
             Gestores
+          <% end %>
+          <%= link_to new_service_path, class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95", data: { turbo_frame: "_top" } do %>
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Nuevo servicio
           <% end %>
         <% end %>
       </div>
@@ -49,6 +50,16 @@
       <button type="button" id="service-search-clear" class="services-clear-btn hidden" aria-label="Limpiar busqueda">
         <i data-lucide="x" class="h-3.5 w-3.5"></i>
       </button>
+    </div>
+    <div class="w-full sm:w-[15rem]">
+      <label for="service-currency-filter" class="sr-only">Filtrar por tasa de precio</label>
+      <select id="service-currency-filter" class="services-search-input">
+        <option value="all">Todas las tasas</option>
+        <option value="dolar">Dolar</option>
+        <option value="euro">Euro</option>
+        <option value="unidad_vi">Unidad VI</option>
+        <option value="usdt">USDT</option>
+      </select>
     </div>
   </div>
   <% if @service_systems.any? %>
@@ -102,10 +113,25 @@
           <% system_name = service.system_service&.name || "Sistema" %>
           <% tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil %>
           <% unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil %>
+          <% raw_currency_reference = service.currency_base_price.to_s.strip %>
+          <% raw_currency_reference = 'Dolar BCV' if raw_currency_reference == '$' %>
+          <% currency_reference_key = case raw_currency_reference.downcase
+                                     when /dolar/
+                                       'dolar'
+                                     when /euro/
+                                       'euro'
+                                     when /unidad\s*vi/
+                                       'unidad_vi'
+                                     when /usdt/
+                                       'usdt'
+                                     else
+                                       'other'
+                                     end %>
           <% service_query = [service.description, system_name].map { |val| val.to_s }.join(' ').downcase %>
           <article class="services-card group flex h-full flex-col rounded-2xl p-3 shadow-sm"
                    data-service-query="<%= service_query %>"
                    data-service-system="<%= system_name %>"
+                   data-service-currency="<%= currency_reference_key %>"
                    data-service-available="<%= service.available? %>"
                    data-service-caution="<%= service.caution_service? %>"
                    data-service-restricted="<%= service.restricted_service? %>"
@@ -151,7 +177,7 @@
                   <p class="text-lg font-extrabold text-amber-600">A convenir</p>
                   <p class="text-xs text-slate-500">Se define al facturar</p>
                 <% else %>
-                  <% primary_price_label = service_primary_price_label(service) %>
+                  <% primary_price_label = service_primary_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
                   <% reference_price_label = service_reference_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
                   <% if primary_price_label.present? %>
                     <p class="text-lg font-extrabold text-slate-800"><%= primary_price_label %></p>
@@ -253,15 +279,18 @@
     const scope = document.querySelector(".services-scope");
     const searchInput = document.getElementById("service-search-input");
     const clearButton = document.getElementById("service-search-clear");
+    const currencyFilterSelect = document.getElementById("service-currency-filter");
     const serviceSystemButtons = Array.from(document.querySelectorAll("[data-service-system-filter]"));
     const serviceStatusButtons = Array.from(document.querySelectorAll("[data-service-status-filter]"));
-    if (!scope || !searchInput || !clearButton) return;
+    if (!scope || !searchInput || !clearButton || !currencyFilterSelect) return;
     if (searchInput.dataset.bound === "true") return;
     searchInput.dataset.bound = "true";
 
     let activeQuery = String(scope.dataset.activeQueryText || "").trim();
     let activeSystem = String(scope.dataset.activeSystemFilter || "").trim();
     let activeStatus = String(scope.dataset.activeStatusFilter || "all").trim() || "all";
+    let activeCurrency = String(scope.dataset.activeCurrencyFilter || "all").trim() || "all";
+    currencyFilterSelect.value = activeCurrency;
 
     const normalizeSearchValue = (value) => {
       return String(value || '')
@@ -275,14 +304,17 @@
       const query = normalizeSearchValue(activeQuery);
       const systemFilter = normalizeSearchValue(activeSystem);
       const statusFilter = normalizeSearchValue(activeStatus);
+      const currencyFilter = normalizeSearchValue(activeCurrency);
 
       clearButton.classList.toggle("hidden", query.length === 0);
 
       document.querySelectorAll('[data-service-query]').forEach((card) => {
         const cardQuery = normalizeSearchValue(card.dataset.serviceQuery || '');
         const cardSystem = normalizeSearchValue(card.dataset.serviceSystem || '');
+        const cardCurrency = normalizeSearchValue(card.dataset.serviceCurrency || 'other');
         const matchesQuery = query.length === 0 || cardQuery.includes(query);
         const matchesSystem = systemFilter.length === 0 || cardSystem === systemFilter;
+        const matchesCurrency = currencyFilter === 'all' || cardCurrency === currencyFilter;
 
         let matchesStatus = true;
         if (statusFilter === 'available') {
@@ -295,7 +327,7 @@
           matchesStatus = String(card.dataset.serviceRestricted) === 'true';
         }
 
-        card.classList.toggle('hidden', !(matchesQuery && matchesSystem && matchesStatus));
+        card.classList.toggle('hidden', !(matchesQuery && matchesSystem && matchesStatus && matchesCurrency));
       });
     };
 
@@ -355,6 +387,11 @@
       activeQuery = "";
       updateClearButton();
       searchInput.focus();
+      applySearch();
+    });
+
+    currencyFilterSelect.addEventListener("change", () => {
+      activeCurrency = String(currencyFilterSelect.value || "all").trim() || "all";
       applySearch();
     });
 

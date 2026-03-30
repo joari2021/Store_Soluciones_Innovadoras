@@ -430,7 +430,7 @@
         <div id="ventas-service-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
           <% if @services_preloaded %>
             <% if @services.any? %>
-              <%= render partial: 'ventas/catalog_service_card', collection: @services, as: :service, locals: { services_payload_by_id: @services_payload_by_id, bcv_rate: bcv_rate } %>
+              <%= render partial: 'ventas/catalog_service_card', collection: @services, as: :service, locals: { services_payload_by_id: @services_payload_by_id, bcv_rate: bcv_rate, unidad_vi: @unidad_VI } %>
             <% else %>
               <div class="col-span-full rounded-3xl border border-dashed border-cyan-200 bg-gradient-to-br from-white to-cyan-50 p-10 text-center shadow-sm">
                 <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-100 text-cyan-600">
@@ -782,6 +782,7 @@
       let draftSyncTimeout = null;
       let draftSyncedFingerprint = null;
       let draftSyncInProgress = false;
+      let draftLoadInProgress = false;
       let liveProductsSyncInterval = null;
       let liveProductsSyncInFlight = false;
 
@@ -808,11 +809,16 @@
       const bcvRate = parseRate(root.dataset.bcvRate);
 
       let baseCurrency = 'ves';
-      const baseCurrencyInputs = root.querySelectorAll('input[name="ventas-base-currency"]');
-      const checkedBase = Array.from(baseCurrencyInputs).find((input) => input.checked);
+      const getBaseCurrencyInputs = () => Array.from(root.querySelectorAll('input[name="ventas-base-currency"]'));
+      const checkedBase = getBaseCurrencyInputs().find((input) => input.checked);
       if (checkedBase) baseCurrency = checkedBase.value;
+      const getSelectedBaseCurrency = () => {
+        const checked = getBaseCurrencyInputs().find((input) => input.checked && !input.disabled);
+        if (checked && (checked.value === 'ves' || checked.value === 'usd')) return checked.value;
+        return baseCurrency === 'ves' ? 'ves' : 'usd';
+      };
       if (bcvRate <= 0) {
-        baseCurrencyInputs.forEach((input) => {
+        getBaseCurrencyInputs().forEach((input) => {
           if (input.value === 'ves') {
             input.disabled = true;
             input.closest('label')?.classList.add('opacity-50');
@@ -822,7 +828,7 @@
 
       if (baseCurrency === 'ves' && bcvRate <= 0) {
         baseCurrency = 'usd';
-        baseCurrencyInputs.forEach((input) => {
+        getBaseCurrencyInputs().forEach((input) => {
           input.checked = input.value === 'usd';
         });
       }
@@ -3136,10 +3142,11 @@
       const setBaseCurrencySelection = (nextCurrency) => {
         const normalized = String(nextCurrency || '').toUpperCase();
         const candidate = normalized === 'VES' ? 'ves' : 'usd';
-        const targetInput = Array.from(baseCurrencyInputs).find((input) => input.value === candidate && !input.disabled);
+        const baseInputs = getBaseCurrencyInputs();
+        const targetInput = baseInputs.find((input) => input.value === candidate && !input.disabled);
         if (!targetInput) return;
         baseCurrency = targetInput.value;
-        baseCurrencyInputs.forEach((input) => {
+        baseInputs.forEach((input) => {
           input.checked = input.value === baseCurrency;
         });
       };
@@ -3334,6 +3341,8 @@
 
                       refreshCatalogSearch();
         } catch (error) {
+          nextServicesPage = null;
+          root.dataset.servicesNextPage = '';
           if (window.Swal) {
             window.Swal.fire({
               icon: 'error',
@@ -4133,7 +4142,7 @@
         setText('ventas-total-usd', formatBaseMoney(totalBase));
         setText('ventas-total-bs', formatAltFromBase(totalBase));
 
-        const ivaLabel = document.getElementById('ventas-iva-label');
+          const ivaLabel = document.getElementById('ventas-iva-label');
         if (ivaLabel) {
           ivaLabel.textContent = vatMode === 'none' ? 'IVA' : 'IVA 16%';
         }
@@ -6013,7 +6022,9 @@
         });
       };
 
-      const buildVentaPayload = (payments, change, creditSale = null) => {
+      const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null) => {
+        const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
+        baseCurrency = selectedBaseCurrency;
         const currentTotals = calculateCartTotals();
         const items = Array.from(cart.entries()).map(([cartKey, item]) => {
           if (item.itemType === 'service') {
@@ -6106,7 +6117,7 @@
           vat_mode: getVatMode(),
           vat_rate: vatRate,
           tasa_dolar: bcvRate,
-          base_currency: baseCurrency === 'ves' ? 'VES' : 'USD',
+          base_currency: selectedBaseCurrency === 'ves' ? 'VES' : 'USD',
           cliente_id: selectedClient ? selectedClient.id : null,
           totals: {
             taxable_subtotal_base: currentTotals.taxableSubtotalBase,
@@ -6131,7 +6142,7 @@
         return payload;
       };
 
-      const submitVenta = async (payments, change, creditSale = null) => {
+      const submitVenta = async (payments, change, creditSale = null, forcedBaseCurrency = null) => {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         if (!csrfToken) {
           if (window.Swal) {
@@ -6145,7 +6156,7 @@
           return;
         }
 
-        const payload = buildVentaPayload(payments, change, creditSale);
+        const payload = buildVentaPayload(payments, change, creditSale, forcedBaseCurrency);
 
         if (window.Swal) {
           window.Swal.fire({
@@ -6410,17 +6421,29 @@
         safeRecalculateForVatChange(nestedRadio.value);
       });
 
-      baseCurrencyInputs.forEach((input) => {
-        input.addEventListener('change', () => {
-          if (input.disabled) return;
-          baseCurrency = input.value;
-          renderCart();
-        });
+      root.addEventListener('change', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (!target.matches('input[name="ventas-base-currency"]')) return;
+        if (target.disabled) return;
+        baseCurrency = getSelectedBaseCurrency();
+        renderCart();
+      });
+
+      root.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof Element)) return;
+        if (!target.matches('input[name="ventas-base-currency"]')) return;
+        if (target.disabled) return;
+        baseCurrency = getSelectedBaseCurrency();
+        renderCart();
       });
 
       const payButton = document.getElementById('ventas-pay-button');
       if (payButton) {
         payButton.addEventListener('click', async () => {
+          const checkoutBaseCurrency = getSelectedBaseCurrency();
+          baseCurrency = checkoutBaseCurrency;
           if (!hasOpenCashShift) {
             if (window.Swal) {
               window.Swal.fire({
@@ -7768,7 +7791,8 @@
               submitVenta(
                 payload.payments || [],
                 payload.change || [],
-                payload.credit_sale || null
+                payload.credit_sale || null,
+                checkoutBaseCurrency
               );
             });
           };
@@ -8105,6 +8129,10 @@
 
       const persistDraft = async ({ clearAfterSave = true, silent = false, draftVisibility = null } = {}) => {
         if (cart.size === 0) {
+          if (draftLoadInProgress && !clearAfterSave) {
+            return false;
+          }
+
           if (activeDraftId && !clearAfterSave) {
             const removed = await destroyDraft(activeDraftId, { silent: true });
             if (removed) {
@@ -8222,6 +8250,14 @@
             draftSyncTimeout = null;
           }
           draftSyncedFingerprint = null;
+          return;
+        }
+
+        if (!hasItems) {
+          if (draftSyncTimeout) {
+            clearTimeout(draftSyncTimeout);
+            draftSyncTimeout = null;
+          }
           return;
         }
 
@@ -8549,6 +8585,10 @@
         const safeId = String(draftId || '').trim();
         if (!safeId) return;
 
+        const previousDraftId = activeDraftId;
+        const previousDraftVisibility = activeDraftVisibility;
+        draftLoadInProgress = true;
+
         try {
           const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}`);
           const data = await response.json();
@@ -8566,10 +8606,16 @@
           const draft = data.draft || null;
           if (!draft) throw new Error('Borrador no disponible.');
 
+          const draftBaseCurrency = draft?.state?.base_currency || 'USD';
+          const draftVatMode = draft?.state?.vat_mode || 'none';
+
+          await ensureServicesForDraft(draft);
+          hydrateDraftCart(draft);
+
           activeDraftId = String(draft.id || safeId);
           activeDraftVisibility = String(draft.visibility || 'visible').toLowerCase() === 'hidden' ? 'hidden' : 'visible';
-          setBaseCurrencySelection(draft?.state?.base_currency || 'USD');
-          setVatModeSelection(draft?.state?.vat_mode || 'none');
+          setBaseCurrencySelection(draftBaseCurrency);
+          setVatModeSelection(draftVatMode, { render: false });
 
           const draftClient = draft.client;
           if (draftClient && draftClient.id) {
@@ -8583,8 +8629,6 @@
             setSelectedClient(null);
           }
 
-          await ensureServicesForDraft(draft);
-          hydrateDraftCart(draft);
           draftSyncedFingerprint = buildDraftFingerprint();
           applySyncedReservationSnapshot(buildProductReservationSnapshot());
           renderDraftTags();
@@ -8599,6 +8643,8 @@
             });
           }
         } catch (error) {
+          activeDraftId = previousDraftId;
+          activeDraftVisibility = previousDraftVisibility;
           if (window.Swal) {
             window.Swal.fire({
               icon: 'error',
@@ -8607,6 +8653,8 @@
               heightAuto: false,
             });
           }
+        } finally {
+          draftLoadInProgress = false;
         }
       };
 
