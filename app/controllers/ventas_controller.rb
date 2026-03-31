@@ -735,7 +735,7 @@ class VentasController < ApplicationController
     begin
       Venta.transaction do
         if source_draft
-          restore_stock_for_sale!(source_draft)
+          restore_stock_for_sale!(source_draft, strict: false)
           relabel_payall_draft_movements!(source_draft, venta)
           source_draft.destroy!
         end
@@ -862,12 +862,26 @@ class VentasController < ApplicationController
                    .ventas
                    .where(status: 'draft')
                    .includes(:cliente, :venta_items)
-                   .find(params[:id])
+                   .find_by(id: params[:id])
+
+    return if @draft_venta.present?
+
+    json_draft_request = request.format.json? || request.path.to_s.include?('/ventas/drafts/')
+
+    if json_draft_request
+      render json: { error: 'Borrador no encontrado.' }, status: :not_found
+      return
+    end
+
+    respond_to do |format|
+      format.html { redirect_to borradores_ventas_path, alert: 'El borrador no existe o ya fue eliminado.' }
+      format.any { head :not_found }
+    end
   end
 
   def destroy_draft_record!(draft)
     Venta.transaction do
-      restore_stock_for_sale!(draft)
+      restore_stock_for_sale!(draft, strict: false)
       delete_payall_draft_movements!(draft)
       draft.destroy!
     end
@@ -1124,7 +1138,7 @@ class VentasController < ApplicationController
     end
   end
 
-  def restore_stock_for_sale!(venta)
+  def restore_stock_for_sale!(venta, strict: true)
     grouped_items = venta.venta_items
                          .select { |item| item.producto_id.present? && item.product_variation_id.present? }
                          .group_by { |item| [item.producto_id, item.product_variation_id] }
@@ -1137,14 +1151,15 @@ class VentasController < ApplicationController
         producto_id: producto_id,
         variation_id: variation_id,
         quantity_units: quantity_units,
-        venta: venta
+        venta: venta,
+        strict: strict
       )
     end
 
-    restore_reserved_service_stock_from_notes!(venta)
+    restore_reserved_service_stock_from_notes!(venta, strict: strict)
   end
 
-  def restore_product_variation_units!(producto_id:, variation_id:, quantity_units:, venta:)
+  def restore_product_variation_units!(producto_id:, variation_id:, quantity_units:, venta:, strict: true)
     producto = current_business.productos.find_by(id: producto_id)
     return unless producto
 
@@ -1170,6 +1185,7 @@ class VentasController < ApplicationController
     end
 
     return if remaining_to_restore <= 0
+    return unless strict
 
     raise ActiveRecord::RecordInvalid.new(venta),
           "No se pudo restaurar todo el stock de la venta ##{venta.id} (faltan #{remaining_to_restore.to_f.round(4)} unidades)."
@@ -1226,7 +1242,7 @@ class VentasController < ApplicationController
     begin
       Venta.transaction do
         if draft.persisted?
-          restore_stock_for_sale!(draft)
+          restore_stock_for_sale!(draft, strict: false)
           draft.venta_items.destroy_all
           draft.venta_payments.destroy_all
         end
@@ -1973,7 +1989,7 @@ class VentasController < ApplicationController
     grouped[[product.id, variation.id]] += multiplier.to_d
   end
 
-  def restore_reserved_service_stock_from_notes!(venta)
+  def restore_reserved_service_stock_from_notes!(venta, strict: true)
     notes_payload = parse_notes_payload(venta.notes)
     rows = Array(notes_payload['reserved_service_products'])
     rows.each do |row|
@@ -1986,7 +2002,8 @@ class VentasController < ApplicationController
         producto_id: producto_id,
         variation_id: variation_id,
         quantity_units: quantity_units,
-        venta: venta
+        venta: venta,
+        strict: strict
       )
     end
   end

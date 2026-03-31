@@ -8162,6 +8162,7 @@
           const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}`, {
             method: 'DELETE',
             headers: {
+              'Accept': 'application/json',
               'Content-Type': 'application/json',
               'X-CSRF-Token': csrfToken,
             },
@@ -8679,7 +8680,12 @@
         draftLoadInProgress = true;
 
         try {
-          const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}`);
+          const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}`, {
+            headers: {
+              Accept: 'application/json',
+            },
+            credentials: 'same-origin',
+          });
           const data = await response.json();
 
           if (Array.isArray(data.products)) {
