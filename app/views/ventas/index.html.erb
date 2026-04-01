@@ -978,14 +978,13 @@
         let unitPriceBaseAmount = null;
 
         if (service?.printing_type_service) {
-          const discountPercent = resolvePrintVolumeDiscountPercent(service);
           const baseUnitBs = Number(item?.selected_print_unit_price_bs);
           if (Number.isFinite(baseUnitBs) && baseUnitBs > 0) {
-            const discountedBs = discountPercent > 0 ? roundTo(baseUnitBs * (1 - discountPercent / 100), 2) : roundTo(baseUnitBs, 2);
-            unitPriceUsd = bcvRate > 0 ? roundTo(discountedBs / bcvRate, 6) : unitPriceUsd;
+            const resolvedUnitBs = roundTo(baseUnitBs, 2);
+            unitPriceUsd = bcvRate > 0 ? roundTo(resolvedUnitBs / bcvRate, 6) : unitPriceUsd;
             unitPriceBaseAmount = normalizedCurrency === 'ves'
-              ? discountedBs
-              : (bcvRate > 0 ? roundTo(discountedBs / bcvRate, 2) : null);
+              ? resolvedUnitBs
+              : (bcvRate > 0 ? roundTo(resolvedUnitBs / bcvRate, 2) : null);
           }
         }
 
