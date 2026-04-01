@@ -172,6 +172,25 @@ class VentasController < ApplicationController
     }
   end
 
+  def services_snapshot
+    ids = params[:ids].to_s.split(',').map { |value| value.to_s.strip }.reject(&:blank?).uniq
+    return render json: { services: [] } if ids.empty?
+
+    tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil
+    unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
+    effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
+
+    services = ventas_services_scope.where(id: ids)
+    payload = build_services_payload(
+      services,
+      tasa_dolar: tasa_dolar,
+      unidad_vi: unidad_vi,
+      effective_bcv_rate: effective_bcv_rate
+    )
+
+    render json: { services: payload }
+  end
+
   def show_draft
     render json: {
       draft: draft_summary_payload(@draft_venta).merge(
@@ -3610,24 +3629,6 @@ class VentasController < ApplicationController
     else
       ''
     end
-  end
-
-  def services_snapshot
-  ids = params[:ids].to_s.split(',').map { |value| value.to_s.strip }.reject(&:blank?).uniq
-  return render json: { services: [] } if ids.empty?
-
-  tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil
-  unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
-  effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value('Dolar BCV').to_d
-
-  services = ventas_services_scope.where(id: ids)
-  payload = build_services_payload(
-    services,
-    tasa_dolar: tasa_dolar,
-    unidad_vi: unidad_vi,
-    effective_bcv_rate: effective_bcv_rate
-  )
-    render json: { services: payload }
   end
 
 def normalize_service_delivery_presentation(value, service: nil)
