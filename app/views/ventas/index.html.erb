@@ -988,12 +988,6 @@
           }
         }
 
-        if (!(Number.isFinite(unitPriceBaseAmount) && unitPriceBaseAmount > 0) && Number.isFinite(unitPriceUsd) && unitPriceUsd > 0) {
-          unitPriceBaseAmount = normalizedCurrency === 'ves'
-            ? (bcvRate > 0 ? roundTo(unitPriceUsd * bcvRate, 2) : null)
-            : roundTo(unitPriceUsd, 2);
-        }
-
         if (!(Number.isFinite(unitPriceBaseAmount) && unitPriceBaseAmount > 0) && Number.isFinite(fallbackBaseAmount) && fallbackBaseAmount > 0) {
           if (fallbackBaseCurrency === targetCode) {
             unitPriceBaseAmount = roundTo(fallbackBaseAmount, 2);
@@ -1003,6 +997,12 @@
               unitPriceBaseAmount = roundTo(convertedBaseAmount, 2);
             }
           }
+        }
+
+        if (!(Number.isFinite(unitPriceBaseAmount) && unitPriceBaseAmount > 0) && Number.isFinite(unitPriceUsd) && unitPriceUsd > 0) {
+          unitPriceBaseAmount = normalizedCurrency === 'ves'
+            ? (bcvRate > 0 ? roundTo(unitPriceUsd * bcvRate, 2) : null)
+            : roundTo(unitPriceUsd, 2);
         }
 
         return {
@@ -1071,6 +1071,11 @@
         if (normalizedReference === 'Bs') return 1;
         if (normalizedReference === 'Dolar BCV') return bcvRate > 0 ? bcvRate : 0;
         return 0;
+      };
+
+      const serviceUsesBolivarReference = (service) => {
+        const normalizedReference = normalizeServiceReferenceName(service);
+        return normalizedReference === 'Bs' || normalizedReference === 'Unidad VI';
       };
 
       const computeOnRequestServiceAmounts = ({ service, referenceAmount }) => {
@@ -5449,11 +5454,20 @@
           existing.agreed_reference_symbol = agreedPricing.referenceSymbol;
           existing.price_signature = agreedPricing.priceSignature || existing.price_signature;
         } else {
+          const usesBolivarReference = serviceUsesBolivarReference(service);
+          const fixedPriceBs = Number(service?.price_bs);
           const resolvedUnitPriceBaseAmount = resolveServiceUnitPriceBaseAmount(service, {
             preferBsReference: isLaminationService,
           });
-          existing.unit_price_base_amount = resolvedUnitPriceBaseAmount > 0 ? resolvedUnitPriceBaseAmount : existing.unit_price_base_amount;
-          existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
+
+          if (usesBolivarReference && Number.isFinite(fixedPriceBs) && fixedPriceBs > 0) {
+            existing.unit_price_base_amount = roundTo(fixedPriceBs, 2);
+            existing.unit_price_base_currency = 'VES';
+          } else {
+            existing.unit_price_base_amount = resolvedUnitPriceBaseAmount > 0 ? resolvedUnitPriceBaseAmount : existing.unit_price_base_amount;
+            existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
+          }
+
           existing.agreed_price_display = null;
           existing.agreed_reference_name = null;
           existing.agreed_reference_amount = null;
