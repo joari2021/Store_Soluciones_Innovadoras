@@ -1288,6 +1288,31 @@
           currentValues.comparableCostoMenorUsd !== referenceValues.costoMenorUsd;
       };
 
+      const rowSupplierDiffSummary = (editRow) => {
+        if (!rowHasReference(editRow)) return '';
+
+        const currentValues = rowCurrentValues(editRow);
+        const referenceValues = rowReferenceValues(editRow);
+        const parts = [];
+
+        if (currentValues.comparableCostoMayorUsd !== referenceValues.costoMayorUsd) {
+          parts.push(`Costo mayor: ${formatMoney(referenceValues.costoMayorUsd, '$')} -> ${formatMoney(currentValues.comparableCostoMayorUsd, '$')}`);
+        }
+
+        if (currentValues.unidXPack !== referenceValues.unidXPack) {
+          parts.push(`Unid x pack: ${formatQty(referenceValues.unidXPack)} -> ${formatQty(currentValues.unidXPack)}`);
+        }
+
+        if (currentValues.comparableCostoMenorUsd !== referenceValues.costoMenorUsd) {
+          parts.push(`Costo menor: ${formatMoney(referenceValues.costoMenorUsd, '$')} -> ${formatMoney(currentValues.comparableCostoMenorUsd, '$')}`);
+        }
+
+        if (parts.length === 0) return '';
+        const ivaAdjusted = !initialInventoryMode && currentSupplierPriority() === 'bs' && !currentSupplierDefaultExento();
+        if (ivaAdjusted) parts.push('Comparacion con ajuste IVA 16%');
+        return parts.join(' | ');
+      };
+
       const updateOverwriteButton = (rowKey) => {
         const displayRow = tbody.querySelector(`.factura-row-display[data-row-key="${rowKey}"]`);
         const editRow = tbody.querySelector(`.factura-row-edit[data-row-key="${rowKey}"]`);
@@ -1298,13 +1323,20 @@
 
         if (displayRow.classList.contains('hidden')) {
           overwriteBtn.style.display = 'none';
+          overwriteBtn.title = 'Sobrescribir en proveedor';
+          overwriteBtn.setAttribute('aria-label', 'Sobrescribir en proveedor');
           return;
         }
 
         if (rowHasSupplierDiff(editRow)) {
+          const summary = rowSupplierDiffSummary(editRow);
           overwriteBtn.style.display = 'inline-flex';
+          overwriteBtn.title = summary ? `Sobrescribir en proveedor. ${summary}` : 'Sobrescribir en proveedor';
+          overwriteBtn.setAttribute('aria-label', overwriteBtn.title);
         } else {
           overwriteBtn.style.display = 'none';
+          overwriteBtn.title = 'Sobrescribir en proveedor';
+          overwriteBtn.setAttribute('aria-label', 'Sobrescribir en proveedor');
         }
       };
 
@@ -1581,10 +1613,13 @@
 
         let confirmed = true;
         if (window.Swal) {
+          const diffSummary = rowSupplierDiffSummary(editRow);
           const result = await window.Swal.fire({
             icon: 'question',
             title: '¿Sobrescribir datos del proveedor?',
-            text: 'Se actualizará la asociación de este producto para el proveedor seleccionado.',
+            text: diffSummary.length > 0
+              ? `Se actualizará la asociación del proveedor con estos cambios: ${diffSummary}`
+              : 'Se actualizará la asociación de este producto para el proveedor seleccionado.',
             showCancelButton: true,
             confirmButtonText: 'Sí, sobrescribir',
             cancelButtonText: 'Cancelar',
