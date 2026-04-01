@@ -8516,6 +8516,30 @@
         }, 4500);
       };
 
+      const buildHttpErrorMessage = ({ fallbackMessage, response, data = null, extraDetails = [] }) => {
+        const apiMessage = String(data?.error || data?.message || '').trim();
+        const statusCode = Number(response?.status) || 0;
+        const statusText = String(response?.statusText || '').trim();
+        const statusLabel = statusCode > 0
+          ? `HTTP ${statusCode}${statusText ? ` ${statusText}` : ''}`
+          : '';
+        const details = [
+          apiMessage,
+          statusLabel,
+          ...extraDetails.filter((detail) => String(detail || '').trim().length > 0),
+        ].filter((detail, index, array) => detail && array.indexOf(detail) === index);
+
+        if (details.length === 0) return fallbackMessage;
+        return `${fallbackMessage} Detalle: ${details.join(' | ')}`;
+      };
+
+      const buildDraftLoadErrorMessage = ({ draftId, stage, error }) => {
+        const safeDraftId = String(draftId || '').trim() || 'sin-id';
+        const stageLabel = String(stage || '').trim() || 'carga del borrador';
+        const rawMessage = String(error?.message || '').trim() || 'Error no especificado.';
+        return `Fallo en ${stageLabel} del borrador #${safeDraftId}. ${rawMessage}`;
+      };
+
       const fetchServicesSnapshot = async (serviceIds) => {
         const ids = Array.from(new Set(serviceIds.map((value) => String(value).trim()).filter(Boolean)));
         if (ids.length === 0) return;
@@ -8529,10 +8553,20 @@
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(String(data.error || 'No se pudo cargar los servicios del borrador.'));
+          throw new Error(buildHttpErrorMessage({
+            fallbackMessage: 'No se pudieron cargar los servicios requeridos por el borrador.',
+            response,
+            data,
+            extraDetails: [`servicios: ${ids.join(', ')}`],
+          }));
         }
 
         upsertServicesCollection(data.services || []);
+
+        const unresolvedIds = ids.filter((id) => !servicesById.has(id));
+        if (unresolvedIds.length > 0) {
+          throw new Error(`El servidor respondio, pero no devolvio todos los servicios del borrador. Faltan IDs: ${unresolvedIds.join(', ')}`);
+        }
       };
 
       const ensureServicesForDraft = async (draft) => {
@@ -8546,6 +8580,11 @@
         if (missingIds.length === 0) return;
 
         await fetchServicesSnapshot(missingIds);
+
+        const stillMissingIds = missingIds.filter((id) => !servicesById.has(id));
+        if (stillMissingIds.length > 0) {
+          throw new Error(`No se pudieron resolver los servicios del borrador. IDs faltantes: ${stillMissingIds.join(', ')}`);
+        }
       };
 
       const hydrateDraftCart = (draft) => {
@@ -8677,6 +8716,7 @@
         const previousDraftId = activeDraftId;
         const previousDraftVisibility = activeDraftVisibility;
         draftLoadInProgress = true;
+        let failedStage = 'solicitud del borrador';
 
         try {
           const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}`, {
@@ -8685,7 +8725,7 @@
             },
             credentials: 'same-origin',
           });
-          const data = await response.json();
+          const data = await response.json().catch(() => ({}));
 
           if (Array.isArray(data.products)) {
             syncProductsMap(data.products);
@@ -8694,7 +8734,12 @@
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
 
           if (!response.ok) {
-            throw new Error(data.error || 'No se pudo cargar el borrador.');
+            throw new Error(buildHttpErrorMessage({
+              fallbackMessage: 'No se pudo obtener el borrador desde el servidor.',
+              response,
+              data,
+              extraDetails: [`borrador: ${safeId}`],
+            }));
           }
 
           const draft = data.draft || null;
@@ -8703,11 +8748,15 @@
           const draftBaseCurrency = draft?.state?.base_currency || 'USD';
           const draftVatMode = draft?.state?.vat_mode || 'none';
 
+          failedStage = 'resolucion de servicios';
           await ensureServicesForDraft(draft);
+
+          failedStage = 'hidratacion del carrito';
           hydrateDraftCart(draft);
 
           activeDraftId = String(draft.id || safeId);
           activeDraftVisibility = String(draft.visibility || 'visible').toLowerCase() === 'hidden' ? 'hidden' : 'visible';
+          failedStage = 'aplicacion de configuracion';
           setBaseCurrencySelection(draftBaseCurrency);
           setVatModeSelection(draftVatMode, { render: false });
 
@@ -8726,6 +8775,7 @@
           draftSyncedFingerprint = buildDraftFingerprint();
           applySyncedReservationSnapshot(buildProductReservationSnapshot());
           renderDraftTags();
+          failedStage = 'render del panel';
           renderCart();
 
           if (window.Swal) {
@@ -8739,11 +8789,17 @@
         } catch (error) {
           activeDraftId = previousDraftId;
           activeDraftVisibility = previousDraftVisibility;
+          const detailedMessage = buildDraftLoadErrorMessage({ draftId: safeId, stage: failedStage, error });
+          console.error('Error cargando borrador', {
+            draftId: safeId,
+            stage: failedStage,
+            error,
+          });
           if (window.Swal) {
             window.Swal.fire({
               icon: 'error',
               title: 'No se pudo cargar',
-              text: error.message,
+              text: detailedMessage,
               heightAuto: false,
             });
           }
