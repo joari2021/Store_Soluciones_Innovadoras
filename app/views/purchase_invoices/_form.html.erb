@@ -117,6 +117,9 @@
     </div>
   </div>
   <h3 class="mt-6 text-lg font-semibold text-slate-800">Productos</h3>
+  <% supplier_priority_is_bs = (!initial_inventory_mode) && factura.supplier&.pricing_currency_priority.to_s == 'bs' %>
+  <% supplier_default_exento = factura.supplier&.default_exento? %>
+  <% apply_supplier_iva_adjustment = supplier_priority_is_bs && !supplier_default_exento %>
   <% if initial_inventory_mode %>
     <p class="mt-1 text-xs font-semibold text-cyan-700">Modo inventario inicial: destaca la columna "Existencia inicial" para registrar unidades reales disponibles.</p>
   <% end %>
@@ -207,9 +210,11 @@
           <% has_supplier_ref = supplier_ref.present? %>
           <% overwrite_diff = false %>
           <% if has_supplier_ref %>
-            <% overwrite_diff = costo_mayor.to_d.round(2) != supplier_ref.costo_mayor.to_d.round(2) ||
+            <% comparable_costo_mayor = apply_supplier_iva_adjustment ? (costo_mayor.to_d * 1.16) : costo_mayor.to_d %>
+            <% comparable_costo_menor = unid_x_pack.to_d.positive? ? (comparable_costo_mayor / unid_x_pack.to_d) : costo_menor.to_d %>
+            <% overwrite_diff = comparable_costo_mayor.round(2) != supplier_ref.costo_mayor.to_d.round(2) ||
                                 unid_x_pack.to_d.round(4) != supplier_ref.cantidad.to_d.round(4) ||
-                                costo_menor.to_d.round(2) != supplier_ref.costo_menor.to_d.round(2) %>
+                                comparable_costo_menor.round(2) != supplier_ref.costo_menor.to_d.round(2) %>
           <% end %>
           <tr class="factura-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= fi.object.producto_id %>" data-exento="<%= exento_activo ? 'true' : 'false' %>">
             <td class="px-4 py-3">
@@ -1236,12 +1241,17 @@
         const costoMenor = unidXPack > 0 ? (costoMayor / unidXPack) : 0;
         const costoMenorUsdRounded = roundValue(costoMenor, 2);
         const tasa = currentRate();
+        const applyIvaAdjustment = !initialInventoryMode && currentSupplierPriority() === 'bs' && !currentSupplierDefaultExento();
+        const comparableCostoMayorUsd = roundValue(applyIvaAdjustment ? (costoMayor * 1.16) : costoMayor, 2);
+        const comparableCostoMenorUsd = unidXPack > 0 ? roundValue(comparableCostoMayorUsd / unidXPack, 2) : 0;
         return {
           costoMayorUsd: roundValue(costoMayor, 2),
           costoMayorBs: roundValue(costoMayor * tasa, 2),
           unidXPack: roundValue(unidXPack, 4),
           costoMenorUsd: costoMenorUsdRounded,
-          costoMenorBs: costoMenorUsdRounded * tasa
+          costoMenorBs: costoMenorUsdRounded * tasa,
+          comparableCostoMayorUsd,
+          comparableCostoMenorUsd
         };
       };
 
@@ -1273,9 +1283,9 @@
         const currentValues = rowCurrentValues(editRow);
         const referenceValues = rowReferenceValues(editRow);
 
-        return currentValues.costoMayorUsd !== referenceValues.costoMayorUsd ||
+        return currentValues.comparableCostoMayorUsd !== referenceValues.costoMayorUsd ||
           currentValues.unidXPack !== referenceValues.unidXPack ||
-          currentValues.costoMenorUsd !== referenceValues.costoMenorUsd;
+          currentValues.comparableCostoMenorUsd !== referenceValues.costoMenorUsd;
       };
 
       const updateOverwriteButton = (rowKey) => {
@@ -1589,9 +1599,10 @@
         if (!confirmed) return;
 
         recalcEditRow(editRow);
-        const costoMayor = clampNonNegative(editRow.querySelector('.row-costo-mayor-native')?.value);
+        const currentValues = rowCurrentValues(editRow);
+        const costoMayor = clampNonNegative(currentValues.comparableCostoMayorUsd);
         const unidXPack = clampNonNegative(editRow.querySelector('.row-unidades')?.value);
-        const costoMenor = clampNonNegative(editRow.querySelector('.row-costo-menor')?.value);
+        const costoMenor = clampNonNegative(currentValues.comparableCostoMenorUsd);
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
