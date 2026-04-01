@@ -210,7 +210,8 @@
           <% has_supplier_ref = supplier_ref.present? %>
           <% overwrite_diff = false %>
           <% if has_supplier_ref %>
-            <% comparable_costo_mayor = apply_supplier_iva_adjustment ? (costo_mayor.to_d * 1.16) : costo_mayor.to_d %>
+            <% apply_row_iva_adjustment = apply_supplier_iva_adjustment && !exento_activo %>
+            <% comparable_costo_mayor = apply_row_iva_adjustment ? (costo_mayor.to_d * 1.16) : costo_mayor.to_d %>
             <% comparable_costo_menor = unid_x_pack.to_d.positive? ? (comparable_costo_mayor / unid_x_pack.to_d) : costo_menor.to_d %>
             <% overwrite_diff = comparable_costo_mayor.round(2) != supplier_ref.costo_mayor.to_d.round(2) ||
                                 unid_x_pack.to_d.round(4) != supplier_ref.cantidad.to_d.round(4) ||
@@ -1238,10 +1239,11 @@
       const rowCurrentValues = (editRow) => {
         const costoMayor = clampNonNegative(editRow.querySelector('.row-costo-mayor-native')?.value || editRow.querySelector('.row-costo-mayor')?.value);
         const unidXPack = clampNonNegative(editRow.querySelector('.row-unidades')?.value);
+        const isExento = Boolean(editRow.querySelector('.row-exento')?.checked);
         const costoMenor = unidXPack > 0 ? (costoMayor / unidXPack) : 0;
         const costoMenorUsdRounded = roundValue(costoMenor, 2);
         const tasa = currentRate();
-        const applyIvaAdjustment = !initialInventoryMode && currentSupplierPriority() === 'bs' && !currentSupplierDefaultExento();
+        const applyIvaAdjustment = !initialInventoryMode && !isExento && currentSupplierPriority() === 'bs' && !currentSupplierDefaultExento();
         const comparableCostoMayorUsd = roundValue(applyIvaAdjustment ? (costoMayor * 1.16) : costoMayor, 2);
         const comparableCostoMenorUsd = unidXPack > 0 ? roundValue(comparableCostoMayorUsd / unidXPack, 2) : 0;
         return {
@@ -1329,10 +1331,9 @@
         }
 
         if (rowHasSupplierDiff(editRow)) {
-          const summary = rowSupplierDiffSummary(editRow);
           overwriteBtn.style.display = 'inline-flex';
-          overwriteBtn.title = summary ? `Sobrescribir en proveedor. ${summary}` : 'Sobrescribir en proveedor';
-          overwriteBtn.setAttribute('aria-label', overwriteBtn.title);
+          overwriteBtn.title = 'Sobrescribir en proveedor';
+          overwriteBtn.setAttribute('aria-label', 'Sobrescribir en proveedor');
         } else {
           overwriteBtn.style.display = 'none';
           overwriteBtn.title = 'Sobrescribir en proveedor';

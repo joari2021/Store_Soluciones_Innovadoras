@@ -141,7 +141,7 @@ class PurchaseInvoiceItem < ApplicationRecord
                           purchase_invoice&.supplier_name.presence || purchase_invoice&.supplier&.nombre || lot.supplier_name
                         end
     lot.description = initial_inventory ? 'inventario inicial' : nil
-    lot.unit_cost_usd = costo_menor || 0
+    lot.unit_cost_usd = resolved_unit_cost_usd
     lot.quantity_in = cantidad || 0
     lot.quantity_remaining = cantidad || 0 if lot.new_record?
     lot.purchased_at = purchase_invoice&.fecha_emision || purchase_invoice&.created_at || Time.current
@@ -266,8 +266,14 @@ class PurchaseInvoiceItem < ApplicationRecord
 
   def resolved_unit_cost_usd
     units_per_pack = unid_x_pack.to_d
-    return costo_mayor.to_d if units_per_pack <= 0
+    unit_cost_source = costo_mayor.to_d
 
-    costo_mayor.to_d / units_per_pack
+    if !purchase_invoice&.initial_inventory? && !exento?
+      unit_cost_source = (unit_cost_source * 1.16.to_d).round(8)
+    end
+
+    return unit_cost_source if units_per_pack <= 0
+
+    unit_cost_source / units_per_pack
   end
 end
