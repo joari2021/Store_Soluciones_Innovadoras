@@ -230,8 +230,9 @@
 
       if (!window.showSidebarTooltip) {
         window.showSidebarTooltip = (event) => {
-          if (!document.body.classList.contains('sidebar-collapsed')) return;
           const target = event.currentTarget;
+          const isSidebarButton = Boolean(target?.closest('aside .nav-btn'));
+          if (isSidebarButton && !document.body.classList.contains('sidebar-collapsed')) return;
           const label = target?.dataset?.tooltip || '';
           if (!label) return;
           const tooltip = window.ensureSidebarTooltip();
@@ -256,7 +257,7 @@
       if (!window.bindSidebarTooltips) {
         window.bindSidebarTooltips = () => {
           window.ensureSidebarTooltip();
-          document.querySelectorAll('aside .nav-btn[data-tooltip]').forEach((btn) => {
+          document.querySelectorAll('aside .nav-btn[data-tooltip], .js-icon-tooltip[data-tooltip]').forEach((btn) => {
             if (btn.dataset.tooltipBound) return;
             btn.dataset.tooltipBound = 'true';
             btn.addEventListener('mouseenter', window.showSidebarTooltip);
