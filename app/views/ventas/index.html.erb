@@ -2391,6 +2391,9 @@
                 if (amount <= 0) return;
 
                 let method = resolveMethodForAccount(account);
+                let reference = '';
+                let paymentDate = '';
+
                 if (account.account_type === 'bank_account') {
                   const methodSelect = row.querySelector(`[data-pay-bank-method="${accountId}"]`);
                   method = methodSelect?.value || '';
@@ -2400,10 +2403,13 @@
                   const paymentDateValue = String(paymentDateInput?.value || '').trim();
                   const normalizedPaymentDate = normalizePaymentDateInput(paymentDateValue);
                   if (!normalizedPaymentDate) missingPaymentDate = true;
+                  paymentDate = normalizedPaymentDate?.iso || '';
 
                   const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
                   const referenceValue = referenceInput?.value || '';
                   if (!/^\d{4}$/.test(referenceValue)) missingReference = true;
+                  reference = referenceValue.trim();
+                }
 
                 const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
                 if (baseAmount === null) {
@@ -2411,18 +2417,12 @@
                   return;
                 }
 
-                const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
-                const reference = referenceInput?.value || '';
-                const paymentDateInput = row.querySelector(`[data-pay-date="${accountId}"]`);
-                const normalizedPaymentDate = normalizePaymentDateInput(paymentDateInput?.value || '');
-                const paymentDate = normalizedPaymentDate?.iso || '';
-
                 payments.push({
                   account_id: accountId,
                   method: method,
                   amount: amount,
                   currency: account.currency,
-                  reference: reference.trim(),
+                  reference: reference,
                   payment_date: paymentDate,
                 });
 
