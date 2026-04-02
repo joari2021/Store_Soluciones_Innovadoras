@@ -796,6 +796,7 @@ class VentasController < ApplicationController
         payment_rows.each do |row|
           account = current_business.accounts.find_by(id: row[:account_id])
           next unless account
+          supports_movement_reference = AccountMovement.column_names.include?("reference")
 
           movement_attrs = {
             movement_kind: "income",
@@ -807,7 +808,9 @@ class VentasController < ApplicationController
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
           end
 
-          movement_attrs[:reference] = row[:reference].presence if row[:reference].present?
+          if supports_movement_reference && row[:reference].present?
+            movement_attrs[:reference] = row[:reference].presence
+          end
 
           account.account_movements.create!(movement_attrs)
         end
@@ -815,6 +818,7 @@ class VentasController < ApplicationController
         change_rows.each do |row|
           account = current_business.accounts.find_by(id: row[:account_id])
           next unless account
+          supports_movement_reference = AccountMovement.column_names.include?("reference")
 
           movement_attrs = {
             movement_kind: "expense",
@@ -826,7 +830,9 @@ class VentasController < ApplicationController
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
           end
 
-          movement_attrs[:reference] = row[:reference].presence if row[:reference].present?
+          if supports_movement_reference && row[:reference].present?
+            movement_attrs[:reference] = row[:reference].presence
+          end
 
           account.account_movements.create!(movement_attrs)
 
@@ -842,7 +848,9 @@ class VentasController < ApplicationController
             occurred_at: Time.current,
             payment_method: normalize_account_movement_method("mobile"),
           }
-          commission_attrs[:reference] = row[:reference].presence if row[:reference].present?
+          if supports_movement_reference && row[:reference].present?
+            commission_attrs[:reference] = row[:reference].presence
+          end
           account.account_movements.create!(commission_attrs)
         end
 
