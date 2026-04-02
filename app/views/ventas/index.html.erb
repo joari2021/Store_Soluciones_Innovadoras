@@ -1276,6 +1276,13 @@
           const changeToggle = dialog.querySelector('[data-change-toggle]');
           const creditToggle = dialog.querySelector('[data-credit-toggle]');
           const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
+          const extraPayments = Array.from(dialog.querySelectorAll('[data-extra-pay-row]')).map((row) => ({
+            accountId: row.querySelector('[data-extra-pay-account]')?.value || '',
+            amount: row.querySelector('[data-extra-pay-amount]')?.value || '',
+            method: row.querySelector('[data-extra-pay-method]')?.value || '',
+            paymentDate: row.querySelector('[data-extra-pay-date]')?.value || '',
+            reference: row.querySelector('[data-extra-pay-reference]')?.value || '',
+          }));
           const change = Array.from(dialog.querySelectorAll('[data-change-row]')).map((row) => {
             const accountId = row.dataset.changeRow;
             return {
@@ -1292,6 +1299,7 @@
 
           return {
             payments,
+            extraPayments,
             change,
             changeEnabled: Boolean(changeToggle?.checked),
             creditEnabled: Boolean(creditToggle?.checked),
@@ -1539,6 +1547,14 @@
                 <span class="text-[11px] font-semibold text-slate-500">Selecciona cuenta y monto</span>
               </div>
               <div class="mt-3 space-y-2">${paymentRowsHtml}</div>
+              <div class="mt-3 rounded-xl border border-dashed border-slate-300 bg-white/80 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Pagos multiples</p>
+                  <button type="button" class="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100" data-extra-pay-add>Agregar pago adicional</button>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-500">Si el cliente paga varias veces con el mismo metodo, agrega una fila por cada pago.</p>
+                <div class="mt-2 space-y-2" data-extra-pay-rows></div>
+              </div>
             </div>
             ${creditSectionHtml}
             ${changeSectionHtml}
@@ -1586,6 +1602,120 @@
               }
 
               initMoneyMasks(dialog);
+
+              const extraPayRowsContainer = dialog.querySelector('[data-extra-pay-rows]');
+              const addExtraPayButton = dialog.querySelector('[data-extra-pay-add]');
+
+              const methodByAccountType = (account, bankMethod = '') => {
+                if (!account) return '';
+                if (account.account_type === 'bank_account') return bankMethod || '';
+                if (account.account_type === 'cash_box') return 'cash';
+                if (account.account_type === 'card') return 'card';
+                if (account.account_type === 'pos') return 'pos';
+                if (account.account_type === 'biopago') return 'biopago';
+                if (account.account_type === 'cashea') return 'cashea';
+                if (account.account_type === 'digital_wallet') return 'wallet';
+                if (account.account_type === 'crypto_wallet') return 'crypto';
+                return 'cash';
+              };
+
+              const buildExtraPayAccountOptions = () => orderedAccounts.map((account) => {
+                const currency = String(account.currency || '').trim().toUpperCase();
+                return `<option value="${escapeHtml(String(account.id))}">${escapeHtml(account.name)} (${escapeHtml(currency)})</option>`;
+              }).join('');
+
+              const syncExtraPayRowState = (row) => {
+                const accountSelect = row.querySelector('[data-extra-pay-account]');
+                const methodSelect = row.querySelector('[data-extra-pay-method]');
+                const dateInput = row.querySelector('[data-extra-pay-date]');
+                const referenceInput = row.querySelector('[data-extra-pay-reference]');
+                const account = accountsById.get(String(accountSelect?.value || ''));
+                const isBank = account?.account_type === 'bank_account';
+
+                if (methodSelect) {
+                  methodSelect.disabled = !isBank;
+                  if (!isBank) methodSelect.value = '';
+                }
+
+                if (dateInput) {
+                  dateInput.disabled = !isBank;
+                  if (isBank && String(dateInput.value || '').trim() === '') dateInput.value = todayPaymentDate;
+                  if (!isBank) dateInput.value = '';
+                }
+
+                if (referenceInput) {
+                  referenceInput.disabled = !isBank;
+                  if (!isBank) referenceInput.value = '';
+                }
+              };
+
+              const addExtraPayRow = (entry = null) => {
+                if (!extraPayRowsContainer) return;
+
+                const row = document.createElement('div');
+                row.className = 'grid gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2 md:grid-cols-[1.6fr_1fr_1fr_1fr_1fr_auto]';
+                row.dataset.extraPayRow = 'true';
+                row.innerHTML = `
+                  <select class="ventas-payment-modal-field w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700" data-extra-pay-account>
+                    <option value="">Cuenta</option>
+                    ${buildExtraPayAccountOptions()}
+                  </select>
+                  <input type="text" inputmode="decimal" autocomplete="off" placeholder="Monto" class="ventas-payment-modal-field w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700" data-extra-pay-amount data-money-mask="true">
+                  <select class="ventas-payment-modal-field w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700" data-extra-pay-method>
+                    <option value="">Metodo banco</option>
+                    <option value="transfer">Transferencia</option>
+                    <option value="mobile">Pago movil</option>
+                  </select>
+                  <input type="text" class="ventas-payment-modal-field js-materialize-datepicker materialize-datepicker-input w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700" placeholder="dd-mm-aaaa" data-extra-pay-date>
+                  <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="ventas-payment-modal-field w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700" placeholder="Ref 4 digitos" data-extra-pay-reference>
+                  <button type="button" class="inline-flex h-full items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100" data-extra-pay-remove>Quitar</button>
+                `;
+
+                extraPayRowsContainer.appendChild(row);
+                initMoneyMasks(row);
+                if (typeof window.initializeMaterializeDatepickers === 'function') {
+                  window.initializeMaterializeDatepickers(row);
+                }
+
+                const accountSelect = row.querySelector('[data-extra-pay-account]');
+                const amountInput = row.querySelector('[data-extra-pay-amount]');
+                const methodSelect = row.querySelector('[data-extra-pay-method]');
+                const dateInput = row.querySelector('[data-extra-pay-date]');
+                const referenceInput = row.querySelector('[data-extra-pay-reference]');
+                const removeButton = row.querySelector('[data-extra-pay-remove]');
+
+                accountSelect?.addEventListener('change', () => {
+                  syncExtraPayRowState(row);
+                  updateRemaining();
+                });
+                amountInput?.addEventListener('input', updateRemaining);
+                methodSelect?.addEventListener('change', updateRemaining);
+                dateInput?.addEventListener('change', () => {
+                  const normalized = normalizePaymentDateInput(dateInput.value);
+                  dateInput.value = normalized ? normalized.display : '';
+                  updateRemaining();
+                });
+                referenceInput?.addEventListener('input', updateRemaining);
+                removeButton?.addEventListener('click', () => {
+                  row.remove();
+                  updateRemaining();
+                });
+
+                if (entry) {
+                  if (accountSelect && entry.accountId) accountSelect.value = String(entry.accountId);
+                  if (amountInput && typeof entry.amount === 'string') amountInput.value = entry.amount;
+                  if (methodSelect && typeof entry.method === 'string') methodSelect.value = entry.method;
+                  if (dateInput && typeof entry.paymentDate === 'string') {
+                    const normalized = normalizePaymentDateInput(entry.paymentDate);
+                    dateInput.value = normalized ? normalized.display : '';
+                  }
+                  if (referenceInput && typeof entry.reference === 'string') referenceInput.value = entry.reference;
+                }
+
+                syncExtraPayRowState(row);
+              };
+
+              addExtraPayButton?.addEventListener('click', () => addExtraPayRow());
 
               const changeSection = dialog.querySelector('#ventas-change-section');
               const changeToggle = dialog.querySelector('[data-change-toggle]');
@@ -1790,6 +1920,24 @@
                     if (altAmount !== null) {
                       paidAlt += altAmount;
                     }
+                  }
+                });
+
+                dialog.querySelectorAll('[data-extra-pay-row]').forEach((row) => {
+                  const accountId = row.querySelector('[data-extra-pay-account]')?.value || '';
+                  const account = accountsById.get(String(accountId));
+                  if (!account) return;
+
+                  const amount = parseMoneyInput(row.querySelector('[data-extra-pay-amount]'));
+                  if (amount <= 0) return;
+
+                  const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                  if (baseAmount === null) return;
+                  paidBase += baseAmount;
+
+                  if (altAvailable) {
+                    const altAmount = convertAmount(amount, account.currency, altCurrencyCode);
+                    if (altAmount !== null) paidAlt += altAmount;
                   }
                 });
 
@@ -2207,6 +2355,10 @@
                     referenceInput.value = entry.reference;
                   }
                 });
+
+                (initialState.extraPayments || []).forEach((entry) => {
+                  addExtraPayRow(entry);
+                });
               } else {
                 setCreditFieldsEnabled(false);
               }
@@ -2291,6 +2443,44 @@
                   currency: account.currency,
                   reference: reference.trim(),
                   payment_date: paymentDate,
+                });
+
+                paidBase += baseAmount;
+              });
+
+              dialog.querySelectorAll('[data-extra-pay-row]').forEach((row) => {
+                const accountId = String(row.querySelector('[data-extra-pay-account]')?.value || '').trim();
+                if (!accountId) return;
+
+                const account = accountsById.get(accountId);
+                if (!account) return;
+
+                const amount = parseMoneyInput(row.querySelector('[data-extra-pay-amount]'));
+                if (amount <= 0) return;
+
+                let method = methodByAccountType(account, String(row.querySelector('[data-extra-pay-method]')?.value || '').trim());
+                if (account.account_type === 'bank_account' && !method) missingMethod = true;
+
+                const paymentDateRaw = String(row.querySelector('[data-extra-pay-date]')?.value || '').trim();
+                const normalizedPaymentDate = paymentDateRaw ? normalizePaymentDateInput(paymentDateRaw) : null;
+                if (account.account_type === 'bank_account' && !normalizedPaymentDate) missingPaymentDate = true;
+
+                const referenceValue = String(row.querySelector('[data-extra-pay-reference]')?.value || '').trim();
+                if (account.account_type === 'bank_account' && !/^\d{4}$/.test(referenceValue)) missingReference = true;
+
+                const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                if (baseAmount === null) {
+                  missingConversion = true;
+                  return;
+                }
+
+                payments.push({
+                  account_id: accountId,
+                  method: method,
+                  amount: amount,
+                  currency: account.currency,
+                  reference: referenceValue,
+                  payment_date: normalizedPaymentDate?.iso || '',
                 });
 
                 paidBase += baseAmount;
