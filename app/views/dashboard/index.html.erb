@@ -18,7 +18,6 @@
       <% end %>
     </div>
   </div>
-
   <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Utilidad productos</p>
@@ -41,105 +40,296 @@
       <p class="mt-1 text-xs text-slate-500">Gastos pagados: <%= format_money(@metrics[:expense_paid_usd], unit: '$') %></p>
     </div>
   </div>
-
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <div class="flex items-center justify-between gap-2">
-      <h2 class="text-lg font-semibold text-slate-800">Tendencia mensual</h2>
-      <span class="text-xs text-slate-500">Ingreso vs costo vs utilidad</span>
-    </div>
-    <% max_value = @monthly_rows.flat_map { |row| [row[:revenue], row[:cost], row[:profit].abs] }.max.to_d %>
-    <% max_value = 1.to_d if max_value <= 0 %>
-    <div class="mt-4 space-y-3">
+  <div class="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)]">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Tendencia mensual</h2>
+          <p class="mt-1 text-xs text-slate-500">Visual interactivo de ingreso, costo y utilidad</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">Mixto</span>
+      </div>
       <% if @monthly_rows.any? %>
-        <% @monthly_rows.each do |row| %>
-          <% revenue_width = [(row[:revenue].to_d / max_value * 100).to_f, 2].max %>
-          <% cost_width = [(row[:cost].to_d / max_value * 100).to_f, 2].max %>
-          <% profit_width = [(row[:profit].to_d.abs / max_value * 100).to_f, 2].max %>
-          <div class="rounded-xl border border-slate-100 bg-slate-50 p-3">
-            <div class="mb-2 flex items-center justify-between text-xs font-semibold text-slate-600">
-              <span><%= row[:label] %></span>
-              <span>Utilidad: <%= format_money(row[:profit], unit: '$') %></span>
-            </div>
-            <div class="space-y-1.5">
-              <div>
-                <div class="h-2.5 rounded-full bg-slate-200">
-                  <div class="h-2.5 rounded-full bg-sky-500" style="width: <%= revenue_width %>%"></div>
-                </div>
-                <p class="mt-1 text-[11px] text-slate-500">Ingreso: <%= format_money(row[:revenue], unit: '$') %></p>
-              </div>
-              <div>
-                <div class="h-2.5 rounded-full bg-slate-200">
-                  <div class="h-2.5 rounded-full bg-amber-500" style="width: <%= cost_width %>%"></div>
-                </div>
-                <p class="mt-1 text-[11px] text-slate-500">Costo: <%= format_money(row[:cost], unit: '$') %></p>
-              </div>
-              <div>
-                <div class="h-2.5 rounded-full bg-slate-200">
-                  <div class="h-2.5 rounded-full <%= row[:profit].to_d >= 0 ? 'bg-emerald-500' : 'bg-rose-500' %>" style="width: <%= profit_width %>%"></div>
-                </div>
-                <p class="mt-1 text-[11px] text-slate-500">Utilidad: <%= format_money(row[:profit], unit: '$') %></p>
-              </div>
-            </div>
-          </div>
-        <% end %>
+        <div id="dashboard-monthly-chart" class="mt-4 h-[360px]"></div>
       <% else %>
-        <p class="text-sm text-slate-500">No hay ventas pagadas en el rango seleccionado.</p>
+        <p class="mt-4 text-sm text-slate-500">No hay ventas pagadas en el rango seleccionado.</p>
       <% end %>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Utilidad por origen</h2>
+          <p class="mt-1 text-xs text-slate-500">Productos vs servicios</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Donut</span>
+      </div>
+      <div id="dashboard-profit-split-chart" class="mt-4 h-[360px]"></div>
     </div>
   </div>
 
   <div class="grid gap-4 lg:grid-cols-2">
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 class="text-lg font-semibold text-slate-800">Gastos pagados (USD)</h2>
-      <div class="mt-3 space-y-2">
-        <% if @expense_rows.any? %>
-          <% max_expense = @expense_rows.map { |row| row[:amount_usd] }.max.to_d %>
-          <% max_expense = 1.to_d if max_expense <= 0 %>
-          <% @expense_rows.first(8).each do |row| %>
-            <% width = [(row[:amount_usd].to_d / max_expense * 100).to_f, 2].max %>
-            <div>
-              <div class="flex items-center justify-between text-xs text-slate-600">
-                <span class="truncate pr-2"><%= row[:label] %></span>
-                <span class="font-semibold"><%= format_money(row[:amount_usd], unit: '$') %></span>
-              </div>
-              <div class="mt-1 h-2 rounded-full bg-slate-100">
-                <div class="h-2 rounded-full bg-rose-400" style="width: <%= width %>%"></div>
-              </div>
-            </div>
-          <% end %>
-        <% else %>
-          <p class="text-sm text-slate-500">No hay pagos de gastos en el rango seleccionado.</p>
-        <% end %>
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Gastos pagados</h2>
+          <p class="mt-1 text-xs text-slate-500">Top egresos del periodo en USD</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 ring-1 ring-rose-100">Barras</span>
       </div>
+      <% if @expense_rows.any? %>
+        <div id="dashboard-expenses-chart" class="mt-4 h-[360px]"></div>
+      <% else %>
+        <p class="mt-4 text-sm text-slate-500">No hay pagos de gastos en el rango seleccionado.</p>
+      <% end %>
     </div>
 
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h2 class="text-lg font-semibold text-slate-800">Pasivos del negocio (USD)</h2>
-      <div class="mt-3 space-y-2">
-        <% if @passive_rows.any? %>
-          <% max_passive = @passive_rows.map { |row| row[:amount_usd] }.max.to_d %>
-          <% max_passive = 1.to_d if max_passive <= 0 %>
-          <% @passive_rows.each do |row| %>
-            <% width = [(row[:amount_usd].to_d / max_passive * 100).to_f, 2].max %>
-            <div>
-              <div class="flex items-center justify-between text-xs text-slate-600">
-                <span class="truncate pr-2"><%= row[:label] %></span>
-                <span class="font-semibold"><%= format_money(row[:amount_usd], unit: '$') %></span>
-              </div>
-              <div class="mt-1 h-2 rounded-full bg-slate-100">
-                <div class="h-2 rounded-full bg-violet-400" style="width: <%= width %>%"></div>
-              </div>
-            </div>
-          <% end %>
-        <% else %>
-          <p class="text-sm text-slate-500">No hay pasivos pendientes.</p>
-        <% end %>
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <h2 class="text-lg font-semibold text-slate-800">Pasivos del negocio</h2>
+          <p class="mt-1 text-xs text-slate-500">Distribución actual de obligaciones en USD</p>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-violet-50 px-2.5 py-1 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-100">Polar</span>
       </div>
+      <% if @passive_rows.any? %>
+        <div id="dashboard-passives-chart" class="mt-4 h-[360px]"></div>
+      <% else %>
+        <p class="mt-4 text-sm text-slate-500">No hay pasivos pendientes.</p>
+      <% end %>
     </div>
   </div>
-
   <div class="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 text-xs text-amber-800">
     Cobertura de utilidad real por lote: <strong><%= @metrics[:sales_with_lot_cost_data] %></strong> de <strong><%= @metrics[:sales_count] %></strong> ventas pagadas del periodo.
     Las ventas antiguas sin detalle de lote en notas no pueden reconstruir costo exacto por lote retroactivamente.
   </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+  (() => {
+    const dashboardData = {
+      monthly: <%= raw json_escape(@monthly_rows.to_json) %>,
+      expenses: <%= raw json_escape(@expense_rows.first(8).to_json) %>,
+      passives: <%= raw json_escape(@passive_rows.to_json) %>,
+      profitSplit: [
+        { label: 'Productos', amount: <%= @metrics[:product_profit_usd].to_d.to_f %> },
+        { label: 'Servicios', amount: <%= @metrics[:service_profit_usd].to_d.to_f %> }
+      ]
+    };
+
+    const currencyFormatter = new Intl.NumberFormat('es-VE', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+    });
+
+    const chartRegistry = window.__dashboardCharts || (window.__dashboardCharts = {});
+
+    const destroyChart = (key) => {
+      if (!chartRegistry[key]) return;
+      chartRegistry[key].destroy();
+      delete chartRegistry[key];
+    };
+
+    const baseOptions = {
+      chart: {
+        toolbar: { show: false },
+        zoom: { enabled: false },
+        fontFamily: 'ui-sans-serif, system-ui, sans-serif'
+      },
+      dataLabels: { enabled: false },
+      stroke: { curve: 'smooth', width: 3 },
+      legend: {
+        position: 'top',
+        horizontalAlign: 'left',
+        fontSize: '12px'
+      },
+      grid: {
+        borderColor: '#e2e8f0',
+        strokeDashArray: 4
+      },
+      tooltip: {
+        y: {
+          formatter: (value) => currencyFormatter.format(Number(value || 0))
+        }
+      },
+      noData: {
+        text: 'Sin datos para mostrar'
+      }
+    };
+
+    const renderMonthlyChart = () => {
+      const target = document.getElementById('dashboard-monthly-chart');
+      if (!target || !dashboardData.monthly.length || typeof ApexCharts === 'undefined') return;
+      destroyChart('monthly');
+
+      chartRegistry.monthly = new ApexCharts(target, {
+        ...baseOptions,
+        chart: {
+          ...baseOptions.chart,
+          type: 'line',
+          height: 360
+        },
+        colors: ['#0ea5e9', '#f59e0b', '#10b981'],
+        series: [
+          { name: 'Ingreso', type: 'area', data: dashboardData.monthly.map((row) => Number(row.revenue || 0)) },
+          { name: 'Costo', type: 'area', data: dashboardData.monthly.map((row) => Number(row.cost || 0)) },
+          { name: 'Utilidad', type: 'line', data: dashboardData.monthly.map((row) => Number(row.profit || 0)) }
+        ],
+        xaxis: {
+          categories: dashboardData.monthly.map((row) => row.label),
+          labels: { style: { colors: '#64748b', fontSize: '11px' } }
+        },
+        yaxis: {
+          labels: {
+            formatter: (value) => currencyFormatter.format(Number(value || 0)),
+            style: { colors: '#64748b', fontSize: '11px' }
+          }
+        },
+        fill: {
+          type: ['gradient', 'gradient', 'solid'],
+          gradient: {
+            shadeIntensity: 1,
+            opacityFrom: 0.28,
+            opacityTo: 0.04,
+            stops: [0, 90, 100]
+          }
+        },
+        markers: {
+          size: 4,
+          strokeWidth: 0,
+          hover: { size: 6 }
+        }
+      });
+
+      chartRegistry.monthly.render();
+    };
+
+    const renderProfitSplitChart = () => {
+      const target = document.getElementById('dashboard-profit-split-chart');
+      if (!target || typeof ApexCharts === 'undefined') return;
+      destroyChart('profitSplit');
+
+      chartRegistry.profitSplit = new ApexCharts(target, {
+        ...baseOptions,
+        chart: {
+          ...baseOptions.chart,
+          type: 'donut',
+          height: 360
+        },
+        colors: ['#10b981', '#06b6d4'],
+        labels: dashboardData.profitSplit.map((row) => row.label),
+        series: dashboardData.profitSplit.map((row) => Number(row.amount || 0)),
+        plotOptions: {
+          pie: {
+            donut: {
+              size: '68%',
+              labels: {
+                show: true,
+                total: {
+                  show: true,
+                  label: 'Total utilidad',
+                  formatter: () => currencyFormatter.format(
+                    dashboardData.profitSplit.reduce((sum, row) => sum + Number(row.amount || 0), 0)
+                  )
+                }
+              }
+            }
+          }
+        },
+        legend: {
+          ...baseOptions.legend,
+          position: 'bottom'
+        }
+      });
+
+      chartRegistry.profitSplit.render();
+    };
+
+    const renderExpensesChart = () => {
+      const target = document.getElementById('dashboard-expenses-chart');
+      if (!target || !dashboardData.expenses.length || typeof ApexCharts === 'undefined') return;
+      destroyChart('expenses');
+
+      chartRegistry.expenses = new ApexCharts(target, {
+        ...baseOptions,
+        chart: {
+          ...baseOptions.chart,
+          type: 'bar',
+          height: 360
+        },
+        colors: ['#fb7185'],
+        series: [{ name: 'Gasto', data: dashboardData.expenses.map((row) => Number(row.amount_usd || 0)) }],
+        plotOptions: {
+          bar: {
+            horizontal: true,
+            borderRadius: 6,
+            barHeight: '52%'
+          }
+        },
+        xaxis: {
+          categories: dashboardData.expenses.map((row) => row.label),
+          labels: {
+            formatter: (value) => currencyFormatter.format(Number(value || 0)),
+            style: { colors: '#64748b', fontSize: '11px' }
+          }
+        },
+        yaxis: {
+          labels: {
+            maxWidth: 180,
+            style: { colors: '#475569', fontSize: '11px' }
+          }
+        }
+      });
+
+      chartRegistry.expenses.render();
+    };
+
+    const renderPassivesChart = () => {
+      const target = document.getElementById('dashboard-passives-chart');
+      if (!target || !dashboardData.passives.length || typeof ApexCharts === 'undefined') return;
+      destroyChart('passives');
+
+      chartRegistry.passives = new ApexCharts(target, {
+        ...baseOptions,
+        chart: {
+          ...baseOptions.chart,
+          type: 'polarArea',
+          height: 360
+        },
+        colors: ['#8b5cf6', '#6366f1', '#a855f7', '#c084fc'],
+        labels: dashboardData.passives.map((row) => row.label),
+        series: dashboardData.passives.map((row) => Number(row.amount_usd || 0)),
+        stroke: { colors: ['#ffffff'] },
+        fill: { opacity: 0.9 },
+        legend: {
+          ...baseOptions.legend,
+          position: 'bottom'
+        }
+      });
+
+      chartRegistry.passives.render();
+    };
+
+    const initDashboardCharts = () => {
+      renderMonthlyChart();
+      renderProfitSplitChart();
+      renderExpensesChart();
+      renderPassivesChart();
+    };
+
+    document.addEventListener('turbo:before-cache', () => {
+      destroyChart('monthly');
+      destroyChart('profitSplit');
+      destroyChart('expenses');
+      destroyChart('passives');
+    }, { once: true });
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initDashboardCharts, { once: true });
+    } else {
+      initDashboardCharts();
+    }
+  })();
+</script>

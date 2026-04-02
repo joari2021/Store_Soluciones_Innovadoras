@@ -75,7 +75,7 @@ class DashboardController < ApplicationController
 
       notes = parse_notes_payload(sale.notes)
 
-      lot_rows = Array(notes["product_lot_consumptions"]) 
+      lot_rows = Array(notes["product_lot_consumptions"])
       lot_cost = lot_rows.sum do |row|
         to_decimal(row["quantity"]) * to_decimal(row["unit_cost_usd"])
       end
@@ -99,7 +99,7 @@ class DashboardController < ApplicationController
     end
 
     gross_profit = (totals[:product_revenue_usd] - totals[:product_cost_usd]) +
-      (totals[:service_revenue_usd] - totals[:service_cost_usd])
+                   (totals[:service_revenue_usd] - totals[:service_cost_usd])
 
     {
       product_revenue_usd: totals[:product_revenue_usd].round(2),
@@ -175,10 +175,10 @@ class DashboardController < ApplicationController
 
     payables.find_each do |debt|
       label = if debt.service_cost_record?
-                "Costos de servicios pendientes"
-              else
-                "Cuentas por pagar"
-              end
+          "Costos de servicios pendientes"
+        else
+          "Cuentas por pagar"
+        end
       grouped[label] += convert_to_usd(debt.balance.to_d, debt.currency, debt.issued_on)
     end
 
