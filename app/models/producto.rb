@@ -116,14 +116,33 @@ class Producto < ApplicationRecord
   end
 
   def consume_variation_stock!(variation_id:, quantity_units:)
+    consume_variation_stock_internal!(variation_id: variation_id, quantity_units: quantity_units, with_breakdown: false)
+    nil
+  end
+
+  def consume_variation_stock_with_breakdown!(variation_id:, quantity_units:)
+    consume_variation_stock_internal!(variation_id: variation_id, quantity_units: quantity_units, with_breakdown: true)
+  end
+
+  private
+
+  def consume_variation_stock_internal!(variation_id:, quantity_units:, with_breakdown:)
     requested = quantity_units.to_d
     raise ActiveRecord::RecordInvalid.new(self), 'Cantidad inválida para descuento.' if requested <= 0
 
     remaining_to_consume = requested
+    breakdown = []
 
     transaction do
       stock_lots.ordered_fifo.each do |lot|
         consumed = lot.consume_variation_units!(variation_id: variation_id, quantity_units: remaining_to_consume)
+        if with_breakdown && consumed.positive?
+          breakdown << {
+            stock_lot_id: lot.id,
+            quantity: consumed.to_d,
+            unit_cost_usd: lot.unit_cost_usd.to_d,
+          }
+        end
         remaining_to_consume -= consumed
         break if remaining_to_consume <= 0
       end
@@ -133,9 +152,9 @@ class Producto < ApplicationRecord
               "Stock insuficiente para la variación seleccionada (faltan #{remaining_to_consume.to_f.round(4)} unidades)."
       end
     end
-  end
 
-  private
+    with_breakdown ? breakdown : nil
+  end
 
   def ensure_default_variation
     return if product_variations.any?

@@ -778,11 +778,12 @@ class VentasController < ApplicationController
           end
         end
 
-        reserve_product_stock_for_sale!(venta)
+        consumed_product_lots = reserve_product_stock_for_sale!(venta)
         reserved_service_products = reserve_service_product_expenses_for_items!(service_item_rows, venta: venta)
         notes_payload = parse_notes_payload(venta.notes)
         notes_payload.delete("draft_state")
         notes_payload["reserved_product_items"] = reserved_product_items_payload_for_sale(venta)
+        notes_payload["product_lot_consumptions"] = consumed_product_lots
         notes_payload["reserved_service_products"] = reserved_service_products
         notes_payload["service_cost_settlements"] = service_cost_settlements_payload_for_notes(service_cost_settlements)
         notes_payload["sold_service_printings"] = sold_service_printings_payload_for_notes(
@@ -1452,7 +1453,7 @@ class VentasController < ApplicationController
 
         sync_payall_recarga_movements_for_draft!(draft, recarga_entries)
 
-        reserve_product_stock_for_sale!(draft)
+        consumed_product_lots = reserve_product_stock_for_sale!(draft)
         reserved_service_products = reserve_service_product_expenses_for_items!(service_item_rows, venta: draft)
 
         notes_payload = parse_notes_payload(draft.notes)
@@ -1466,6 +1467,7 @@ class VentasController < ApplicationController
         }
         notes_payload["draft_visibility"] = requested_visibility
         notes_payload["reserved_product_items"] = reserved_product_items_payload_for_sale(draft)
+        notes_payload["product_lot_consumptions"] = consumed_product_lots
         notes_payload["reserved_service_products"] = reserved_service_products
         draft.update!(notes: serialize_notes_payload(notes_payload))
       end
@@ -1846,6 +1848,8 @@ class VentasController < ApplicationController
                          .select { |item| item.producto_id.present? && item.product_variation_id.present? }
                          .group_by { |item| [item.producto_id, item.product_variation_id] }
 
+    reservations = []
+
     grouped_items.each do |(producto_id, variation_id), grouped_rows|
       quantity_units = grouped_rows.sum { |row| row.quantity.to_d }
       next unless quantity_units.positive?
@@ -1853,8 +1857,21 @@ class VentasController < ApplicationController
       producto = current_business.productos.find_by(id: producto_id)
       next unless producto
 
-      producto.consume_variation_stock!(variation_id: variation_id, quantity_units: quantity_units)
+      lot_breakdown = producto.consume_variation_stock_with_breakdown!(variation_id: variation_id,
+                                                                       quantity_units: quantity_units)
+
+      lot_breakdown.each do |entry|
+        reservations << {
+          "product_id" => producto_id,
+          "variation_id" => variation_id,
+          "stock_lot_id" => entry[:stock_lot_id],
+          "quantity" => entry[:quantity].to_d.to_f,
+          "unit_cost_usd" => entry[:unit_cost_usd].to_d.to_f,
+        }
+      end
     end
+
+    reservations
   end
 
   def reserve_service_product_expenses_for_items!(service_item_rows, venta:)

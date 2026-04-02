@@ -21,6 +21,12 @@
   </div>
   <nav class="sidebar-nav-scroll flex-1 min-h-0 overflow-y-auto px-6 pr-4 space-y-2 mt-2">
     <% if can_access_module?(:ventas) %>
+      <%= link_to dashboard_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Dashboard' } do %>
+        <i data-lucide="line-chart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span class="sidebar-label">Dashboard</span>
+      <% end %>
+    <% end %>
+    <% if can_access_module?(:ventas) %>
       <%= link_to ventas_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Ventas' } do %>
         <i data-lucide="shopping-cart" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
         <span class="sidebar-label">Ventas</span>

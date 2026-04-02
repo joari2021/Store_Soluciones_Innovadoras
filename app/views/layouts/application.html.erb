@@ -297,6 +297,7 @@
       if (!window.getTabIdFromPath) {
         window.getTabIdFromPath = function(path) {
           if (!path) return null;
+          if (path.includes('/dashboard')) return 'dashboard';
           if (path.includes('/ventas/historial')) return 'historial_ventas';
           if (/\/ventas\/\d+(\/|$)/.test(path)) return 'historial_ventas';
           if (path.includes('/productos')) return 'productos';
