@@ -132,8 +132,8 @@ class CambioEfectivosController < ApplicationController
       return render json: { error: "Debes registrar al menos un metodo de pago." }, status: :unprocessable_entity
     end
 
-    if (total_paid - monto_recibido).abs > 0.01
-      return render json: { error: "El total cobrado no coincide con el monto a cobrar." },
+    if total_paid + 0.01 < monto_recibido
+      return render json: { error: "El total cobrado no puede ser menor al monto a cobrar." },
                     status: :unprocessable_entity
     end
 
