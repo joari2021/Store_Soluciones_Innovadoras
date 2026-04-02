@@ -105,8 +105,8 @@ class CambioEfectivosController < ApplicationController
         end
 
         reference = payment[:reference].to_s.strip
-        unless reference.match?(/^\d{6}$/)
-          return render json: { error: 'La referencia debe tener 6 digitos.' }, status: :unprocessable_entity
+        unless reference.match?(/^\d{4}$/)
+          return render json: { error: 'La referencia debe tener 4 digitos.' }, status: :unprocessable_entity
         end
 
         payment_date = parse_payment_date(payment[:payment_date])

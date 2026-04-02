@@ -67,7 +67,7 @@ class DebtPayment < ApplicationRecord
       return
     end
 
-    errors.add(:reference, 'debe tener 6 digitos') unless reference.to_s.match?(/\A\d{6}\z/)
+    errors.add(:reference, 'debe tener 4 digitos') unless reference.to_s.match?(/\A\d{4}\z/)
   end
 
   def currency_matches_account

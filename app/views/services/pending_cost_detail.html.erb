@@ -237,10 +237,10 @@
                 <div class="hidden" data-pending-cost-bank-fields>
                   <%= label_tag nil, 'Referencia', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
                   <%= text_field_tag :reference, '',
-                                     maxlength: 6,
-                                     minlength: 6,
-                                     pattern: '\\d{6}',
-                                     placeholder: '6 digitos',
+                                     maxlength: 4,
+                                     minlength: 4,
+                                     pattern: '\\d{4}',
+                                     placeholder: '4 digitos',
                                      class: 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700' %>
                 </div>
               </div>

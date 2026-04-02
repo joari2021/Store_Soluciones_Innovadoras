@@ -303,9 +303,9 @@ class ServicesController < ApplicationController
                            alert: 'Selecciona transferencia o pago movil para pagos bancarios.'
       end
 
-      unless /^\d{6}$/.match?(reference)
+      unless /^\d{4}$/.match?(reference)
         return redirect_to redirect_path,
-                           alert: 'La referencia bancaria debe tener exactamente 6 digitos.'
+                           alert: 'La referencia bancaria debe tener exactamente 4 digitos.'
       end
     else
       payment_method = nil

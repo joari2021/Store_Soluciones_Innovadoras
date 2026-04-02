@@ -53,7 +53,8 @@ class DebtPaymentsController < ApplicationController
       duplicated_payment = find_duplicate_bank_receivable_payment(
         account_id: account.id,
         occurred_on: occurred_on,
-        amount: amount
+        amount: amount,
+        reference: debt_payment_params[:reference].to_s.strip
       )
 
       if duplicated_payment.present?
@@ -62,7 +63,8 @@ class DebtPaymentsController < ApplicationController
           duplicate_bank_receivable_payment_message(
             account: account,
             occurred_on: occurred_on,
-            amount: amount
+            amount: amount,
+            reference: debt_payment_params[:reference].to_s.strip
           )
         )
         return render :new, status: :unprocessable_entity
@@ -168,8 +170,8 @@ class DebtPaymentsController < ApplicationController
     end
   end
 
-  def find_duplicate_bank_receivable_payment(account_id:, occurred_on:, amount:)
-    return nil if account_id.blank? || occurred_on.blank?
+  def find_duplicate_bank_receivable_payment(account_id:, occurred_on:, amount:, reference:)
+    return nil if account_id.blank? || occurred_on.blank? || reference.blank?
 
     normalized_amount = amount.to_d.round(2)
     return nil unless normalized_amount.positive?
@@ -177,20 +179,23 @@ class DebtPaymentsController < ApplicationController
     day_start = occurred_on.in_time_zone('America/Caracas').beginning_of_day
     day_end = occurred_on.in_time_zone('America/Caracas').end_of_day
 
-    scope = AccountMovement
+        escaped_reference = Regexp.escape(reference)
+
+        scope = AccountMovement
             .joins(:account)
             .where(accounts: { business_id: current_business.id })
             .where(account_id: account_id, movement_kind: 'income', amount: normalized_amount)
             .where(occurred_at: day_start..day_end)
+          .where('account_movements.description ~ ?', "Ref #{escaped_reference}$")
 
     scope.order(created_at: :desc).first
   end
 
-  def duplicate_bank_receivable_payment_message(account:, occurred_on:, amount:)
+  def duplicate_bank_receivable_payment_message(account:, occurred_on:, amount:, reference:)
     normalized_amount = amount.to_d.round(2)
     date_label = occurred_on.strftime('%d/%m/%Y')
 
-    "Ya existe un pago registrado en #{account.name} con monto #{normalized_amount.to_s('F')} #{account.currency} para la fecha #{date_label}."
+    "Ya existe un pago registrado en #{account.name} con monto #{normalized_amount.to_s('F')} #{account.currency}, fecha #{date_label} y referencia #{reference}."
   end
 
   def default_payment_amount(target_currency = @debt.currency, occurred_on = Date.current)

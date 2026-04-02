@@ -142,6 +142,12 @@ class AccountsController < ApplicationController
                          alert: 'Selecciona un metodo de pago valido para la transferencia.'
     end
 
+    reference = params[:reference].to_s.strip
+    unless valid_bank_reference?(reference)
+      return redirect_to accounts_path,
+                         alert: 'La referencia debe tener exactamente 4 digitos.'
+    end
+
     suggested_target = suggested_transfer_amount(
       amount_from: amount_from,
       from_account: @account,
@@ -209,7 +215,7 @@ class AccountsController < ApplicationController
         amount: amount_from,
         occurred_at: occurred_at,
         payment_method: transfer_payment_method_for(@account, transfer_payment_method),
-        description: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}]"
+        description: transfer_movement_description(base: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}]", reference: reference)
       )
 
       incoming = target_account.account_movements.create!(
@@ -217,11 +223,11 @@ class AccountsController < ApplicationController
         amount: amount_to,
         occurred_at: occurred_at,
         payment_method: transfer_payment_method_for(target_account, transfer_payment_method),
-        description: "Transferencia desde cuenta #{@account.name} [ACCOUNT:#{@account.id}] [AM:#{outgoing.id}]"
+        description: transfer_movement_description(base: "Transferencia desde cuenta #{@account.name} [ACCOUNT:#{@account.id}] [AM:#{outgoing.id}]", reference: reference)
       )
 
       outgoing.update!(
-        description: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]"
+        description: transfer_movement_description(base: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]", reference: reference)
       )
 
       if commission_amount.positive? && commission_account.present?
@@ -230,7 +236,7 @@ class AccountsController < ApplicationController
           amount: commission_amount,
           occurred_at: occurred_at,
           payment_method: transfer_payment_method_for(commission_account, transfer_payment_method),
-          description: "Comision de #{transfer_payment_method_label(transfer_payment_method)} por transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]"
+          description: transfer_movement_description(base: "Comision de #{transfer_payment_method_label(transfer_payment_method)} por transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]", reference: reference)
         )
       end
     end
@@ -270,6 +276,11 @@ class AccountsController < ApplicationController
     occurred_at = caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
 
     payment_method = @account.account_type == 'bank_account' ? 'transfer' : nil
+    reference = params[:reference].to_s.strip
+
+    if @account.account_type == 'bank_account' && !valid_bank_reference?(reference)
+      return redirect_to account_path(@account), alert: 'La referencia debe tener exactamente 4 digitos.'
+    end
 
     movement = nil
 
@@ -279,7 +290,7 @@ class AccountsController < ApplicationController
         amount: amount,
         occurred_at: occurred_at,
         payment_method: payment_method,
-        description: "Pago: #{concept}"
+        description: transfer_movement_description(base: "Pago: #{concept}", reference: reference)
       )
 
       if include_commission && commission_amount.positive?
@@ -288,7 +299,7 @@ class AccountsController < ApplicationController
           amount: commission_amount,
           occurred_at: occurred_at,
           payment_method: payment_method,
-          description: "Comision de pago: #{concept}"
+          description: transfer_movement_description(base: "Comision de pago: #{concept}", reference: reference)
         )
       end
     end
@@ -408,6 +419,17 @@ class AccountsController < ApplicationController
     return normalized if %w[third_party_transfer interbank_transfer mobile_payment].include?(normalized)
 
     nil
+  end
+
+  def valid_bank_reference?(value)
+    value.to_s.match?(/\A\d{4}\z/)
+  end
+
+  def transfer_movement_description(base:, reference:)
+    normalized_reference = reference.to_s.strip
+    return base if normalized_reference.blank?
+
+    "#{base} - Ref #{normalized_reference}"
   end
 
   def transfer_commission_applicable?(payment_method)

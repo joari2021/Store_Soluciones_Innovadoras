@@ -449,13 +449,13 @@
             <%= text_field_tag :payment_reference,
                            params[:payment_reference],
                            inputmode: "numeric",
-                           maxlength: 6,
-                           minlength: 6,
-                           pattern: "\\d{6}",
+                           maxlength: 4,
+                           minlength: 4,
+                           pattern: "\\d{4}",
                            autocomplete: "off",
-                           title: "La referencia debe tener exactamente 6 digitos",
+                           title: "La referencia debe tener exactamente 4 digitos",
                            class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
-                           placeholder: "6 digitos",
+                           placeholder: "4 digitos",
                            data: { debt_payment_reference: true } %>
           </div>
           <div>
@@ -824,7 +824,7 @@
 
         const digits = String(input.value || "")
           .replace(/\D/g, "")
-          .slice(0, 6);
+          .slice(0, 4);
 
         if (input.value !== digits) {
           input.value = digits;
@@ -856,7 +856,7 @@
 
         paymentReferenceInput.required = requiresReference;
         paymentReferenceInput.setCustomValidity(
-          shouldValidate && digits.length !== 6 ? "La referencia debe tener exactamente 6 digitos." : ""
+          shouldValidate && digits.length !== 4 ? "La referencia debe tener exactamente 4 digitos." : ""
         );
       };
 
@@ -1670,9 +1670,9 @@
         const paymentReferenceRequired = registerPaymentEnabled() && paymentAccountIsBank() && String(paymentMethodSelect?.value || "").trim().length > 0;
         const paymentReferenceShouldValidate = registerPaymentEnabled() && (paymentReferenceRequired || paymentReferenceValue.length > 0);
 
-        if (paymentReferenceShouldValidate && paymentReferenceValue.length !== 6) {
+        if (paymentReferenceShouldValidate && paymentReferenceValue.length !== 4) {
           if (window.AppToast?.error) {
-            window.AppToast.error("La referencia debe tener exactamente 6 digitos.");
+            window.AppToast.error("La referencia debe tener exactamente 4 digitos.");
           }
 
           paymentReferenceInput?.focus();

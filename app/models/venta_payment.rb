@@ -27,7 +27,7 @@ class VentaPayment < ApplicationRecord
   validates :amount_original, numericality: { greater_than: 0 }
   validates :currency, presence: true
   validates :payment_kind, presence: true, inclusion: { in: PAYMENT_KINDS.keys }
-  validates :reference, presence: true, format: { with: /\A\d{6}\z/, message: 'debe tener 6 digitos' },
+  validates :reference, presence: true, format: { with: /\A\d{4}\z/, message: 'debe tener 4 digitos' },
                         if: :reference_required?
   validates :payment_date, presence: true, if: :reference_required?
 

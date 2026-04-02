@@ -1361,7 +1361,7 @@
                       <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
                     </select>
                     <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-pay-date="${account.id}" value="${todayPaymentDate}" disabled>
-                    <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-pay-reference="${account.id}" disabled>
+                    <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-pay-reference="${account.id}" disabled>
                   </div>
                 </div>
                 ${methodImageHtml}
@@ -1441,7 +1441,7 @@
                     <option value="transfer">Transferencia</option>
                     <option value="mobile">Pago movil</option>
                   </select>
-                  <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-change-reference="${account.id}" disabled>
+                  <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-change-reference="${account.id}" disabled>
                 </div>
               </div>
               <p class="${equivalentClass}" data-change-equivalent="${account.id}"></p>
@@ -2255,7 +2255,7 @@
 
                   const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
                   const referenceValue = referenceInput?.value || '';
-                  if (!/^\d{6}$/.test(referenceValue)) missingReference = true;
+                  if (!/^\d{4}$/.test(referenceValue)) missingReference = true;
                 } else if (account.account_type === 'cash_box') {
                   method = 'cash';
                 } else if (account.account_type === 'card') {
@@ -2302,7 +2302,7 @@
               }
 
               if (missingReference) {
-                window.Swal.showValidationMessage('La referencia debe tener 6 digitos.');
+                window.Swal.showValidationMessage('La referencia debe tener 4 digitos.');
                 return null;
               }
 
@@ -2377,7 +2377,7 @@
                     if (!method) missingChangeMethod = true;
                     const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
                     const referenceValue = referenceInput?.value || '';
-                    if (!/^\d{6}$/.test(referenceValue)) missingChangeReference = true;
+                    if (!/^\d{4}$/.test(referenceValue)) missingChangeReference = true;
                   } else if (account.account_type === 'cash_box') {
                     method = 'cash';
                   } else if (account.account_type === 'card') {
@@ -2418,7 +2418,7 @@
                 }
 
                 if (missingChangeReference) {
-                  window.Swal.showValidationMessage('La referencia del vuelto debe tener 6 digitos.');
+                  window.Swal.showValidationMessage('La referencia del vuelto debe tener 4 digitos.');
                   return null;
                 }
 
@@ -6785,7 +6785,7 @@
                         <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
                       </select>
                       <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-pay-date="${account.id}" value="${todayPaymentDate}" disabled>
-                      <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-pay-reference="${account.id}" disabled>
+                      <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-pay-reference="${account.id}" disabled>
                     </div>
                   </div>
                   ${methodImageHtml}
@@ -6865,7 +6865,7 @@
                       <option value="transfer">Transferencia</option>
                       <option value="mobile">Pago movil</option>
                     </select>
-                    <input type="text" inputmode="numeric" maxlength="6" minlength="6" pattern="[0-9]{6}" title="La referencia debe tener exactamente 6 digitos" class="${bankFieldClass}" placeholder="Ultimos 6 digitos" data-change-reference="${account.id}" disabled>
+                    <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-change-reference="${account.id}" disabled>
                   </div>
                 </div>
                 <p class="${equivalentClass}" data-change-equivalent="${account.id}"></p>
@@ -7668,7 +7668,7 @@
 
                     const referenceInput = row.querySelector(`[data-pay-reference="${accountId}"]`);
                     const referenceValue = referenceInput?.value || '';
-                    if (!/^\d{6}$/.test(referenceValue)) missingReference = true;
+                    if (!/^\d{4}$/.test(referenceValue)) missingReference = true;
                   } else if (account.account_type === 'cash_box') {
                     method = 'cash';
                   } else if (account.account_type === 'card') {
@@ -7715,7 +7715,7 @@
                 }
 
                 if (missingReference) {
-                  window.Swal.showValidationMessage('La referencia debe tener 6 digitos.');
+                  window.Swal.showValidationMessage('La referencia debe tener 4 digitos.');
                   return null;
                 }
 
@@ -7785,7 +7785,7 @@
                       if (!method) missingChangeMethod = true;
                       const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
                       const referenceValue = referenceInput?.value || '';
-                      if (!/^\d{6}$/.test(referenceValue)) missingChangeReference = true;
+                      if (!/^\d{4}$/.test(referenceValue)) missingChangeReference = true;
                     } else if (account.account_type === 'cash_box') {
                       method = 'cash';
                     } else if (account.account_type === 'card') {
@@ -7826,7 +7826,7 @@
                   }
 
                   if (missingChangeReference) {
-                    window.Swal.showValidationMessage('La referencia del vuelto debe tener 6 digitos.');
+                    window.Swal.showValidationMessage('La referencia del vuelto debe tener 4 digitos.');
                     return null;
                   }
 
