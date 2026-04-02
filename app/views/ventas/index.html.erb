@@ -2520,12 +2520,7 @@
                 return null;
               }
 
-              if (!allowChange && remaining < -paymentTolerance) {
-                window.Swal.showValidationMessage('El monto excede el total a cobrar.');
-                return null;
-              }
-
-              const suggestedChangeBase = allowChange && remaining < -paymentTolerance ? Math.abs(remaining) : 0;
+              const suggestedChangeBase = remaining < -paymentTolerance ? Math.abs(remaining) : 0;
               const changeToggle = dialog.querySelector('[data-change-toggle]');
               const changeEntries = [];
               let missingChangeMethod = false;
@@ -2617,7 +2612,7 @@
                 },
                 totalBase,
                 suggestedChangeBase,
-                hasPendingSuggestedChange: allowChange && suggestedChangeBase > paymentTolerance && changeEntries.length === 0,
+                hasPendingSuggestedChange: suggestedChangeBase > paymentTolerance && (!allowChange || changeEntries.length === 0),
                 modalState,
               };
             },
