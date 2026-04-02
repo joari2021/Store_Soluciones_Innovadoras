@@ -797,12 +797,13 @@ class VentasController < ApplicationController
           account = current_business.accounts.find_by(id: row[:account_id])
           next unless account
           supports_movement_reference = AccountMovement.column_names.include?("reference")
+          movement_occurred_at = account_movement_occurred_at_from_payment_date(row[:payment_date])
 
           movement_attrs = {
             movement_kind: "income",
             amount: row[:amount_original].to_d,
             description: build_movement_description(venta, row, "Ingreso"),
-            occurred_at: Time.current,
+            occurred_at: movement_occurred_at,
           }
           if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
@@ -845,7 +846,7 @@ class VentasController < ApplicationController
             movement_kind: "expense",
             amount: commission_amount,
             description: build_movement_description(venta, row, "Comision pago movil"),
-            occurred_at: Time.current,
+            occurred_at: movement_occurred_at,
             payment_method: normalize_account_movement_method("mobile"),
           }
           if supports_movement_reference && row[:reference].present?
@@ -1065,6 +1066,12 @@ class VentasController < ApplicationController
     Date.parse(normalized)
   rescue ArgumentError
     nil
+  end
+
+  def account_movement_occurred_at_from_payment_date(payment_date)
+    return Time.current if payment_date.blank?
+
+    payment_date.in_time_zone("America/Caracas").end_of_day
   end
 
   def find_duplicate_bank_payment(account_id:, payment_date:, amount_original:, reference:)
