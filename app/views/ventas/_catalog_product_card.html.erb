@@ -86,8 +86,8 @@
       <div class="mt-3 relative">
         <div class="w-full rounded-2xl bg-sky-50 px-3 py-2.5 pr-12 ring-1 ring-sky-100">
           <p class="text-xs font-semibold uppercase tracking-wide text-sky-600">Precio</p>
-          <p class="whitespace-nowrap text-sky-700 font-bold" data-product-price-usd="<%= producto.id %>"><%= format_money(price_usd_value, unit: '$') %></p>
-          <p class="whitespace-nowrap text-xs text-slate-500" data-product-price-bs="<%= producto.id %>"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+          <p class="whitespace-nowrap text-sky-700 font-bold" data-product-price-bs="<%= producto.id %>"><%= price_bs ? format_money(price_bs, unit: 'Bs ') : 'Bs --' %></p>
+          <p class="whitespace-nowrap text-[11px] text-slate-500" data-product-price-usd="<%= producto.id %>"><%= format_money(price_usd_value, unit: '$') %></p>
         </div>
         <button type="button" class="ventas-add-button absolute bottom-2 right-2 inline-flex h-8 w-8 items-center justify-center rounded-xl bg-slate-900 text-white shadow-md shadow-slate-200 transition-all group-hover:bg-sky-500 group-hover:shadow-sky-200" data-product-id="<%= producto.id %>">
           <i data-lucide="plus" class="h-3.5 w-3.5"></i>
