@@ -217,17 +217,19 @@
       <%= turbo_frame_tag "account-movements-#{@pagy.page}", class: 'contents' do %>
         <div class="overflow-x-auto">
           <table class="min-w-full divide-y divide-slate-200">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
-                <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Fecha</th>
-                <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
-                <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Referencia</th>
-                <th class="px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Descripcion</th>
-                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Monto</th>
-                <th class="px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Acciones</th>
-              </tr>
-            </thead>
+            <% if @pagy.page == 1 %>
+              <thead>
+                <tr>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Fecha</th>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Referencia</th>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Descripcion</th>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Monto</th>
+                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Acciones</th>
+                </tr>
+              </thead>
+            <% end %>
             <tbody class="divide-y divide-slate-100 bg-white">
               <% @account_movements.each do |movement| %>
                 <% signed_amount = movement.signed_amount %>
