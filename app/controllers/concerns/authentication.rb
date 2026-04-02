@@ -1,6 +1,8 @@
 module Authentication
   extend ActiveSupport::Concern
 
+  INACTIVITY_TIMEOUT_SECONDS = 2.hours.to_i
+
   included do
     before_action :set_current_user
     before_action :protect_pages
@@ -25,7 +27,7 @@ module Authentication
       last_seen_at = session[:last_seen_at].to_i
       now = Time.current.to_i
 
-      if last_seen_at.positive? && (now - last_seen_at) > 3600
+      if last_seen_at.positive? && (now - last_seen_at) > INACTIVITY_TIMEOUT_SECONDS
         reset_session
         redirect_to new_session_path, alert: 'Tu sesion expiro por inactividad.'
         return

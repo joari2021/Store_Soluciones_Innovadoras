@@ -14,6 +14,7 @@ class Authentication::SessionsController < ApplicationController
     if @user&.active? && @user.authenticate(params[:password])
       session[:user_id] = @user.id
       session[:business_id] = @user.business_id if @user.business_id.present?
+      session[:last_seen_at] = Time.current.to_i
       redirect_to ventas_path, notice: 'Haz iniciado sesion correctamente'
     elsif @user.present? && !@user.active?
       redirect_to new_session_path, alert: 'Tu usuario esta inactivo. Contacta al administrador del negocio.'
