@@ -1350,6 +1350,9 @@
                       </svg>`}
                 </span>
                 <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
+                <span class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700" data-pay-multi-badge="${account.id}" title="Agregar otro pago de este metodo">
+                  + pago
+                </span>
                 <span class="ventas-pay-chevron" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M6 9l6 6 6-6"></path>
@@ -2092,11 +2095,26 @@
               });
 
               dialog.querySelectorAll('[data-pay-toggle]').forEach((button) => {
-                button.addEventListener('click', () => {
+                button.addEventListener('click', (event) => {
                   const accountId = button.dataset.payToggle;
                   const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
                   const checkbox = row?.querySelector(`[data-pay-check="${accountId}"]`);
                   if (!row || !checkbox) return;
+
+                  const badge = event.target.closest('[data-pay-multi-badge]');
+                  if (badge) {
+                    event.preventDefault();
+                    closeOtherPaymentRows(row);
+                    if (!checkbox.checked) {
+                      checkbox.checked = true;
+                      checkbox.dispatchEvent(new Event('change'));
+                    } else {
+                      setPaymentAccordionState(row, true);
+                    }
+                    addMultiPaymentEntry(row);
+                    updateRemaining();
+                    return;
+                  }
 
                   const isOpen = row.classList.contains('is-open');
                   if (isOpen) {
