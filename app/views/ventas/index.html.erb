@@ -1311,6 +1311,8 @@
         const buildPaymentRow = (account, options = {}) => {
           const symbol = account.currency_symbol || account.currency;
           const isBank = account.is_bank;
+          const accountType = String(account.account_type || '').toLowerCase();
+          const allowMultiPayments = accountType !== 'cash_box';
           const paymentMethodImageUrl = String(account.payment_method_image_url || '').trim();
           const logoUrl = String(account.small_logo_url || account.logo_url || '').trim();
           const hasPaymentMethodImage = paymentMethodImageUrl.length > 0;
@@ -1339,26 +1341,28 @@
           return `
             <div class="${cardClasses}${extraClass}" data-pay-row="${account.id}"${extraAttr}>
               <input type="checkbox" class="ventas-pay-checkbox" data-pay-check="${account.id}">
-              <button type="button" class="ventas-pay-accordion-toggle" data-pay-toggle="${account.id}">
-                <span class="ventas-pay-avatar" aria-hidden="true">
-                  ${hasLogo
-                    ? `<img src="${escapeHtml(logoUrl)}" alt="Logo de la cuenta" loading="lazy">`
-                    : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3 10h18"></path>
-                        <path d="M4 20h16a1 1 0 0 0 1-1v-8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a1 1 0 0 0 1 1z"></path>
-                        <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
-                      </svg>`}
-                </span>
-                <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
-                <span class="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700" data-pay-multi-badge="${account.id}" title="Agregar otro pago de este metodo">
-                  + pago
-                </span>
-                <span class="ventas-pay-chevron" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M6 9l6 6 6-6"></path>
-                  </svg>
-                </span>
-              </button>
+              <div class="flex items-center gap-2">
+                <button type="button" class="ventas-pay-accordion-toggle flex-1" data-pay-toggle="${account.id}">
+                  <span class="ventas-pay-avatar" aria-hidden="true">
+                    ${hasLogo
+                      ? `<img src="${escapeHtml(logoUrl)}" alt="Logo de la cuenta" loading="lazy">`
+                      : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M3 10h18"></path>
+                          <path d="M4 20h16a1 1 0 0 0 1-1v-8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v8a1 1 0 0 0 1 1z"></path>
+                          <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
+                        </svg>`}
+                  </span>
+                  <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
+                  <span class="ventas-pay-chevron" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg>
+                  </span>
+                </button>
+                ${allowMultiPayments
+                  ? `<button type="button" class="inline-flex shrink-0 items-center rounded-full border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 shadow-sm transition-colors hover:bg-sky-100" data-pay-multi-add="${account.id}" title="Agregar otro pago del mismo metodo">+ pago</button>`
+                  : ''}
+              </div>
               <div class="ventas-pay-accordion-content" data-pay-content>
                 <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
                   <div class="ventas-pay-amount">
@@ -1375,13 +1379,12 @@
                     <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-pay-reference="${account.id}" disabled>
                   </div>
                 </div>
-                <div class="mt-2 border-t border-slate-200 pt-2">
-                  <div class="flex items-center justify-between gap-2">
-                    <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos adicionales</p>
-                    <button type="button" class="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100" data-pay-multi-add="${account.id}" disabled>Agregar otro pago</button>
-                  </div>
-                  <div class="mt-2 space-y-2" data-pay-multi-list="${account.id}"></div>
-                </div>
+                ${allowMultiPayments
+                  ? `<div class="mt-2 border-t border-slate-200 pt-2">
+                      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos adicionales</p>
+                      <div class="mt-2 space-y-2" data-pay-multi-list="${account.id}"></div>
+                    </div>`
+                  : ''}
                 ${methodImageHtml}
               </div>
             </div>
@@ -2077,12 +2080,10 @@
                   const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
                   const input = row.querySelector(`[data-pay-input="${accountId}"]`);
                   const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
-                  const addButton = row.querySelector(`[data-pay-multi-add="${accountId}"]`);
                   if (!input) return;
 
                   setFieldEnabledState(input, checkbox.checked, 'sky');
                   setBankFieldsEnabled(bankFields, checkbox.checked, 'sky');
-                  if (addButton) addButton.disabled = !checkbox.checked;
                   if (!checkbox.checked) {
                     row.querySelectorAll(`[data-pay-multi-entry="${accountId}"]`).forEach((entry) => entry.remove());
                   }
@@ -2095,26 +2096,11 @@
               });
 
               dialog.querySelectorAll('[data-pay-toggle]').forEach((button) => {
-                button.addEventListener('click', (event) => {
+                button.addEventListener('click', () => {
                   const accountId = button.dataset.payToggle;
                   const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
                   const checkbox = row?.querySelector(`[data-pay-check="${accountId}"]`);
                   if (!row || !checkbox) return;
-
-                  const badge = event.target.closest('[data-pay-multi-badge]');
-                  if (badge) {
-                    event.preventDefault();
-                    closeOtherPaymentRows(row);
-                    if (!checkbox.checked) {
-                      checkbox.checked = true;
-                      checkbox.dispatchEvent(new Event('change'));
-                    } else {
-                      setPaymentAccordionState(row, true);
-                    }
-                    addMultiPaymentEntry(row);
-                    updateRemaining();
-                    return;
-                  }
 
                   const isOpen = row.classList.contains('is-open');
                   if (isOpen) {
@@ -2168,12 +2154,10 @@
                   const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
                   const input = dialog.querySelector(`[data-pay-input="${accountId}"]`);
                   const bankFields = dialog.querySelector(`[data-pay-bank-fields="${accountId}"]`);
-                  const addButton = row?.querySelector(`[data-pay-multi-add="${accountId}"]`);
                   if (!input) return;
 
                   setFieldEnabledState(input, checkbox.checked, 'sky');
                   setBankFieldsEnabled(bankFields, checkbox.checked, 'sky');
-                  if (addButton) addButton.disabled = !checkbox.checked;
                   if (!checkbox.checked) {
                     row?.querySelectorAll(`[data-pay-multi-entry="${accountId}"]`).forEach((entry) => entry.remove());
                   }
@@ -2189,6 +2173,14 @@
                   const accountId = button.dataset.payMultiAdd;
                   const row = dialog.querySelector(`[data-pay-row="${accountId}"]`);
                   if (!row) return;
+
+                  const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
+                  if (checkbox && !checkbox.checked) {
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('change'));
+                  }
+
+                  setPaymentAccordionState(row, true);
                   addMultiPaymentEntry(row);
                   updateRemaining();
                 });
@@ -2236,11 +2228,9 @@
                 const checkbox = row.querySelector(`[data-pay-check="${accountId}"]`);
                 const input = row.querySelector(`[data-pay-input="${accountId}"]`);
                 const bankFields = row.querySelector(`[data-pay-bank-fields="${accountId}"]`);
-                const addButton = row.querySelector(`[data-pay-multi-add="${accountId}"]`);
 
                 setFieldEnabledState(input, Boolean(checkbox?.checked), 'sky');
                 setBankFieldsEnabled(bankFields, Boolean(checkbox?.checked), 'sky');
-                if (addButton) addButton.disabled = !Boolean(checkbox?.checked);
                 setRowVisualState(row, Boolean(checkbox?.checked), 'sky');
                 setPaymentAccordionState(row, Boolean(checkbox?.checked));
                 syncPaymentRowMethodTone(row);
