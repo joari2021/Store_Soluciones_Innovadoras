@@ -111,7 +111,7 @@
                   <% if movement_source_link.present? %>
                     <%= link_to movement_source_link[:path],
                                 class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800',
-                                data: { tooltip: movement_source_link[:label] },
+                                data: { tooltip: movement_source_link[:label], tooltip_side: 'left' },
                                 aria: { label: movement_source_link[:label] } do %>
                       <i data-lucide="eye" class="h-4 w-4"></i>
                     <% end %>

@@ -239,7 +239,30 @@
           tooltip.textContent = label;
           const rect = target.getBoundingClientRect();
           const top = rect.top + rect.height / 2;
-          const left = rect.right + 12;
+
+          const spacing = 12;
+          const viewportPadding = 8;
+          const explicitSide = String(target?.dataset?.tooltipSide || '').toLowerCase();
+          const preferredSide = explicitSide || (target?.classList?.contains('js-icon-tooltip') ? 'left' : 'right');
+          const tooltipWidth = tooltip.offsetWidth || 0;
+
+          let left = preferredSide === 'left'
+            ? rect.left - tooltipWidth - spacing
+            : rect.right + spacing;
+
+          const minLeft = viewportPadding;
+          const maxLeft = Math.max(viewportPadding, window.innerWidth - tooltipWidth - viewportPadding);
+
+          if (left < minLeft) {
+            left = rect.right + spacing;
+          }
+
+          if (left > maxLeft) {
+            left = rect.left - tooltipWidth - spacing;
+          }
+
+          left = Math.min(Math.max(left, minLeft), maxLeft);
+
           tooltip.style.top = `${top}px`;
           tooltip.style.left = `${left}px`;
           tooltip.style.transform = 'translate3d(0, -50%, 0)';
