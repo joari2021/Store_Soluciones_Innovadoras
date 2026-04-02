@@ -1359,9 +1359,6 @@
                     </svg>
                   </span>
                 </button>
-                ${allowMultiPayments
-                  ? `<button type="button" class="inline-flex shrink-0 items-center rounded-full border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 shadow-sm transition-colors hover:bg-sky-100" data-pay-multi-add="${account.id}" title="Agregar otro pago del mismo metodo">+ pago</button>`
-                  : ''}
               </div>
               <div class="ventas-pay-accordion-content" data-pay-content>
                 <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
@@ -1381,7 +1378,10 @@
                 </div>
                 ${allowMultiPayments
                   ? `<div class="mt-2 border-t border-slate-200 pt-2">
-                      <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos adicionales</p>
+                      <div class="flex items-center justify-between gap-2">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos adicionales</p>
+                        <button type="button" class="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100" data-pay-multi-add="${account.id}" title="Agregar otro pago del mismo metodo">+ pago</button>
+                      </div>
                       <div class="mt-2 space-y-2" data-pay-multi-list="${account.id}"></div>
                     </div>`
                   : ''}
@@ -6968,9 +6968,6 @@
                       </svg>
                     </span>
                   </button>
-                  ${allowMultiPayments
-                    ? `<button type="button" class="inline-flex shrink-0 items-center rounded-full border border-sky-300 bg-sky-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-sky-700 shadow-sm transition-colors hover:bg-sky-100" data-pay-multi-add="${account.id}" title="Agregar otro pago del mismo metodo">+ pago</button>`
-                    : ''}
                 </div>
                 <div class="ventas-pay-accordion-content" data-pay-content>
                   <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
@@ -6990,7 +6987,10 @@
                   </div>
                   ${allowMultiPayments
                     ? `<div class="mt-2 border-t border-slate-200 pt-2">
-                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos adicionales</p>
+                        <div class="flex items-center justify-between gap-2">
+                          <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos adicionales</p>
+                          <button type="button" class="inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:bg-sky-100" data-pay-multi-add="${account.id}" title="Agregar otro pago del mismo metodo">+ pago</button>
+                        </div>
                         <div class="mt-2 space-y-2" data-pay-multi-list="${account.id}"></div>
                       </div>`
                     : ''}
