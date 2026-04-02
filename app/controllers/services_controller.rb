@@ -444,14 +444,14 @@ class ServicesController < ApplicationController
                                  else
                                    'Comision de transferencia'
                                  end
-        commission_description = "#{commission_description} - Ref #{reference}" if reference.present?
 
         account.account_movements.create!(
           movement_kind: 'expense',
           amount: commission_amount,
           description: "#{commission_description} [DEBT:#{debt.id}] [LINE:#{line_id}] [DP:#{payment.id}] [COMMISSION]",
           occurred_at: movement_occurred_at,
-          payment_method: pending_cost_account_movement_method(payment_method)
+          payment_method: pending_cost_account_movement_method(payment_method),
+          reference: reference.presence
         )
       end
 

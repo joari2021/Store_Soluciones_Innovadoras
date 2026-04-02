@@ -34,13 +34,14 @@ module ApplicationHelper
     description = movement.description.to_s.strip
     return 'Sin descripción' if description.blank?
 
-    formatted_debt_description = normalize_debt_movement_description(description)
+    formatted_debt_description = normalize_debt_movement_description(movement)
     return formatted_debt_description if formatted_debt_description.present?
 
     cleaned = description
           .gsub(/\s*\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i, '')
               .gsub(/\s*\[LINE:[^\]]+\]/i, '')
               .gsub(/\s*\[COMMISSION\]/i, '')
+              .gsub(/\s*-\s*Ref\s+[^\s\]]+/i, '')
     if description.match?(/CAMBIO_EFECTIVO/i) || description.match?(/cambio de efectivo/i)
       cleaned = cleaned.gsub(/\s*#\d+\b/, '')
     end
@@ -49,6 +50,10 @@ module ApplicationHelper
     return turno_match[1].strip if turno_match.present?
 
     cleaned
+  end
+
+  def account_movement_reference(movement)
+    movement.reference.to_s.strip.presence || extract_movement_reference(movement.description)
   end
 
   def account_movement_source_link_data(movement)
@@ -145,7 +150,8 @@ module ApplicationHelper
 
   private
 
-  def normalize_debt_movement_description(description)
+  def normalize_debt_movement_description(movement)
+    description = movement.description.to_s
     action = detect_debt_movement_action(description)
     return nil if action.blank?
 
@@ -159,7 +165,7 @@ module ApplicationHelper
                        else
                          debt.description.to_s.strip.presence || 'Deuda sin descripcion'
                        end
-    reference = extract_movement_reference(description)
+    reference = account_movement_reference(movement)
 
     base = "#{action}: #{cliente_name} (#{debt_description})"
     return base if reference.blank?

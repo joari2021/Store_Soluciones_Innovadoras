@@ -203,14 +203,14 @@ class ExpensesController < ApplicationController
       movement_attrs[:payment_method] = normalize_account_movement_method(method)
     end
 
+    movement_attrs[:reference] = reference.presence if reference.present?
+
     account.account_movements.create!(movement_attrs)
   end
 
-  def build_movement_description(expense, reference)
+  def build_movement_description(expense, _reference)
     base = "Gasto #{expense.name} [GASTO:#{expense.id}]"
-    return base if reference.blank?
-
-    "#{base} - Ref #{reference}"
+    base
   end
 
   def normalize_account_movement_method(method)

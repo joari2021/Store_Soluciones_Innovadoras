@@ -14,7 +14,7 @@ class DebtPaymentsController < ApplicationController
       account: default_account,
       occurred_at: occurred_on,
       amount: default_payment_amount(default_currency, occurred_on),
-      currency: default_currency
+      currency: default_currency,
     )
 
     build_payment_context(selected_currency: default_currency, occurred_on: occurred_on)
@@ -34,27 +34,27 @@ class DebtPaymentsController < ApplicationController
       payment_method: debt_payment_params[:payment_method].presence,
       reference: debt_payment_params[:reference].presence,
       occurred_at: occurred_on,
-      notes: debt_payment_params[:notes]
+      notes: debt_payment_params[:notes],
     )
 
     build_payment_context(selected_currency: payment_currency, occurred_on: occurred_on)
 
     if account.blank?
-      @debt_payment.errors.add(:account, 'debe seleccionarse')
+      @debt_payment.errors.add(:account, "debe seleccionarse")
       return render :new, status: :unprocessable_entity
     end
 
     if payment_currency.blank?
-      @debt_payment.errors.add(:account, 'debe tener una moneda configurada')
+      @debt_payment.errors.add(:account, "debe tener una moneda configurada")
       return render :new, status: :unprocessable_entity
     end
 
-    if @debt.receivable? && account.account_type == 'bank_account'
+    if @debt.receivable? && account.account_type == "bank_account"
       duplicated_payment = find_duplicate_bank_receivable_payment(
         account_id: account.id,
         occurred_on: occurred_on,
         amount: amount,
-        reference: debt_payment_params[:reference].to_s.strip
+        reference: debt_payment_params[:reference].to_s.strip,
       )
 
       if duplicated_payment.present?
@@ -64,7 +64,7 @@ class DebtPaymentsController < ApplicationController
             account: account,
             occurred_on: occurred_on,
             amount: amount,
-            reference: debt_payment_params[:reference].to_s.strip
+            reference: debt_payment_params[:reference].to_s.strip,
           )
         )
         return render :new, status: :unprocessable_entity
@@ -82,7 +82,7 @@ class DebtPaymentsController < ApplicationController
     overpayment_amount = [amount.to_d - total_pending, 0.to_d].max.round(2)
 
     if overpayment_amount > 0.01.to_d && !allow_overpayment
-      @debt_payment.errors.add(:amount, 'excede el saldo pendiente total del grupo de deudas')
+      @debt_payment.errors.add(:amount, "excede el saldo pendiente total del grupo de deudas")
       return render :new, status: :unprocessable_entity
     end
 
@@ -91,7 +91,7 @@ class DebtPaymentsController < ApplicationController
       amount: amount,
       payment_currency: payment_currency,
       occurred_on: occurred_on,
-      allow_overpayment: allow_overpayment
+      allow_overpayment: allow_overpayment,
     )
 
     return render :new, status: :unprocessable_entity if payments_to_persist.blank?
@@ -101,10 +101,10 @@ class DebtPaymentsController < ApplicationController
     end
 
     notice = if payments_to_persist.size == 1
-               'Pago registrado.'
-             else
-               "Pago registrado y distribuido en #{payments_to_persist.size} deudas."
-             end
+        "Pago registrado."
+      else
+        "Pago registrado y distribuido en #{payments_to_persist.size} deudas."
+      end
 
     if overpayment_amount > 0.01.to_d
       symbol = Account::CURRENCIES.dig(payment_currency, :symbol) || payment_currency
@@ -135,7 +135,7 @@ class DebtPaymentsController < ApplicationController
     @currency_rates_to_ves = Account::CURRENCIES.keys.each_with_object({}) do |currency, hash|
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: Date.current).to_d.to_f
     end
-    @currency_rates_to_ves['VES'] = 1.0
+    @currency_rates_to_ves["VES"] = 1.0
   end
 
   def debt_payment_params
@@ -151,7 +151,7 @@ class DebtPaymentsController < ApplicationController
     return 0 if value.nil?
     return value.to_d if value.is_a?(Numeric)
 
-    cleaned = value.to_s.strip.tr(',', '.')
+    cleaned = value.to_s.strip.tr(",", ".")
     BigDecimal(cleaned)
   rescue ArgumentError
     0
@@ -161,7 +161,7 @@ class DebtPaymentsController < ApplicationController
     return nil if value.blank?
 
     raw = value.to_s.strip
-    Date.strptime(raw, '%d-%m-%Y')
+    Date.strptime(raw, "%d-%m-%Y")
   rescue ArgumentError
     begin
       Date.iso8601(raw)
@@ -176,26 +176,28 @@ class DebtPaymentsController < ApplicationController
     normalized_amount = amount.to_d.round(2)
     return nil unless normalized_amount.positive?
 
-    day_start = occurred_on.in_time_zone('America/Caracas').beginning_of_day
-    day_end = occurred_on.in_time_zone('America/Caracas').end_of_day
+    day_start = occurred_on.in_time_zone("America/Caracas").beginning_of_day
+    day_end = occurred_on.in_time_zone("America/Caracas").end_of_day
 
-        escaped_reference = Regexp.escape(reference)
-
-        scope = AccountMovement
-            .joins(:account)
-            .where(accounts: { business_id: current_business.id })
-            .where(account_id: account_id, movement_kind: 'income', amount: normalized_amount)
-            .where(occurred_at: day_start..day_end)
-          .where('account_movements.description ~ ?', "Ref #{escaped_reference}$")
+    scope = AccountMovement
+      .joins(:account)
+      .where(accounts: { business_id: current_business.id })
+      .where(account_id: account_id, movement_kind: "income", amount: normalized_amount)
+      .where(occurred_at: day_start..day_end)
+      .where(
+        "account_movements.reference = :reference OR account_movements.description ~ :legacy_pattern",
+        reference: reference,
+        legacy_pattern: "Ref #{Regexp.escape(reference)}$",
+      )
 
     scope.order(created_at: :desc).first
   end
 
   def duplicate_bank_receivable_payment_message(account:, occurred_on:, amount:, reference:)
     normalized_amount = amount.to_d.round(2)
-    date_label = occurred_on.strftime('%d/%m/%Y')
+    date_label = occurred_on.strftime("%d/%m/%Y")
 
-    "Ya existe un pago registrado en #{account.name} con monto #{normalized_amount.to_s('F')} #{account.currency}, fecha #{date_label} y referencia #{reference}."
+    "Ya existe un pago registrado en #{account.name} con monto #{normalized_amount.to_s("F")} #{account.currency}, fecha #{date_label} y referencia #{reference}."
   end
 
   def default_payment_amount(target_currency = @debt.currency, occurred_on = Date.current)
@@ -217,7 +219,7 @@ class DebtPaymentsController < ApplicationController
         balance_in_debt_currency: persisted_balance_in_debt_currency(debt),
         amount_usd_bcv: debt_amount_usd_bcv(debt),
         paid_usd_bcv: paid_amount_usd_bcv_for_debt(debt),
-        balance_usd_bcv: balance_usd_bcv_for_debt(debt)
+        balance_usd_bcv: balance_usd_bcv_for_debt(debt),
       }
     end
   end
@@ -243,7 +245,7 @@ class DebtPaymentsController < ApplicationController
         payment_method: debt_payment_params[:payment_method].presence,
         reference: debt_payment_params[:reference].presence,
         occurred_at: occurred_on,
-        notes: debt_payment_params[:notes]
+        notes: debt_payment_params[:notes],
       )
 
       unless payment.valid?
@@ -257,7 +259,7 @@ class DebtPaymentsController < ApplicationController
 
     if remaining_amount > 0.01.to_d
       unless allow_overpayment
-        @debt_payment.errors.add(:amount, 'excede el saldo distribuible del grupo de deudas')
+        @debt_payment.errors.add(:amount, "excede el saldo distribuible del grupo de deudas")
         return nil
       end
 
@@ -269,7 +271,7 @@ class DebtPaymentsController < ApplicationController
         payment_method: debt_payment_params[:payment_method].presence,
         reference: debt_payment_params[:reference].presence,
         occurred_at: occurred_on,
-        notes: debt_payment_params[:notes]
+        notes: debt_payment_params[:notes],
       )
 
       unless overpayment.valid?
@@ -282,7 +284,7 @@ class DebtPaymentsController < ApplicationController
     end
 
     if payments.empty?
-      @debt_payment.errors.add(:amount, 'no se pudo aplicar al grupo de deudas seleccionado')
+      @debt_payment.errors.add(:amount, "no se pudo aplicar al grupo de deudas seleccionado")
       return nil
     end
 
@@ -319,9 +321,9 @@ class DebtPaymentsController < ApplicationController
 
     conversion = CurrencyConverter.convert(
       amount: real_balance_usd,
-      from_currency: 'USD',
+      from_currency: "USD",
       to_currency: payment_currency,
-      on_date: occurred_on
+      on_date: occurred_on,
     )
 
     conversion&.dig(:amount).to_d
@@ -360,8 +362,8 @@ class DebtPaymentsController < ApplicationController
     conversion = CurrencyConverter.convert(
       amount: amount,
       from_currency: currency,
-      to_currency: 'USD',
-      on_date: date
+      to_currency: "USD",
+      on_date: date,
     )
 
     conversion&.dig(:amount).to_d
@@ -389,10 +391,10 @@ class DebtPaymentsController < ApplicationController
     return [debt] if root_id.blank?
 
     grouped = current_business
-              .debts
-              .where(cliente_id: debt.cliente_id, debt_kind: debt.debt_kind)
-              .includes(:debt_payments)
-              .select { |candidate| candidate.group_root_debt_id == root_id }
+      .debts
+      .where(cliente_id: debt.cliente_id, debt_kind: debt.debt_kind)
+      .includes(:debt_payments)
+      .select { |candidate| candidate.group_root_debt_id == root_id }
 
     grouped.presence || [debt]
   end

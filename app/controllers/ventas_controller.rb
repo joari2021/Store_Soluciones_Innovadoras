@@ -807,6 +807,8 @@ class VentasController < ApplicationController
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
           end
 
+          movement_attrs[:reference] = row[:reference].presence if row[:reference].present?
+
           account.account_movements.create!(movement_attrs)
         end
 
@@ -824,6 +826,8 @@ class VentasController < ApplicationController
             movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
           end
 
+          movement_attrs[:reference] = row[:reference].presence if row[:reference].present?
+
           account.account_movements.create!(movement_attrs)
 
           next unless account.account_type == "bank_account" && row[:payment_method] == "mobile"
@@ -838,6 +842,7 @@ class VentasController < ApplicationController
             occurred_at: Time.current,
             payment_method: normalize_account_movement_method("mobile"),
           }
+          commission_attrs[:reference] = row[:reference].presence if row[:reference].present?
           account.account_movements.create!(commission_attrs)
         end
 
@@ -2974,6 +2979,8 @@ class VentasController < ApplicationController
         movement_attrs[:payment_method] = normalize_account_movement_method(payment_row[:payment_method])
       end
 
+      movement_attrs[:reference] = payment_row[:reference].presence if payment_row[:reference].present?
+
       payment_row[:account].account_movements.create!(movement_attrs)
     end
   end
@@ -3221,12 +3228,7 @@ class VentasController < ApplicationController
   end
 
   def build_movement_description(venta, row, label)
-    reference = row[:reference].to_s.strip
-    if reference.present?
-      "#{label} venta ##{venta.id} [VENTA:#{venta.id}] - Ref #{reference}"
-    else
-      "#{label} venta ##{venta.id} [VENTA:#{venta.id}]"
-    end
+    "#{label} venta ##{venta.id} [VENTA:#{venta.id}]"
   end
 
   def normalize_account_movement_method(method)

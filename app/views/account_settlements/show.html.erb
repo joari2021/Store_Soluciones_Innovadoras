@@ -97,6 +97,9 @@
                 <% if movement.payment_method.present? %>
                   <p class="mt-1 text-xs text-slate-500">Metodo: <span class="font-semibold text-slate-700"><%= movement.payment_method_label %></span></p>
                 <% end %>
+                <% if account_movement_reference(movement).present? %>
+                  <p class="mt-1 text-xs text-slate-500">Referencia: <span class="font-semibold text-slate-700"><%= account_movement_reference(movement) %></span></p>
+                <% end %>
                 <p class="mt-1 text-sm text-slate-600"><%= account_movement_display_description(movement) %></p>
                 <% if movement_source_link.present? %>
                   <p class="mt-2">

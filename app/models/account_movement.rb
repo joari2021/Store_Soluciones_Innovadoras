@@ -22,6 +22,7 @@ class AccountMovement < ApplicationRecord
   validates :occurred_at, presence: true
   validates :payment_method, inclusion: { in: PAYMENT_METHODS.keys }, allow_blank: true
   validate :payment_method_rules
+  validate :reference_format_rules
   validate :sufficient_balance_for_debit
 
   after_commit :refresh_account_balance
@@ -52,6 +53,12 @@ class AccountMovement < ApplicationRecord
     elsif payment_method.present?
       errors.add(:payment_method, 'solo aplica a cuentas bancarias')
     end
+  end
+
+  def reference_format_rules
+    return if reference.blank?
+
+    errors.add(:reference, 'debe tener 4 digitos') unless reference.to_s.match?(/\A\d{4}\z/)
   end
 
   def sufficient_balance_for_debit

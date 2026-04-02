@@ -25,14 +25,14 @@ class AccountsController < ApplicationController
       @pending_period_start = pending_scope.minimum(:occurred_at)
       @pending_period_end = pending_scope.maximum(:occurred_at)
       @account_settlements = @account.account_settlements.where(processed_at: nil)
-      @account_settlements = if @account.account_type == 'biopago'
-                               @account_settlements.order(period_start_at: :asc, closed_at: :asc)
-                             else
-                               @account_settlements.order(closed_at: :desc)
-                             end
+      @account_settlements = if @account.account_type == "biopago"
+          @account_settlements.order(period_start_at: :asc, closed_at: :asc)
+        else
+          @account_settlements.order(closed_at: :desc)
+        end
       @processed_settlements_count = @account.account_settlements.where.not(processed_at: nil).count
 
-      if @account.account_type == 'biopago'
+      if @account.account_type == "biopago"
         biopago_close_info = build_biopago_pending_close_info(@account)
         @biopago_pending_day_to_close = biopago_close_info[:day]
         @biopago_pending_day_total = biopago_close_info[:total]
@@ -52,7 +52,7 @@ class AccountsController < ApplicationController
   end
 
   def new
-    @account = current_business.accounts.new(account_type: 'bank_account', currency: 'USD', theme_color: 'sky',
+    @account = current_business.accounts.new(account_type: "bank_account", currency: "USD", theme_color: "sky",
                                              balance: 0, active: true)
   end
 
@@ -61,7 +61,7 @@ class AccountsController < ApplicationController
 
     if @account.save
       Account.sync_shared_fields!(@account)
-      redirect_to accounts_path, notice: 'Cuenta creada'
+      redirect_to accounts_path, notice: "Cuenta creada"
     else
       render :new, status: :unprocessable_entity
     end
@@ -72,7 +72,7 @@ class AccountsController < ApplicationController
   def update
     if @account.update(account_params)
       Account.sync_shared_fields!(@account)
-      redirect_to account_path(@account), notice: 'Cuenta actualizada'
+      redirect_to account_path(@account), notice: "Cuenta actualizada"
     else
       render :edit, status: :unprocessable_entity
     end
@@ -81,10 +81,10 @@ class AccountsController < ApplicationController
   def destroy
     shared_key = @account.shared_key
     accounts_to_delete = if shared_key.present? && @account.syncable_across_businesses?
-                           Account.where(shared_key: shared_key)
-                         else
-                           Account.where(id: @account.id)
-                         end
+        Account.where(shared_key: shared_key)
+      else
+        Account.where(id: @account.id)
+      end
 
     account_ids = accounts_to_delete.select(:id)
     Account.where(settlement_account_id: account_ids)
@@ -93,30 +93,30 @@ class AccountsController < ApplicationController
                      .update_all(settlement_account_id: nil, updated_at: Time.current)
 
     accounts_to_delete.find_each(&:destroy)
-    redirect_to accounts_path, notice: 'Cuenta eliminada'
+    redirect_to accounts_path, notice: "Cuenta eliminada"
   end
 
   def set_primary
-    unless @account.account_type == 'bank_account'
-      redirect_to accounts_path, alert: 'Solo cuentas bancarias pueden ser principales.'
+    unless @account.account_type == "bank_account"
+      redirect_to accounts_path, alert: "Solo cuentas bancarias pueden ser principales."
       return
     end
 
     if @account.update(is_primary: true)
-      redirect_to accounts_path, notice: 'Cuenta principal actualizada.'
+      redirect_to accounts_path, notice: "Cuenta principal actualizada."
     else
       redirect_to accounts_path, alert: @account.errors.full_messages.to_sentence
     end
   end
 
   def unset_primary
-    unless @account.account_type == 'bank_account'
-      redirect_to accounts_path, alert: 'Solo cuentas bancarias pueden ser principales.'
+    unless @account.account_type == "bank_account"
+      redirect_to accounts_path, alert: "Solo cuentas bancarias pueden ser principales."
       return
     end
 
     if @account.update(is_primary: false)
-      redirect_to accounts_path, notice: 'Cuenta principal removida.'
+      redirect_to accounts_path, notice: "Cuenta principal removida."
     else
       redirect_to accounts_path, alert: @account.errors.full_messages.to_sentence
     end
@@ -124,44 +124,44 @@ class AccountsController < ApplicationController
 
   def transfer
     target_account = current_business.accounts.find_by(id: params[:target_account_id])
-    return redirect_to accounts_path, alert: 'Selecciona una cuenta destino valida.' if target_account.blank?
+    return redirect_to accounts_path, alert: "Selecciona una cuenta destino valida." if target_account.blank?
 
     if target_account.id == @account.id
-      return redirect_to accounts_path, alert: 'La cuenta destino debe ser diferente a la cuenta origen.'
+      return redirect_to accounts_path, alert: "La cuenta destino debe ser diferente a la cuenta origen."
     end
 
     transfer_date = parse_transfer_date(params[:transfer_date])
-    return redirect_to accounts_path, alert: 'Indica una fecha valida para la transferencia.' if transfer_date.blank?
+    return redirect_to accounts_path, alert: "Indica una fecha valida para la transferencia." if transfer_date.blank?
 
     amount_from = parse_transfer_decimal(params[:amount_from])
-    return redirect_to accounts_path, alert: 'Indica un monto origen valido mayor a 0.' unless amount_from.positive?
+    return redirect_to accounts_path, alert: "Indica un monto origen valido mayor a 0." unless amount_from.positive?
 
     transfer_payment_method = normalize_transfer_payment_method(params[:transfer_payment_method])
     if transfer_payment_method.blank?
       return redirect_to accounts_path,
-                         alert: 'Selecciona un metodo de pago valido para la transferencia.'
+                         alert: "Selecciona un metodo de pago valido para la transferencia."
     end
 
     reference = params[:reference].to_s.strip
     unless valid_bank_reference?(reference)
       return redirect_to accounts_path,
-                         alert: 'La referencia debe tener exactamente 4 digitos.'
+                         alert: "La referencia debe tener exactamente 4 digitos."
     end
 
     suggested_target = suggested_transfer_amount(
       amount_from: amount_from,
       from_account: @account,
       to_account: target_account,
-      transfer_date: transfer_date
+      transfer_date: transfer_date,
     )
     if suggested_target.blank?
       return redirect_to accounts_path,
-                         alert: 'No se pudo convertir el monto para la cuenta destino.'
+                         alert: "No se pudo convertir el monto para la cuenta destino."
     end
 
     amount_to = parse_transfer_decimal(params[:amount_to])
     amount_to = suggested_target if amount_to <= 0
-    return redirect_to accounts_path, alert: 'Indica un monto destino valido mayor a 0.' unless amount_to.positive?
+    return redirect_to accounts_path, alert: "Indica un monto destino valido mayor a 0." unless amount_to.positive?
 
     commission_amount = 0.to_d
     commission_account = nil
@@ -170,7 +170,7 @@ class AccountsController < ApplicationController
       commission_account = current_business.accounts.find_by(id: params[:commission_account_id])
       if commission_account.blank? || ![target_account.id, @account.id].include?(commission_account.id)
         return redirect_to accounts_path,
-                           alert: 'Selecciona cual cuenta asumira la comision de la transferencia.'
+                           alert: "Selecciona cual cuenta asumira la comision de la transferencia."
       end
 
       commission_amount = parse_transfer_decimal(params[:commission_amount])
@@ -179,13 +179,13 @@ class AccountsController < ApplicationController
           amount_from: amount_from,
           from_account: @account,
           commission_account: commission_account,
-          transfer_date: transfer_date
+          transfer_date: transfer_date,
         )
       end
 
       unless commission_amount&.positive?
         return redirect_to accounts_path,
-                           alert: 'No se pudo calcular la comision de la transferencia.'
+                           alert: "No se pudo calcular la comision de la transferencia."
       end
     end
 
@@ -201,69 +201,72 @@ class AccountsController < ApplicationController
         return redirect_to accounts_path,
                            alert: target_account.insufficient_balance_message(
                              commission_amount,
-                             available_balance: target_available_after_transfer
+                             available_balance: target_available_after_transfer,
                            )
       end
     end
 
-    caracas_now = Time.current.in_time_zone('America/Caracas')
+    caracas_now = Time.current.in_time_zone("America/Caracas")
     occurred_at = caracas_now.change(year: transfer_date.year, month: transfer_date.month, day: transfer_date.day)
 
     AccountMovement.transaction do
       outgoing = @account.account_movements.create!(
-        movement_kind: 'expense',
+        movement_kind: "expense",
         amount: amount_from,
         occurred_at: occurred_at,
         payment_method: transfer_payment_method_for(@account, transfer_payment_method),
-        description: transfer_movement_description(base: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}]", reference: reference)
+        reference: reference.presence,
+        description: transfer_movement_description(base: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}]", reference: reference),
       )
 
       incoming = target_account.account_movements.create!(
-        movement_kind: 'income',
+        movement_kind: "income",
         amount: amount_to,
         occurred_at: occurred_at,
         payment_method: transfer_payment_method_for(target_account, transfer_payment_method),
-        description: transfer_movement_description(base: "Transferencia desde cuenta #{@account.name} [ACCOUNT:#{@account.id}] [AM:#{outgoing.id}]", reference: reference)
+        reference: reference.presence,
+        description: transfer_movement_description(base: "Transferencia desde cuenta #{@account.name} [ACCOUNT:#{@account.id}] [AM:#{outgoing.id}]", reference: reference),
       )
 
       outgoing.update!(
-        description: transfer_movement_description(base: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]", reference: reference)
+        description: transfer_movement_description(base: "Transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]", reference: reference),
       )
 
       if commission_amount.positive? && commission_account.present?
         commission_account.account_movements.create!(
-          movement_kind: 'expense',
+          movement_kind: "expense",
           amount: commission_amount,
           occurred_at: occurred_at,
           payment_method: transfer_payment_method_for(commission_account, transfer_payment_method),
-          description: transfer_movement_description(base: "Comision de #{transfer_payment_method_label(transfer_payment_method)} por transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]", reference: reference)
+          reference: reference.presence,
+          description: transfer_movement_description(base: "Comision de #{transfer_payment_method_label(transfer_payment_method)} por transferencia a cuenta #{target_account.name} [ACCOUNT:#{target_account.id}] [AM:#{incoming.id}]", reference: reference),
         )
       end
     end
 
-    redirect_to accounts_path, notice: 'Transferencia registrada correctamente.'
+    redirect_to accounts_path, notice: "Transferencia registrada correctamente."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to accounts_path, alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
   def register_payment
     if Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type)
-      return redirect_to account_path(@account), alert: 'No se pueden registrar pagos en cuentas especiales.'
+      return redirect_to account_path(@account), alert: "No se pueden registrar pagos en cuentas especiales."
     end
 
     concept = params[:concept].to_s.strip
-    return redirect_to account_path(@account), alert: 'Indica el concepto del pago.' if concept.blank?
+    return redirect_to account_path(@account), alert: "Indica el concepto del pago." if concept.blank?
 
     payment_date = parse_transfer_date(params[:payment_date])
-    return redirect_to account_path(@account), alert: 'Indica una fecha valida para el pago.' if payment_date.blank?
+    return redirect_to account_path(@account), alert: "Indica una fecha valida para el pago." if payment_date.blank?
 
     amount = parse_transfer_decimal(params[:amount])
-    return redirect_to account_path(@account), alert: 'Indica un monto valido mayor a 0.' unless amount.positive?
+    return redirect_to account_path(@account), alert: "Indica un monto valido mayor a 0." unless amount.positive?
 
     include_commission = ActiveModel::Type::Boolean.new.cast(params[:include_commission])
     commission_amount = include_commission ? parse_transfer_decimal(params[:commission_amount]) : 0.to_d
     if include_commission && !commission_amount.positive?
-      return redirect_to account_path(@account), alert: 'Indica un monto de comision valido mayor a 0.'
+      return redirect_to account_path(@account), alert: "Indica un monto de comision valido mayor a 0."
     end
 
     total_debit = (amount + commission_amount).round(2)
@@ -272,39 +275,41 @@ class AccountsController < ApplicationController
       return redirect_to account_path(@account), alert: @account.insufficient_balance_message(total_debit)
     end
 
-    caracas_now = Time.current.in_time_zone('America/Caracas')
+    caracas_now = Time.current.in_time_zone("America/Caracas")
     occurred_at = caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
 
-    payment_method = @account.account_type == 'bank_account' ? 'transfer' : nil
+    payment_method = @account.account_type == "bank_account" ? "transfer" : nil
     reference = params[:reference].to_s.strip
 
-    if @account.account_type == 'bank_account' && !valid_bank_reference?(reference)
-      return redirect_to account_path(@account), alert: 'La referencia debe tener exactamente 4 digitos.'
+    if @account.account_type == "bank_account" && !valid_bank_reference?(reference)
+      return redirect_to account_path(@account), alert: "La referencia debe tener exactamente 4 digitos."
     end
 
     movement = nil
 
     AccountMovement.transaction do
       movement = @account.account_movements.create!(
-        movement_kind: 'expense',
+        movement_kind: "expense",
         amount: amount,
         occurred_at: occurred_at,
         payment_method: payment_method,
-        description: transfer_movement_description(base: "Pago: #{concept}", reference: reference)
+        reference: reference.presence,
+        description: transfer_movement_description(base: "Pago: #{concept}", reference: reference),
       )
 
       if include_commission && commission_amount.positive?
         @account.account_movements.create!(
-          movement_kind: 'expense',
+          movement_kind: "expense",
           amount: commission_amount,
           occurred_at: occurred_at,
           payment_method: payment_method,
-          description: transfer_movement_description(base: "Comision de pago: #{concept}", reference: reference)
+          reference: reference.presence,
+          description: transfer_movement_description(base: "Comision de pago: #{concept}", reference: reference),
         )
       end
     end
 
-    redirect_to account_path(@account, movement_id: movement.id), notice: 'Pago registrado correctamente.'
+    redirect_to account_path(@account, movement_id: movement.id), notice: "Pago registrado correctamente."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to account_path(@account), alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
@@ -323,7 +328,7 @@ class AccountsController < ApplicationController
     @selected_fecha_hasta_value = normalized_filter_date_value(params[:fecha_hasta], @selected_fecha_hasta)
     @movement_filters_applied = [
       params[:fecha_desde].to_s.strip,
-      params[:fecha_hasta].to_s.strip
+      params[:fecha_hasta].to_s.strip,
     ].any?(&:present?)
   end
 
@@ -331,13 +336,13 @@ class AccountsController < ApplicationController
     filtered_scope = scope
 
     if @selected_fecha_desde.present?
-      filtered_scope = filtered_scope.where('occurred_at >= ?',
-                                            @selected_fecha_desde.in_time_zone('America/Caracas').beginning_of_day)
+      filtered_scope = filtered_scope.where("occurred_at >= ?",
+                                            @selected_fecha_desde.in_time_zone("America/Caracas").beginning_of_day)
     end
 
     if @selected_fecha_hasta.present?
-      filtered_scope = filtered_scope.where('occurred_at <= ?',
-                                            @selected_fecha_hasta.in_time_zone('America/Caracas').end_of_day)
+      filtered_scope = filtered_scope.where("occurred_at <= ?",
+                                            @selected_fecha_hasta.in_time_zone("America/Caracas").end_of_day)
     end
 
     filtered_scope
@@ -347,7 +352,7 @@ class AccountsController < ApplicationController
     return nil if raw_value.blank?
 
     normalized = raw_value.to_s.strip
-    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.strptime(normalized.tr("/", "-"), "%d-%m-%Y") if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
     return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 
     Date.parse(normalized)
@@ -356,7 +361,7 @@ class AccountsController < ApplicationController
   end
 
   def normalized_filter_date_value(raw_value, parsed_value)
-    return parsed_value.strftime('%d-%m-%Y') if parsed_value.present?
+    return parsed_value.strftime("%d-%m-%Y") if parsed_value.present?
 
     raw_value.to_s.strip
   end
@@ -372,7 +377,7 @@ class AccountsController < ApplicationController
     return nil if raw_value.blank?
 
     normalized = raw_value.to_s.strip
-    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.strptime(normalized.tr("/", "-"), "%d-%m-%Y") if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
     return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 
     Date.parse(normalized)
@@ -384,12 +389,12 @@ class AccountsController < ApplicationController
     return 0.to_d if value.blank?
     return value.to_d if value.is_a?(Numeric)
 
-    cleaned = value.to_s.strip.gsub(/\s/, '').gsub(/[^\d.,-]/, '')
-    normalized = if cleaned.include?(',')
-                   cleaned.gsub('.', '').gsub(',', '.')
-                 else
-                   cleaned
-                 end
+    cleaned = value.to_s.strip.gsub(/\s/, "").gsub(/[^\d.,-]/, "")
+    normalized = if cleaned.include?(",")
+        cleaned.gsub(".", "").gsub(",", ".")
+      else
+        cleaned
+      end
 
     BigDecimal(normalized)
   rescue ArgumentError
@@ -408,7 +413,7 @@ class AccountsController < ApplicationController
 
   def transfer_rate_to_ves(currency:, transfer_date:)
     code = currency.to_s.upcase
-    return 1.to_d if code == 'VES'
+    return 1.to_d if code == "VES"
 
     on_date = %w[USD EUR].include?(code) ? transfer_date : nil
     CurrencyConverter.rate_to_ves(code, on_date: on_date).to_d
@@ -425,11 +430,8 @@ class AccountsController < ApplicationController
     value.to_s.match?(/\A\d{4}\z/)
   end
 
-  def transfer_movement_description(base:, reference:)
-    normalized_reference = reference.to_s.strip
-    return base if normalized_reference.blank?
-
-    "#{base} - Ref #{normalized_reference}"
+  def transfer_movement_description(base:, reference: nil)
+    base
   end
 
   def transfer_commission_applicable?(payment_method)
@@ -457,7 +459,7 @@ class AccountsController < ApplicationController
   end
 
   def transfer_payment_method_for(account, payment_method)
-    account.account_type == 'bank_account' ? payment_method : nil
+    account.account_type == "bank_account" ? payment_method : nil
   end
 
   def set_account
@@ -472,14 +474,14 @@ class AccountsController < ApplicationController
         currency: account.currency,
         symbol: account.currency_symbol,
         balance: account.balance.to_d.to_f,
-        account_type: account.account_type
+        account_type: account.account_type,
       }
     end
 
     @transfer_latest_rates = Account::CURRENCIES.keys.each_with_object({}) do |currency, hash|
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: nil).to_d.to_f
     end
-    @transfer_latest_rates['VES'] = 1.0
+    @transfer_latest_rates["VES"] = 1.0
   end
 
   def account_params
@@ -500,18 +502,18 @@ class AccountsController < ApplicationController
   end
 
   def set_bcv_rate
-    @bcv_rate = TasaCambio.latest_value('Dolar BCV')
-    @usdt_rate = TasaCambio.latest_value('USDT') || TasaCambio.latest_value('USDT Bybit')
+    @bcv_rate = TasaCambio.latest_value("Dolar BCV")
+    @usdt_rate = TasaCambio.latest_value("USDT") || TasaCambio.latest_value("USDT Bybit")
   end
 
   def load_bank_accounts_ves
     @bank_accounts_ves = current_business.accounts
-                                         .where(account_type: 'bank_account', currency: 'VES')
+                                         .where(account_type: "bank_account", currency: "VES")
                                          .order(:name)
   end
 
   def build_biopago_pending_close_info(account)
-    return default_biopago_close_info unless account&.account_type == 'biopago'
+    return default_biopago_close_info unless account&.account_type == "biopago"
 
     oldest_pending_settlement = account.account_settlements
                                        .where(processed_at: nil)
@@ -520,32 +522,32 @@ class AccountsController < ApplicationController
 
     if oldest_pending_settlement.present?
       period_start = oldest_pending_settlement.period_start_at || oldest_pending_settlement.closed_at
-      period_day = period_start&.in_time_zone('America/Caracas')&.to_date
+      period_day = period_start&.in_time_zone("America/Caracas")&.to_date
 
       return {
-        day: period_day,
-        total: oldest_pending_settlement.total_amount.to_d.round(2),
-        movements_count: oldest_pending_settlement.movements_count,
-        closable: oldest_pending_settlement.total_amount.to_d.positive?
-      }
+               day: period_day,
+               total: oldest_pending_settlement.total_amount.to_d.round(2),
+               movements_count: oldest_pending_settlement.movements_count,
+               closable: oldest_pending_settlement.total_amount.to_d.positive?,
+             }
     end
 
-    now_caracas = Time.current.in_time_zone('America/Caracas')
+    now_caracas = Time.current.in_time_zone("America/Caracas")
     today_start = now_caracas.beginning_of_day
 
     pending_before_today = account.account_movements
                                   .where(account_settlement_id: nil)
-                                  .where('occurred_at < ?', today_start)
+                                  .where("occurred_at < ?", today_start)
 
     oldest_movement = pending_before_today.to_a.min_by do |movement|
-      occurred_at_caracas = movement.occurred_at&.in_time_zone('America/Caracas')
+      occurred_at_caracas = movement.occurred_at&.in_time_zone("America/Caracas")
       [occurred_at_caracas&.to_date, occurred_at_caracas, movement.id]
     end
     return default_biopago_close_info if oldest_movement.blank?
 
-    oldest_day = oldest_movement.occurred_at.in_time_zone('America/Caracas').to_date
-    day_start = oldest_day.in_time_zone('America/Caracas').beginning_of_day
-    day_end = oldest_day.in_time_zone('America/Caracas').end_of_day
+    oldest_day = oldest_movement.occurred_at.in_time_zone("America/Caracas").to_date
+    day_start = oldest_day.in_time_zone("America/Caracas").beginning_of_day
+    day_end = oldest_day.in_time_zone("America/Caracas").end_of_day
 
     day_scope = account.account_movements
                        .where(account_settlement_id: nil)
@@ -559,7 +561,7 @@ class AccountsController < ApplicationController
       day: oldest_day,
       total: day_total,
       movements_count: day_scope.count,
-      closable: day_total.positive?
+      closable: day_total.positive?,
     }
   end
 
@@ -568,7 +570,7 @@ class AccountsController < ApplicationController
       day: nil,
       total: 0.to_d,
       movements_count: 0,
-      closable: false
+      closable: false,
     }
   end
 end
