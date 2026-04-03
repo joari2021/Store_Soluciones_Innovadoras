@@ -1644,6 +1644,7 @@ class VentasController < ApplicationController
         pricing_mode: service.pricing_mode,
         delivery_physical_enabled: service.delivery_physical_enabled?,
         delivery_digital_enabled: service.delivery_digital_enabled?,
+        warn_digital_only_delivery_in_sales: service.warn_digital_only_delivery_in_sales?,
         cost_enabled: service.cost?,
         unit_cost_usd: unit_cost_usd&.to_f,
         currency_base_price: currency_base_reference,

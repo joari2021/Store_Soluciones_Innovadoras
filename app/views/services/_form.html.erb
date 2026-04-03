@@ -172,6 +172,16 @@
         </span>
       </label>
     </div>
+    <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+      <label class="inline-flex cursor-pointer items-start gap-3 text-sm text-amber-800">
+        <%= form.check_box :warn_digital_only_delivery_in_sales,
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-amber-300 text-amber-600 focus:ring-amber-500" %>
+        <span>
+          <span class="block font-semibold">Mostrar advertencia en ventas (solo entrega digital)</span>
+          <span class="mt-0.5 block text-xs text-amber-700">Si esta activa y el servicio solo permite entrega digital, se mostrara un aviso al agregarlo al panel de cobro.</span>
+        </span>
+      </label>
+    </div>
     <div class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50/70 p-4" data-delivery-physical-panel>
       <div class="flex justify-end">
         <div class="w-full md:max-w-xs">

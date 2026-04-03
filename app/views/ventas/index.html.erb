@@ -5572,11 +5572,12 @@
           && deliveryOptions.length === 1
           && deliveryOptions[0]?.value === 'digital'
         );
-        if (isDigitalOnlyDelivery && window.Swal) {
+        const shouldWarnDigitalOnlyDelivery = Boolean(service.warn_digital_only_delivery_in_sales);
+        if (isDigitalOnlyDelivery && shouldWarnDigitalOnlyDelivery && window.Swal) {
           await window.Swal.fire({
             icon: 'info',
             title: 'Entrega digital',
-            text: 'Este servicio solo incluye entrega digital, si requiere alguna impresion o producto debe anexarlo adicionalmente',
+            text: 'El precio de este servicio solo incluye entrega digital, si requiere alguna impresion, producto y/o servicio adicional debe anexarlo adicionalmente',
             heightAuto: false,
           });
         }

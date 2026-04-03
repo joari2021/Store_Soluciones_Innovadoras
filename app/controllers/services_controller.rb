@@ -862,6 +862,7 @@ class ServicesController < ApplicationController
       :restricted_service,
       :delivery_physical_enabled,
       :delivery_digital_enabled,
+      :warn_digital_only_delivery_in_sales,
       :print_delivery_service_id,
       :print_delivery_material_surcharge_id,
       :print_delivery_pages,
