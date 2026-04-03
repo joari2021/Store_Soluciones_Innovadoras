@@ -29,7 +29,7 @@ module Authentication
 
       if last_seen_at.positive? && (now - last_seen_at) > INACTIVITY_TIMEOUT_SECONDS
         reset_session
-        redirect_to new_session_path, alert: 'Tu sesion expiro por inactividad.'
+        redirect_to new_session_path, alert: "Tu sesion expiro por inactividad."
         return
       end
 
@@ -37,7 +37,7 @@ module Authentication
     end
 
     def protect_pages
-      redirect_to new_session_path, alert: 'Debes iniciar Sesion' unless Current.user
+      redirect_to new_session_path, alert: "Debes iniciar Sesion" unless Current.user
     end
   end
 end

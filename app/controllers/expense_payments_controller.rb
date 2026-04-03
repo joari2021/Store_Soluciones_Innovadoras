@@ -7,7 +7,7 @@ class ExpensePaymentsController < ApplicationController
     @expense_payment = @expense.expense_payments.new(
       occurred_at: Time.current,
       amount: @expense.amount,
-      currency: @expense.currency.presence || 'USD'
+      currency: @expense.currency.presence || "USD",
     )
   end
 
@@ -19,11 +19,11 @@ class ExpensePaymentsController < ApplicationController
     @expense_payment = @expense.expense_payments.new(
       account: account,
       amount: amount,
-      currency: account&.currency || 'USD',
+      currency: account&.currency || "USD",
       payment_method: expense_payment_params[:payment_method].presence,
       reference: expense_payment_params[:reference].presence,
       occurred_at: occurred_at,
-      notes: expense_payment_params[:notes]
+      notes: expense_payment_params[:notes],
     )
 
     if account.present? && amount.to_d.positive? && amount.to_d > account.balance.to_d
@@ -39,7 +39,7 @@ class ExpensePaymentsController < ApplicationController
       @expense.register_payment!(occurred_at.to_date)
     end
 
-    redirect_to expense_path(@expense), notice: 'Pago registrado.'
+    redirect_to expense_path(@expense), notice: "Pago registrado."
   rescue ActiveRecord::RecordInvalid => e
     @expense_payment.errors.add(:base, e.message)
     render :new, status: :unprocessable_entity
@@ -61,13 +61,13 @@ class ExpensePaymentsController < ApplicationController
 
   def create_account_movement(account, amount, occurred_at)
     movement_attrs = {
-      movement_kind: 'expense',
+      movement_kind: "expense",
       amount: amount,
       description: build_movement_description,
-      occurred_at: occurred_at
+      occurred_at: occurred_at,
     }
 
-    if account&.account_type == 'bank_account' && @expense_payment.payment_method.present?
+    if account&.account_type == "bank_account" && @expense_payment.payment_method.present?
       movement_attrs[:payment_method] = normalize_account_movement_method(@expense_payment.payment_method)
     end
 
@@ -82,7 +82,7 @@ class ExpensePaymentsController < ApplicationController
   end
 
   def normalize_account_movement_method(method)
-    return 'mobile_payment' if method.to_s == 'mobile'
+    return "mobile_payment" if method.to_s == "mobile"
 
     method.to_s
   end
@@ -91,11 +91,11 @@ class ExpensePaymentsController < ApplicationController
     return 0 if value.nil?
     return value.to_d if value.is_a?(Numeric)
 
-    cleaned = value.to_s.strip.gsub(/[^\d,.-]/, '')
-    if cleaned.include?(',') && cleaned.include?('.')
-      cleaned = cleaned.gsub('.', '').tr(',', '.')
-    elsif cleaned.include?(',')
-      cleaned = cleaned.tr(',', '.')
+    cleaned = value.to_s.strip.gsub(/[^\d,.-]/, "")
+    if cleaned.include?(",") && cleaned.include?(".")
+      cleaned = cleaned.gsub(".", "").tr(",", ".")
+    elsif cleaned.include?(",")
+      cleaned = cleaned.tr(",", ".")
     end
 
     BigDecimal(cleaned)
@@ -108,7 +108,7 @@ class ExpensePaymentsController < ApplicationController
 
     raw = value.to_s.strip
 
-    return Date.strptime(raw.tr('/', '-'), '%d-%m-%Y').in_time_zone if raw.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.strptime(raw.tr("/", "-"), "%d-%m-%Y").in_time_zone if raw.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
 
     return Date.iso8601(raw).in_time_zone if raw.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 
