@@ -155,6 +155,8 @@
             <div class="relative mt-3 aspect-[16/10] overflow-hidden rounded-xl bg-slate-100">
               <% if service.system_service&.recarga_system? && service.recarga_image&.attached? %>
                 <%= image_tag service.recarga_image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.description %>
+              <% elsif service.use_custom_image_for_display? && service.custom_display_image&.attached? %>
+                <%= image_tag service.custom_display_image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.description %>
               <% elsif service.system_service&.image&.attached? %>
                 <%= image_tag service.system_service.image, class: "h-full w-full object-cover transition duration-500 group-hover:scale-105", alt: service.system_service.name %>
               <% else %>

@@ -52,6 +52,8 @@
     <div class="mt-3 aspect-[2/1] overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300 transition-transform group-hover:scale-[1.02]">
       <% if service.system_service&.recarga_system? && service.recarga_image&.attached? %>
         <%= image_tag service.recarga_image, class: 'h-full w-full object-cover transition duration-500 group-hover:scale-105', alt: service.description.to_s %>
+      <% elsif service.use_custom_image_for_display? && service.custom_display_image&.attached? %>
+        <%= image_tag service.custom_display_image, class: 'h-full w-full object-cover transition duration-500 group-hover:scale-105', alt: service.description.to_s %>
       <% elsif service.system_service&.image&.attached? %>
         <%= image_tag service.system_service.image, class: 'h-full w-full object-cover transition duration-500 group-hover:scale-105', alt: service.system_service.name %>
       <% else %>

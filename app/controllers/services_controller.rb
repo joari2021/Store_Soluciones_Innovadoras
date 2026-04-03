@@ -863,6 +863,8 @@ class ServicesController < ApplicationController
       :delivery_physical_enabled,
       :delivery_digital_enabled,
       :warn_digital_only_delivery_in_sales,
+      :use_custom_image_for_display,
+      :custom_display_image,
       :print_delivery_service_id,
       :print_delivery_material_surcharge_id,
       :print_delivery_pages,

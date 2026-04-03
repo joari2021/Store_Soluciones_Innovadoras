@@ -67,6 +67,31 @@
                         data: { pricing_mode_select: true } %>
       </div>
     </div>
+    <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4" data-custom-service-image-section>
+      <label class="inline-flex cursor-pointer items-start gap-3 text-sm text-slate-700">
+        <%= form.check_box :use_custom_image_for_display,
+                           class: "mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500",
+                           data: { custom_service_image_toggle: true } %>
+        <span>
+          <span class="block font-semibold">Usar imagen especifica para este servicio</span>
+          <span class="mt-0.5 block text-xs text-slate-500">Si esta desactivado, se mostrara la imagen del system service asociado.</span>
+        </span>
+      </label>
+      <div class="mt-3 <%= form.object.use_custom_image_for_display? ? '' : 'hidden' %>" data-custom-service-image-panel>
+        <%= form.label :custom_display_image, "Imagen del servicio", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.file_field :custom_display_image,
+                            accept: 'image/*',
+                            class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                            data: { custom_service_image_input: true } %>
+        <% if form.object.custom_display_image&.attached? %>
+          <p class="mt-2 text-xs text-slate-500">Imagen actual configurada para este servicio.</p>
+          <%= image_tag form.object.custom_display_image, class: "mt-2 h-24 w-24 rounded-xl border border-slate-200 object-cover", alt: form.object.description.to_s %>
+        <% end %>
+      </div>
+      <p class="mt-2 hidden text-xs font-semibold text-amber-700" data-custom-service-image-recarga-note>
+        Para servicios de recarga se utiliza la imagen configurada en Parametros de recargas.
+      </p>
+    </div>
     <div class="mt-4 grid gap-4 md:grid-cols-2">
       <% fixed_reference = form.object.currency_base_price.to_s.strip.presence || "Dolar BCV" %>
       <% fixed_reference = "Dolar BCV" if fixed_reference == "$" %>
@@ -634,6 +659,11 @@
               return /encuadern/.test(label);
             };
 
+            const isRecargaSystemServiceSelected = () => {
+              const label = selectedSystemLabel();
+              return /recarga/.test(label);
+            };
+
             const refreshStatusVisibility = () => {
               const printingSelected = isPrintingSystemServiceSelected();
 
@@ -692,6 +722,11 @@
             const physicalExtraProductsContainer = form.querySelector('[data-physical-extra-products-container]');
             const addPhysicalExtraProductButton = form.querySelector('[data-add-physical-extra-product-row]');
             const physicalExtraProductsHidden = form.querySelector('[data-physical-extra-products-hidden="true"]');
+            const customServiceImageSection = form.querySelector('[data-custom-service-image-section]');
+            const customServiceImageToggle = form.querySelector('[data-custom-service-image-toggle="true"]');
+            const customServiceImagePanel = form.querySelector('[data-custom-service-image-panel]');
+            const customServiceImageInput = form.querySelector('[data-custom-service-image-input="true"]');
+            const customServiceImageRecargaNote = form.querySelector('[data-custom-service-image-recarga-note]');
 
             const printTypesPayload = (() => {
               try {
@@ -811,6 +846,29 @@
               });
             };
 
+            const refreshCustomServiceImageVisibility = () => {
+              const isRecargaSystem = isRecargaSystemServiceSelected();
+              if (!customServiceImageSection || !customServiceImageToggle) return;
+
+              if (isRecargaSystem) {
+                customServiceImageToggle.checked = false;
+              }
+
+              customServiceImageToggle.disabled = isRecargaSystem;
+              customServiceImageSection.classList.toggle('opacity-70', isRecargaSystem);
+
+              const showPanel = !isRecargaSystem && customServiceImageToggle.checked;
+              if (customServiceImagePanel) {
+                customServiceImagePanel.classList.toggle('hidden', !showPanel);
+              }
+              if (customServiceImageInput) {
+                customServiceImageInput.disabled = !showPanel;
+              }
+              if (customServiceImageRecargaNote) {
+                customServiceImageRecargaNote.classList.toggle('hidden', !isRecargaSystem);
+              }
+            };
+
             const refreshPrintCoverageVisibility = () => {
               const printingSelected = isPrintingSystemServiceSelected();
               const laminationSelected = isLaminationSystemServiceSelected();
@@ -855,6 +913,7 @@
               }
 
               refreshPhysicalPanel();
+              refreshCustomServiceImageVisibility();
             };
 
             const ensureAtLeastOneCoverageRow = () => {
@@ -1396,14 +1455,20 @@
               refreshPhysicalPanel();
             });
 
+            customServiceImageToggle?.addEventListener('change', () => {
+              refreshCustomServiceImageVisibility();
+            });
+
             systemServiceSelect?.addEventListener('change', () => {
               refreshStatusVisibility();
               refreshPrintCoverageVisibility();
+              refreshCustomServiceImageVisibility();
             });
 
             window.MoneyInputMask?.init(form);
             refreshStatusVisibility();
             refreshPrintCoverageVisibility();
+            refreshCustomServiceImageVisibility();
             refreshPhysicalPanel();
             if (printPagesContainer) {
               printPagesContainer.querySelectorAll('[data-print-page-row]').forEach((row) => {

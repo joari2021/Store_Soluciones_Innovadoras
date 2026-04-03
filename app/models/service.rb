@@ -12,6 +12,7 @@ class Service < ApplicationRecord
              class_name: 'ServicePrintMaterialSurcharge',
              optional: true
   has_one_attached :recarga_image
+  has_one_attached :custom_display_image
   has_many :service_managers, dependent: :destroy
   has_many :service_expense_structures, dependent: :destroy
   has_many :service_cost_debts, class_name: 'Debt', dependent: :nullify
