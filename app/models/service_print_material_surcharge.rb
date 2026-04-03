@@ -17,7 +17,8 @@ class ServicePrintMaterialSurcharge < ApplicationRecord
             if: :required_quantity_supported?
   validates :include_product_price_in_sale, inclusion: { in: [true, false] }
   validates :producto_id,
-            uniqueness: { scope: :service_id, message: 'ya tiene un recargo configurado para este servicio.' }
+            uniqueness: { scope: :service_id, message: 'ya tiene un recargo configurado para este servicio.' },
+            if: :enforce_unique_product_per_service?
   validate :validate_description_for_printing_service
 
   scope :ordered_by_product_name, lambda {
@@ -32,6 +33,10 @@ class ServicePrintMaterialSurcharge < ApplicationRecord
 
   def required_quantity_supported?
     self.class.column_names.include?('required_quantity')
+  end
+
+  def enforce_unique_product_per_service?
+    service&.lamination_type_service?
   end
 
   def normalize_description

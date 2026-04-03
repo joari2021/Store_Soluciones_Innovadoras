@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_02_000001) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -647,7 +647,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_02_000001) do
     t.index ["description"], name: "index_service_print_material_surcharges_on_description"
     t.index ["include_product_price_in_sale"], name: "idx_print_material_include_product_price"
     t.index ["producto_id"], name: "index_service_print_material_surcharges_on_producto_id"
-    t.index ["service_id", "producto_id"], name: "idx_service_print_material_surcharges_unique", unique: true
+    t.index ["service_id", "producto_id"], name: "idx_service_print_material_surcharges_service_producto"
     t.index ["service_id"], name: "index_service_print_material_surcharges_on_service_id"
   end
 
@@ -721,6 +721,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_02_000001) do
     t.decimal "recarga_min_amount", precision: 12, scale: 2
     t.decimal "recarga_multiple_amount", precision: 12, scale: 2
     t.decimal "recarga_profit_percent", precision: 5, scale: 2
+    t.boolean "warn_digital_only_delivery_in_sales", default: false, null: false
+    t.boolean "use_custom_image_for_display", default: false, null: false
     t.index ["auto_cost_stock_discount"], name: "index_services_on_auto_cost_stock_discount"
     t.index ["business_id"], name: "index_services_on_business_id"
     t.index ["caution_service"], name: "index_services_on_caution_service"

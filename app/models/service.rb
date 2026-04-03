@@ -491,6 +491,8 @@ class Service < ApplicationRecord
       return
     end
 
+    return unless lamination_type_service?
+
     duplicated = rows
                  .select { |row| row.producto_id.present? }
                  .group_by { |row| row.producto_id.to_i }
