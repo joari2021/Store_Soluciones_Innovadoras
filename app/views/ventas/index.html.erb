@@ -8717,6 +8717,7 @@
 
       const queueActiveDraftSync = () => {
         const hasItems = cart.size > 0;
+        const hasActiveDraft = Boolean(activeDraftId);
         if (!hasItems && !activeDraftId) {
           if (draftSyncTimeout) {
             clearTimeout(draftSyncTimeout);
@@ -8727,11 +8728,13 @@
         }
 
         if (!hasItems) {
-          if (draftSyncTimeout) {
-            clearTimeout(draftSyncTimeout);
-            draftSyncTimeout = null;
+          if (!hasActiveDraft) {
+            if (draftSyncTimeout) {
+              clearTimeout(draftSyncTimeout);
+              draftSyncTimeout = null;
+            }
+            return;
           }
-          return;
         }
 
         const currentFingerprint = buildDraftFingerprint();
