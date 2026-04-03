@@ -5565,6 +5565,22 @@
         const deliveryPresentation = isLaminationService ? null : await promptServiceDeliveryPresentation(service);
         if (!isLaminationService && !deliveryPresentation) return;
 
+        const deliveryOptions = isLaminationService ? [] : resolveServiceDeliveryOptions(service);
+        const isDigitalOnlyDelivery = (
+          !isLaminationService
+          && deliveryPresentation === 'digital'
+          && deliveryOptions.length === 1
+          && deliveryOptions[0]?.value === 'digital'
+        );
+        if (isDigitalOnlyDelivery && window.Swal) {
+          await window.Swal.fire({
+            icon: 'info',
+            title: 'Entrega digital',
+            text: 'Este servicio solo incluye entrega digital, si requiere alguna impresion o producto debe anexarlo adicionalmente',
+            heightAuto: false,
+          });
+        }
+
         const configuredPhysicalMaterials = resolveConfiguredRequiredMaterials(service, deliveryPresentation);
         if (configuredPhysicalMaterials === null) {
           if (isLaminationService && window.Swal) {
