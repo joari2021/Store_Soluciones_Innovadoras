@@ -34,10 +34,6 @@ class VentasController < ApplicationController
 
     @products_payload_by_id = @products_payload.index_by { |row| row[:id] }
 
-    tasa_dolar = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : nil
-    unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
-    effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value("Dolar BCV").to_d
-
     services_count_scope = current_business.services
                                            .where(available: true)
                                            .visible_for_user(Current.user)
@@ -1597,31 +1593,8 @@ class VentasController < ApplicationController
                                                                           tasa_dolar: effective_bcv_rate)
 
       service.active_expense_structures_for_sales.each do |structure|
-        structure_label = structure.description.to_s.strip.presence || "Sin estructura"
-
         has_manager_or_variable_expense ||= structure.service_manager_expenses.any?
         has_manager_or_variable_expense ||= structure.service_variable_expenses.any?
-
-        structure.service_product_expenses.each do |expense|
-          product = expense.producto
-          next unless product
-
-          variation = expense.product_variation || product.product_variations.order(:id).first
-          next unless variation
-
-          consumable_costs << {
-            expense_id: expense.id,
-            structure_id: structure.id,
-            structure_name: structure_label,
-            product_id: product.id,
-            product_name: product.descripcion.to_s,
-            variation_id: variation.id,
-            variation_name: variation.description.to_s,
-            quantity: expense.quantity.to_d.to_f,
-            unit_price_usd: product.precio_venta_usd.to_d.to_f,
-            breakdown_in_invoice: expense.breakdown_in_invoice?,
-          }
-        end
       end
 
       {
@@ -1892,15 +1865,8 @@ class VentasController < ApplicationController
 
       next unless service_cost_debit_enabled?(service)
 
-      consumable_decisions = normalize_service_product_decisions(entry[:payload])
-
-      collect_service_product_consumptions!(
-        service: service,
-        multiplier: quantity_multiplier,
-        grouped: grouped,
-        visited_service_ids: [],
-        consumable_decisions: consumable_decisions,
-      )
+      # Los productos de consumo en estructura de costos se desactivaron;
+      # el descuento de stock se controla por la presentacion fisica del servicio.
     end
 
     reservations = []

@@ -97,24 +97,6 @@
               <% end %>
             </template>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-white p-3">
-            <div class="mb-3 flex items-center justify-between gap-2">
-              <h4 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Productos de consumo</h4>
-              <button type="button" class="inline-flex items-center rounded-lg bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-200" data-add-nested-row="product_expense">
-                Agregar producto
-              </button>
-            </div>
-            <div class="space-y-2" data-nested-container="product_expense">
-              <%= f.fields_for :service_product_expenses do |product_fields| %>
-                <%= render "service_product_expense_fields", f: product_fields, products: products, bcv_rate: bcv_rate %>
-              <% end %>
-            </div>
-            <template data-nested-template="product_expense" data-placeholder="NEW_PRODUCT_EXPENSE">
-              <%= f.fields_for :service_product_expenses, ServiceProductExpense.new, child_index: "NEW_PRODUCT_EXPENSE" do |product_fields| %>
-                <%= render "service_product_expense_fields", f: product_fields, products: products, bcv_rate: bcv_rate %>
-              <% end %>
-            </template>
-          </div>
         </div>
       </div>
     </div>

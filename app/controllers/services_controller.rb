@@ -891,9 +891,7 @@ class ServicesController < ApplicationController
         { service_manager_expenses_attributes: %i[id manager_id currency_reference amount_reference amount_usd
                                                   amount_bs _destroy] },
         { service_variable_expenses_attributes: %i[id description currency_reference amount_reference amount_usd
-                                                   amount_bs _destroy] },
-        { service_product_expenses_attributes: %i[id producto_id product_variation_id quantity breakdown_in_invoice
-                                                  _destroy] }
+                                                   amount_bs _destroy] }
       ]
     )
 
