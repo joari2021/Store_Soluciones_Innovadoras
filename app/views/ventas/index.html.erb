@@ -332,7 +332,7 @@
             <div class="relative mt-2 flex-1">
               <input id="ventas-item-search" type="text" placeholder="Buscar productos o servicios" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 pr-11 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500">
               <button id="ventas-item-search-clear" type="button" class="hidden absolute right-3 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-slate-100 p-0 text-center leading-none text-slate-500 transition-colors hover:bg-slate-200 hover:text-slate-700" aria-label="Limpiar busqueda">
-                <i data-lucide="x" class="h-4 w-4"></i>
+                <i data-lucide="x" class="pointer-events-none absolute left-[54%] top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2"></i>
               </button>
             </div>
           </div>
@@ -381,6 +381,10 @@
           <% end %>
           <div id="ventas-product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
             <%= render partial: 'ventas/catalog_product_card', collection: @productos, as: :producto, locals: { products_payload_by_id: @products_payload_by_id, bcv_rate: bcv_rate } %>
+          </div>
+          <div id="ventas-products-no-results" class="hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-5 text-center">
+            <p class="text-sm font-semibold text-slate-700">No se encontro ese producto registrado.</p>
+            <p class="mt-1 text-xs text-slate-500">Prueba con otro nombre o revisa la ortografia.</p>
           </div>
           <div id="ventas-products-infinite-sentinel" class="mt-4 flex justify-center <%= @products_next_page.present? ? '' : 'hidden' %>">
             <div class="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
@@ -448,6 +452,10 @@
               <p class="mt-1 text-sm text-slate-500">Preparando el cat&aacute;logo para mostrarlo.</p>
             </div>
           <% end %>
+        </div>
+        <div id="ventas-services-no-results" class="hidden rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-5 text-center">
+          <p class="text-sm font-semibold text-slate-700">No se encontro ese servicio registrado.</p>
+          <p class="mt-1 text-xs text-slate-500">Prueba con otro nombre o revisa la ortografia.</p>
         </div>
         <div id="ventas-services-infinite-sentinel" class="mt-4 flex justify-center <%= @services_next_page.present? ? '' : 'hidden' %>">
           <div class="inline-flex items-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 shadow-sm">
@@ -759,6 +767,8 @@
       const accountsById = new Map(accounts.map((account) => [String(account.id), account]));
       const productsGrid = document.getElementById('ventas-product-grid');
       const servicesGrid = document.getElementById('ventas-service-grid');
+      const productsNoResultsEl = document.getElementById('ventas-products-no-results');
+      const servicesNoResultsEl = document.getElementById('ventas-services-no-results');
       const productsInfiniteSentinel = document.getElementById('ventas-products-infinite-sentinel');
       const servicesInfiniteSentinel = document.getElementById('ventas-services-infinite-sentinel');
       const productsCatalogUrl = String(root.dataset.productsCatalogUrl || '').trim();
@@ -4253,23 +4263,49 @@
         const serviceSystemButtons = Array.from(root.querySelectorAll('[data-service-system-filter]'));
         if (!searchInput || !clearButton || !productPanel || !servicePanel) return;
 
+        const updateSearchEmptyStates = ({ query, visibleProducts, visibleServices }) => {
+          const hasQuery = query.length > 0;
+
+          if (productsNoResultsEl) {
+            const totalProductCards = productsGrid ? productsGrid.querySelectorAll('[data-product-query]').length : 0;
+            const showProductsEmpty = hasQuery && totalProductCards > 0 && visibleProducts === 0;
+            productsNoResultsEl.classList.toggle('hidden', !showProductsEmpty);
+          }
+
+          if (servicesNoResultsEl) {
+            const totalServiceCards = servicesGrid ? servicesGrid.querySelectorAll('[data-service-query]').length : 0;
+            const servicesLoading = Boolean(servicesGrid?.querySelector('[data-services-placeholder]'));
+            const showServicesEmpty = hasQuery && !servicesLoading && totalServiceCards > 0 && visibleServices === 0;
+            servicesNoResultsEl.classList.toggle('hidden', !showServicesEmpty);
+          }
+        };
+
         const applySearch = () => {
           const query = normalizeSearchValue(searchInput.value);
           clearButton.classList.toggle('hidden', query.length === 0);
+
+          let visibleProducts = 0;
+          let visibleServices = 0;
 
           document.querySelectorAll('[data-product-query]').forEach((card) => {
             const cardValue = normalizeSearchValue(card.dataset.productQuery);
             const cardCategory = normalizeSearchValue(card.dataset.productCategory || '');
             const matchesCategory = activeProductCategory.length === 0 || cardCategory === activeProductCategory;
-            card.classList.toggle('hidden', (query.length > 0 && !cardValue.includes(query)) || !matchesCategory);
+            const visible = !((query.length > 0 && !cardValue.includes(query)) || !matchesCategory);
+            card.classList.toggle('hidden', !visible);
+            if (visible) visibleProducts += 1;
           });
 
           document.querySelectorAll('[data-service-query]').forEach((card) => {
             const cardValue = normalizeSearchValue(card.dataset.serviceQuery);
             const cardSystem = normalizeSearchValue(card.dataset.serviceSystem || '');
             const matchesSystem = activeServiceSystem.length === 0 || cardSystem === activeServiceSystem;
-            card.classList.toggle('hidden', (query.length > 0 && !cardValue.includes(query)) || !matchesSystem);
+            const visible = !((query.length > 0 && !cardValue.includes(query)) || !matchesSystem);
+            card.classList.toggle('hidden', !visible);
+            if (visible) visibleServices += 1;
           });
+
+          updateSearchEmptyStates({ query, visibleProducts, visibleServices });
 
           syncCatalogInfiniteSentinels();
           maybeAutoLoadVisibleCatalog();
