@@ -170,17 +170,17 @@
               <span class="services-pill absolute bottom-2 left-2"><%= system_name %></span>
             </div>
             <h3 class="services-card-title mt-3 text-base font-bold text-slate-800"><%= service.description %></h3>
-            <div class="services-card-pricing mt-3 flex items-end justify-between gap-3">
+            <div class="services-card-pricing mt-3 flex items-end justify-between gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-2.5 shadow-sm">
               <div class="services-card-price">
                 <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Precio</p>
                 <% if service.to_agree? %>
-                  <p class="text-lg font-extrabold text-amber-600">A convenir</p>
+                  <p class="services-price-value text-lg font-extrabold text-amber-600">A convenir</p>
                   <p class="text-xs text-slate-500">Se define al facturar</p>
                 <% else %>
                   <% primary_price_label = service_primary_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
                   <% reference_price_label = service_reference_price_label(service, tasa_dolar: tasa_dolar, unidad_vi: unidad_vi) %>
                   <% if primary_price_label.present? %>
-                    <p class="text-lg font-extrabold text-slate-800"><%= primary_price_label %></p>
+                    <p class="services-price-value text-lg font-extrabold text-slate-800"><%= primary_price_label %></p>
                     <% if reference_price_label.present? %>
                       <p class="text-xs text-slate-500"><%= reference_price_label %></p>
                     <% end %>
