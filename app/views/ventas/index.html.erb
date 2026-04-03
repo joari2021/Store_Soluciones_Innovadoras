@@ -3772,6 +3772,15 @@
         return roundTo(parsed, 2);
       };
 
+      const formatMaterialFractionLabel = (rawValue) => {
+        const quantity = parseMaterialQuantity(rawValue, 1);
+        if (Math.abs(quantity - 1) <= 0.001) return '1';
+        if (Math.abs(quantity - 0.5) <= 0.001) return '1/2';
+        if (Math.abs(quantity - 0.25) <= 0.001) return '1/4';
+
+        return formatNumber(quantity, 2);
+      };
+
       const normalizeServiceMaterialRowsForCart = (rows) => {
         if (!Array.isArray(rows)) return [];
 
@@ -5046,6 +5055,7 @@
         if (!window.Swal) {
           const fallbackCoverage = coverageOptions[0];
           const fallbackMaterial = materialOptions[0];
+          const materialRequiredQuantity = parseMaterialQuantity(fallbackMaterial.required_quantity, 1);
           return [{
             coverageId: String(fallbackCoverage.id || ''),
             coveragePercent: Number(fallbackCoverage.coverage_percent) || 0,
@@ -5053,6 +5063,7 @@
             materialId: String(fallbackMaterial.id || ''),
             materialLabel: String(fallbackMaterial.label || '').trim(),
             materialProductId: String(fallbackMaterial.product_id || '').trim(),
+            materialRequiredQuantity,
             surchargePercent: Number(fallbackMaterial.surcharge_percent) || 0,
             includeProductPriceInSale: Boolean(fallbackMaterial.include_product_price_in_sale),
             productPriceUsd: Number(fallbackMaterial.product_price_usd) || 0,
@@ -5077,10 +5088,11 @@
             const id = String(row.id || '');
             const label = String(row.label || '').trim();
             const productId = String(row.product_id || '').trim();
+            const requiredQuantity = parseMaterialQuantity(row.required_quantity, 1);
             const surcharge = Number(row.surcharge_percent) || 0;
             const includeProductPrice = Boolean(row.include_product_price_in_sale);
             const productPriceUsd = Number(row.product_price_usd) || 0;
-            return `<option value="${id}" data-material-label="${escapeHtml(label)}" data-product-id="${productId}" data-surcharge-percent="${surcharge}" data-include-product-price="${includeProductPrice}" data-product-price-usd="${productPriceUsd}">${escapeHtml(`${label} (+${formatNumber(surcharge, 2)}%)`)}</option>`;
+            return `<option value="${id}" data-material-label="${escapeHtml(label)}" data-product-id="${productId}" data-required-quantity="${requiredQuantity}" data-surcharge-percent="${surcharge}" data-include-product-price="${includeProductPrice}" data-product-price-usd="${productPriceUsd}">${escapeHtml(`${label} (${formatMaterialFractionLabel(requiredQuantity)}) (+${formatNumber(surcharge, 2)}%)`)}</option>`;
           })
           .join('');
 
@@ -5167,6 +5179,11 @@
               return String(selectedMaterialOption?.dataset.productId || '').trim();
             };
 
+            const selectedMaterialRequiredQuantityForRow = (rowEl) => {
+              const selectedMaterialOption = rowEl?.querySelector('.printing-material')?.selectedOptions?.[0];
+              return parseMaterialQuantity(selectedMaterialOption?.dataset.requiredQuantity || '1', 1);
+            };
+
             const selectedQtyForRow = (rowEl) => {
               const qtyInput = rowEl?.querySelector('.printing-qty');
               if (!qtyInput || qtyInput.disabled) return 0;
@@ -5183,19 +5200,23 @@
               Array.from(rowsContainer.querySelectorAll('[data-printing-row]')).forEach((candidateRow) => {
                 if (excludeRow && candidateRow === excludeRow) return;
                 if (selectedMaterialProductIdForRow(candidateRow) !== safeProductId) return;
-                total += selectedQtyForRow(candidateRow);
+                total += (selectedQtyForRow(candidateRow) * selectedMaterialRequiredQuantityForRow(candidateRow));
               });
 
-              return total;
+              return roundTo(total, 4);
             };
 
             const availablePrintsForMaterialOption = (materialOption, { rowEl = null } = {}) => {
               const productId = String(materialOption?.dataset.productId || '').trim();
               if (!productId) return 0;
 
-              const baseAvailable = baseAvailableForMaterialProductId(productId);
+              const requiredQuantity = parseMaterialQuantity(materialOption?.dataset.requiredQuantity || '1', 1);
+              const baseAvailable = Number(baseAvailableForMaterialProductId(productId)) || 0;
               const reservedByOtherRows = requestedQtyByRowsForMaterialProduct(productId, { excludeRow: rowEl });
-              return Math.max(0, baseAvailable - reservedByOtherRows);
+              const remainingUnits = Math.max(0, baseAvailable - reservedByOtherRows);
+              if (!(requiredQuantity > 0)) return 0;
+
+              return Math.max(0, Math.floor(remainingUnits / requiredQuantity));
             };
 
             const availabilityTextFor = (available) => {
@@ -5263,6 +5284,7 @@
               const surchargePercent = Number(materialOption?.dataset.surchargePercent);
               const includeProductPrice = String(materialOption?.dataset.includeProductPrice || '').toLowerCase() === 'true';
               const productPriceUsd = Number(materialOption?.dataset.productPriceUsd);
+              const materialRequiredQuantity = parseMaterialQuantity(materialOption?.dataset.requiredQuantity || '1', 1);
               const quantity = Number.parseInt(String(qtyInput?.value || '').replace(/\D/g, ''), 10);
               const safeQuantity = qtyInput?.disabled
                 ? 0
@@ -5270,7 +5292,7 @@
               const safeCoveragePriceBs = Number.isFinite(coveragePriceBs) ? coveragePriceBs : 0;
               const safeSurchargePercent = Number.isFinite(surchargePercent) ? surchargePercent : 0;
               const materialUnitBs = includeProductPrice && Number.isFinite(productPriceUsd) && productPriceUsd > 0 && bcvRate > 0
-                ? roundTo(productPriceUsd * bcvRate, 2)
+                ? roundTo(productPriceUsd * bcvRate * materialRequiredQuantity, 2)
                 : 0;
               const unitBs = roundTo((safeCoveragePriceBs * (1 + (safeSurchargePercent / 100))) + materialUnitBs, 2);
               const totalBs = roundTo(unitBs * safeQuantity, 2);
@@ -5418,6 +5440,7 @@
               const surchargePercent = Number(materialOption?.dataset.surchargePercent);
               const includeProductPriceInSale = String(materialOption?.dataset.includeProductPrice || '').toLowerCase() === 'true';
               const productPriceUsd = Number(materialOption?.dataset.productPriceUsd);
+              const materialRequiredQuantity = parseMaterialQuantity(materialOption?.dataset.requiredQuantity || '1', 1);
               const materialProductId = String(materialOption?.dataset.productId || '').trim();
               const materialLabel = String(materialOption?.dataset.materialLabel || materialOption?.textContent || '').trim();
 
@@ -5426,8 +5449,11 @@
                 return null;
               }
 
-              const availablePrints = materialProductId
-                ? Math.max(0, Math.floor(getAvailableTotal({ id: materialProductId, available_total: productsById.get(materialProductId)?.available_total })))
+              const availableUnits = materialProductId
+                ? Math.max(0, Number(getAvailableTotal({ id: materialProductId, available_total: productsById.get(materialProductId)?.available_total })) || 0)
+                : 0;
+              const availablePrints = materialRequiredQuantity > 0
+                ? Math.max(0, Math.floor(availableUnits / materialRequiredQuantity))
                 : 0;
               if (availablePrints <= 0) {
                 window.Swal.showValidationMessage(`El material ${materialLabel || 'seleccionado'} no tiene stock disponible para impresion.`);
@@ -5439,9 +5465,10 @@
                 return null;
               }
 
+              const requestedUnits = roundTo(quantity * materialRequiredQuantity, 4);
               const alreadyRequested = Number(materialQuantityByProductId.get(materialProductId) || 0);
-              const accumulated = alreadyRequested + quantity;
-              if (accumulated > availablePrints) {
+              const accumulated = roundTo(alreadyRequested + requestedUnits, 4);
+              if (accumulated > availableUnits) {
                 window.Swal.showValidationMessage(`La suma de filas para ${materialLabel || 'el material'} excede el stock disponible (${availablePrints} impresion(es)).`);
                 return null;
               }
@@ -5454,6 +5481,7 @@
                 materialId,
                 materialLabel,
                 materialProductId,
+                materialRequiredQuantity,
                 surchargePercent: Number.isFinite(surchargePercent) ? surchargePercent : 0,
                 includeProductPriceInSale,
                 productPriceUsd: Number.isFinite(productPriceUsd) ? productPriceUsd : 0,
@@ -5486,7 +5514,10 @@
         rows.forEach((row) => {
           const surchargeMultiplier = 1 + ((Number(row.surchargePercent) || 0) / 100);
           const baseUnitPriceBs = roundTo((Number(row.coveragePriceBs) || 0) * surchargeMultiplier, 2);
-          const materialPriceUsd = row.includeProductPriceInSale ? (Number(row.productPriceUsd) || 0) : 0;
+          const materialRequiredQuantity = parseMaterialQuantity(row.materialRequiredQuantity || 1, 1);
+          const materialPriceUsd = row.includeProductPriceInSale
+            ? ((Number(row.productPriceUsd) || 0) * materialRequiredQuantity)
+            : 0;
           const materialPriceBs = materialPriceUsd > 0 ? roundTo(materialPriceUsd * bcvRate, 2) : 0;
           const unitPriceBs = roundTo(baseUnitPriceBs + materialPriceBs, 2);
           const unitPriceUsd = roundTo((unitPriceBs / bcvRate), 6);
@@ -5510,6 +5541,13 @@
             selected_print_material_surcharge_id: row.materialId,
             selected_print_material_label: String(row.materialLabel || '').trim() || null,
             selected_print_material_product_id: String(row.materialProductId || '').trim() || null,
+            selected_print_material_rows: toServiceMaterialRowsPayload([{
+              surchargeId: String(row.materialId || '').trim(),
+              productId: String(row.materialProductId || '').trim(),
+              label: String(row.materialLabel || '').trim() || null,
+              quantity: materialRequiredQuantity,
+              requestedQuantity: materialRequiredQuantity,
+            }]),
             quantity: 0,
             unit_price_usd: unitPriceUsd,
             unit_price_base_amount: baseCurrency === 'ves' ? unitPriceBs : roundTo(unitPriceUsd, 2),
@@ -5526,6 +5564,13 @@
           existing.selected_print_material_surcharge_id = row.materialId;
           existing.selected_print_material_label = String(row.materialLabel || '').trim() || existing.selected_print_material_label;
           existing.selected_print_material_product_id = String(row.materialProductId || '').trim() || existing.selected_print_material_product_id;
+          existing.selected_print_material_rows = toServiceMaterialRowsPayload([{
+            surchargeId: String(row.materialId || '').trim(),
+            productId: String(row.materialProductId || '').trim(),
+            label: String(row.materialLabel || '').trim() || existing.selected_print_material_label || null,
+            quantity: materialRequiredQuantity,
+            requestedQuantity: materialRequiredQuantity,
+          }]);
           existing.unit_price_usd = unitPriceUsd;
           existing.unit_price_base_amount = baseCurrency === 'ves' ? unitPriceBs : roundTo(unitPriceUsd, 2);
           existing.unit_price_base_currency = baseCurrency === 'ves' ? 'VES' : 'USD';
