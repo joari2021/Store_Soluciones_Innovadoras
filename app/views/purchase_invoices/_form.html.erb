@@ -1,5 +1,11 @@
 <% initial_inventory_mode = factura.initial_inventory? %>
 <% intercompany_mode = !initial_inventory_mode && (factura.intercompany? || ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany)) || params[:mode].to_s == 'intercompany') %>
+<% source_business_from_params = params.dig(:purchase_invoice, :source_business_id).to_s.strip.presence %>
+<% intercompany_selected_source_business_id = factura.source_business_id.presence || source_business_from_params&.to_i %>
+<% if intercompany_mode && intercompany_selected_source_business_id.blank? %>
+  <% preferred_source_business = @available_source_businesses.find { |business| business.accounts.where(account_type: 'bank_account', currency: 'VES').exists? } || @available_source_businesses.first %>
+  <% intercompany_selected_source_business_id = preferred_source_business&.id %>
+<% end %>
 <%= form_with model: factura,
               scope: :purchase_invoice,
               local: true,
@@ -9,7 +15,7 @@
                   require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s,
                   initial_inventory_mode: initial_inventory_mode.to_s,
                   intercompany_mode: intercompany_mode.to_s,
-                  default_source_business_id: factura.source_business_id.to_s,
+                  default_source_business_id: intercompany_selected_source_business_id.to_s,
                   source_accounts_map: @source_accounts_map.to_json
                 }
               } do |f| %>
@@ -106,7 +112,7 @@
         <div id="intercompany-mode-fields" class="<%= intercompany_mode ? '' : 'hidden' %>">
           <%= f.label :source_business_id, 'Negocio proveedor (origen)', class: 'mt-2 block text-sm font-medium text-slate-700' %>
           <%= f.select :source_business_id,
-                      options_for_select(@available_source_businesses.map { |business| [business.name, business.id] }, factura.source_business_id),
+                      options_for_select(@available_source_businesses.map { |business| [business.name, business.id] }, intercompany_selected_source_business_id),
                       { prompt: 'Seleccionar negocio origen' },
                       id: 'purchase_invoice_source_business_id',
                       class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
@@ -412,12 +418,8 @@
       <% payment_account_options = Array(@bs_accounts).map do |account| %>
         <% ["#{account.name} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
       <% end %>
-      <% selected_source_business_id = factura.source_business_id.presence || params.dig(:purchase_invoice, :source_business_id).to_i %>
-      <% if selected_source_business_id.to_i <= 0 %>
-        <% selected_source_business_id = @available_source_businesses.first&.id.to_i %>
-      <% end %>
-      <% selected_source_accounts = if selected_source_business_id.to_i > 0
-                                      Business.find_by(id: selected_source_business_id)&.accounts
+      <% selected_source_accounts = if intercompany_selected_source_business_id.to_i > 0
+                                      Business.find_by(id: intercompany_selected_source_business_id)&.accounts
                                               &.where(account_type: 'bank_account', currency: 'VES')
                                               &.order(:name)
                                               &.map { |account| { id: account.id, name: account.name, balance: account.balance.to_d, currency: account.currency, active: account.active } } || []
