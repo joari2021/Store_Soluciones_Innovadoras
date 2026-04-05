@@ -2296,6 +2296,7 @@
           return {};
         }
       })();
+      const sourceAccountsCache = {};
 
       const paymentsBlock = form.querySelector('[data-invoice-payments-block="true"]');
       if (!paymentsBlock) return;
@@ -2542,7 +2543,7 @@
 
       const sourceAccountOptionsForCurrentBusiness = () => {
         const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
-        const rawOptions = Array(sourceAccountsMap[sourceBusinessId] || []);
+        const rawOptions = Array(sourceAccountsCache[sourceBusinessId] || sourceAccountsMap[sourceBusinessId] || []);
         return rawOptions.map((entry) => ({
           id: entry?.id ?? entry?.['id'] ?? '',
           name: entry?.name ?? entry?.['name'] ?? 'Cuenta',
@@ -2552,8 +2553,31 @@
         }));
       };
 
-      const syncSourceAccountOptions = () => {
+      const loadSourceAccountsFromServer = async (sourceBusinessId) => {
+        const normalizedId = String(sourceBusinessId || '').trim();
+        if (!normalizedId) return [];
+
+        try {
+          const response = await fetch(`/facturas-compra/intercompany/source-business-accounts?source_business_id=${encodeURIComponent(normalizedId)}`);
+          if (!response.ok) return [];
+
+          const data = await response.json();
+          if (!Array.isArray(data)) return [];
+
+          sourceAccountsCache[normalizedId] = data;
+          return data;
+        } catch (_) {
+          return Array(sourceAccountsMap[normalizedId] || []);
+        }
+      };
+
+      const syncSourceAccountOptions = async () => {
         if (!intercompanyMode) return;
+
+        const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
+        if (sourceBusinessId) {
+          await loadSourceAccountsFromServer(sourceBusinessId);
+        }
 
         const options = sourceAccountOptionsForCurrentBusiness();
         const sourceSelects = rowsContainer.querySelectorAll('[data-invoice-payment-source-account="true"]');

@@ -104,6 +104,7 @@ Rails.application.routes.draw do
       get :initial_inventory, path: 'inventario-inicial'
       get :initial_inventory_template, path: 'inventario-inicial/plantilla'
       post :import_initial_inventory, path: 'inventario-inicial/importar'
+      get :source_business_accounts, path: 'intercompany/source-business-accounts'
     end
   end
   resources :managers

@@ -141,6 +141,30 @@ class PurchaseInvoicesController < ApplicationController
               disposition: 'attachment'
   end
 
+  def source_business_accounts
+    source_id = params[:source_business_id].to_s.strip.to_i
+    return render json: [] if source_id <= 0
+    return render json: [] if current_business.present? && source_id == current_business.id
+
+    source_business = Business.find_by(id: source_id)
+    return render json: [] if source_business.blank?
+
+    accounts = source_business.accounts
+                              .where(active: true)
+                              .order(:name)
+                              .map do |account|
+      {
+        id: account.id,
+        name: account.name,
+        balance: account.balance.to_d,
+        currency: account.currency,
+        active: account.active
+      }
+    end
+
+    render json: accounts
+  end
+
   def import_initial_inventory
     file = params[:inventory_file]
     if file.blank?
