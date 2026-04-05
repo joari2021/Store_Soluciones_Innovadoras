@@ -1,16 +1,16 @@
 class PurchaseInvoice < ApplicationRecord
-  self.table_name = 'facturas'
+  self.table_name = "facturas"
 
-  INVOICE_KIND_PURCHASE = 'purchase'.freeze
-  INVOICE_KIND_INITIAL_INVENTORY = 'initial_inventory'.freeze
+  INVOICE_KIND_PURCHASE = "purchase".freeze
+  INVOICE_KIND_INITIAL_INVENTORY = "initial_inventory".freeze
   INVOICE_KINDS = [INVOICE_KIND_PURCHASE, INVOICE_KIND_INITIAL_INVENTORY].freeze
 
   belongs_to :business
   belongs_to :supplier, optional: true
-  belongs_to :source_business, class_name: 'Business', optional: true
+  belongs_to :source_business, class_name: "Business", optional: true
   has_many :purchase_invoice_items, lambda {
     order(created_at: :asc, id: :asc)
-  }, class_name: 'PurchaseInvoiceItem', foreign_key: :factura_id, dependent: :destroy, inverse_of: :purchase_invoice
+  }, class_name: "PurchaseInvoiceItem", foreign_key: :factura_id, dependent: :destroy, inverse_of: :purchase_invoice
   has_many :productos, through: :purchase_invoice_items
 
   accepts_nested_attributes_for :purchase_invoice_items, allow_destroy: true
@@ -36,11 +36,11 @@ class PurchaseInvoice < ApplicationRecord
   end
 
   def kind_label
-    initial_inventory? ? 'Inventario inicial' : 'Factura de compra'
+    initial_inventory? ? "Inventario inicial" : "Factura de compra"
   end
 
   def supplier_display_name
-    supplier_name.presence || supplier&.nombre || 'Proveedor'
+    supplier_name.presence || supplier&.nombre || "Proveedor"
   end
 
   def total_bs
@@ -50,13 +50,13 @@ class PurchaseInvoice < ApplicationRecord
   def calcular_monto_total
     totals = totals_breakdown
 
-    priority = supplier&.pricing_currency_priority.presence || 'usd'
+    priority = supplier&.pricing_currency_priority.presence || "usd"
     rate = tasa_dolar.to_d
-    total_usd = if priority == 'bs'
-                  rate.positive? ? (totals[:total_bs] / rate) : totals[:total_usd]
-                else
-                  totals[:total_usd]
-                end
+    total_usd = if priority == "bs"
+        rate.positive? ? (totals[:total_bs] / rate) : totals[:total_usd]
+      else
+        totals[:total_usd]
+      end
 
     self.monto_total = total_usd.round(4)
   end
@@ -73,15 +73,15 @@ class PurchaseInvoice < ApplicationRecord
       total_bs = active_items.sum { |item| item.line_subtotal_bs.to_d }
 
       return {
-        subtotal_usd: 0.to_d,
-        subtotal_bs: 0.to_d,
-        exento_usd: total_usd,
-        exento_bs: total_bs,
-        iva_usd: 0.to_d,
-        iva_bs: 0.to_d,
-        total_usd: total_usd,
-        total_bs: total_bs
-      }
+               subtotal_usd: 0.to_d,
+               subtotal_bs: 0.to_d,
+               exento_usd: total_usd,
+               exento_bs: total_bs,
+               iva_usd: 0.to_d,
+               iva_bs: 0.to_d,
+               total_usd: total_usd,
+               total_bs: total_bs,
+             }
     end
 
     subtotal_usd = 0.to_d
@@ -115,7 +115,7 @@ class PurchaseInvoice < ApplicationRecord
       iva_usd: iva_usd,
       iva_bs: iva_bs,
       total_usd: total_usd,
-      total_bs: total_bs
+      total_bs: total_bs,
     }
   end
 
@@ -129,7 +129,7 @@ class PurchaseInvoice < ApplicationRecord
     return if source_business_id.blank? || business_id.blank?
     return unless source_business_id == business_id
 
-    errors.add(:source_business_id, 'debe ser distinto al negocio actual')
+    errors.add(:source_business_id, "debe ser distinto al negocio actual")
   end
 
   def normalize_invoice_kind
@@ -144,6 +144,6 @@ class PurchaseInvoice < ApplicationRecord
     conflict_scope = conflict_scope.where.not(id: id) if persisted?
     return unless conflict_scope.exists?
 
-    errors.add(:base, 'Solo puede existir un inventario inicial por negocio.')
+    errors.add(:base, "Solo puede existir un inventario inicial por negocio.")
   end
 end

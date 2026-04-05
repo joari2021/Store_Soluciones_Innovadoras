@@ -160,8 +160,8 @@ module Intercompany
       return nil if normalized_description.blank?
 
       current_scope = @current_business.productos
-                                     .where('LOWER(TRIM(productos.descripcion)) = ?', normalized_description)
-                                     .where(presentation: source_product.presentation)
+        .where("LOWER(TRIM(productos.descripcion)) = ?", normalized_description)
+        .where(presentation: source_product.presentation)
 
       if source_product.pack?
         current_scope = current_scope.where(cant_presentation: source_product.cant_presentation)

@@ -5,20 +5,20 @@ class Debt < ApplicationRecord
   attr_writer :card_total_amount, :card_total_balance, :card_currency, :card_description_summary
 
   DEBT_KINDS = {
-    'receivable' => 'Por cobrar',
-    'payable' => 'Por pagar'
+    "receivable" => "Por cobrar",
+    "payable" => "Por pagar",
   }.freeze
 
   belongs_to :business
-  belongs_to :mirror_debt, class_name: 'Debt', optional: true
-  belongs_to :mirror_account, class_name: 'Account', optional: true
+  belongs_to :mirror_debt, class_name: "Debt", optional: true
+  belongs_to :mirror_account, class_name: "Account", optional: true
   belongs_to :cliente, optional: true
   belongs_to :venta, optional: true
   belongs_to :service, optional: true
   has_many :debt_payments, dependent: :destroy
 
   scope :excluding_service_cost_records, lambda {
-    where('description NOT LIKE ?', '%[SERVICE_COST]%')
+    where("description NOT LIKE ?", "%[SERVICE_COST]%")
   }
 
   validates :name, presence: true
@@ -40,7 +40,7 @@ class Debt < ApplicationRecord
   end
 
   def display_name
-    value = name.to_s.sub(GROUP_NAME_PREFIX_REGEX, '').strip
+    value = name.to_s.sub(GROUP_NAME_PREFIX_REGEX, "").strip
     value.presence || name.to_s
   end
 
@@ -56,22 +56,22 @@ class Debt < ApplicationRecord
   end
 
   def receivable?
-    debt_kind == 'receivable'
+    debt_kind == "receivable"
   end
 
   def payable?
-    debt_kind == 'payable'
+    debt_kind == "payable"
   end
 
   def counterparty_display_name
-    cliente&.name.presence || (payable? ? display_name.presence : nil) || 'Sin cliente'
+    cliente&.name.presence || (payable? ? display_name.presence : nil) || "Sin cliente"
   end
 
   def counterparty_label
     if cliente.present?
-      'Cliente'
+      "Cliente"
     else
-      (payable? ? 'Proveedor' : 'Cliente')
+      (payable? ? "Proveedor" : "Cliente")
     end
   end
 
@@ -108,7 +108,7 @@ class Debt < ApplicationRecord
   def card_description_summary
     return @card_description_summary.to_s.strip if @card_description_summary.present?
 
-    description.to_s.strip.presence || 'Sin descripcion.'
+    description.to_s.strip.presence || "Sin descripcion."
   end
 
   def overdue?(today = Date.current)
@@ -119,11 +119,11 @@ class Debt < ApplicationRecord
   end
 
   def status_label(today = Date.current)
-    return 'Pagada' if balance <= 0
-    return 'Vencida' if overdue?(today)
-    return 'Parcial' if paid_amount.positive?
+    return "Pagada" if balance <= 0
+    return "Vencida" if overdue?(today)
+    return "Parcial" if paid_amount.positive?
 
-    'Pendiente'
+    "Pendiente"
   end
 
   def last_payment_at
@@ -140,32 +140,32 @@ class Debt < ApplicationRecord
   end
 
   def service_cost_lines
-    Array(service_cost_details_hash['lines']).map { |row| normalize_service_cost_line(row) }
+    Array(service_cost_details_hash["lines"]).map { |row| normalize_service_cost_line(row) }
   end
 
   def service_cost_pending_total_usd
-    service_cost_lines.sum { |line| line['pending_usd'].to_d }.round(2)
+    service_cost_lines.sum { |line| line["pending_usd"].to_d }.round(2)
   end
 
   def service_cost_paid_total_usd
-    service_cost_lines.sum { |line| line['paid_usd'].to_d }.round(2)
+    service_cost_lines.sum { |line| line["paid_usd"].to_d }.round(2)
   end
 
   def service_cost_total_usd
-    service_cost_lines.sum { |line| line['amount_usd'].to_d }.round(2)
+    service_cost_lines.sum { |line| line["amount_usd"].to_d }.round(2)
   end
 
   def service_cost_overall_status
     lines = service_cost_lines
-    return 'pending' if lines.empty?
-    return 'paid' if lines.all? { |line| line['pending_usd'].to_d <= 0.01.to_d }
-    return 'partial' if lines.any? { |line| line['paid_usd'].to_d.positive? }
+    return "pending" if lines.empty?
+    return "paid" if lines.all? { |line| line["pending_usd"].to_d <= 0.01.to_d }
+    return "partial" if lines.any? { |line| line["paid_usd"].to_d.positive? }
 
-    'pending'
+    "pending"
   end
 
   def service_cost_record?
-    description.to_s.include?('[SERVICE_COST]')
+    description.to_s.include?("[SERVICE_COST]")
   end
 
   def mirror_sync_enabled?
@@ -177,55 +177,55 @@ class Debt < ApplicationRecord
   def normalize_service_cost_line(raw_line)
     line = raw_line.is_a?(Hash) ? raw_line.deep_stringify_keys : {}
 
-    classification = line['classification'].to_s
+    classification = line["classification"].to_s
     payable_line = !%w[nested_expense product_expense].include?(classification)
 
-    amount_usd = line['amount_usd'].to_d.round(2)
+    amount_usd = line["amount_usd"].to_d.round(2)
     paid_usd = if payable_line
-                 line['paid_usd'].to_d.round(2)
-               else
-                 amount_usd
-               end
+        line["paid_usd"].to_d.round(2)
+      else
+        amount_usd
+      end
     paid_usd = amount_usd if paid_usd > amount_usd
 
     pending_usd = (amount_usd - paid_usd).round(2)
     pending_usd = 0.to_d if pending_usd.abs <= 0.01.to_d
 
     status = if pending_usd <= 0
-               'paid'
-             elsif paid_usd.positive?
-               'partial'
-             else
-               'pending'
-             end
+        "paid"
+      elsif paid_usd.positive?
+        "partial"
+      else
+        "pending"
+      end
 
     line.merge(
-      'amount_usd' => amount_usd.to_f,
-      'paid_usd' => paid_usd.to_f,
-      'pending_usd' => pending_usd.to_f,
-      'status' => status,
-      'payable_line' => payable_line
+      "amount_usd" => amount_usd.to_f,
+      "paid_usd" => paid_usd.to_f,
+      "pending_usd" => pending_usd.to_f,
+      "status" => status,
+      "payable_line" => payable_line,
     )
   end
 
   def apply_defaults
-    self.debt_kind = 'receivable' if debt_kind.blank?
-    self.currency = 'USD' if currency.blank?
+    self.debt_kind = "receivable" if debt_kind.blank?
+    self.currency = "USD" if currency.blank?
     self.issued_on = Date.current if issued_on.blank?
-    self.name = "Deuda #{Date.current.strftime('%d-%m-%Y')}" if name.blank?
+    self.name = "Deuda #{Date.current.strftime("%d-%m-%Y")}" if name.blank?
   end
 
   def counterparty_presence
     return if cliente.present?
     return if payable?
 
-    errors.add(:base, 'Selecciona un cliente.')
+    errors.add(:base, "Selecciona un cliente.")
   end
 
   def due_after_issued
     return if due_on.blank? || issued_on.blank?
     return if due_on >= issued_on
 
-    errors.add(:due_on, 'debe ser posterior a la fecha de emision')
+    errors.add(:due_on, "debe ser posterior a la fecha de emision")
   end
 end

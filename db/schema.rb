@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_05_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -254,11 +254,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
     t.bigint "venta_id"
     t.bigint "service_id"
     t.jsonb "service_cost_details", default: {}, null: false
+    t.bigint "mirror_debt_id"
+    t.bigint "mirror_account_id"
+    t.boolean "mirror_sync_enabled", default: false, null: false
     t.index ["business_id"], name: "index_debts_on_business_id"
     t.index ["cliente_id"], name: "index_debts_on_cliente_id"
     t.index ["debt_kind"], name: "index_debts_on_debt_kind"
     t.index ["due_on"], name: "index_debts_on_due_on"
     t.index ["issued_on"], name: "index_debts_on_issued_on"
+    t.index ["mirror_account_id"], name: "index_debts_on_mirror_account_id"
+    t.index ["mirror_debt_id"], name: "index_debts_on_mirror_debt_id"
     t.index ["service_cost_pending", "debt_kind"], name: "index_debts_on_service_cost_pending_and_kind"
     t.index ["service_id"], name: "index_debts_on_service_id"
     t.index ["venta_id"], name: "index_debts_on_venta_id"
@@ -330,9 +335,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
     t.string "supplier_name"
     t.bigint "business_id", null: false
     t.string "invoice_kind", default: "purchase", null: false
+    t.boolean "intercompany", default: false, null: false
+    t.bigint "source_business_id"
     t.index ["business_id"], name: "index_facturas_on_business_id"
     t.index ["business_id"], name: "index_facturas_unique_initial_inventory_per_business", unique: true, where: "((invoice_kind)::text = 'initial_inventory'::text)"
     t.index ["invoice_kind"], name: "index_facturas_on_invoice_kind"
+    t.index ["source_business_id"], name: "index_facturas_on_source_business_id"
   end
 
   create_table "generos", force: :cascade do |t|
@@ -510,10 +518,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
     t.integer "presentation", default: 0, null: false
     t.integer "cant_presentation", default: 1, null: false
     t.boolean "allow_unpack", default: false, null: false
+    t.bigint "source_business_id"
+    t.bigint "source_product_id"
     t.index ["allow_unpack"], name: "index_productos_on_allow_unpack"
+    t.index ["business_id", "source_business_id", "source_product_id"], name: "index_productos_on_business_and_source_product", unique: true
     t.index ["business_id"], name: "index_productos_on_business_id"
     t.index ["categoria_id"], name: "index_productos_on_categoria_id"
     t.index ["profit_margin_preset_id"], name: "index_productos_on_profit_margin_preset_id"
+    t.index ["source_business_id"], name: "index_productos_on_source_business_id"
   end
 
   create_table "profit_margin_presets", force: :cascade do |t|
@@ -934,8 +946,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
   add_foreign_key "clientes", "businesses"
   add_foreign_key "debt_payments", "accounts"
   add_foreign_key "debt_payments", "debts"
+  add_foreign_key "debts", "accounts", column: "mirror_account_id"
   add_foreign_key "debts", "businesses"
   add_foreign_key "debts", "clientes"
+  add_foreign_key "debts", "debts", column: "mirror_debt_id"
   add_foreign_key "debts", "services", on_delete: :nullify
   add_foreign_key "debts", "ventas", on_delete: :nullify
   add_foreign_key "expense_payments", "accounts"
@@ -944,6 +958,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
   add_foreign_key "factura_items", "facturas"
   add_foreign_key "factura_items", "productos", on_delete: :nullify
   add_foreign_key "facturas", "businesses"
+  add_foreign_key "facturas", "businesses", column: "source_business_id"
   add_foreign_key "facturas", "suppliers", on_delete: :nullify
   add_foreign_key "generos_animes", "animes"
   add_foreign_key "generos_animes", "generos"
@@ -969,6 +984,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_03_020000) do
   add_foreign_key "product_usages", "users"
   add_foreign_key "product_variations", "productos"
   add_foreign_key "productos", "businesses"
+  add_foreign_key "productos", "businesses", column: "source_business_id"
   add_foreign_key "productos", "categorias"
   add_foreign_key "productos", "profit_margin_presets"
   add_foreign_key "profit_margin_presets", "businesses"

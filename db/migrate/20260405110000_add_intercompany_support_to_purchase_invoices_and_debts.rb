@@ -11,6 +11,6 @@ class AddIntercompanySupportToPurchaseInvoicesAndDebts < ActiveRecord::Migration
     add_column :productos, :source_product_id, :bigint
 
     add_index :productos, [:business_id, :source_business_id, :source_product_id], unique: true,
-              name: 'index_productos_on_business_and_source_product'
+                                                                                   name: "index_productos_on_business_and_source_product"
   end
 end

@@ -130,7 +130,7 @@ class DebtPayment < ApplicationRecord
   end
 
   def sync_mirror_debt_payment
-    return if notes.to_s.include?('[MIRROR_SYNC]')
+    return if notes.to_s.include?("[MIRROR_SYNC]")
     return unless debt&.mirror_sync_enabled?
 
     mirror_debt = debt.mirror_debt
@@ -145,7 +145,7 @@ class DebtPayment < ApplicationRecord
       payment_method: payment_method,
       reference: reference,
       occurred_at: occurred_at,
-      notes: [notes.to_s, '[MIRROR_SYNC]', "[MIRROR_FROM_DP:#{id}]"].reject(&:blank?).join(' ')
+      notes: [notes.to_s, "[MIRROR_SYNC]", "[MIRROR_FROM_DP:#{id}]"].reject(&:blank?).join(" "),
     )
 
     mirror_payment.save!
