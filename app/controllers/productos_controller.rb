@@ -595,7 +595,7 @@ class ProductosController < ApplicationController
   def highest_active_lot_cost_for_variation(producto, variation)
     lot_costs = producto.stock_lot_variations
                        .where(product_variation_id: variation.id)
-                       .where('quantity_remaining > 0')
+                       .where('stock_lot_variations.quantity_remaining > 0')
                        .joins(:stock_lot)
                        .pluck('stock_lots.unit_cost_usd')
                        .map(&:to_d)
