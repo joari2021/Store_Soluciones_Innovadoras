@@ -58,7 +58,10 @@ class ProductosController < ApplicationController
       return render json: [] unless source_business
 
       productos = if query.present?
-                    source_business.productos.whose_name_starts_with(query)
+                    sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
+                    source_business
+                      .productos
+                      .where('productos.descripcion ILIKE ?', "%#{sanitized_query}%")
                   else
                     Producto.none
                   end
