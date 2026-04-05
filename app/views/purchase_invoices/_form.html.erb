@@ -2605,12 +2605,22 @@
         if (!intercompanyMode) return;
 
         const sourceBusinessId = currentSourceBusinessId();
+        if (!sourceBusinessId) {
+          // Keep server-rendered options when source business is not yet resolved.
+          return;
+        }
+
         if (sourceBusinessId) {
           await loadSourceAccountsFromServer(sourceBusinessId);
         }
 
         const options = sourceAccountOptionsForCurrentBusiness();
         const sourceSelects = rowsContainer.querySelectorAll('[data-invoice-payment-source-account="true"]');
+
+        if (options.length === 0) {
+          // Avoid wiping already rendered options if the fetch returns empty unexpectedly.
+          return;
+        }
 
         sourceSelects.forEach((select) => {
           const previous = String(select.value || '').trim();
