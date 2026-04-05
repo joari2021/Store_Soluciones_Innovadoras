@@ -2256,8 +2256,8 @@
       });
     };
 
-      if (!window.__purchaseInvoiceFacturaFormEventsBound) {
-        window.__purchaseInvoiceFacturaFormEventsBound = true;
+      if (!window.__purchaseInvoiceFacturaFormEventsBoundV3) {
+        window.__purchaseInvoiceFacturaFormEventsBoundV3 = true;
 
         document.addEventListener('turbo:load', () => {
           initFacturaForm(document);
@@ -2305,6 +2305,17 @@
       const hintNode = paymentsBlock.querySelector('[data-invoice-payment-hint="true"]');
 
       if (!rowsContainer) return;
+
+      const currentSourceBusinessId = () => {
+        const selected = String(sourceBusinessSelect?.value || '').trim();
+        if (selected) return selected;
+        return String(form.dataset.defaultSourceBusinessId || '').trim();
+      };
+
+      if (sourceBusinessSelect && !String(sourceBusinessSelect.value || '').trim()) {
+        const fallbackId = currentSourceBusinessId();
+        if (fallbackId) sourceBusinessSelect.value = fallbackId;
+      }
 
       const parseNumber = (rawValue) => {
         const compact = String(rawValue || '').replace(/\s/g, '').replace(/[^\d.,-]/g, '');
@@ -2532,7 +2543,7 @@
       };
 
       const sourceAccountOptionsForCurrentBusiness = () => {
-        const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
+        const sourceBusinessId = currentSourceBusinessId();
         const rawOptions = Array(sourceAccountsCache[sourceBusinessId] || []);
         return rawOptions.map((entry) => ({
           id: entry?.id ?? entry?.['id'] ?? '',
@@ -2571,7 +2582,7 @@
       const syncSourceAccountOptions = async () => {
         if (!intercompanyMode) return;
 
-        const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
+        const sourceBusinessId = currentSourceBusinessId();
         if (sourceBusinessId) {
           await loadSourceAccountsFromServer(sourceBusinessId);
         }
@@ -2695,8 +2706,8 @@
       });
     };
 
-      if (!window.__purchaseInvoicePaymentsFormEventsBound) {
-        window.__purchaseInvoicePaymentsFormEventsBound = true;
+      if (!window.__purchaseInvoicePaymentsFormEventsBoundV3) {
+        window.__purchaseInvoicePaymentsFormEventsBoundV3 = true;
 
         document.addEventListener('turbo:load', () => {
           initInvoicePaymentsForm(document);
