@@ -830,24 +830,30 @@
       let lastSupplierAlertAt = 0;
 
       const intercompanyModeActive = () => Boolean(intercompanyCheckbox && intercompanyCheckbox.checked);
+      const selectedSourceBusinessId = () => String(sourceBusinessSelect?.value || '').trim();
+      const useIntercompanySearch = () => selectedSourceBusinessId().length > 0;
 
       const hasSupplierSelected = () => {
         if (!requiresSupplierForProducts) return true;
 
+        if (useIntercompanySearch()) {
+          return true;
+        }
+
         if (intercompanyModeActive()) {
-          return Boolean(sourceBusinessSelect && sourceBusinessSelect.value && sourceBusinessSelect.value.trim() !== '');
+          return false;
         }
 
         return Boolean(supplierSelect && supplierSelect.value && supplierSelect.value.trim() !== '');
       };
       const currentSupplierPriority = () => {
-        if (intercompanyModeActive()) return 'usd';
+        if (useIntercompanySearch() || intercompanyModeActive()) return 'usd';
         const selectedOption = supplierSelect?.options?.[supplierSelect.selectedIndex];
         const priority = selectedOption?.dataset?.pricingCurrencyPriority;
         return priority === 'bs' ? 'bs' : 'usd';
       };
       const currentSupplierDefaultExento = () => {
-        if (intercompanyModeActive()) return true;
+        if (useIntercompanySearch() || intercompanyModeActive()) return true;
         const selectedOption = supplierSelect?.options?.[supplierSelect.selectedIndex];
         return String(selectedOption?.dataset?.defaultExento || 'false') === 'true';
       };
@@ -866,8 +872,8 @@
         if (window.Swal) {
           window.Swal.fire({
             icon: 'info',
-            title: 'Proveedor requerido',
-            text: 'Seleccione primero a un proveedor.',
+            title: intercompanyModeActive() ? 'Negocio origen requerido' : 'Proveedor requerido',
+            text: intercompanyModeActive() ? 'Seleccione primero el negocio origen para buscar productos.' : 'Seleccione primero a un proveedor.',
             confirmButtonText: 'Entendido',
             confirmButtonColor: '#0284c7',
             target: 'body',
@@ -887,7 +893,7 @@
           searchInput.placeholder = intercompanyModeActive() ? 'Seleccione primero un negocio origen' : 'Seleccione primero un proveedor';
           if (resultsBox) resultsBox.classList.add('hidden');
         } else {
-          searchInput.placeholder = intercompanyModeActive() ? 'Buscar producto en negocio origen...' : (requiresSupplierForProducts ? 'Buscar producto...' : 'Buscar producto para inventario inicial...');
+          searchInput.placeholder = useIntercompanySearch() ? 'Buscar producto en negocio origen...' : (requiresSupplierForProducts ? 'Buscar producto...' : 'Buscar producto para inventario inicial...');
         }
       };
 
@@ -1975,8 +1981,8 @@
               return;
             }
             const supplierId = supplierSelect ? supplierSelect.value : '';
-            const sourceBusinessId = sourceBusinessSelect ? sourceBusinessSelect.value : '';
-            const queryParams = intercompanyModeActive()
+            const sourceBusinessId = selectedSourceBusinessId();
+            const queryParams = useIntercompanySearch()
               ? `q=${encodeURIComponent(value)}&source_business_id=${encodeURIComponent(sourceBusinessId)}`
               : `q=${encodeURIComponent(value)}&supplier_id=${encodeURIComponent(supplierId)}`;
 
