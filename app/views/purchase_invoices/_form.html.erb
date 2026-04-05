@@ -9,6 +9,7 @@
                   require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s,
                   initial_inventory_mode: initial_inventory_mode.to_s,
                   intercompany_mode: intercompany_mode.to_s,
+                  default_source_business_id: factura.source_business_id.to_s,
                   source_accounts_map: @source_accounts_map.to_json
                 }
               } do |f| %>
@@ -833,7 +834,11 @@
       let lastSupplierAlertAt = 0;
 
       const intercompanyModeActive = () => String(intercompanyInput?.value || '0') === '1';
-      const selectedSourceBusinessId = () => String(sourceBusinessSelect?.value || '').trim();
+      const selectedSourceBusinessId = () => {
+        const selectValue = String(sourceBusinessSelect?.value || '').trim();
+        if (selectValue.length > 0) return selectValue;
+        return String(form.dataset.defaultSourceBusinessId || '').trim();
+      };
       const useIntercompanySearch = () => selectedSourceBusinessId().length > 0;
 
       const hasSupplierSelected = () => {
@@ -909,6 +914,7 @@
           const firstAvailableOption = Array.from(sourceBusinessSelect.options || []).find((option) => String(option.value || '').trim() !== '');
           if (firstAvailableOption) {
             sourceBusinessSelect.value = String(firstAvailableOption.value);
+            form.dataset.defaultSourceBusinessId = String(firstAvailableOption.value);
           }
         }
 
@@ -1908,6 +1914,7 @@
 
       if (sourceBusinessSelect) {
         sourceBusinessSelect.addEventListener('change', () => {
+          form.dataset.defaultSourceBusinessId = String(sourceBusinessSelect.value || '').trim();
           updateSearchLockState();
           syncSupplierPriorityBadge();
           window.dispatchEvent(new CustomEvent('purchase-invoice:source-business-changed', {

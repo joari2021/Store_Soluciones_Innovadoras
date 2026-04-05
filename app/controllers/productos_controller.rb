@@ -71,10 +71,18 @@ class ProductosController < ApplicationController
                     Producto.none
                   end
 
-      rows = productos
-             .includes(:product_variations, :stock_lots)
-             .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
-             .limit(10)
+            rows = productos
+              .includes(:product_variations, :stock_lots)
+              .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+              .limit(10)
+
+            if rows.blank?
+         rows = source_business
+           .productos
+           .includes(:product_variations, :stock_lots)
+           .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+           .limit(10)
+            end
 
       payload = rows.map do |row|
         variations = row.product_variations.order(:id).map do |variation|
