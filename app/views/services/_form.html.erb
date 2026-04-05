@@ -713,6 +713,13 @@
                 field.value = templateValue == null ? '' : String(templateValue);
               });
 
+              const templatePages = Array.isArray(rcvSharedTemplate.print_delivery_pages)
+                ? rcvSharedTemplate.print_delivery_pages
+                : [];
+              if (templatePages.length > 0) {
+                applyRcvPrintPagesTemplate(templatePages);
+              }
+
               resizeTextareas(form);
             };
 
@@ -1308,12 +1315,21 @@
               }
             };
 
-            const addPrintPage = () => {
+            const addPrintPage = (seedPage = null) => {
               if (!printPagesContainer) return;
 
               const firstRow = printPagesContainer.querySelector('[data-print-page-row]');
               const defaultTypeId = String(firstRow?.querySelector('[data-print-page-type]')?.value || '').trim();
               const defaultMaterialId = String(firstRow?.querySelector('[data-print-page-material]')?.value || '').trim();
+              const requestedTypeId = String(seedPage?.print_type_service_id || '').trim();
+              const requestedMaterialId = String(seedPage?.material_surcharge_id || '').trim();
+              const requestedCoverage = Number.parseFloat(String(seedPage?.coverage_percent || '').trim());
+              const safeCoverage = Number.isFinite(requestedCoverage) && requestedCoverage > 0 ? requestedCoverage : 1;
+              const requestedLamination = Boolean(seedPage?.includes_lamination);
+              const requestedLaminationServiceId = String(seedPage?.lamination_service_id || '').trim();
+              const coverageValue = window.MoneyInputMask?.formatMoney
+                ? window.MoneyInputMask.formatMoney(safeCoverage, '%')
+                : `%${safeCoverage.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
               const row = document.createElement('div');
               row.className = 'grid gap-3 rounded-xl border border-cyan-200 bg-white px-3 py-3 md:grid-cols-[auto_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.7fr)_minmax(0,1fr)_auto] md:items-end';
@@ -1338,7 +1354,7 @@
                 </div>
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
-                  <input type="text" inputmode="decimal" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-coverage data-money-mask="true" data-money-symbol="%" value="%1,00">
+                  <input type="text" inputmode="decimal" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-coverage data-money-mask="true" data-money-symbol="%" value="${coverageValue}">
                 </div>
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Costo pagina (Bs)</label>
@@ -1347,10 +1363,10 @@
                 <div>
                   <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Plastificacion</label>
                   <label class="mt-1 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
-                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" data-print-page-lamination-enabled>
+                    <input type="checkbox" class="h-4 w-4 cursor-pointer rounded border-slate-300 text-cyan-600 focus:ring-cyan-500" data-print-page-lamination-enabled ${requestedLamination ? 'checked' : ''}>
                     Incluye servicio
                   </label>
-                  <div class="mt-2 hidden" data-print-page-lamination-wrapper>
+                  <div class="mt-2 ${requestedLamination ? '' : 'hidden'}" data-print-page-lamination-wrapper>
                     <select class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-print-page-lamination-service>
                       <option value="">Selecciona servicio</option>
                       ${laminationServicesPayload.map((service) => `<option value="${String(service?.id || '')}">${String(service?.name || '')}</option>`).join('')}
@@ -1362,15 +1378,65 @@
               printPagesContainer.appendChild(row);
 
               const rowTypeSelect = row.querySelector('[data-print-page-type]');
-              if (rowTypeSelect && defaultTypeId) rowTypeSelect.value = defaultTypeId;
+              const selectedTypeId = requestedTypeId || defaultTypeId;
+              if (rowTypeSelect && selectedTypeId) rowTypeSelect.value = selectedTypeId;
               setPageRowMaterialOptions(row, rowTypeSelect?.value || '', { keepCurrent: false });
 
               const rowMaterialSelect = row.querySelector('[data-print-page-material]');
-              if (rowMaterialSelect && defaultMaterialId) rowMaterialSelect.value = defaultMaterialId;
+              const selectedMaterialId = requestedMaterialId || defaultMaterialId;
+              if (rowMaterialSelect && selectedMaterialId) {
+                const optionExists = Array.from(rowMaterialSelect.options).some((option) => option.value === selectedMaterialId);
+                if (optionExists) rowMaterialSelect.value = selectedMaterialId;
+              }
+
+              const laminationServiceSelect = row.querySelector('[data-print-page-lamination-service]');
+              if (laminationServiceSelect && requestedLamination && requestedLaminationServiceId) {
+                const optionExists = Array.from(laminationServiceSelect.options)
+                  .some((option) => option.value === requestedLaminationServiceId);
+                if (optionExists) laminationServiceSelect.value = requestedLaminationServiceId;
+              }
+
               refreshPageLaminationVisibility(row);
 
               window.MoneyInputMask?.init(row);
               if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { 'stroke-width': 2 } });
+              renumberPrintPages();
+              syncPrintPagesHidden();
+              recalculatePrintCost();
+            };
+
+            const applyRcvPrintPagesTemplate = (pages) => {
+              if (!printPagesContainer) return;
+
+              const normalizedPages = (Array.isArray(pages) ? pages : [])
+                .map((row) => ({
+                  page_number: Number.parseInt(String(row?.page_number || '').trim(), 10),
+                  print_type_service_id: Number.parseInt(String(row?.print_type_service_id || '').trim(), 10),
+                  material_surcharge_id: Number.parseInt(String(row?.material_surcharge_id || '').trim(), 10),
+                  coverage_percent: Number.parseFloat(String(row?.coverage_percent || '').trim()),
+                  includes_lamination: Boolean(row?.includes_lamination),
+                  lamination_service_id: Number.parseInt(String(row?.lamination_service_id || '').trim(), 10)
+                }))
+                .filter((row) => Number.isFinite(row.coverage_percent) && row.coverage_percent > 0)
+                .sort((a, b) => {
+                  const aPage = Number.isInteger(a.page_number) && a.page_number > 0 ? a.page_number : 9999;
+                  const bPage = Number.isInteger(b.page_number) && b.page_number > 0 ? b.page_number : 9999;
+                  return aPage - bPage;
+                });
+
+              if (normalizedPages.length === 0) return;
+
+              printPagesContainer.innerHTML = '';
+              normalizedPages.forEach((row) => {
+                addPrintPage({
+                  print_type_service_id: Number.isInteger(row.print_type_service_id) && row.print_type_service_id > 0 ? row.print_type_service_id : null,
+                  material_surcharge_id: Number.isInteger(row.material_surcharge_id) && row.material_surcharge_id > 0 ? row.material_surcharge_id : null,
+                  coverage_percent: row.coverage_percent,
+                  includes_lamination: row.includes_lamination,
+                  lamination_service_id: Number.isInteger(row.lamination_service_id) && row.lamination_service_id > 0 ? row.lamination_service_id : null
+                });
+              });
+
               renumberPrintPages();
               syncPrintPagesHidden();
               recalculatePrintCost();
