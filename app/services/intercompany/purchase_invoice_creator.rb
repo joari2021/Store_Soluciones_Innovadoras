@@ -40,10 +40,10 @@ module Intercompany
       end
     rescue ActiveRecord::RecordInvalid => e
       message = if e.record.respond_to?(:errors) && e.record.errors.any?
-                  e.record.errors.full_messages
-                else
-                  [e.message]
-                end
+          e.record.errors.full_messages
+        else
+          [e.message]
+        end
       Result.new(false, @purchase_invoice, message)
     end
 
@@ -59,7 +59,7 @@ module Intercompany
     def normalize_items_from_source!
       items = @purchase_invoice.purchase_invoice_items.reject(&:marked_for_destruction?)
       if items.empty?
-        @purchase_invoice.errors.add(:base, 'Debes agregar al menos un producto para la factura inter-empresas.')
+        @purchase_invoice.errors.add(:base, "Debes agregar al menos un producto para la factura inter-empresas.")
         return
       end
 
@@ -90,9 +90,9 @@ module Intercompany
         item.exento = true
         item.variation_breakdown = normalized_rows.map do |row|
           {
-            'variation_id' => row[:destination_variation_id],
-            'description' => row[:description],
-            'quantity' => row[:quantity].to_d.to_f
+            "variation_id" => row[:destination_variation_id],
+            "description" => row[:description],
+            "quantity" => row[:quantity].to_d.to_f,
           }
         end
       end
@@ -104,18 +104,28 @@ module Intercompany
 
       destination_product = @current_business.productos.find_by(
         source_business_id: @source_business.id,
-        source_product_id: source_product.id
+        source_product_id: source_product.id,
       )
+
+      if destination_product.blank?
+        destination_product = find_existing_destination_product_by_definition(source_product)
+        if destination_product.present? && destination_product.source_business_id.blank? && destination_product.source_product_id.blank?
+          destination_product.update!(
+            source_business_id: @source_business.id,
+            source_product_id: source_product.id,
+          )
+        end
+      end
 
       unless destination_product
         destination_categoria = @current_business.categorias.find_or_create_by!(
-          nombre: source_product.categoria&.nombre.presence || 'General'
+          nombre: source_product.categoria&.nombre.presence || "General",
         )
 
         preset = nil
         if source_product.profit_margin_preset.present?
           preset = @current_business.profit_margin_presets.find_or_create_by!(
-            percentage: source_product.profit_margin_preset.percentage
+            percentage: source_product.profit_margin_preset.percentage,
           )
         end
 
@@ -130,19 +140,45 @@ module Intercompany
           profit_margin_preset: preset,
           exento: source_product.respond_to?(:exento) ? source_product.exento : false,
           source_business_id: @source_business.id,
-          source_product_id: source_product.id
+          source_product_id: source_product.id,
         )
 
         destination_product.product_variations.destroy_all
         source_product.product_variations.order(:id).find_each do |variation|
           destination_product.product_variations.create!(
             description: variation.description,
-            safety_stock: variation.safety_stock
+            safety_stock: variation.safety_stock,
           )
         end
       end
 
       @cloned_products_cache[cache_key] = destination_product
+    end
+
+    def find_existing_destination_product_by_definition(source_product)
+      normalized_description = normalize_product_description(source_product.descripcion)
+      return nil if normalized_description.blank?
+
+      current_scope = @current_business.productos
+                                     .where('LOWER(TRIM(productos.descripcion)) = ?', normalized_description)
+                                     .where(presentation: source_product.presentation)
+
+      if source_product.pack?
+        current_scope = current_scope.where(cant_presentation: source_product.cant_presentation)
+      end
+
+      candidates = current_scope.to_a
+      return nil if candidates.blank?
+
+      candidates.find do |candidate|
+        same_mapping = candidate.source_business_id == @source_business.id && candidate.source_product_id == source_product.id
+        unmapped = candidate.source_business_id.blank? && candidate.source_product_id.blank?
+        same_mapping || unmapped
+      end
+    end
+
+    def normalize_product_description(raw_value)
+      raw_value.to_s.strip.downcase
     end
 
     def normalize_variation_rows!(item:, source_product:, destination_product:)
@@ -166,7 +202,7 @@ module Intercompany
         if destination_variation.blank?
           destination_variation = destination_product.product_variations.create!(
             description: source_variation.description,
-            safety_stock: source_variation.safety_stock
+            safety_stock: source_variation.safety_stock,
           )
           destination_by_desc[source_variation.description.to_s.strip.downcase] = destination_variation
         end
@@ -175,7 +211,7 @@ module Intercompany
           source_variation_id: source_variation.id,
           destination_variation_id: destination_variation.id,
           description: source_variation.description,
-          quantity: quantity
+          quantity: quantity,
         }
       end
 
@@ -187,7 +223,7 @@ module Intercompany
           source_variation_id: source_variation.id,
           destination_variation_id: destination_variation.id,
           description: source_variation.description,
-          quantity: quantity
+          quantity: quantity,
         }]
       end
 
@@ -219,11 +255,11 @@ module Intercompany
     def consume_source_variation!(source_product:, source_variation_id:, quantity:)
       remaining = quantity.to_d
       rows_scope = StockLotVariation
-                   .joins(:stock_lot)
-                   .where(stock_lot_variations: { product_variation_id: source_variation_id })
-                   .where(stock_lots: { producto_id: source_product.id })
-                   .where('stock_lot_variations.quantity_remaining > 0')
-                   .order(Arel.sql('stock_lots.unit_cost_usd DESC, stock_lots.purchased_at ASC, stock_lots.created_at ASC'))
+        .joins(:stock_lot)
+        .where(stock_lot_variations: { product_variation_id: source_variation_id })
+        .where(stock_lots: { producto_id: source_product.id })
+        .where("stock_lot_variations.quantity_remaining > 0")
+        .order(Arel.sql("stock_lots.unit_cost_usd DESC, stock_lots.purchased_at ASC, stock_lots.created_at ASC"))
 
       available = rows_scope.sum(:quantity_remaining).to_d
       if available < remaining
@@ -248,7 +284,7 @@ module Intercompany
 
         allocations << {
           quantity: consumed,
-          unit_cost_usd: lot.unit_cost_usd.to_d
+          unit_cost_usd: lot.unit_cost_usd.to_d,
         }
 
         remaining -= consumed
@@ -267,12 +303,12 @@ module Intercompany
         next unless account.present? && amount.positive?
 
         attrs = {
-          movement_kind: 'expense',
+          movement_kind: "expense",
           amount: amount,
           description: description,
-          occurred_at: occurred_at
+          occurred_at: occurred_at,
         }
-        attrs[:payment_method] = 'transfer' if account.account_type == 'bank_account'
+        attrs[:payment_method] = "transfer" if account.account_type == "bank_account"
         account.account_movements.create!(attrs)
       end
     end
@@ -285,11 +321,11 @@ module Intercompany
 
       occurred_at = @purchase_invoice.fecha_emision.presence || Time.current
       @source_account.account_movements.create!(
-        movement_kind: 'income',
+        movement_kind: "income",
         amount: total_amount,
         description: "Cobro factura inter-empresa ##{@purchase_invoice.id} desde #{@current_business.name} [FACTURA_COMPRA_MIRROR:#{@purchase_invoice.id}]",
         occurred_at: occurred_at,
-        payment_method: (@source_account.account_type == 'bank_account' ? 'transfer' : nil)
+        payment_method: (@source_account.account_type == "bank_account" ? "transfer" : nil),
       )
     end
 
@@ -302,29 +338,29 @@ module Intercompany
       due_on = @payment_context[:pending_due_on]
 
       payable = @current_business.debts.create!(
-        debt_kind: 'payable',
+        debt_kind: "payable",
         name: @source_business.name,
         description: "Saldo pendiente factura inter-empresa #{invoice_reference} [FACTURA_COMPRA:#{@purchase_invoice.id}] [IC_MIRROR]",
         amount: pending_amount_bs,
-        currency: 'VES',
+        currency: "VES",
         issued_on: issued_on,
         due_on: due_on,
         mirror_sync_enabled: true,
-        mirror_account: @source_account
+        mirror_account: @source_account,
       )
 
       source_destination_account = buyer_default_account_for_mirror
 
       receivable = @source_business.debts.create!(
-        debt_kind: 'receivable',
+        debt_kind: "receivable",
         name: @current_business.name,
         description: "Cuenta por cobrar factura inter-empresa #{invoice_reference} [FACTURA_COMPRA_MIRROR:#{@purchase_invoice.id}] [IC_MIRROR]",
         amount: pending_amount_bs,
-        currency: 'VES',
+        currency: "VES",
         issued_on: issued_on,
         due_on: due_on,
         mirror_sync_enabled: true,
-        mirror_account: source_destination_account
+        mirror_account: source_destination_account,
       )
 
       payable.update!(mirror_debt: receivable)
@@ -337,13 +373,13 @@ module Intercompany
     end
 
     def find_source_variation(source_product:, source_variations:, row:)
-      variation_id = row['variation_id'] || row[:variation_id]
+      variation_id = row["variation_id"] || row[:variation_id]
       if variation_id.present?
         variation = source_variations.find { |entry| entry.id == variation_id.to_i }
         return variation if variation.present?
       end
 
-      description = (row['description'] || row[:description]).to_s.strip.downcase
+      description = (row["description"] || row[:description]).to_s.strip.downcase
       if description.present?
         variation = source_variations.find { |entry| entry.description.to_s.strip.downcase == description }
         return variation if variation.present?
@@ -353,7 +389,7 @@ module Intercompany
     end
 
     def row_quantity(row)
-      raw_quantity = row['quantity'] || row[:quantity]
+      raw_quantity = row["quantity"] || row[:quantity]
       raw_quantity.to_d
     end
   end
