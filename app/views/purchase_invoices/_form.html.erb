@@ -837,14 +837,14 @@
       const useIntercompanySearch = () => selectedSourceBusinessId().length > 0;
 
       const hasSupplierSelected = () => {
+        if (intercompanyModeActive()) {
+          return useIntercompanySearch();
+        }
+
         if (!requiresSupplierForProducts) return true;
 
         if (useIntercompanySearch()) {
           return true;
-        }
-
-        if (intercompanyModeActive()) {
-          return false;
         }
 
         return Boolean(supplierSelect && supplierSelect.value && supplierSelect.value.trim() !== '');
@@ -904,6 +904,13 @@
         const active = intercompanyModeActive();
         if (supplierModeFields) supplierModeFields.classList.toggle('hidden', active);
         if (intercompanyModeFields) intercompanyModeFields.classList.toggle('hidden', !active);
+
+        if (active && sourceBusinessSelect && !selectedSourceBusinessId()) {
+          const firstAvailableOption = Array.from(sourceBusinessSelect.options || []).find((option) => String(option.value || '').trim() !== '');
+          if (firstAvailableOption) {
+            sourceBusinessSelect.value = String(firstAvailableOption.value);
+          }
+        }
 
         updateSearchLockState();
         syncSupplierPriorityBadge();
