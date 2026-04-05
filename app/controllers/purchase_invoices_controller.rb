@@ -153,14 +153,17 @@ class PurchaseInvoicesController < ApplicationController
                   .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
                               .order(:name)
                               .map do |account|
+      account_name = account.name.to_s.strip
+      next if account_name.blank?
+
       {
         id: account.id,
-        name: account.name,
+        name: account_name,
         balance: account.balance.to_d,
         currency: account.currency,
         active: account.active
       }
-    end
+    end.compact
 
     render json: accounts
   end
