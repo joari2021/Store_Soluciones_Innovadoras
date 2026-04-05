@@ -2601,7 +2601,7 @@
         }
       };
 
-      const syncSourceAccountOptions = async () => {
+      const syncSourceAccountOptions = async ({ forceRefresh = false } = {}) => {
         if (!intercompanyMode) return;
 
         const sourceBusinessId = currentSourceBusinessId();
@@ -2617,8 +2617,8 @@
         const options = sourceAccountOptionsForCurrentBusiness();
         const sourceSelects = rowsContainer.querySelectorAll('[data-invoice-payment-source-account="true"]');
 
-        if (options.length === 0) {
-          // Avoid wiping already rendered options if the fetch returns empty unexpectedly.
+        if (options.length === 0 && !forceRefresh) {
+          // Avoid wiping already rendered options if the fetch returns empty unexpectedly on first load.
           return;
         }
 
@@ -2696,13 +2696,13 @@
 
       if (sourceBusinessSelect) {
         sourceBusinessSelect.addEventListener('change', async () => {
-          await syncSourceAccountOptions();
+          await syncSourceAccountOptions({ forceRefresh: true });
           syncPaymentSummary();
         });
       }
 
       window.addEventListener('purchase-invoice:source-business-changed', () => {
-        syncSourceAccountOptions();
+        syncSourceAccountOptions({ forceRefresh: true });
         syncPaymentSummary();
       });
 
