@@ -156,6 +156,7 @@
       <div class="px-3 py-2 text-sm text-slate-500">Escribe para buscar</div>
     </div>
   </div>
+  <div data-intercompany-search-debug="true" class="mt-2 hidden rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-700"></div>
   <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
     <table class="min-w-full text-sm text-slate-700">
       <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
@@ -816,6 +817,7 @@
 
       const searchInput = form.querySelector('#producto-search');
       const resultsBox = form.querySelector('#producto-results');
+      const searchDebugNode = form.querySelector('[data-intercompany-search-debug="true"]');
       const supplierSelect = form.querySelector('#purchase_invoice_supplier_id');
       const intercompanyInput = form.querySelector('#purchase_invoice_intercompany');
       const sourceBusinessSelect = form.querySelector('#purchase_invoice_source_business_id');
@@ -870,6 +872,36 @@
         supplierCurrencyPriorityValue.textContent = currentSupplierPriority() === 'bs' ? 'Bs' : '$';
       };
 
+      const intercompanySourceLabel = () => {
+        if (!sourceBusinessSelect) return '(sin negocio origen)';
+        const sourceId = selectedSourceBusinessId();
+        const option = Array.from(sourceBusinessSelect.options || []).find((entry) => String(entry.value || '').trim() === sourceId);
+        return String(option?.text || '(sin negocio origen)');
+      };
+
+      const updateIntercompanySearchDebug = ({ status = 'idle', query = '', count = null, note = '' } = {}) => {
+        if (!searchDebugNode) return;
+
+        if (!intercompanyModeActive()) {
+          searchDebugNode.classList.add('hidden');
+          searchDebugNode.textContent = '';
+          return;
+        }
+
+        searchDebugNode.classList.remove('hidden');
+        const sourceId = selectedSourceBusinessId();
+        const parts = [
+          `Origen: ${intercompanySourceLabel()} (ID ${sourceId || '-'})`,
+          `Estado: ${status}`
+        ];
+
+        if (query) parts.push(`Query: "${query}"`);
+        if (count !== null) parts.push(`Resultados: ${count}`);
+        if (note) parts.push(note);
+
+        searchDebugNode.textContent = parts.join(' | ');
+      };
+
       const showSupplierRequiredAlert = () => {
         if (!requiresSupplierForProducts) return;
 
@@ -900,8 +932,10 @@
           searchInput.value = '';
           searchInput.placeholder = intercompanyModeActive() ? 'Seleccione primero un negocio origen' : 'Seleccione primero un proveedor';
           if (resultsBox) resultsBox.classList.add('hidden');
+          updateIntercompanySearchDebug({ status: 'bloqueado', note: 'Falta seleccionar negocio origen.' });
         } else {
           searchInput.placeholder = useIntercompanySearch() ? 'Buscar producto en negocio origen...' : (requiresSupplierForProducts ? 'Buscar producto...' : 'Buscar producto para inventario inicial...');
+          updateIntercompanySearchDebug({ status: 'listo' });
         }
       };
 
@@ -1790,11 +1824,13 @@
         if (!Array.isArray(items)) {
           resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-rose-600">Respuesta inválida del servidor al buscar productos</div>';
           resultsBox.classList.remove('hidden');
+          updateIntercompanySearchDebug({ status: 'respuesta invalida', note: 'El backend no devolvio arreglo JSON.' });
           return;
         }
         if (!items.length) {
           resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">Sin resultados</div>';
           resultsBox.classList.remove('hidden');
+          updateIntercompanySearchDebug({ status: 'sin resultados', count: 0 });
           return;
         }
         resultsBox.innerHTML = items.map((item) => {
@@ -1804,6 +1840,7 @@
            </button>`);
         }).join('');
         resultsBox.classList.remove('hidden');
+        updateIntercompanySearchDebug({ status: 'ok', count: items.length });
       };
 
       const addItemRow = (productId, productName, defaults = {}) => {
@@ -1920,6 +1957,7 @@
           window.dispatchEvent(new CustomEvent('purchase-invoice:source-business-changed', {
             detail: { sourceBusinessId: selectedSourceBusinessId() }
           }));
+          updateIntercompanySearchDebug({ status: 'origen actualizado' });
         });
       }
 
@@ -1966,12 +2004,15 @@
                 resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-amber-700">Selecciona un negocio origen para buscar productos.</div>';
                 resultsBox.classList.remove('hidden');
               }
+              updateIntercompanySearchDebug({ status: 'sin origen', query: value, count: 0 });
               return;
             }
 
             const queryParams = intercompanyModeActive()
               ? `q=${encodeURIComponent(value)}&source_business_id=${encodeURIComponent(sourceBusinessId)}`
               : `q=${encodeURIComponent(value)}&supplier_id=${encodeURIComponent(supplierId)}`;
+
+            updateIntercompanySearchDebug({ status: 'consultando', query: value, note: queryParams });
 
             fetch(`/productos/search?${queryParams}`)
               .then((res) => res.json())
@@ -1981,6 +2022,7 @@
                   resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">Error buscando productos</div>';
                   resultsBox.classList.remove('hidden');
                 }
+                updateIntercompanySearchDebug({ status: 'error', query: value, note: 'Fallo la llamada al endpoint /productos/search.' });
               });
           }, 250);
         });
