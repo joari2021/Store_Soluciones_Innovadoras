@@ -61,12 +61,19 @@ class ProductosController < ApplicationController
                     sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
                     source_business
                       .productos
-                      .left_joins(:product_variations)
                       .where(
-                        'productos.descripcion ILIKE :q OR CAST(productos.presentation AS TEXT) ILIKE :q OR product_variations.description ILIKE :q',
+                        <<~SQL.squish,
+                          productos.descripcion ILIKE :q
+                          OR CAST(productos.presentation AS TEXT) ILIKE :q
+                          OR EXISTS (
+                            SELECT 1
+                            FROM product_variations
+                            WHERE product_variations.producto_id = productos.id
+                              AND product_variations.description ILIKE :q
+                          )
+                        SQL
                         q: "%#{sanitized_query}%"
                       )
-                      .distinct
                   else
                     Producto.none
                   end
