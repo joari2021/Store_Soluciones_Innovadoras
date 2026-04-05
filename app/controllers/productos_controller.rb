@@ -18,36 +18,6 @@ class ProductosController < ApplicationController
     @categorias = current_business.categorias.order(nombre: :asc)
     @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
     @selected_categoria_id = @selected_categoria&.id
-  private
-
-  def find_accessible_source_business(raw_id)
-    business_id = raw_id.to_i
-    return nil if business_id <= 0
-    return nil if current_business.present? && business_id == current_business.id
-
-    scope = if Current.user&.admin?
-              Business.all
-            elsif Current.user.present? && Current.user.business_id.present?
-              Business.where(id: Current.user.business_id)
-            else
-              Business.none
-            end
-
-    scope.find_by(id: business_id)
-  end
-
-  def highest_active_lot_cost_for_variation(producto, variation)
-    lot_costs = producto.stock_lot_variations
-                       .where(product_variation_id: variation.id)
-                       .where('quantity_remaining > 0')
-                       .joins(:stock_lot)
-                       .pluck('stock_lots.unit_cost_usd')
-                       .map(&:to_d)
-
-    return 0.to_d if lot_costs.blank?
-
-    lot_costs.max
-  end
     @product_counts_by_categoria_id = current_business.productos.group(:categoria_id).count
     @below_target_margin_total_count = calculate_below_target_margin_total_count
 
@@ -181,35 +151,6 @@ class ProductosController < ApplicationController
         }
       }
     }
-  end
-
-  def find_accessible_source_business(raw_id)
-    business_id = raw_id.to_i
-    return nil if business_id <= 0
-    return nil if current_business.present? && business_id == current_business.id
-
-    scope = if Current.user&.admin?
-              Business.all
-            elsif Current.user.present? && Current.user.business_id.present?
-              Business.where(id: Current.user.business_id)
-            else
-              Business.none
-            end
-
-    scope.find_by(id: business_id)
-  end
-
-  def highest_active_lot_cost_for_variation(producto, variation)
-    lot_costs = producto.stock_lot_variations
-                       .where(product_variation_id: variation.id)
-                       .where('quantity_remaining > 0')
-                       .joins(:stock_lot)
-                       .pluck('stock_lots.unit_cost_usd')
-                       .map(&:to_d)
-
-    return 0.to_d if lot_costs.blank?
-
-    lot_costs.max
   end
 
   def new
@@ -604,6 +545,35 @@ class ProductosController < ApplicationController
   end
 
   private
+
+  def find_accessible_source_business(raw_id)
+    business_id = raw_id.to_i
+    return nil if business_id <= 0
+    return nil if current_business.present? && business_id == current_business.id
+
+    scope = if Current.user&.admin?
+              Business.all
+            elsif Current.user.present? && Current.user.business_id.present?
+              Business.where(id: Current.user.business_id)
+            else
+              Business.none
+            end
+
+    scope.find_by(id: business_id)
+  end
+
+  def highest_active_lot_cost_for_variation(producto, variation)
+    lot_costs = producto.stock_lot_variations
+                       .where(product_variation_id: variation.id)
+                       .where('quantity_remaining > 0')
+                       .joins(:stock_lot)
+                       .pluck('stock_lots.unit_cost_usd')
+                       .map(&:to_d)
+
+    return 0.to_d if lot_costs.blank?
+
+    lot_costs.max
+  end
 
   def product_available_for_export?(producto)
     return producto.available? if producto.respond_to?(:available?)
