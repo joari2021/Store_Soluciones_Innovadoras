@@ -150,7 +150,7 @@ class PurchaseInvoicesController < ApplicationController
     return render json: [] if source_business.blank?
 
     accounts = source_business.accounts
-                  .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
+                  .where(account_type: 'bank_account', currency: 'VES')
                               .order(:name)
                               .map do |account|
       account_name = account.name.to_s.strip
@@ -577,7 +577,7 @@ class PurchaseInvoicesController < ApplicationController
 
     @source_accounts_map = @available_source_businesses.each_with_object({}) do |business, hash|
       hash[business.id] = business.accounts
-                              .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
+              .where(account_type: 'bank_account', currency: 'VES')
                               .order(:name)
                               .map do |account|
         {
@@ -741,7 +741,7 @@ class PurchaseInvoicesController < ApplicationController
     accounts_by_id = current_business.accounts.where(id: account_ids).index_by(&:id)
     source_accounts_by_id = if invoice.intercompany? && source_business.present?
                               source_account_ids = normalized_rows.map { |row| row[:source_account_id].to_i }.select(&:positive?).uniq
-                              source_business.accounts.where(id: source_account_ids).index_by(&:id)
+                              source_business.accounts.where(id: source_account_ids, account_type: 'bank_account', currency: 'VES').index_by(&:id)
                             else
                               {}
                             end
