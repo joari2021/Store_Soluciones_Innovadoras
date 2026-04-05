@@ -56,40 +56,15 @@ class ProductosController < ApplicationController
     if source_business_id.present?
       source_business = find_accessible_source_business(source_business_id)
       return render json: [] unless source_business
+      return render json: [] if query.blank?
 
-      productos = if query.present?
-                    sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
-                    source_business
-                      .productos
-                      .where(
-                        <<~SQL.squish,
-                          productos.descripcion ILIKE :q
-                          OR CAST(productos.presentation AS TEXT) ILIKE :q
-                          OR EXISTS (
-                            SELECT 1
-                            FROM product_variations
-                            WHERE product_variations.producto_id = productos.id
-                              AND product_variations.description ILIKE :q
-                          )
-                        SQL
-                        q: "%#{sanitized_query}%"
-                      )
-                  else
-                    Producto.none
-                  end
-
-            rows = productos
+      sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
+      rows = source_business
+             .productos
+             .where('productos.descripcion ILIKE ?', "%#{sanitized_query}%")
               .includes(:product_variations, :stock_lots)
               .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
               .limit(10)
-
-            if rows.blank?
-         rows = source_business
-           .productos
-           .includes(:product_variations, :stock_lots)
-           .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
-           .limit(10)
-            end
 
       payload = rows.map do |row|
         variations = row.product_variations.order(:id).map do |variation|
