@@ -413,7 +413,17 @@
         <% ["#{account.name} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
       <% end %>
       <% selected_source_business_id = factura.source_business_id.presence || params.dig(:purchase_invoice, :source_business_id).to_i %>
-      <% selected_source_accounts = Array(@source_accounts_map[selected_source_business_id]) %>
+      <% if selected_source_business_id.to_i <= 0 %>
+        <% selected_source_business_id = @available_source_businesses.first&.id.to_i %>
+      <% end %>
+      <% selected_source_accounts = if selected_source_business_id.to_i > 0
+                                      Business.find_by(id: selected_source_business_id)&.accounts
+                                              &.where(account_type: 'bank_account', currency: 'VES')
+                                              &.order(:name)
+                                              &.map { |account| { id: account.id, name: account.name, balance: account.balance.to_d, currency: account.currency, active: account.active } } || []
+                                    else
+                                      []
+                                    end %>
       <% pending_checked = @pending_payment_checked == true %>
       <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-invoice-payments-block="true">
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -2300,8 +2310,8 @@
 
       const paymentsBlock = form.querySelector('[data-invoice-payments-block="true"]');
       if (!paymentsBlock) return;
-      if (form.dataset.invoicePaymentsBound === 'true') return;
-      form.dataset.invoicePaymentsBound = 'true';
+      if (form.dataset.invoicePaymentsBoundV2 === 'true') return;
+      form.dataset.invoicePaymentsBoundV2 = 'true';
 
       const rowsContainer = paymentsBlock.querySelector('[data-invoice-payments-container="true"]');
       const rowTemplate = paymentsBlock.querySelector('#invoice-payment-row-template');
