@@ -1,12 +1,15 @@
 <% initial_inventory_mode = factura.initial_inventory? %>
+<% intercompany_mode = !initial_inventory_mode && (factura.intercompany? || ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany))) %>
 <%= form_with model: factura,
               scope: :purchase_invoice,
               local: true,
               html: {
                 id: 'purchase_invoice_form',
                 data: {
-                  require_supplier_for_products: (!initial_inventory_mode).to_s,
-                  initial_inventory_mode: initial_inventory_mode.to_s
+                  require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s,
+                  initial_inventory_mode: initial_inventory_mode.to_s,
+                  intercompany_mode: intercompany_mode.to_s,
+                  source_accounts_map: @source_accounts_map.to_json
                 }
               } do |f| %>
   <%= hidden_field_tag :invoice_kind, factura.invoice_kind %>
@@ -79,19 +82,37 @@
     <div>
       <% if initial_inventory_mode %>
         <%= f.hidden_field :supplier_id, value: nil %>
+        <%= f.hidden_field :intercompany, value: false %>
         <p class="block text-sm font-medium text-slate-700">Proveedor</p>
         <div class="mt-1 rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2 text-sm text-cyan-800">
           Inventario inicial no requiere proveedor.
         </div>
       <% else %>
-        <%= f.label :supplier_id, 'Proveedor', class: 'block text-sm font-medium text-slate-700' %>
-        <% supplier_options = @available_suppliers.map { |supplier| [supplier.nombre, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
-        <%= f.select :supplier_id,
-                    options_for_select(supplier_options, f.object.supplier_id),
-                    { prompt: 'Seleccionar proveedor' },
-                    class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+        <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
+          <label class="inline-flex items-center gap-2 text-xs font-semibold text-indigo-700">
+            <%= f.check_box :intercompany, { checked: intercompany_mode, id: 'purchase_invoice_intercompany', class: 'h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500' }, '1', '0' %>
+            Factura inter-empresas
+          </label>
+        </div>
+        <div id="supplier-mode-fields" class="<%= intercompany_mode ? 'hidden' : '' %>">
+          <%= f.label :supplier_id, 'Proveedor', class: 'mt-2 block text-sm font-medium text-slate-700' %>
+          <% supplier_options = @available_suppliers.map { |supplier| [supplier.nombre, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
+          <%= f.select :supplier_id,
+                      options_for_select(supplier_options, f.object.supplier_id),
+                      { prompt: 'Seleccionar proveedor' },
+                      class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+        </div>
+
+        <div id="intercompany-mode-fields" class="<%= intercompany_mode ? '' : 'hidden' %>">
+          <%= f.label :source_business_id, 'Negocio proveedor (origen)', class: 'mt-2 block text-sm font-medium text-slate-700' %>
+          <%= f.select :source_business_id,
+                      options_for_select(@available_source_businesses.map { |business| [business.name, business.id] }, factura.source_business_id),
+                      { prompt: 'Seleccionar negocio origen' },
+                      id: 'purchase_invoice_source_business_id',
+                      class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+        </div>
       <% end %>
-      <% initial_priority = factura.supplier&.pricing_currency_priority.presence || 'usd' %>
+      <% initial_priority = intercompany_mode ? 'usd' : (factura.supplier&.pricing_currency_priority.presence || 'usd') %>
       <p id="supplier-currency-priority-badge" class="mt-2 inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
         Base de cálculo: <span class="ml-1" id="supplier-currency-priority-value"><%= initial_priority == 'bs' ? 'Bs' : '$' %></span>
       </p>
@@ -117,7 +138,7 @@
     </div>
   </div>
   <h3 class="mt-6 text-lg font-semibold text-slate-800">Productos</h3>
-  <% supplier_priority_is_bs = (!initial_inventory_mode) && factura.supplier&.pricing_currency_priority.to_s == 'bs' %>
+  <% supplier_priority_is_bs = (!initial_inventory_mode && !intercompany_mode) && factura.supplier&.pricing_currency_priority.to_s == 'bs' %>
   <% supplier_default_exento = factura.supplier&.default_exento? %>
   <% apply_supplier_iva_adjustment = supplier_priority_is_bs && !supplier_default_exento %>
   <% if initial_inventory_mode %>
@@ -141,7 +162,7 @@
         <tr>
           <th class="px-4 py-3 text-left">Acciones</th>
           <th class="px-4 py-3 text-left">Producto</th>
-          <% unless initial_inventory_mode %>
+          <% unless initial_inventory_mode || intercompany_mode %>
             <th class="px-4 py-3 text-left">E</th>
             <th class="px-4 py-3 text-center">Cantidad Packs</th>
           <% end %>
@@ -182,7 +203,7 @@
           <% costo_menor_bs = initial_inventory_mode ? (costo_menor_rounded * tasa) : (unid_x_pack.positive? ? (costo_mayor_bs / unid_x_pack) : costo_mayor_bs) %>
           <% total_usd = initial_inventory_mode ? (costo_menor_rounded * cantidad_packs) : (costo_mayor * cantidad_packs) %>
           <% total_bs = initial_inventory_mode ? (costo_menor_bs * cantidad_packs) : (costo_mayor_bs * cantidad_packs) %>
-          <% exento_activo = fi.object.exento? %>
+          <% exento_activo = intercompany_mode ? true : fi.object.exento? %>
           <% product_variations = fi.object.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || [] %>
           <% variation_breakdown_rows = fi.object.variation_breakdown.is_a?(Array) ? fi.object.variation_breakdown : [] %>
           <% single_variation = product_variations.one? ? product_variations.first : nil %>
@@ -238,7 +259,7 @@
               </div>
             </td>
             <td class="px-4 py-3 font-semibold text-slate-800 js-product-name"><%= product_name %></td>
-            <% unless initial_inventory_mode %>
+            <% unless initial_inventory_mode || intercompany_mode %>
               <td class="px-4 py-3">
                 <button
                   type="button"
@@ -318,7 +339,7 @@
               </div>
             </td>
             <td class="px-4 py-3 font-semibold text-slate-800 row-product-name"><%= product_name %></td>
-            <% unless initial_inventory_mode %>
+            <% unless initial_inventory_mode || intercompany_mode %>
               <td class="px-4 py-3">
                 <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
                   <%= fi.check_box :exento, class: 'row-exento peer sr-only' %>
@@ -355,7 +376,7 @@
       </tbody>
       <tfoot class="bg-slate-50 border-t border-slate-200">
         <% totals_leading_colspan = initial_inventory_mode ? 8 : 7 %>
-        <% unless initial_inventory_mode %>
+        <% unless initial_inventory_mode || intercompany_mode %>
           <tr>
             <td class="px-4 py-3" colspan="<%= totals_leading_colspan %>"></td>
             <td class="px-4 py-3 text-right font-bold text-slate-700">Subtotal</td>
@@ -407,6 +428,23 @@
             Pendiente por pagar
           </label>
         </div>
+        <% if intercompany_mode %>
+          <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label for="intercompany_source_account_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta destino en negocio origen (Bs)</label>
+              <% selected_source_business_id = factura.source_business_id.presence || params.dig(:purchase_invoice, :source_business_id).to_i %>
+              <% selected_source_accounts = Array(@source_accounts_map[selected_source_business_id]) %>
+              <%= select_tag :intercompany_source_account_id,
+                             options_for_select(selected_source_accounts.map { |account| ["#{account[:name]} (Saldo: #{format_money(account[:balance], unit: 'Bs')})", account[:id]] }, params[:intercompany_source_account_id]),
+                             include_blank: 'Selecciona cuenta receptora en origen',
+                             id: 'intercompany_source_account_id',
+                             class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+            </div>
+            <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-700">
+              Se registrará un movimiento espejo de ingreso en esta cuenta del negocio origen por el total pagado.
+            </div>
+          </div>
+        <% end %>
         <% if payment_account_options.empty? %>
           <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             No hay cuentas activas en Bs. Crea o activa una cuenta en moneda VES para registrar pagos.
@@ -768,8 +806,20 @@
       const searchInput = form.querySelector('#producto-search');
       const resultsBox = form.querySelector('#producto-results');
       const supplierSelect = form.querySelector('#purchase_invoice_supplier_id');
+      const intercompanyCheckbox = form.querySelector('#purchase_invoice_intercompany');
+      const sourceBusinessSelect = form.querySelector('#purchase_invoice_source_business_id');
+      const sourceAccountSelect = form.querySelector('#intercompany_source_account_id');
+      const supplierModeFields = form.querySelector('#supplier-mode-fields');
+      const intercompanyModeFields = form.querySelector('#intercompany-mode-fields');
       const requiresSupplierForProducts = String(form.dataset.requireSupplierForProducts || 'true') !== 'false';
       const initialInventoryMode = String(form.dataset.initialInventoryMode || 'false') === 'true';
+      const sourceAccountsMap = (() => {
+        try {
+          return JSON.parse(form.dataset.sourceAccountsMap || '{}');
+        } catch (_) {
+          return {};
+        }
+      })();
       const supplierCurrencyPriorityValue = form.querySelector('#supplier-currency-priority-value');
       const tasaInput = form.querySelector('#purchase_invoice_tasa_dolar');
       const tasaInputRaw = form.querySelector('#purchase_invoice_tasa_dolar_raw');
@@ -780,17 +830,25 @@
 
       let lastSupplierAlertAt = 0;
 
+      const intercompanyModeActive = () => Boolean(intercompanyCheckbox && intercompanyCheckbox.checked);
+
       const hasSupplierSelected = () => {
         if (!requiresSupplierForProducts) return true;
+
+        if (intercompanyModeActive()) {
+          return Boolean(sourceBusinessSelect && sourceBusinessSelect.value && sourceBusinessSelect.value.trim() !== '');
+        }
 
         return Boolean(supplierSelect && supplierSelect.value && supplierSelect.value.trim() !== '');
       };
       const currentSupplierPriority = () => {
+        if (intercompanyModeActive()) return 'usd';
         const selectedOption = supplierSelect?.options?.[supplierSelect.selectedIndex];
         const priority = selectedOption?.dataset?.pricingCurrencyPriority;
         return priority === 'bs' ? 'bs' : 'usd';
       };
       const currentSupplierDefaultExento = () => {
+        if (intercompanyModeActive()) return true;
         const selectedOption = supplierSelect?.options?.[supplierSelect.selectedIndex];
         return String(selectedOption?.dataset?.defaultExento || 'false') === 'true';
       };
@@ -827,11 +885,49 @@
 
         if (locked) {
           searchInput.value = '';
-          searchInput.placeholder = 'Seleccione primero un proveedor';
+          searchInput.placeholder = intercompanyModeActive() ? 'Seleccione primero un negocio origen' : 'Seleccione primero un proveedor';
           if (resultsBox) resultsBox.classList.add('hidden');
         } else {
-          searchInput.placeholder = requiresSupplierForProducts ? 'Buscar producto...' : 'Buscar producto para inventario inicial...';
+          searchInput.placeholder = intercompanyModeActive() ? 'Buscar producto en negocio origen...' : (requiresSupplierForProducts ? 'Buscar producto...' : 'Buscar producto para inventario inicial...');
         }
+      };
+
+      const reloadSourceAccounts = () => {
+        if (!sourceAccountSelect) return;
+        const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
+        const options = Array(sourceAccountsMap[sourceBusinessId] || []);
+        const previousValue = String(sourceAccountSelect.value || '');
+
+        sourceAccountSelect.innerHTML = '';
+        const blankOption = document.createElement('option');
+        blankOption.value = '';
+        blankOption.textContent = 'Selecciona cuenta receptora en origen';
+        sourceAccountSelect.appendChild(blankOption);
+
+        options.forEach((entry) => {
+          const option = document.createElement('option');
+          option.value = String(entry.id);
+          option.textContent = `${entry.name} (Saldo: Bs ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+          sourceAccountSelect.appendChild(option);
+        });
+
+        if (previousValue && options.some((entry) => String(entry.id) === previousValue)) {
+          sourceAccountSelect.value = previousValue;
+        }
+      };
+
+      const syncIntercompanyVisibility = () => {
+        const active = intercompanyModeActive();
+        if (supplierModeFields) supplierModeFields.classList.toggle('hidden', active);
+        if (intercompanyModeFields) intercompanyModeFields.classList.toggle('hidden', !active);
+
+        if (!active && sourceBusinessSelect) {
+          sourceBusinessSelect.value = '';
+        }
+
+        updateSearchLockState();
+        reloadSourceAccounts();
+        syncSupplierPriorityBadge();
       };
 
       const escapeHtml = (value) => {
@@ -1354,7 +1450,7 @@
 
         if (!totalFinalUsdEl || !totalFinalBsEl) return;
 
-        if (initialInventoryMode) {
+        if (initialInventoryMode || intercompanyModeActive()) {
           let totalUsd = 0;
           let totalBs = 0;
 
@@ -1819,6 +1915,27 @@
         });
       }
 
+      if (sourceBusinessSelect) {
+        sourceBusinessSelect.addEventListener('change', () => {
+          updateSearchLockState();
+          reloadSourceAccounts();
+          syncSupplierPriorityBadge();
+        });
+      }
+
+      if (intercompanyCheckbox) {
+        intercompanyCheckbox.addEventListener('change', () => {
+          syncIntercompanyVisibility();
+          tbody.querySelectorAll('.factura-row-edit').forEach((row) => {
+            recalcEditRow(row);
+          });
+          updateGrandTotals();
+        });
+      }
+
+      reloadSourceAccounts();
+      syncIntercompanyVisibility();
+
       if (searchInput) {
         searchInput.addEventListener('click', (ev) => {
           if (hasSupplierSelected()) return;
@@ -1854,7 +1971,12 @@
               return;
             }
             const supplierId = supplierSelect ? supplierSelect.value : '';
-            fetch(`/productos/search?q=${encodeURIComponent(value)}&supplier_id=${encodeURIComponent(supplierId)}`)
+            const sourceBusinessId = sourceBusinessSelect ? sourceBusinessSelect.value : '';
+            const queryParams = intercompanyModeActive()
+              ? `q=${encodeURIComponent(value)}&source_business_id=${encodeURIComponent(sourceBusinessId)}`
+              : `q=${encodeURIComponent(value)}&supplier_id=${encodeURIComponent(supplierId)}`;
+
+            fetch(`/productos/search?${queryParams}`)
               .then((res) => res.json())
               .then((data) => renderResults(data))
               .catch(() => {

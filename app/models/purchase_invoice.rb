@@ -7,6 +7,7 @@ class PurchaseInvoice < ApplicationRecord
 
   belongs_to :business
   belongs_to :supplier, optional: true
+  belongs_to :source_business, class_name: 'Business', optional: true
   has_many :purchase_invoice_items, lambda {
     order(created_at: :asc, id: :asc)
   }, class_name: 'PurchaseInvoiceItem', foreign_key: :factura_id, dependent: :destroy, inverse_of: :purchase_invoice
@@ -14,7 +15,9 @@ class PurchaseInvoice < ApplicationRecord
 
   accepts_nested_attributes_for :purchase_invoice_items, allow_destroy: true
 
-  validates :supplier, presence: true, unless: :initial_inventory?
+  validates :supplier, presence: true, unless: :supplier_optional?
+  validates :source_business, presence: true, if: :intercompany?
+  validate :source_business_differs_from_destination, if: :intercompany?
   validates :invoice_kind, presence: true, inclusion: { in: INVOICE_KINDS }
   validate :single_initial_inventory_per_business
 
@@ -26,6 +29,10 @@ class PurchaseInvoice < ApplicationRecord
 
   def initial_inventory?
     invoice_kind == INVOICE_KIND_INITIAL_INVENTORY
+  end
+
+  def intercompany?
+    ActiveModel::Type::Boolean.new.cast(self[:intercompany]) || source_business_id.present?
   end
 
   def kind_label
@@ -113,6 +120,17 @@ class PurchaseInvoice < ApplicationRecord
   end
 
   private
+
+  def supplier_optional?
+    initial_inventory? || intercompany?
+  end
+
+  def source_business_differs_from_destination
+    return if source_business_id.blank? || business_id.blank?
+    return unless source_business_id == business_id
+
+    errors.add(:source_business_id, 'debe ser distinto al negocio actual')
+  end
 
   def normalize_invoice_kind
     self.invoice_kind = invoice_kind.presence || INVOICE_KIND_PURCHASE

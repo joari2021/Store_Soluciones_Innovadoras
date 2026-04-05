@@ -10,6 +10,8 @@ class Debt < ApplicationRecord
   }.freeze
 
   belongs_to :business
+  belongs_to :mirror_debt, class_name: 'Debt', optional: true
+  belongs_to :mirror_account, class_name: 'Account', optional: true
   belongs_to :cliente, optional: true
   belongs_to :venta, optional: true
   belongs_to :service, optional: true
@@ -164,6 +166,10 @@ class Debt < ApplicationRecord
 
   def service_cost_record?
     description.to_s.include?('[SERVICE_COST]')
+  end
+
+  def mirror_sync_enabled?
+    ActiveModel::Type::Boolean.new.cast(self[:mirror_sync_enabled]) && mirror_debt_id.present?
   end
 
   private

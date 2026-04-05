@@ -12,6 +12,7 @@ class DebtPayment < ApplicationRecord
   before_validation :sync_currency_from_account
   before_validation :sync_conversion_values
   after_create :create_account_movement
+  after_create :sync_mirror_debt_payment
 
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :currency, presence: true
@@ -126,6 +127,31 @@ class DebtPayment < ApplicationRecord
     movement_attrs[:reference] = reference.presence if reference.present?
 
     account.account_movements.create!(movement_attrs)
+  end
+
+  def sync_mirror_debt_payment
+    return if notes.to_s.include?('[MIRROR_SYNC]')
+    return unless debt&.mirror_sync_enabled?
+
+    mirror_debt = debt.mirror_debt
+    mirror_account = debt.mirror_account
+    return if mirror_debt.blank? || mirror_account.blank?
+    return unless mirror_account.active?
+
+    mirror_payment = mirror_debt.debt_payments.new(
+      account: mirror_account,
+      amount: amount,
+      currency: mirror_account.currency,
+      payment_method: payment_method,
+      reference: reference,
+      occurred_at: occurred_at,
+      notes: [notes.to_s, '[MIRROR_SYNC]', "[MIRROR_FROM_DP:#{id}]"].reject(&:blank?).join(' ')
+    )
+
+    mirror_payment.save!
+  rescue ActiveRecord::RecordInvalid
+    # If mirror sync fails we keep the original payment and avoid hard-failing user flow.
+    nil
   end
 
   def build_movement_description

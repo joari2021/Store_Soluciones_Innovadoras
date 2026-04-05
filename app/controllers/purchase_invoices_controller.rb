@@ -31,6 +31,7 @@ class PurchaseInvoicesController < ApplicationController
   before_action :set_purchase_invoice, only: %i[show edit update destroy]
   before_action :load_suppliers, only: %i[index new edit create update]
   before_action :load_bs_accounts, only: %i[new create]
+  before_action :load_intercompany_options, only: %i[new create edit update]
   before_action :load_invoice_payment_summary, only: %i[show edit]
 
   def index
@@ -279,6 +280,8 @@ class PurchaseInvoicesController < ApplicationController
       tasa_dolar: tasa_hoy_bcv
     )
     @purchase_invoice.invoice_kind = requested_invoice_kind
+    @purchase_invoice.intercompany = intercompany_mode_requested?
+    @purchase_invoice.source_business_id = requested_source_business_id if intercompany_mode_requested?
     apply_invoice_payment_form_state(default_invoice_payment_context) unless @purchase_invoice.initial_inventory?
     # render view with turbo_frame_tag so the response includes the expected frame
     # the corresponding template (new.html.erb) already wraps content in
@@ -303,16 +306,47 @@ class PurchaseInvoicesController < ApplicationController
     @purchase_invoice.valid?
     payment_context = build_invoice_payment_context(@purchase_invoice)
 
+    if intercompany_mode_requested?
+      source_business = intercompany_source_business
+      source_account = intercompany_source_account(source_business)
+
+      if source_business.blank?
+        @purchase_invoice.errors.add(:source_business_id, 'debe seleccionar un negocio origen válido.')
+      end
+
+      if source_account.blank?
+        @purchase_invoice.errors.add(:base, 'Debe seleccionar una cuenta receptora en el negocio origen (Bs).')
+      end
+    end
+
     if @purchase_invoice.errors.any?
       apply_invoice_payment_form_state(payment_context)
       render :new, status: :unprocessable_entity
       return
     end
 
-    PurchaseInvoice.transaction do
-      @purchase_invoice.save!
-      create_invoice_payment_movements!(@purchase_invoice, payment_context[:payments])
-      create_pending_supplier_debt!(@purchase_invoice, payment_context)
+    if intercompany_mode_requested?
+      result = Intercompany::PurchaseInvoiceCreator.new(
+        current_business: current_business,
+        source_business: intercompany_source_business,
+        purchase_invoice: @purchase_invoice,
+        payment_context: payment_context,
+        source_account: intercompany_source_account(intercompany_source_business),
+        current_user: Current.user
+      ).call
+
+      unless result.success?
+        Array(result.errors).each { |message| @purchase_invoice.errors.add(:base, message) }
+        apply_invoice_payment_form_state(payment_context)
+        render :new, status: :unprocessable_entity
+        return
+      end
+    else
+      PurchaseInvoice.transaction do
+        @purchase_invoice.save!
+        create_invoice_payment_movements!(@purchase_invoice, payment_context[:payments])
+        create_pending_supplier_debt!(@purchase_invoice, payment_context)
+      end
     end
 
     redirect_to purchase_invoices_path, notice: 'Factura creada correctamente'
@@ -508,6 +542,20 @@ class PurchaseInvoicesController < ApplicationController
     @available_suppliers = current_business.suppliers.order(:nombre)
   end
 
+  def load_intercompany_options
+    @available_source_businesses = if Current.user&.admin?
+                                     Business.where.not(id: current_business&.id).order(:name)
+                                   else
+                                     Business.none
+                                   end
+
+    @source_accounts_map = @available_source_businesses.each_with_object({}) do |business, hash|
+      hash[business.id] = business.accounts.where(active: true, currency: 'VES').order(:name).map do |account|
+        { id: account.id, name: account.name, balance: account.balance.to_d }
+      end
+    end
+  end
+
   def load_bs_accounts
     @bs_accounts = current_business.accounts.where(active: true, currency: 'VES').order(:name)
   end
@@ -515,6 +563,8 @@ class PurchaseInvoicesController < ApplicationController
   def purchase_invoice_params
     params.require(:purchase_invoice).permit(
       :supplier_id,
+      :intercompany,
+      :source_business_id,
       :fecha_emision,
       :tasa_dolar,
       :numero,
@@ -534,6 +584,41 @@ class PurchaseInvoicesController < ApplicationController
         _destroy
       ]
     )
+  end
+
+  def intercompany_mode_requested?
+    ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany))
+  end
+
+  def requested_source_business_id
+    raw = params.dig(:purchase_invoice, :source_business_id).to_s.strip
+    return nil if raw.blank?
+
+    raw.to_i
+  end
+
+  def intercompany_source_business
+    source_id = requested_source_business_id
+    return nil if source_id.blank?
+
+    scope = if Current.user&.admin?
+              Business.all
+            elsif Current.user&.business_id.present?
+              Business.where(id: Current.user.business_id)
+            else
+              Business.none
+            end
+
+    scope.where.not(id: current_business.id).find_by(id: source_id)
+  end
+
+  def intercompany_source_account(source_business)
+    return nil if source_business.blank?
+
+    account_id = params[:intercompany_source_account_id].to_s.strip.to_i
+    return nil if account_id <= 0
+
+    source_business.accounts.find_by(id: account_id, active: true, currency: 'VES')
   end
 
   def requested_invoice_kind

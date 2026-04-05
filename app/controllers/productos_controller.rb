@@ -18,6 +18,36 @@ class ProductosController < ApplicationController
     @categorias = current_business.categorias.order(nombre: :asc)
     @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
     @selected_categoria_id = @selected_categoria&.id
+  private
+
+  def find_accessible_source_business(raw_id)
+    business_id = raw_id.to_i
+    return nil if business_id <= 0
+    return nil if current_business.present? && business_id == current_business.id
+
+    scope = if Current.user&.admin?
+              Business.all
+            elsif Current.user.present? && Current.user.business_id.present?
+              Business.where(id: Current.user.business_id)
+            else
+              Business.none
+            end
+
+    scope.find_by(id: business_id)
+  end
+
+  def highest_active_lot_cost_for_variation(producto, variation)
+    lot_costs = producto.stock_lot_variations
+                       .where(product_variation_id: variation.id)
+                       .where('quantity_remaining > 0')
+                       .joins(:stock_lot)
+                       .pluck('stock_lots.unit_cost_usd')
+                       .map(&:to_d)
+
+    return 0.to_d if lot_costs.blank?
+
+    lot_costs.max
+  end
     @product_counts_by_categoria_id = current_business.productos.group(:categoria_id).count
     @below_target_margin_total_count = calculate_below_target_margin_total_count
 
@@ -50,6 +80,47 @@ class ProductosController < ApplicationController
   def search
     query = params[:q].to_s.strip
     supplier_id = params[:supplier_id].to_s.strip
+    source_business_id = params[:source_business_id].to_s.strip
+
+    if source_business_id.present?
+      source_business = find_accessible_source_business(source_business_id)
+      return render json: [] unless source_business
+
+      productos = if query.present?
+                    source_business.productos.whose_name_starts_with(query)
+                  else
+                    Producto.none
+                  end
+
+      rows = productos
+             .includes(:product_variations, :stock_lots)
+             .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+             .limit(10)
+
+      payload = rows.map do |row|
+        variations = row.product_variations.order(:id).map do |variation|
+          {
+            id: variation.id,
+            description: variation.description,
+            purchase_cost_usd: highest_active_lot_cost_for_variation(row, variation)
+          }
+        end
+
+        {
+          id: row.id,
+          descripcion: row.descripcion,
+          display_name: row.display_name_with_presentation,
+          costo_mayor: row.highest_active_lot_unit_cost_usd.to_d,
+          costo_menor: row.highest_active_lot_unit_cost_usd.to_d,
+          unid_x_pack: 1,
+          exento: true,
+          variations: variations
+        }
+      end
+
+      render json: payload
+      return
+    end
 
     productos = if query.present?
                   current_business.productos.whose_name_starts_with(query)
@@ -110,6 +181,35 @@ class ProductosController < ApplicationController
         }
       }
     }
+  end
+
+  def find_accessible_source_business(raw_id)
+    business_id = raw_id.to_i
+    return nil if business_id <= 0
+    return nil if current_business.present? && business_id == current_business.id
+
+    scope = if Current.user&.admin?
+              Business.all
+            elsif Current.user.present? && Current.user.business_id.present?
+              Business.where(id: Current.user.business_id)
+            else
+              Business.none
+            end
+
+    scope.find_by(id: business_id)
+  end
+
+  def highest_active_lot_cost_for_variation(producto, variation)
+    lot_costs = producto.stock_lot_variations
+                       .where(product_variation_id: variation.id)
+                       .where('quantity_remaining > 0')
+                       .joins(:stock_lot)
+                       .pluck('stock_lots.unit_cost_usd')
+                       .map(&:to_d)
+
+    return 0.to_d if lot_costs.blank?
+
+    lot_costs.max
   end
 
   def new
