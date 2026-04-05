@@ -720,6 +720,11 @@
                 applyRcvPrintPagesTemplate(templatePages);
               }
 
+              const templateExtraProducts = Array.isArray(rcvSharedTemplate.print_delivery_extra_products)
+                ? rcvSharedTemplate.print_delivery_extra_products
+                : [];
+              applyRcvPhysicalExtraProductsTemplate(templateExtraProducts);
+
               resizeTextareas(form);
             };
 
@@ -1230,8 +1235,14 @@
               physicalExtraProductsHidden.value = JSON.stringify(rows);
             };
 
-            const addPhysicalExtraProductRow = () => {
+            const addPhysicalExtraProductRow = (seedRow = null) => {
               if (!physicalExtraProductsContainer) return;
+
+              const selectedProductId = String(seedRow?.product_id || '').trim();
+              const selectedVariationId = String(seedRow?.variation_id || '').trim();
+              const requestedQuantity = Number.parseFloat(String(seedRow?.quantity || '').trim());
+              const safeQuantity = Number.isFinite(requestedQuantity) && requestedQuantity > 0 ? requestedQuantity : 1;
+              const requestedBreakdown = Boolean(seedRow?.breakdown_in_invoice);
 
               const row = document.createElement('div');
               row.className = 'relative rounded-xl border border-slate-200 bg-white p-3 pr-12';
@@ -1291,8 +1302,56 @@
               `;
 
               physicalExtraProductsContainer.appendChild(row);
+
+              const productSelect = row.querySelector('[data-product-select]');
+              if (productSelect && selectedProductId) {
+                const productExists = Array.from(productSelect.options).some((option) => option.value === selectedProductId);
+                if (productExists) productSelect.value = selectedProductId;
+              }
+
               syncPhysicalExtraVariationOptions(row, { keepCurrent: false });
+
+              const variationSelect = row.querySelector('[data-physical-extra-variation]');
+              if (variationSelect && selectedVariationId) {
+                const variationExists = Array.from(variationSelect.options).some((option) => option.value === selectedVariationId);
+                if (variationExists) variationSelect.value = selectedVariationId;
+              }
+
+              const quantityInput = row.querySelector('[data-physical-extra-quantity]');
+              if (quantityInput) {
+                quantityInput.value = Number.isInteger(safeQuantity) ? String(safeQuantity) : safeQuantity.toFixed(2);
+              }
+
+              const breakdownInput = row.querySelector('[data-physical-extra-breakdown]');
+              if (breakdownInput) breakdownInput.checked = requestedBreakdown;
+
+              const selectedProductOption = productSelect?.options?.[productSelect.selectedIndex];
+              const selectedProductName = String(selectedProductOption?.textContent || '').trim();
+              const searchInput = row.querySelector('[data-product-search]');
+              const selectedLabel = row.querySelector('[data-product-selected-label]');
+              if (searchInput) searchInput.value = selectedProductName;
+              if (selectedLabel) {
+                selectedLabel.textContent = selectedProductName ? `Seleccionado: ${selectedProductName}` : 'Sin producto seleccionado';
+              }
+
               if (window.lucide?.createIcons) window.lucide.createIcons({ attrs: { 'stroke-width': 2 } });
+              syncPhysicalExtraProductsHidden();
+            };
+
+            const applyRcvPhysicalExtraProductsTemplate = (rows) => {
+              if (!physicalExtraProductsContainer || !physicalExtraProductsHidden) return;
+
+              const normalizedRows = (Array.isArray(rows) ? rows : [])
+                .map((row) => ({
+                  product_id: Number.parseInt(String(row?.product_id || '').trim(), 10),
+                  variation_id: Number.parseInt(String(row?.variation_id || '').trim(), 10),
+                  quantity: Number.parseFloat(String(row?.quantity || '').trim()),
+                  breakdown_in_invoice: Boolean(row?.breakdown_in_invoice)
+                }))
+                .filter((row) => Number.isInteger(row.product_id) && row.product_id > 0 && Number.isFinite(row.quantity) && row.quantity > 0);
+
+              physicalExtraProductsContainer.innerHTML = '';
+              normalizedRows.forEach((row) => addPhysicalExtraProductRow(row));
               syncPhysicalExtraProductsHidden();
             };
 

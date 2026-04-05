@@ -3640,27 +3640,36 @@ class VentasController < ApplicationController
     normalized = value.to_s.strip.downcase
     return normalized if %w[physical digital].include?(normalized)
 
-    return "physical" if service&.delivery_physical_enabled? && !service&.delivery_digital_enabled?
+    physical_enabled = effective_delivery_physical_enabled_for_sale(service)
+    digital_enabled = effective_delivery_digital_enabled_for_sale(service)
 
-    return "digital" if service&.delivery_digital_enabled? && !service&.delivery_physical_enabled?
+    return "physical" if physical_enabled && !digital_enabled
+
+    return "digital" if digital_enabled && !physical_enabled
 
     nil
   end
 
   def normalize_print_delivery_pages_for_sale(service)
-    Array(service&.print_delivery_pages).filter_map do |raw_page|
+    config = effective_rcv_service_config_for_sale(service)
+    source_pages = config[:print_delivery_pages]
+    source_pages = service&.print_delivery_pages if source_pages.blank?
+    fallback_print_type_service_id = config[:print_delivery_service_id].presence || service&.print_delivery_service_id
+    fallback_material_surcharge_id = config[:print_delivery_material_surcharge_id].presence || service&.print_delivery_material_surcharge_id
+
+    Array(source_pages).filter_map do |raw_page|
       row = raw_page.is_a?(Hash) ? raw_page.deep_stringify_keys : {}
       coverage = row["coverage_percent"].to_d.round(2)
       next unless coverage.positive?
 
       print_type_service_id = row["print_type_service_id"].to_i
-      if print_type_service_id <= 0 && service&.print_delivery_service_id.present?
-        print_type_service_id = service&.print_delivery_service_id.to_i
+      if print_type_service_id <= 0 && fallback_print_type_service_id.present?
+        print_type_service_id = fallback_print_type_service_id.to_i
       end
 
       material_surcharge_id = row["material_surcharge_id"].to_i
-      if material_surcharge_id <= 0 && service&.print_delivery_material_surcharge_id.present?
-        material_surcharge_id = service&.print_delivery_material_surcharge_id.to_i
+      if material_surcharge_id <= 0 && fallback_material_surcharge_id.present?
+        material_surcharge_id = fallback_material_surcharge_id.to_i
       end
       next unless print_type_service_id.positive? && material_surcharge_id.positive?
 
@@ -3680,10 +3689,11 @@ class VentasController < ApplicationController
   end
 
   def normalize_print_delivery_extra_products_for_sale(service)
-    return [] unless service&.delivery_physical_enabled?
-    return [] unless service.respond_to?(:normalized_print_delivery_extra_products)
+    return [] unless effective_delivery_physical_enabled_for_sale(service)
 
-    rows = service.normalized_print_delivery_extra_products
+    config = effective_rcv_service_config_for_sale(service)
+    rows = config[:print_delivery_extra_products]
+    rows = service.normalized_print_delivery_extra_products if rows.blank? && service.respond_to?(:normalized_print_delivery_extra_products)
     return [] unless rows.is_a?(Array)
 
     product_ids = rows.filter_map do |row|
@@ -3731,7 +3741,7 @@ class VentasController < ApplicationController
   end
 
   def build_service_physical_printing_payload(service:, tasa_dolar:)
-    return { enabled: false } unless service.delivery_physical_enabled?
+    return { enabled: false } unless effective_delivery_physical_enabled_for_sale(service)
 
     pages = normalize_print_delivery_pages_for_sale(service)
     return { enabled: false } if pages.empty?
@@ -3878,5 +3888,29 @@ class VentasController < ApplicationController
       cost_bs: cost_bs.to_f,
       cost_usd: cost_usd.to_f,
     }
+  end
+
+  def effective_rcv_service_config_for_sale(service)
+    return {} if service.blank? || !service.respond_to?(:rcv_service?) || !service.rcv_service?
+
+    @effective_rcv_service_config ||= begin
+      attrs = Service.rcv_shared_template_attributes_for_business(current_business)
+      attrs = attrs.to_h if attrs.respond_to?(:to_h)
+      attrs.deep_symbolize_keys
+    rescue StandardError
+      {}
+    end
+  end
+
+  def effective_delivery_physical_enabled_for_sale(service)
+    config = effective_rcv_service_config_for_sale(service)
+    source_value = config.key?(:delivery_physical_enabled) ? config[:delivery_physical_enabled] : service&.delivery_physical_enabled
+    ActiveModel::Type::Boolean.new.cast(source_value)
+  end
+
+  def effective_delivery_digital_enabled_for_sale(service)
+    config = effective_rcv_service_config_for_sale(service)
+    source_value = config.key?(:delivery_digital_enabled) ? config[:delivery_digital_enabled] : service&.delivery_digital_enabled
+    ActiveModel::Type::Boolean.new.cast(source_value)
   end
 end
