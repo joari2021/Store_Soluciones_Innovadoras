@@ -2259,11 +2259,7 @@ class VentasController < ApplicationController
         child_total_price_bs = (child_unit_price_bs * child_quantity).round(2)
         child_total_price_usd = (child_unit_price_usd * child_quantity).round(2)
 
-        child_material_labels = Array(lamination_row[:material_rows])
-          .filter_map { |row| row[:label].to_s.strip.presence }
-          .uniq
         child_source_name = lamination_service.print_sale_display_name.to_s.strip.presence || "Plastificacion"
-        child_source_name = [child_source_name, child_material_labels.join(" / ")].reject(&:blank?).join(" ").squish
 
         rows << {
           "classification" => "lamination_service",
@@ -3894,12 +3890,12 @@ class VentasController < ApplicationController
     return {} if service.blank? || !service.respond_to?(:rcv_service?) || !service.rcv_service?
 
     @effective_rcv_service_config ||= begin
-      attrs = Service.rcv_shared_template_attributes_for_business(current_business)
-      attrs = attrs.to_h if attrs.respond_to?(:to_h)
-      attrs.deep_symbolize_keys
-    rescue StandardError
-      {}
-    end
+        attrs = Service.rcv_shared_template_attributes_for_business(current_business)
+        attrs = attrs.to_h if attrs.respond_to?(:to_h)
+        attrs.deep_symbolize_keys
+      rescue StandardError
+        {}
+      end
   end
 
   def effective_delivery_physical_enabled_for_sale(service)
