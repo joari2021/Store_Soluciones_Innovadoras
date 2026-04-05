@@ -4,6 +4,18 @@ class Service < ApplicationRecord
   BOLIVAR_REFERENCE = 'Bs'.freeze
   LEGACY_USD_REFERENCE = '$'.freeze
   DEFAULT_REFERENCE = 'Dolar BCV'.freeze
+  RCV_SHARED_ATTRIBUTES = %w[
+    physical_requirements
+    digital_requirements
+    required_data
+    personal_steps
+    note
+    delivery_content
+    delivery_time
+    delivery_physical_enabled
+    delivery_digital_enabled
+    warn_digital_only_delivery_in_sales
+  ].freeze
 
   belongs_to :business
   belongs_to :system_service, optional: true
@@ -45,6 +57,8 @@ class Service < ApplicationRecord
   before_validation :migrate_legacy_value_units_to_sale_price
   before_validation :clear_delivery_configuration_for_printing_service
   before_validation :normalize_recarga_amounts
+  before_validation :apply_rcv_shared_template_for_new_record, on: :create
+  after_commit :sync_rcv_shared_attributes_to_related_services, on: %i[create update]
 
   validate :validate_fixed_price_fields
   validate :validate_visibility_flags
@@ -155,6 +169,10 @@ class Service < ApplicationRecord
     normalized_system_name.include?('plastificacion')
   end
 
+  def rcv_service?
+    system_service&.rcv_system?
+  end
+
   def print_sale_display_name
     print_sale_description.to_s.strip.presence || description.to_s
   end
@@ -238,6 +256,36 @@ class Service < ApplicationRecord
   end
 
   private
+
+  def apply_rcv_shared_template_for_new_record
+    return unless rcv_service?
+
+    template = business.services
+                       .includes(:system_service)
+                       .where.not(id: id)
+                       .find { |candidate| candidate.rcv_service? }
+    return unless template
+
+    RCV_SHARED_ATTRIBUTES.each do |attribute|
+      self[attribute] = template[attribute]
+    end
+  end
+
+  def sync_rcv_shared_attributes_to_related_services
+    return unless business_id.present?
+    return unless rcv_service?
+
+    changed_shared_attributes = saved_changes.keys & RCV_SHARED_ATTRIBUTES
+    changed_shared_attributes = RCV_SHARED_ATTRIBUTES if previous_changes.key?('id')
+    return if changed_shared_attributes.empty?
+
+    attributes_to_sync = changed_shared_attributes.index_with { |attribute| self[attribute] }
+    business.services
+            .where.not(id: id)
+            .joins(:system_service)
+            .where("system_services.name ILIKE ?", "%rcv%")
+            .update_all(attributes_to_sync.merge(updated_at: Time.current))
+  end
 
   def normalize_masked_sale_price
     self.sale_price = parse_masked_decimal(sale_price_before_type_cast)

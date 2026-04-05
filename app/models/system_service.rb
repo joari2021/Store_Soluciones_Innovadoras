@@ -9,4 +9,9 @@ class SystemService < ApplicationRecord
     normalized = I18n.transliterate(name.to_s).downcase.strip
     normalized.include?('recarga')
   end
+
+  def rcv_system?
+    normalized = I18n.transliterate(name.to_s).downcase.strip
+    normalized.include?('rcv')
+  end
 end
