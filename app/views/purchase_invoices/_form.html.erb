@@ -1794,6 +1794,11 @@
 
       const renderResults = (items) => {
         if (!resultsBox) return;
+        if (!Array.isArray(items)) {
+          resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-rose-600">Respuesta inválida del servidor al buscar productos</div>';
+          resultsBox.classList.remove('hidden');
+          return;
+        }
         if (!items.length) {
           resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">Sin resultados</div>';
           resultsBox.classList.remove('hidden');

@@ -567,15 +567,9 @@ class ProductosController < ApplicationController
     return nil if business_id <= 0
     return nil if current_business.present? && business_id == current_business.id
 
-    scope = if Current.user&.admin?
-              Business.all
-            elsif Current.user.present? && Current.user.business_id.present?
-              Business.where(id: Current.user.business_id)
-            else
-              Business.none
-            end
-
-    scope.find_by(id: business_id)
+    # Intercompany purchase invoices are admin-only; keep source lookup direct
+    # to avoid accidental filtering that returns empty catalogs.
+    Business.find_by(id: business_id)
   end
 
   def highest_active_lot_cost_for_variation(producto, variation)
