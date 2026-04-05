@@ -150,7 +150,7 @@ class PurchaseInvoicesController < ApplicationController
     return render json: [] if source_business.blank?
 
     accounts = source_business.accounts
-                              .where(active: true)
+                  .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
                               .order(:name)
                               .map do |account|
       {
@@ -573,7 +573,10 @@ class PurchaseInvoicesController < ApplicationController
                                    end
 
     @source_accounts_map = @available_source_businesses.each_with_object({}) do |business, hash|
-      hash[business.id] = business.accounts.order(:name).map do |account|
+      hash[business.id] = business.accounts
+                              .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
+                              .order(:name)
+                              .map do |account|
         {
           id: account.id,
           name: account.name,
