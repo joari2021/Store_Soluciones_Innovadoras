@@ -2,7 +2,8 @@ class ProductosController < ApplicationController
   PRODUCTS_PER_PAGE = 36
 
   before_action :require_business
-  before_action -> { require_module_access!(:productos) }
+  before_action -> { require_module_access!(:productos) }, except: :search
+  before_action :require_search_access!, only: :search
   before_action :set_producto, only: %i[show edit update destroy]
   before_action :set_pack_unwrap, only: %i[edit_unpack_history update_unpack_history destroy_unpack_history]
   before_action :require_admin, except: %i[index search unpack_packs process_unpack unpack_histories edit_unpack_history
@@ -151,6 +152,10 @@ class ProductosController < ApplicationController
         }
       }
     }
+  rescue StandardError => e
+    Rails.logger.error("[PRODUCT_SEARCH_ERROR] #{e.class}: #{e.message}")
+    Rails.logger.error(e.backtrace.first(20).join("\n"))
+    render json: [], status: :ok
   end
 
   def new
@@ -545,6 +550,14 @@ class ProductosController < ApplicationController
   end
 
   private
+
+  def require_search_access!
+    return if current_user_admin?
+    return if can_access_module?(:productos)
+    return if can_access_module?(:ventas)
+
+    render json: { error: 'Acceso denegado.' }, status: :forbidden
+  end
 
   def find_accessible_source_business(raw_id)
     business_id = raw_id.to_i
