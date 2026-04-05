@@ -293,6 +293,7 @@ class PurchaseInvoicesController < ApplicationController
     payment_context = nil
     @purchase_invoice = current_business.purchase_invoices.new(purchase_invoice_params)
     @purchase_invoice.invoice_kind = requested_invoice_kind
+    source_business = intercompany_mode_requested? ? intercompany_source_business : nil
 
     if @purchase_invoice.initial_inventory?
       if @purchase_invoice.save
@@ -304,18 +305,11 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     @purchase_invoice.valid?
-    payment_context = build_invoice_payment_context(@purchase_invoice)
+    payment_context = build_invoice_payment_context(@purchase_invoice, source_business: source_business)
 
     if intercompany_mode_requested?
-      source_business = intercompany_source_business
-      source_account = intercompany_source_account(source_business)
-
       if source_business.blank?
         @purchase_invoice.errors.add(:source_business_id, 'debe seleccionar un negocio origen válido.')
-      end
-
-      if source_account.blank?
-        @purchase_invoice.errors.add(:base, 'Debe seleccionar una cuenta receptora en el negocio origen (Bs).')
       end
     end
 
@@ -328,10 +322,9 @@ class PurchaseInvoicesController < ApplicationController
     if intercompany_mode_requested?
       result = Intercompany::PurchaseInvoiceCreator.new(
         current_business: current_business,
-        source_business: intercompany_source_business,
+        source_business: source_business,
         purchase_invoice: @purchase_invoice,
         payment_context: payment_context,
-        source_account: intercompany_source_account(intercompany_source_business),
         current_user: Current.user
       ).call
 
@@ -587,7 +580,7 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def intercompany_mode_requested?
-    ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany))
+    ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany)) || params[:mode].to_s == 'intercompany'
   end
 
   def requested_source_business_id
@@ -610,15 +603,6 @@ class PurchaseInvoicesController < ApplicationController
             end
 
     scope.where.not(id: current_business.id).find_by(id: source_id)
-  end
-
-  def intercompany_source_account(source_business)
-    return nil if source_business.blank?
-
-    account_id = params[:intercompany_source_account_id].to_s.strip.to_i
-    return nil if account_id <= 0
-
-    source_business.accounts.find_by(id: account_id, active: true, currency: 'VES')
   end
 
   def requested_invoice_kind
@@ -653,7 +637,7 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def default_invoice_payment_row
-    { account_id: '', amount: '' }
+    { account_id: '', source_account_id: '', amount: '' }
   end
 
   def apply_invoice_payment_form_state(context)
@@ -662,14 +646,14 @@ class PurchaseInvoicesController < ApplicationController
     @pending_due_on_value = context[:pending_due_on_value].to_s
   end
 
-  def build_invoice_payment_context(invoice)
+  def build_invoice_payment_context(invoice, source_business: nil)
     rows_for_form = invoice_payment_rows_for_form
     normalized_rows = normalize_invoice_payment_rows(rows_for_form)
     mark_pending_payment = ActiveModel::Type::Boolean.new.cast(params[:mark_pending_payment])
     pending_due_on_raw = params[:pending_due_on].to_s.strip
     pending_due_on = parse_filter_date(pending_due_on_raw)
 
-    payments = build_invoice_payment_records(invoice, normalized_rows)
+    payments = build_invoice_payment_records(invoice, normalized_rows, source_business: source_business)
 
     total_invoice_bs = invoice.total_bs.to_d.round(2)
     total_paid_bs = payments.sum { |entry| entry[:amount].to_d }.round(2)
@@ -710,9 +694,15 @@ class PurchaseInvoicesController < ApplicationController
     }
   end
 
-  def build_invoice_payment_records(invoice, normalized_rows)
+  def build_invoice_payment_records(invoice, normalized_rows, source_business: nil)
     account_ids = normalized_rows.map { |row| row[:account_id].to_i }.select(&:positive?).uniq
     accounts_by_id = current_business.accounts.where(id: account_ids).index_by(&:id)
+    source_accounts_by_id = if invoice.intercompany? && source_business.present?
+                              source_account_ids = normalized_rows.map { |row| row[:source_account_id].to_i }.select(&:positive?).uniq
+                              source_business.accounts.where(id: source_account_ids, active: true, currency: 'VES').index_by(&:id)
+                            else
+                              {}
+                            end
 
     normalized_rows.each_with_index.filter_map do |row, index|
       row_number = index + 1
@@ -739,7 +729,26 @@ class PurchaseInvoicesController < ApplicationController
         next
       end
 
-      { account: account, amount: amount }
+      source_account = nil
+      if invoice.intercompany?
+        if source_business.blank?
+          invoice.errors.add(:base, "Pago #{row_number}: selecciona primero un negocio origen válido.")
+          next
+        end
+
+        if row[:source_account_id].blank?
+          invoice.errors.add(:base, "Pago #{row_number}: selecciona la cuenta a acreditar en negocio origen.")
+          next
+        end
+
+        source_account = source_accounts_by_id[row[:source_account_id].to_i]
+        if source_account.blank?
+          invoice.errors.add(:base, "Pago #{row_number}: la cuenta a acreditar en origen no es válida.")
+          next
+        end
+      end
+
+      { account: account, source_account: source_account, amount: amount }
     end
   end
 
@@ -801,6 +810,7 @@ class PurchaseInvoicesController < ApplicationController
     rows = raw_invoice_payment_rows.map do |row|
       {
         account_id: row_value(row, :account_id).to_s.strip,
+        source_account_id: row_value(row, :source_account_id).to_s.strip,
         amount: row_value(row, :amount).to_s.strip
       }
     end
@@ -817,6 +827,7 @@ class PurchaseInvoicesController < ApplicationController
 
       {
         account_id: account_id,
+        source_account_id: row[:source_account_id].to_s.strip,
         amount: amount
       }
     end

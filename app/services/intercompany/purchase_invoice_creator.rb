@@ -2,12 +2,11 @@ module Intercompany
   class PurchaseInvoiceCreator
     Result = Struct.new(:success?, :invoice, :errors)
 
-    def initialize(current_business:, source_business:, purchase_invoice:, payment_context:, source_account:, current_user:)
+    def initialize(current_business:, source_business:, purchase_invoice:, payment_context:, current_user:)
       @current_business = current_business
       @source_business = source_business
       @purchase_invoice = purchase_invoice
       @payment_context = payment_context
-      @source_account = source_account
       @current_user = current_user
       @cloned_products_cache = {}
     end
@@ -314,19 +313,25 @@ module Intercompany
     end
 
     def register_source_incoming_movements!(payment_entries)
-      return if @source_account.blank?
-
-      total_amount = payment_entries.sum { |entry| entry[:amount].to_d }.round(2)
-      return unless total_amount.positive?
+      grouped_by_source_account = payment_entries.group_by { |entry| entry[:source_account]&.id }
+      return if grouped_by_source_account.blank?
 
       occurred_at = @purchase_invoice.fecha_emision.presence || Time.current
-      @source_account.account_movements.create!(
-        movement_kind: "income",
-        amount: total_amount,
-        description: "Cobro factura inter-empresa ##{@purchase_invoice.id} desde #{@current_business.name} [FACTURA_COMPRA_MIRROR:#{@purchase_invoice.id}]",
-        occurred_at: occurred_at,
-        payment_method: (@source_account.account_type == "bank_account" ? "transfer" : nil),
-      )
+      grouped_by_source_account.each do |_source_account_id, entries|
+        source_account = entries.first[:source_account]
+        next if source_account.blank?
+
+        total_amount = entries.sum { |entry| entry[:amount].to_d }.round(2)
+        next unless total_amount.positive?
+
+        source_account.account_movements.create!(
+          movement_kind: "income",
+          amount: total_amount,
+          description: "Cobro factura inter-empresa ##{@purchase_invoice.id} desde #{@current_business.name} [FACTURA_COMPRA_MIRROR:#{@purchase_invoice.id}]",
+          occurred_at: occurred_at,
+          payment_method: (source_account.account_type == "bank_account" ? "transfer" : nil),
+        )
+      end
     end
 
     def create_mirror_pending_debts!
@@ -346,7 +351,7 @@ module Intercompany
         issued_on: issued_on,
         due_on: due_on,
         mirror_sync_enabled: true,
-        mirror_account: @source_account,
+        mirror_account: primary_source_account_for_mirror,
       )
 
       source_destination_account = buyer_default_account_for_mirror
@@ -370,6 +375,11 @@ module Intercompany
     def buyer_default_account_for_mirror
       payment_entry = Array(@payment_context[:payments]).find { |entry| entry[:account].present? }
       payment_entry&.dig(:account)
+    end
+
+    def primary_source_account_for_mirror
+      payment_entry = Array(@payment_context[:payments]).find { |entry| entry[:source_account].present? }
+      payment_entry&.dig(:source_account)
     end
 
     def find_source_variation(source_product:, source_variations:, row:)

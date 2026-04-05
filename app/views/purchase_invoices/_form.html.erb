@@ -1,5 +1,5 @@
 <% initial_inventory_mode = factura.initial_inventory? %>
-<% intercompany_mode = !initial_inventory_mode && (factura.intercompany? || ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany))) %>
+<% intercompany_mode = !initial_inventory_mode && (factura.intercompany? || ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany)) || params[:mode].to_s == 'intercompany') %>
 <%= form_with model: factura,
               scope: :purchase_invoice,
               local: true,
@@ -88,12 +88,12 @@
           Inventario inicial no requiere proveedor.
         </div>
       <% else %>
-        <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
-          <label class="inline-flex items-center gap-2 text-xs font-semibold text-indigo-700">
-            <%= f.check_box :intercompany, { checked: intercompany_mode, id: 'purchase_invoice_intercompany', class: 'h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500' }, '1', '0' %>
-            Factura inter-empresas
-          </label>
-        </div>
+        <%= f.hidden_field :intercompany, value: intercompany_mode ? 1 : 0, id: 'purchase_invoice_intercompany' %>
+        <% if intercompany_mode %>
+          <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">
+            Modo activo: Factura inter-empresas
+          </div>
+        <% end %>
         <div id="supplier-mode-fields" class="<%= intercompany_mode ? 'hidden' : '' %>">
           <%= f.label :supplier_id, 'Proveedor', class: 'mt-2 block text-sm font-medium text-slate-700' %>
           <% supplier_options = @available_suppliers.map { |supplier| [supplier.nombre, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
@@ -410,6 +410,8 @@
       <% payment_account_options = Array(@bs_accounts).map do |account| %>
         <% ["#{account.name} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
       <% end %>
+      <% selected_source_business_id = factura.source_business_id.presence || params.dig(:purchase_invoice, :source_business_id).to_i %>
+      <% selected_source_accounts = Array(@source_accounts_map[selected_source_business_id]) %>
       <% pending_checked = @pending_payment_checked == true %>
       <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-invoice-payments-block="true">
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -428,20 +430,8 @@
           </label>
         </div>
         <% if intercompany_mode %>
-          <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div>
-              <label for="intercompany_source_account_id" class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta destino en negocio origen (Bs)</label>
-              <% selected_source_business_id = factura.source_business_id.presence || params.dig(:purchase_invoice, :source_business_id).to_i %>
-              <% selected_source_accounts = Array(@source_accounts_map[selected_source_business_id]) %>
-              <%= select_tag :intercompany_source_account_id,
-                             options_for_select(selected_source_accounts.map { |account| ["#{account[:name]} (Saldo: #{format_money(account[:balance], unit: 'Bs')})", account[:id]] }, params[:intercompany_source_account_id]),
-                             include_blank: 'Selecciona cuenta receptora en origen',
-                             id: 'intercompany_source_account_id',
-                             class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
-            </div>
-            <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-700">
-              Se registrará un movimiento espejo de ingreso en esta cuenta del negocio origen por el total pagado.
-            </div>
+          <div class="mt-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-xs text-indigo-700">
+            Define cada pago con dos cuentas: cuenta a debitar fondos (negocio destino) y cuenta a acreditar fondos (negocio origen). Puedes repartir abonos en una o varias cuentas de ambos negocios.
           </div>
         <% end %>
         <% if payment_account_options.empty? %>
@@ -452,18 +442,29 @@
         <div class="mt-4 space-y-3" data-invoice-payments-container="true">
           <% payment_rows.each_with_index do |row, index| %>
             <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
+            <% row_source_account_id = row[:source_account_id].presence || row['source_account_id'].presence %>
             <% row_amount_value = row[:amount].presence || row['amount'].presence || 'Bs 0,00' %>
-            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end"
+            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 <%= intercompany_mode ? 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_220px_auto]' %> md:items-end"
                data-invoice-payment-row="true"
                data-invoice-payment-index="<%= index %>">
               <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500"><%= intercompany_mode ? 'Cuenta a debitar fondos (destino)' : 'Cuenta en Bs' %></label>
                 <%= select_tag "invoice_payments[#{index}][account_id]",
                              options_for_select(payment_account_options, row_account_id),
                              include_blank: 'Selecciona cuenta en Bs',
                              class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                              data: { invoice_payment_account: true } %>
               </div>
+              <% if intercompany_mode %>
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta a acreditar fondos (origen)</label>
+                  <%= select_tag "invoice_payments[#{index}][source_account_id]",
+                               options_for_select(selected_source_accounts.map { |account| ["#{account[:name]} (Saldo: #{format_money(account[:balance], unit: 'Bs')})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }] }, row_source_account_id),
+                               include_blank: 'Selecciona cuenta en origen',
+                               class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                               data: { invoice_payment_source_account: true } %>
+                </div>
+              <% end %>
               <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
                 <%= text_field_tag "invoice_payments[#{index}][amount]",
@@ -526,17 +527,27 @@
                data: { invoice_pending_due_on: true } %>
           </div>
           <template id="invoice-payment-row-template">
-            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-end"
+            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 <%= intercompany_mode ? 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_220px_auto]' %> md:items-end"
              data-invoice-payment-row="true"
              data-invoice-payment-index="__INDEX__">
               <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500"><%= intercompany_mode ? 'Cuenta a debitar fondos (destino)' : 'Cuenta en Bs' %></label>
                 <%= select_tag 'invoice_payments[__INDEX__][account_id]',
                            options_for_select(payment_account_options),
                            include_blank: 'Selecciona cuenta en Bs',
                            class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                            data: { invoice_payment_account: true } %>
               </div>
+              <% if intercompany_mode %>
+                <div>
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta a acreditar fondos (origen)</label>
+                  <%= select_tag 'invoice_payments[__INDEX__][source_account_id]',
+                             options_for_select(selected_source_accounts.map { |account| ["#{account[:name]} (Saldo: #{format_money(account[:balance], unit: 'Bs')})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }] }),
+                             include_blank: 'Selecciona cuenta en origen',
+                             class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                             data: { invoice_payment_source_account: true } %>
+                </div>
+              <% end %>
               <div>
                 <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
                 <%= text_field_tag 'invoice_payments[__INDEX__][amount]',
@@ -669,7 +680,7 @@
       <td class="px-4 py-3">
         <div class="font-semibold text-slate-800 js-product-name">PRODUCT_NAME</div>
       </td>
-      <% unless initial_inventory_mode %>
+      <% unless initial_inventory_mode || intercompany_mode %>
         <td class="px-4 py-3">
           <button
           type="button"
@@ -739,7 +750,7 @@
         <input type="hidden" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][variation_breakdown]" value="[]" class="row-variation-breakdown">
         <div class="font-semibold text-slate-800 row-product-name">PRODUCT_NAME</div>
       </td>
-      <% if initial_inventory_mode %>
+      <% if initial_inventory_mode || intercompany_mode %>
         <input class="row-exento" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" type="hidden" value="1">
       <% else %>
         <td class="px-4 py-3">
@@ -805,20 +816,12 @@
       const searchInput = form.querySelector('#producto-search');
       const resultsBox = form.querySelector('#producto-results');
       const supplierSelect = form.querySelector('#purchase_invoice_supplier_id');
-      const intercompanyCheckbox = form.querySelector('#purchase_invoice_intercompany');
+      const intercompanyInput = form.querySelector('#purchase_invoice_intercompany');
       const sourceBusinessSelect = form.querySelector('#purchase_invoice_source_business_id');
-      const sourceAccountSelect = form.querySelector('#intercompany_source_account_id');
       const supplierModeFields = form.querySelector('#supplier-mode-fields');
       const intercompanyModeFields = form.querySelector('#intercompany-mode-fields');
       const requiresSupplierForProducts = String(form.dataset.requireSupplierForProducts || 'true') !== 'false';
       const initialInventoryMode = String(form.dataset.initialInventoryMode || 'false') === 'true';
-      const sourceAccountsMap = (() => {
-        try {
-          return JSON.parse(form.dataset.sourceAccountsMap || '{}');
-        } catch (_) {
-          return {};
-        }
-      })();
       const supplierCurrencyPriorityValue = form.querySelector('#supplier-currency-priority-value');
       const tasaInput = form.querySelector('#purchase_invoice_tasa_dolar');
       const tasaInputRaw = form.querySelector('#purchase_invoice_tasa_dolar_raw');
@@ -829,7 +832,7 @@
 
       let lastSupplierAlertAt = 0;
 
-      const intercompanyModeActive = () => Boolean(intercompanyCheckbox && intercompanyCheckbox.checked);
+      const intercompanyModeActive = () => String(intercompanyInput?.value || '0') === '1';
       const selectedSourceBusinessId = () => String(sourceBusinessSelect?.value || '').trim();
       const useIntercompanySearch = () => selectedSourceBusinessId().length > 0;
 
@@ -897,41 +900,12 @@
         }
       };
 
-      const reloadSourceAccounts = () => {
-        if (!sourceAccountSelect) return;
-        const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
-        const options = Array(sourceAccountsMap[sourceBusinessId] || []);
-        const previousValue = String(sourceAccountSelect.value || '');
-
-        sourceAccountSelect.innerHTML = '';
-        const blankOption = document.createElement('option');
-        blankOption.value = '';
-        blankOption.textContent = 'Selecciona cuenta receptora en origen';
-        sourceAccountSelect.appendChild(blankOption);
-
-        options.forEach((entry) => {
-          const option = document.createElement('option');
-          option.value = String(entry.id);
-          option.textContent = `${entry.name} (Saldo: Bs ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
-          sourceAccountSelect.appendChild(option);
-        });
-
-        if (previousValue && options.some((entry) => String(entry.id) === previousValue)) {
-          sourceAccountSelect.value = previousValue;
-        }
-      };
-
       const syncIntercompanyVisibility = () => {
         const active = intercompanyModeActive();
         if (supplierModeFields) supplierModeFields.classList.toggle('hidden', active);
         if (intercompanyModeFields) intercompanyModeFields.classList.toggle('hidden', !active);
 
-        if (!active && sourceBusinessSelect) {
-          sourceBusinessSelect.value = '';
-        }
-
         updateSearchLockState();
-        reloadSourceAccounts();
         syncSupplierPriorityBadge();
       };
 
@@ -1928,22 +1902,13 @@
       if (sourceBusinessSelect) {
         sourceBusinessSelect.addEventListener('change', () => {
           updateSearchLockState();
-          reloadSourceAccounts();
           syncSupplierPriorityBadge();
+          window.dispatchEvent(new CustomEvent('purchase-invoice:source-business-changed', {
+            detail: { sourceBusinessId: selectedSourceBusinessId() }
+          }));
         });
       }
 
-      if (intercompanyCheckbox) {
-        intercompanyCheckbox.addEventListener('change', () => {
-          syncIntercompanyVisibility();
-          tbody.querySelectorAll('.factura-row-edit').forEach((row) => {
-            recalcEditRow(row);
-          });
-          updateGrandTotals();
-        });
-      }
-
-      reloadSourceAccounts();
       syncIntercompanyVisibility();
 
       if (searchInput) {
@@ -2248,6 +2213,16 @@
       const form = scope.querySelector('#purchase_invoice_form');
       if (!form) return;
 
+      const intercompanyMode = String(form.dataset.intercompanyMode || 'false') === 'true';
+      const sourceBusinessSelect = form.querySelector('#purchase_invoice_source_business_id');
+      const sourceAccountsMap = (() => {
+        try {
+          return JSON.parse(form.dataset.sourceAccountsMap || '{}');
+        } catch (_) {
+          return {};
+        }
+      })();
+
       const paymentsBlock = form.querySelector('[data-invoice-payments-block="true"]');
       if (!paymentsBlock) return;
       if (form.dataset.invoicePaymentsBound === 'true') return;
@@ -2299,22 +2274,31 @@
       const collectRows = () => {
         return Array.from(rowsContainer.querySelectorAll('[data-invoice-payment-row="true"]')).map((row) => {
           const accountInput = row.querySelector('[data-invoice-payment-account="true"]');
+          const sourceAccountInput = row.querySelector('[data-invoice-payment-source-account="true"]');
           const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
           const accountId = String(accountInput?.value || '').trim();
+          const sourceAccountId = String(sourceAccountInput?.value || '').trim();
           const amount = parseMoneyInputValue(amountInput);
           const selectedOption = accountInput?.selectedOptions?.[0];
           const balance = parseNumber(selectedOption?.dataset?.balance || '0');
           const accountLabelRaw = String(selectedOption?.textContent || '').trim();
           const accountLabel = accountLabelRaw.split(' (Saldo:')[0] || accountLabelRaw || 'Cuenta';
 
+          const selectedSourceOption = sourceAccountInput?.selectedOptions?.[0];
+          const sourceAccountLabelRaw = String(selectedSourceOption?.textContent || '').trim();
+          const sourceAccountLabel = sourceAccountLabelRaw.split(' (Saldo:')[0] || sourceAccountLabelRaw || 'Cuenta origen';
+
           return {
             row,
             accountInput,
+            sourceAccountInput,
             amountInput,
             accountId,
+            sourceAccountId,
             amount,
             balance,
-            accountLabel
+            accountLabel,
+            sourceAccountLabel
           };
         });
       };
@@ -2326,8 +2310,10 @@
           row.dataset.invoicePaymentIndex = String(index);
 
           const accountInput = row.querySelector('[data-invoice-payment-account="true"]');
+          const sourceAccountInput = row.querySelector('[data-invoice-payment-source-account="true"]');
           const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
           if (accountInput) accountInput.name = `invoice_payments[${index}][account_id]`;
+          if (sourceAccountInput) sourceAccountInput.name = `invoice_payments[${index}][source_account_id]`;
           if (amountInput) amountInput.name = `invoice_payments[${index}][amount]`;
         });
 
@@ -2413,6 +2399,11 @@
             showWarning('Monto inválido', `Pago ${index + 1}: el monto debe ser mayor a cero.`);
             return false;
           }
+
+          if (intercompanyMode && !entry.sourceAccountId) {
+            showWarning('Cuenta origen requerida', `Pago ${index + 1}: selecciona la cuenta a acreditar en negocio origen.`);
+            return false;
+          }
         }
 
         if (summary.overpaid > 0.01) {
@@ -2469,8 +2460,44 @@
           window.MoneyInputMask?.init(addedRow);
         }
 
+        syncSourceAccountOptions();
+
         reindexRows();
         syncPaymentSummary();
+      };
+
+      const sourceAccountOptionsForCurrentBusiness = () => {
+        const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
+        return Array(sourceAccountsMap[sourceBusinessId] || []);
+      };
+
+      const syncSourceAccountOptions = () => {
+        if (!intercompanyMode) return;
+
+        const options = sourceAccountOptionsForCurrentBusiness();
+        const sourceSelects = rowsContainer.querySelectorAll('[data-invoice-payment-source-account="true"]');
+
+        sourceSelects.forEach((select) => {
+          const previous = String(select.value || '').trim();
+          select.innerHTML = '';
+
+          const blankOption = document.createElement('option');
+          blankOption.value = '';
+          blankOption.textContent = 'Selecciona cuenta en origen';
+          select.appendChild(blankOption);
+
+          options.forEach((entry) => {
+            const option = document.createElement('option');
+            option.value = String(entry.id);
+            option.dataset.balance = String(entry.balance || 0);
+            option.textContent = `${entry.name} (Saldo: Bs ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+            select.appendChild(option);
+          });
+
+          if (previous && options.some((entry) => String(entry.id) === previous)) {
+            select.value = previous;
+          }
+        });
       };
 
       const removePaymentRow = (row) => {
@@ -2500,6 +2527,7 @@
       };
 
       window.MoneyInputMask?.init(paymentsBlock);
+      syncSourceAccountOptions();
       reindexRows();
       syncPendingDueVisibility();
       syncPaymentSummary();
@@ -2517,6 +2545,18 @@
           syncPaymentSummary();
         });
       }
+
+      if (sourceBusinessSelect) {
+        sourceBusinessSelect.addEventListener('change', () => {
+          syncSourceAccountOptions();
+          syncPaymentSummary();
+        });
+      }
+
+      window.addEventListener('purchase-invoice:source-business-changed', () => {
+        syncSourceAccountOptions();
+        syncPaymentSummary();
+      });
 
       paymentsBlock.addEventListener('click', (event) => {
         const removeButton = event.target.closest('[data-invoice-payment-remove="true"]');
