@@ -59,12 +59,29 @@ class ProductosController < ApplicationController
       return render json: [] if query.blank?
 
       sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
-      rows = source_business
-             .productos
-             .where('productos.descripcion ILIKE ?', "%#{sanitized_query}%")
-              .includes(:product_variations, :stock_lots)
-              .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
-              .limit(10)
+      query_terms = query.downcase.split(/\s+/).map(&:strip).reject(&:blank?).uniq
+      products_scope = source_business.productos
+
+      if query_terms.any?
+        products_scope = products_scope.where(
+          query_terms.map.with_index { |_, idx| "LOWER(productos.descripcion) LIKE :term#{idx}" }.join(' OR '),
+          query_terms.each_with_index.to_h { |term, idx| ["term#{idx}".to_sym, "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"] }
+        )
+      else
+        products_scope = products_scope.where('productos.descripcion ILIKE ?', "%#{sanitized_query}%")
+      end
+
+      rows = products_scope
+             .includes(:product_variations, :stock_lots)
+             .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+             .limit(10)
+
+      if rows.blank?
+        rows = source_business.productos
+               .includes(:product_variations, :stock_lots)
+               .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+               .limit(10)
+      end
 
       payload = rows.map do |row|
         variations = row.product_variations.order(:id).map do |variation|

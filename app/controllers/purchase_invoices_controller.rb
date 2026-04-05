@@ -549,8 +549,13 @@ class PurchaseInvoicesController < ApplicationController
                                    end
 
     @source_accounts_map = @available_source_businesses.each_with_object({}) do |business, hash|
-      hash[business.id] = business.accounts.where(active: true, currency: 'VES').order(:name).map do |account|
-        { id: account.id, name: account.name, balance: account.balance.to_d }
+      hash[business.id] = business.accounts.where(active: true).order(:name).map do |account|
+        {
+          id: account.id,
+          name: account.name,
+          balance: account.balance.to_d,
+          currency: account.currency
+        }
       end
     end
   end
@@ -705,7 +710,7 @@ class PurchaseInvoicesController < ApplicationController
     accounts_by_id = current_business.accounts.where(id: account_ids).index_by(&:id)
     source_accounts_by_id = if invoice.intercompany? && source_business.present?
                               source_account_ids = normalized_rows.map { |row| row[:source_account_id].to_i }.select(&:positive?).uniq
-                              source_business.accounts.where(id: source_account_ids, active: true, currency: 'VES').index_by(&:id)
+                              source_business.accounts.where(id: source_account_ids, active: true).index_by(&:id)
                             else
                               {}
                             end
