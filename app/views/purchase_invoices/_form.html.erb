@@ -2475,7 +2475,12 @@
 
       const sourceAccountOptionsForCurrentBusiness = () => {
         const sourceBusinessId = String(sourceBusinessSelect?.value || '').trim();
-        return Array(sourceAccountsMap[sourceBusinessId] || []);
+        const rawOptions = Array(sourceAccountsMap[sourceBusinessId] || []);
+        return rawOptions.map((entry) => ({
+          id: entry?.id ?? entry?.['id'] ?? '',
+          name: entry?.name ?? entry?.['name'] ?? 'Cuenta',
+          balance: entry?.balance ?? entry?.['balance'] ?? 0
+        }));
       };
 
       const syncSourceAccountOptions = () => {
@@ -2495,13 +2500,13 @@
 
           options.forEach((entry) => {
             const option = document.createElement('option');
-            option.value = String(entry.id);
+            option.value = String(entry.id || '');
             option.dataset.balance = String(entry.balance || 0);
-            option.textContent = `${entry.name} (Saldo: Bs ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+            option.textContent = `${entry.name || 'Cuenta'} (Saldo: Bs ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
             select.appendChild(option);
           });
 
-          if (previous && options.some((entry) => String(entry.id) === previous)) {
+          if (previous && options.some((entry) => String(entry.id || '') === previous)) {
             select.value = previous;
           }
         });
