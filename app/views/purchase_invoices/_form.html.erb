@@ -464,7 +464,8 @@
                                options_for_select(selected_source_accounts.map { |account|
                                  currency = account[:currency].to_s
                                  symbol = currency == 'VES' ? 'Bs' : (currency.presence || '$')
-                                 ["#{account[:name]} (#{currency.presence || 'N/A'} · Saldo: #{format_money(account[:balance], unit: symbol)})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }]
+                                 active_label = account[:active] ? 'Activa' : 'Inactiva'
+                                 ["#{account[:name]} (#{active_label} · #{currency.presence || 'N/A'} · Saldo: #{format_money(account[:balance], unit: symbol)})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }]
                                }, row_source_account_id),
                                include_blank: 'Selecciona cuenta en origen',
                                class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
@@ -551,7 +552,8 @@
                              options_for_select(selected_source_accounts.map { |account|
                                currency = account[:currency].to_s
                                symbol = currency == 'VES' ? 'Bs' : (currency.presence || '$')
-                               ["#{account[:name]} (#{currency.presence || 'N/A'} · Saldo: #{format_money(account[:balance], unit: symbol)})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }]
+                               active_label = account[:active] ? 'Activa' : 'Inactiva'
+                               ["#{account[:name]} (#{active_label} · #{currency.presence || 'N/A'} · Saldo: #{format_money(account[:balance], unit: symbol)})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }]
                              }),
                              include_blank: 'Selecciona cuenta en origen',
                              class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
@@ -2545,7 +2547,8 @@
           id: entry?.id ?? entry?.['id'] ?? '',
           name: entry?.name ?? entry?.['name'] ?? 'Cuenta',
           balance: entry?.balance ?? entry?.['balance'] ?? 0,
-          currency: entry?.currency ?? entry?.['currency'] ?? 'VES'
+          currency: entry?.currency ?? entry?.['currency'] ?? 'VES',
+          active: entry?.active ?? entry?.['active'] ?? true
         }));
       };
 
@@ -2570,7 +2573,8 @@
             option.dataset.balance = String(entry.balance || 0);
             const currency = String(entry.currency || 'VES').trim() || 'VES';
             const symbol = currency === 'VES' ? 'Bs' : currency;
-            option.textContent = `${entry.name || 'Cuenta'} (${currency} · Saldo: ${symbol} ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+            const activeLabel = entry.active ? 'Activa' : 'Inactiva';
+            option.textContent = `${entry.name || 'Cuenta'} (${activeLabel} · ${currency} · Saldo: ${symbol} ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
             select.appendChild(option);
           });
 
