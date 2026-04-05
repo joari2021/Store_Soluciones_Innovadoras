@@ -1954,7 +1954,15 @@
             }
             const supplierId = supplierSelect ? supplierSelect.value : '';
             const sourceBusinessId = selectedSourceBusinessId();
-            const queryParams = useIntercompanySearch()
+            if (intercompanyModeActive() && !sourceBusinessId) {
+              if (resultsBox) {
+                resultsBox.innerHTML = '<div class="px-3 py-2 text-sm text-amber-700">Selecciona un negocio origen para buscar productos.</div>';
+                resultsBox.classList.remove('hidden');
+              }
+              return;
+            }
+
+            const queryParams = intercompanyModeActive()
               ? `q=${encodeURIComponent(value)}&source_business_id=${encodeURIComponent(sourceBusinessId)}`
               : `q=${encodeURIComponent(value)}&supplier_id=${encodeURIComponent(supplierId)}`;
 

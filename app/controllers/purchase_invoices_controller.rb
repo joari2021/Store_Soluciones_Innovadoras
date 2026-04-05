@@ -281,7 +281,13 @@ class PurchaseInvoicesController < ApplicationController
     )
     @purchase_invoice.invoice_kind = requested_invoice_kind
     @purchase_invoice.intercompany = intercompany_mode_requested?
-    @purchase_invoice.source_business_id = requested_source_business_id if intercompany_mode_requested?
+    if intercompany_mode_requested?
+      @purchase_invoice.source_business_id = requested_source_business_id
+      if @purchase_invoice.source_business_id.blank?
+        preferred_source_business = @available_source_businesses.detect { |business| business.productos.exists? } || @available_source_businesses.first
+        @purchase_invoice.source_business_id = preferred_source_business&.id
+      end
+    end
     apply_invoice_payment_form_state(default_invoice_payment_context) unless @purchase_invoice.initial_inventory?
     # render view with turbo_frame_tag so the response includes the expected frame
     # the corresponding template (new.html.erb) already wraps content in
