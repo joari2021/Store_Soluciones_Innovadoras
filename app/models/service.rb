@@ -94,6 +94,27 @@ class Service < ApplicationRecord
     where(restricted_service: false)
   }
 
+  def self.rcv_scope
+    joins(:system_service).where('system_services.name ILIKE ?', '%rcv%')
+  end
+
+  def self.latest_rcv_template_for_business(business)
+    return nil unless business
+
+    business.services
+            .rcv_scope
+            .where.not(id: nil)
+            .order(updated_at: :desc, id: :desc)
+            .first
+  end
+
+  def self.rcv_shared_template_attributes_for_business(business)
+    template = latest_rcv_template_for_business(business)
+    return {} unless template
+
+    template.attributes.slice(*RCV_SHARED_ATTRIBUTES)
+  end
+
   def visible_for_user?(user)
     return true if user&.admin?
 
@@ -260,10 +281,7 @@ class Service < ApplicationRecord
   def apply_rcv_shared_template_for_new_record
     return unless rcv_service?
 
-    template = business.services
-                       .includes(:system_service)
-                       .where.not(id: id)
-                       .find { |candidate| candidate.rcv_service? }
+    template = self.class.latest_rcv_template_for_business(business)
     return unless template
 
     RCV_SHARED_ATTRIBUTES.each do |attribute|

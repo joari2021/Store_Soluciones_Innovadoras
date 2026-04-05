@@ -1,4 +1,4 @@
-<%= form_with(model: @service, local: true, data: { controller: "form-services", bcv_rate: @service_expenses_bcv_rate }, id: "form-services", class: "space-y-6") do |form| %>
+<%= form_with(model: @service, local: true, data: { controller: "form-services", bcv_rate: @service_expenses_bcv_rate, new_record: form.object.new_record? }, id: "form-services", class: "space-y-6") do |form| %>
   <% if @service.errors.any? %>
     <div class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">
       <div class="flex items-center justify-between">
@@ -601,6 +601,12 @@
       <script type="application/json" id="service-lamination-services-data">
         <%= raw ERB::Util.json_escape((@lamination_services_payload || []).to_json) %>
       </script>
+      <script type="application/json" id="service-rcv-system-ids-data">
+        <%= raw ERB::Util.json_escape((@rcv_system_service_ids || []).to_json) %>
+      </script>
+      <script type="application/json" id="service-rcv-shared-template-data">
+        <%= raw ERB::Util.json_escape((@rcv_shared_template || {}).to_json) %>
+      </script>
       <script>
         (() => {
           if (window.servicesResizeTextareasBound) return;
@@ -662,6 +668,52 @@
             const isRecargaSystemServiceSelected = () => {
               const label = selectedSystemLabel();
               return /recarga/.test(label);
+            };
+
+            const isRcvSystemServiceSelected = () => {
+              if (!systemServiceSelect) return false;
+
+              const selectedId = Number.parseInt(String(systemServiceSelect.value || '').trim(), 10);
+              if (Number.isInteger(selectedId) && rcvSystemServiceIds.includes(selectedId)) {
+                return true;
+              }
+
+              const label = selectedSystemLabel();
+              return /\brcv\b/.test(label);
+            };
+
+            const fieldIsBlank = (field) => {
+              if (!field) return true;
+              if (field.type === 'checkbox') return false;
+              return String(field.value || '').trim().length === 0;
+            };
+
+            const toBoolean = (value) => {
+              if (value === true || value === false) return value;
+              const normalized = String(value || '').trim().toLowerCase();
+              return ['1', 'true', 't', 'yes', 'si', 'on'].includes(normalized);
+            };
+
+            const applyRcvSharedTemplate = ({ force = false } = {}) => {
+              if (!isCreateForm) return;
+              if (!isRcvSystemServiceSelected()) return;
+              if (!rcvSharedTemplate || Object.keys(rcvSharedTemplate).length === 0) return;
+
+              Object.entries(rcvSharedFields).forEach(([attribute, fieldId]) => {
+                const field = form.querySelector(`#${fieldId}`);
+                if (!field) return;
+
+                const templateValue = rcvSharedTemplate[attribute];
+                if (field.type === 'checkbox') {
+                  field.checked = toBoolean(templateValue);
+                  return;
+                }
+
+                if (!force && !fieldIsBlank(field)) return;
+                field.value = templateValue == null ? '' : String(templateValue);
+              });
+
+              resizeTextareas(form);
             };
 
             const refreshStatusVisibility = () => {
@@ -745,6 +797,42 @@
                 return [];
               }
             })();
+
+            const rcvSystemServiceIds = (() => {
+              try {
+                const payloadEl = document.getElementById('service-rcv-system-ids-data');
+                return JSON.parse(payloadEl?.textContent || '[]')
+                  .map((value) => Number.parseInt(String(value || '').trim(), 10))
+                  .filter((value) => Number.isInteger(value) && value > 0);
+              } catch (_error) {
+                return [];
+              }
+            })();
+
+            const rcvSharedTemplate = (() => {
+              try {
+                const payloadEl = document.getElementById('service-rcv-shared-template-data');
+                const parsed = JSON.parse(payloadEl?.textContent || '{}');
+                return parsed && typeof parsed === 'object' ? parsed : {};
+              } catch (_error) {
+                return {};
+              }
+            })();
+
+            const rcvSharedFields = {
+              physical_requirements: 'service_physical_requirements',
+              digital_requirements: 'service_digital_requirements',
+              required_data: 'service_required_data',
+              personal_steps: 'service_personal_steps',
+              note: 'service_note',
+              delivery_content: 'service_delivery_content',
+              delivery_time: 'service_delivery_time',
+              delivery_physical_enabled: 'service_delivery_physical_enabled',
+              delivery_digital_enabled: 'service_delivery_digital_enabled',
+              warn_digital_only_delivery_in_sales: 'service_warn_digital_only_delivery_in_sales'
+            };
+
+            const isCreateForm = String(form.dataset.newRecord || '').toLowerCase() === 'true';
 
             const physicalExtraProductOptionsHtml = `<option value="">Selecciona producto</option><%= j(products_options_for_select(products: @products_for_expenses, bcv_rate: @service_expenses_bcv_rate, selected_id: nil).to_s) %>`;
 
@@ -1463,12 +1551,14 @@
               refreshStatusVisibility();
               refreshPrintCoverageVisibility();
               refreshCustomServiceImageVisibility();
+              applyRcvSharedTemplate({ force: true });
             });
 
             window.MoneyInputMask?.init(form);
             refreshStatusVisibility();
             refreshPrintCoverageVisibility();
             refreshCustomServiceImageVisibility();
+            applyRcvSharedTemplate();
             refreshPhysicalPanel();
             if (printPagesContainer) {
               printPagesContainer.querySelectorAll('[data-print-page-row]').forEach((row) => {

@@ -845,6 +845,9 @@ class ServicesController < ApplicationController
         name: service.description.to_s
       }
     end
+
+    @rcv_system_service_ids = SystemService.order(:id).select(&:rcv_system?).map(&:id)
+    @rcv_shared_template = Service.rcv_shared_template_attributes_for_business(current_business)
   end
 
   def service_params
