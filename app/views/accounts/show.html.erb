@@ -215,22 +215,31 @@
     </div>
     <% if @account_movements.any? %>
       <%= turbo_frame_tag "account-movements-#{@pagy.page}", class: 'contents' do %>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-slate-200">
+        <div class="max-h-[70vh] overflow-auto" data-account-movements-root="true">
+          <table class="min-w-full table-fixed divide-y divide-slate-200">
+            <colgroup>
+              <col class="w-[10%]">
+              <col class="w-[14%]">
+              <col class="w-[11%]">
+              <col class="w-[9%]">
+              <col class="w-[34%]">
+              <col class="w-[12%]">
+              <col class="w-[10%]">
+            </colgroup>
             <% if @pagy.page == 1 %>
               <thead>
                 <tr>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Tipo</th>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Fecha</th>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Metodo</th>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Referencia</th>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Descripcion</th>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Monto</th>
-                  <th class="sticky top-0 z-10 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Acciones</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Tipo</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Fecha</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Metodo</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Referencia</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Descripcion</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Monto</th>
+                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Acciones</th>
                 </tr>
               </thead>
             <% end %>
-            <tbody class="divide-y divide-slate-100 bg-white">
+            <tbody class="divide-y divide-slate-100 bg-white" data-account-movements-main-body="<%= @pagy.page == 1 ? 'true' : 'false' %>">
               <% @account_movements.each do |movement| %>
                 <% signed_amount = movement.signed_amount %>
                 <% amount_positive = signed_amount >= 0 %>
@@ -503,3 +512,42 @@
     })();
   </script>
 <% end %>
+<script>
+  (() => {
+    if (window.__accountMovementsInfiniteMergedBound) return;
+    window.__accountMovementsInfiniteMergedBound = true;
+
+    const mergeFrameRowsIntoMainTable = (frame) => {
+      if (!(frame instanceof Element)) return;
+      if (!frame.id || !frame.id.startsWith('account-movements-')) return;
+
+      const mainBody = document.querySelector('[data-account-movements-main-body="true"]');
+      if (!mainBody) return;
+      if (frame.closest('tbody') === mainBody) return;
+
+      const rows = Array.from(frame.querySelectorAll('tbody > tr'));
+      if (rows.length > 0) {
+        rows.forEach((row) => mainBody.appendChild(row));
+      }
+
+      const nextFrame = frame.querySelector('turbo-frame[id^="account-movements-"]');
+      if (nextFrame) {
+        frame.replaceWith(nextFrame);
+      } else {
+        frame.remove();
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    document.addEventListener('turbo:frame-load', (event) => {
+      mergeFrameRowsIntoMainTable(event.target);
+    });
+
+    document.addEventListener('turbo:load', () => {
+      document
+        .querySelectorAll('turbo-frame[id^="account-movements-"]')
+        .forEach((frame) => mergeFrameRowsIntoMainTable(frame));
+    });
+  })();
+</script>
