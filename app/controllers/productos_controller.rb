@@ -22,6 +22,7 @@ class ProductosController < ApplicationController
     @selected_categoria_id = @selected_categoria&.id
     @product_counts_by_categoria_id = current_business.productos.group(:categoria_id).count
     @below_target_margin_total_count = calculate_below_target_margin_total_count
+    @inventory_global_totals = calculate_inventory_global_totals
 
     base_scope = current_business.productos
                    .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
@@ -1090,6 +1091,25 @@ class ProductosController < ApplicationController
 
   def calculate_below_target_margin_total_count
     below_target_margin_product_ids(current_business.productos).size
+  end
+
+  def calculate_inventory_global_totals
+    productos_scope = current_business.productos.includes(:stock_lots, :stock_lot_variations)
+
+    total_inventory_value_usd = productos_scope.sum do |producto|
+      producto.stock_lots.sum do |lot|
+        lot.unit_cost_usd.to_d * lot.quantity_remaining.to_d
+      end
+    end
+
+    total_sale_value_usd = productos_scope.sum do |producto|
+      producto.total_quantity.to_d * producto.precio_venta_usd.to_d
+    end
+
+    {
+      inventory_value_usd: total_inventory_value_usd.round(2),
+      sale_value_usd: total_sale_value_usd.round(2)
+    }
   end
 
   def below_target_margin_product_ids(scope)

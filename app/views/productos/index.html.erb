@@ -49,6 +49,19 @@
     </div>
   </div>
   <% if @has_productos || @filters_applied %>
+    <div class="grid gap-3 md:grid-cols-2">
+      <article class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-widest text-emerald-700">Inventario total global</p>
+        <p class="mt-2 text-2xl font-extrabold tracking-tight text-emerald-900"><%= format_money(@inventory_global_totals[:inventory_value_usd], unit: '$') %></p>
+        <p class="mt-1 text-xs text-emerald-800/80">Suma absoluta de valor inventario de todos los productos en base de datos.</p>
+      </article>
+      <article class="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-widest text-sky-700">Valor de venta total global</p>
+        <p class="mt-2 text-2xl font-extrabold tracking-tight text-sky-900"><%= format_money(@inventory_global_totals[:sale_value_usd], unit: '$') %></p>
+        <p class="mt-1 text-xs text-sky-800/80">Suma absoluta del valor de venta estimado de todo el inventario disponible.</p>
+      </article>
+    </div>
+
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <% active_filter_params = {} %>
       <% active_filter_params[:query_text] = @query_text if @query_text.present? %>
@@ -390,6 +403,19 @@
         return url;
       };
 
+      const buildNavigationUrl = () => {
+        const url = new URL(form.action, window.location.origin);
+        const formData = new FormData(form);
+
+        formData.forEach((value, key) => {
+          const normalizedValue = String(value || "").trim();
+          if (normalizedValue === "" || normalizedValue === "0") return;
+          url.searchParams.set(key, normalizedValue);
+        });
+
+        return url;
+      };
+
       const setSearchLoadingState = (loading) => {
         const tableLoadingOverlay = document.querySelector("[data-products-table-loading='true']");
         const submitButton = form.querySelector("[data-products-submit='true']");
@@ -575,9 +601,9 @@
         belowTargetMarginInput.dataset.changeBound !== "true"
       ) {
         belowTargetMarginInput.dataset.changeBound = "true";
-        belowTargetMarginInput.addEventListener("change", () =>
-          void submitSearch(),
-        );
+        belowTargetMarginInput.addEventListener("change", () => {
+          window.location.assign(buildNavigationUrl().toString());
+        });
       }
     };
 
