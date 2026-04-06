@@ -1874,7 +1874,7 @@
         html = html.replace(/PRODUCT_NAME/g, escapeHtml(productName));
         html = html.replace(/PRODUCT_VARIATIONS_JSON/g, escapeHtml(JSON.stringify(defaults.variations || [])));
         form.dataset.facturaIndex = String(currentIndex + 1);
-        container.insertAdjacentHTML('beforeend', html);
+        container.insertAdjacentHTML('afterbegin', html);
 
         const rowKey = String(currentIndex);
         const displayRow = container.querySelector(`.factura-row-display[data-row-key="${rowKey}"]`);
@@ -2233,9 +2233,19 @@
             if (rowKey) {
               const editRow = tbody.querySelector(`.factura-row-edit[data-row-key="${rowKey}"]`);
               if (!editRow) return;
+              const wasNewRecord = editRow.dataset.newRecord === 'true';
               commitVariationEditor(editRow);
               if (!validateVariationQuantityForRow(editRow, { showAlert: true })) return;
               setEditMode(rowKey, false);
+
+              if (wasNewRecord) {
+                const displayRow = tbody.querySelector(`.factura-row-display[data-row-key="${rowKey}"]`);
+                if (displayRow) {
+                  tbody.appendChild(displayRow);
+                  tbody.appendChild(editRow);
+                }
+                editRow.dataset.newRecord = 'false';
+              }
             }
           return;
         }
