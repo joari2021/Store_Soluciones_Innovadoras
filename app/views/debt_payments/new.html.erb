@@ -481,7 +481,7 @@
 
       const digits = sanitizeReference();
       const shouldValidate = referenceRequired() || digits.length > 0;
-      if (shouldValidate && digits.length !== 6) {
+      if (shouldValidate && digits.length !== 4) {
         event.preventDefault();
         referenceInput?.focus();
         return;
