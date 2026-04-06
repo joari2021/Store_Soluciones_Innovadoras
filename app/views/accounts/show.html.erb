@@ -520,6 +520,7 @@
     const mergeFrameRowsIntoMainTable = (frame) => {
       if (!(frame instanceof Element)) return;
       if (!frame.id || !frame.id.startsWith('account-movements-')) return;
+      if (frame.querySelector('[data-account-movements-main-body="true"]')) return;
 
       const mainBody = document.querySelector('[data-account-movements-main-body="true"]');
       if (!mainBody) return;
