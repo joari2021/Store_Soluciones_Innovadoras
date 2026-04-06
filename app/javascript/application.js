@@ -631,6 +631,10 @@ document.addEventListener(
         title: "¿Eliminar uso interno?",
         text: "Esta accion eliminara el registro y restaurara el stock del producto en los lotes descontados.",
       },
+      manual_movement: {
+        title: "¿Eliminar movimiento manual?",
+        text: "Esta accion eliminara el movimiento manual seleccionado de la cuenta.",
+      },
       logout: {
         title: "¿Cerrar sesion?",
         text: "Tu sesion actual se cerrara en este dispositivo.",

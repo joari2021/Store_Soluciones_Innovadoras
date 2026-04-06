@@ -124,6 +124,14 @@ module ApplicationHelper
     nil
   end
 
+  def manual_account_movement_editable?(movement)
+    return false if movement.blank?
+    return false if movement.account_settlement_id.present? || movement.cambio_efectivo_id.present?
+
+    description = movement.description.to_s
+    !description.match?(/\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i)
+  end
+
   def debt_display_description(value)
     raw_description = value.to_s.strip
     return 'Deuda sin descripcion' if raw_description.blank?

@@ -529,11 +529,12 @@ class ProductosController < ApplicationController
                            .find(params[:id])
 
     ActiveRecord::Base.transaction do
-      restore_stock_for_internal_usage!(usage)
+      restore_stock_for_internal_usage!(usage, strict: false)
       usage.destroy!
     end
 
-    redirect_to internal_usages_productos_path, notice: 'Uso interno eliminado y stock restaurado correctamente.'
+    redirect_to internal_usages_productos_path,
+                notice: 'Uso interno eliminado. Si no existe el lote original, la restauracion de stock puede quedar parcial.'
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to internal_usages_productos_path,
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
@@ -673,11 +674,13 @@ class ProductosController < ApplicationController
     deny_access('Solo encargado o administrador puede registrar uso interno de productos.')
   end
 
-  def restore_stock_for_internal_usage!(usage)
+  def restore_stock_for_internal_usage!(usage, strict: true)
     producto = usage.producto
     variation = usage.product_variation
 
     if producto.blank? || variation.blank?
+      return unless strict
+
       raise ActiveRecord::RecordInvalid.new(usage),
             'No se pudo restaurar el stock: producto o variacion no disponible en el registro.'
     end
@@ -698,7 +701,8 @@ class ProductosController < ApplicationController
         stock_lot: stock_lot,
         variation_id: variation.id,
         quantity_units: quantity_units,
-        usage: usage
+        usage: usage,
+        strict: strict
       )
       restored_total += quantity_units
     end
@@ -710,13 +714,16 @@ class ProductosController < ApplicationController
       producto: producto,
       variation_id: variation.id,
       quantity_units: remaining_to_restore,
-      usage: usage
+      usage: usage,
+      strict: strict
     )
   end
 
-  def restore_variation_units_in_lot!(stock_lot:, variation_id:, quantity_units:, usage:)
+  def restore_variation_units_in_lot!(stock_lot:, variation_id:, quantity_units:, usage:, strict: true)
     row = stock_lot.variation_row_for(variation_id, create_if_missing: true)
     if row.blank?
+      return unless strict
+
       raise ActiveRecord::RecordInvalid.new(usage),
             "No se pudo restaurar en el lote ##{stock_lot.id}: variacion no encontrada."
     end
@@ -726,6 +733,8 @@ class ProductosController < ApplicationController
     available_capacity = max_quantity - current_remaining
 
     if quantity_units.to_d > available_capacity
+      return unless strict
+
       raise ActiveRecord::RecordInvalid.new(usage),
             "No se pudo restaurar en el lote ##{stock_lot.id}: capacidad insuficiente para revertir #{quantity_units.to_f.round(4)} unidad(es)."
     end
@@ -734,7 +743,7 @@ class ProductosController < ApplicationController
     stock_lot.sync_quantity_remaining_from_variations!
   end
 
-  def restore_variation_units_fifo!(producto:, variation_id:, quantity_units:, usage:)
+  def restore_variation_units_fifo!(producto:, variation_id:, quantity_units:, usage:, strict: true)
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
@@ -757,6 +766,7 @@ class ProductosController < ApplicationController
     end
 
     return if remaining_to_restore <= 0
+    return unless strict
 
     raise ActiveRecord::RecordInvalid.new(usage),
           "No se pudo restaurar todo el stock del uso interno ##{usage.id} (faltan #{remaining_to_restore.to_f.round(4)} unidades)."

@@ -56,6 +56,9 @@ Rails.application.routes.draw do
       patch :unset_primary
       post :transfer
       post :register_payment
+      get 'movimientos/:movement_id/editar', action: :edit_movement, as: :edit_movement
+      patch 'movimientos/:movement_id', action: :update_movement, as: :update_movement
+      delete 'movimientos/:movement_id', action: :destroy_movement, as: :destroy_movement
     end
     resources :account_settlements, path: 'cierres', only: %i[index show create update]
   end

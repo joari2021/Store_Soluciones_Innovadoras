@@ -1,7 +1,9 @@
 class AccountsController < ApplicationController
   before_action :require_business
   before_action :require_admin
-  before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment]
+  before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment
+                                       edit_movement update_movement destroy_movement]
+  before_action :set_manual_movement, only: %i[edit_movement update_movement destroy_movement]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
@@ -325,6 +327,71 @@ class AccountsController < ApplicationController
     redirect_to account_path(@account), alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
+  def edit_movement
+    @movement_concept = movement_concept_from_description(@movement.description)
+    @movement_date = @movement.occurred_at&.in_time_zone("America/Caracas")&.to_date
+  end
+
+  def update_movement
+    concept = params[:concept].to_s.strip
+    return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                       alert: "Indica el concepto del movimiento." if concept.blank?
+
+    payment_date = parse_transfer_date(params[:payment_date])
+    if payment_date.blank?
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "Indica una fecha valida para el movimiento."
+    end
+
+    amount = parse_transfer_decimal(params[:amount])
+    unless amount.positive?
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "Indica un monto valido mayor a 0."
+    end
+
+    movement_kind = normalize_payment_movement_kind(params[:movement_kind])
+    if movement_kind.blank?
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "Selecciona un tipo de movimiento valido (debito o credito)."
+    end
+
+    reference = params[:reference].to_s.strip
+    if @account.account_type == "bank_account" && !valid_bank_reference?(reference)
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "La referencia debe tener exactamente 4 digitos."
+    end
+
+    caracas_now = Time.current.in_time_zone("America/Caracas")
+    occurred_at = caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
+    payment_method = @account.account_type == "bank_account" ? "transfer" : nil
+
+    @movement.update!(
+      movement_kind: movement_kind,
+      amount: amount,
+      occurred_at: occurred_at,
+      payment_method: payment_method,
+      reference: reference.presence,
+      description: transfer_movement_description(
+        base: "#{movement_kind == 'expense' ? 'Pago' : 'Credito manual'}: #{concept}",
+        reference: reference,
+      ),
+    )
+
+    redirect_to account_path(@account, movement_id: @movement.id), notice: "Movimiento manual actualizado correctamente."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def destroy_movement
+    movement_id = @movement.id
+    @movement.destroy!
+
+    redirect_to account_path(@account), notice: "Movimiento manual ##{movement_id} eliminado correctamente."
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordInvalid => e
+    redirect_to account_path(@account), alert: e.message.presence || "No se pudo eliminar el movimiento manual."
+  end
+
   private
 
   def initialize_movement_filters
@@ -479,6 +546,28 @@ class AccountsController < ApplicationController
 
   def transfer_payment_method_for(account, payment_method)
     account.account_type == "bank_account" ? payment_method : nil
+  end
+
+  def set_manual_movement
+    @movement = @account.account_movements.find_by(id: params[:movement_id])
+    return if @movement.present? && manual_account_movement_editable?(@movement)
+
+    redirect_to account_path(@account), alert: "Solo puedes editar o eliminar movimientos manuales."
+  end
+
+  def manual_account_movement_editable?(movement)
+    return false if movement.blank?
+    return false if movement.account_settlement_id.present? || movement.cambio_efectivo_id.present?
+
+    description = movement.description.to_s
+    !description.match?(/\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i)
+  end
+
+  def movement_concept_from_description(description)
+    text = description.to_s.strip
+    text = text.gsub(/\s*-\s*Ref\s+[^\s\]]+/i, "").strip
+    text = text.sub(/\A(?:Pago|Credito\s+manual):\s*/i, "").strip
+    text.presence || "Movimiento manual"
   end
 
   def set_account
