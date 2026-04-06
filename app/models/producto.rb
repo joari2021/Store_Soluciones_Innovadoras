@@ -35,7 +35,7 @@ class Producto < ApplicationRecord
   validates :cant_presentation,
             numericality: { only_integer: true, greater_than: 0 }
   validates :porcentaje_ganancia,
-            numericality: { greater_than_or_equal_to: 0, less_than: 1000 },
+            numericality: { greater_than_or_equal_to: 0 },
             allow_nil: true
 
   before_validation :ensure_default_variation, on: :create
