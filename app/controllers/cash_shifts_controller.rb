@@ -344,7 +344,7 @@ class CashShiftsController < ApplicationController
     ventas = cash_shift.ventas.includes(:venta_items).to_a
 
     ventas.each do |venta|
-      restore_stock_for_sale!(venta)
+      restore_stock_for_sale!(venta, strict: false)
       delete_account_movements_for_sale!(venta)
       delete_sale_debts_for_sale!(venta)
       venta.destroy!
@@ -399,7 +399,7 @@ class CashShiftsController < ApplicationController
     current_business.accounts.find_each(&:recalculate_balance!)
   end
 
-  def restore_stock_for_sale!(venta)
+  def restore_stock_for_sale!(venta, strict: true)
     grouped_items = venta.venta_items
                          .select { |item| item.producto_id.present? && item.product_variation_id.present? }
                          .group_by { |item| [item.producto_id, item.product_variation_id] }
@@ -412,14 +412,15 @@ class CashShiftsController < ApplicationController
         producto_id: producto_id,
         variation_id: variation_id,
         quantity_units: quantity_units,
-        venta: venta
+        venta: venta,
+        strict: strict
       )
     end
 
-    restore_reserved_service_stock_from_notes!(venta)
+    restore_reserved_service_stock_from_notes!(venta, strict: strict)
   end
 
-  def restore_product_variation_units!(producto_id:, variation_id:, quantity_units:, venta:)
+  def restore_product_variation_units!(producto_id:, variation_id:, quantity_units:, venta:, strict: true)
     producto = current_business.productos.find_by(id: producto_id)
     return unless producto
 
@@ -445,6 +446,7 @@ class CashShiftsController < ApplicationController
     end
 
     return if remaining_to_restore <= 0
+    return unless strict
 
     raise ActiveRecord::RecordInvalid.new(venta),
           "No se pudo restaurar todo el stock de la venta ##{venta.id} (faltan #{remaining_to_restore.to_f.round(4)} unidades)."
@@ -459,7 +461,7 @@ class CashShiftsController < ApplicationController
     {}
   end
 
-  def restore_reserved_service_stock_from_notes!(venta)
+  def restore_reserved_service_stock_from_notes!(venta, strict: true)
     notes_payload = parse_sale_notes_payload(venta.notes)
     rows = Array(notes_payload['reserved_service_products'])
 
@@ -473,7 +475,8 @@ class CashShiftsController < ApplicationController
         producto_id: producto_id,
         variation_id: variation_id,
         quantity_units: quantity_units,
-        venta: venta
+        venta: venta,
+        strict: strict
       )
     end
   end
