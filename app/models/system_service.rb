@@ -7,11 +7,11 @@ class SystemService < ApplicationRecord
 
   def recarga_system?
     normalized = I18n.transliterate(name.to_s).downcase.strip
-    normalized.include?('recarga')
+    normalized.include?("recarga")
   end
 
   def rcv_system?
     normalized = I18n.transliterate(name.to_s).downcase.strip
-    normalized.include?('rcv')
+    normalized.include?("rcv")
   end
 end
