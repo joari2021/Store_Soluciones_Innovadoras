@@ -111,7 +111,7 @@ class DebtPayment < ApplicationRecord
 
     override_amount = movement_amount_override.to_d
     movement_amount = override_amount.positive? ? override_amount : amount
-    movement_occurred_at = movement_occurred_at_override.presence || occurred_at
+    movement_occurred_at = resolved_movement_occurred_at
 
     movement_attrs = {
       movement_kind: debt.receivable? ? "income" : "expense",
@@ -127,6 +127,16 @@ class DebtPayment < ApplicationRecord
     movement_attrs[:reference] = reference.presence if reference.present?
 
     account.account_movements.create!(movement_attrs)
+  end
+
+  def resolved_movement_occurred_at
+    return movement_occurred_at_override.in_time_zone("America/Caracas") if movement_occurred_at_override.present?
+
+    payment_date = occurred_at&.to_date
+    caracas_now = Time.current.in_time_zone("America/Caracas")
+    return caracas_now if payment_date.blank?
+
+    caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
   end
 
   def sync_mirror_debt_payment

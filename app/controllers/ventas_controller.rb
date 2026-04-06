@@ -1066,9 +1066,10 @@ class VentasController < ApplicationController
   end
 
   def account_movement_occurred_at_from_payment_date(payment_date)
-    return Time.current if payment_date.blank?
+    caracas_now = Time.current.in_time_zone("America/Caracas")
+    return caracas_now if payment_date.blank?
 
-    payment_date.in_time_zone("America/Caracas").end_of_day
+    caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
   end
 
   def find_duplicate_bank_payment(account_id:, payment_date:, amount_original:, reference:)
