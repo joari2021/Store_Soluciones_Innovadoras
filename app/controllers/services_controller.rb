@@ -1347,25 +1347,30 @@ class ServicesController < ApplicationController
 
         product_id = row['product_id'].to_i
         variation_id = row['variation_id'].to_i
+        stock_lot_id = row['stock_lot_id'].to_i
         quantity = row['quantity'].to_d
         next unless product_id.positive? && variation_id.positive?
 
-        grouped_reserved[[product_id, variation_id]] += quantity
+        lot_key = stock_lot_id.positive? ? stock_lot_id : nil
+        grouped_reserved[[product_id, variation_id, lot_key]] += quantity
       end
 
       deltas.each do |key, delta|
-        grouped_reserved[key] += delta.to_d
+        product_id, variation_id = key
+        grouped_reserved[[product_id.to_i, variation_id.to_i, nil]] += delta.to_d
       end
 
       normalized_rows = grouped_reserved.each_with_object([]) do |(key, quantity), rows|
         next unless quantity.positive?
 
-        product_id, variation_id = key
-        rows << {
+        product_id, variation_id, stock_lot_id = key
+        row = {
           'product_id' => product_id,
           'variation_id' => variation_id,
           'quantity' => quantity.round(4).to_f
         }
+        row['stock_lot_id'] = stock_lot_id if stock_lot_id.present?
+        rows << row
       end
 
       notes_payload['reserved_service_products'] = normalized_rows

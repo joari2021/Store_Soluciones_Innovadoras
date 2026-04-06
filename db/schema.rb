@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_05_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_05_121500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -488,6 +488,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_05_110000) do
     t.text "notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "stock_lot_breakdown", default: [], null: false
     t.index ["business_id", "used_on"], name: "index_product_usages_on_business_id_and_used_on"
     t.index ["business_id"], name: "index_product_usages_on_business_id"
     t.index ["product_variation_id"], name: "index_product_usages_on_product_variation_id"

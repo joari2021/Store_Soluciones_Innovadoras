@@ -119,6 +119,7 @@
                 <th class="px-4 py-3">Registrado por</th>
                 <th class="px-4 py-3">Nota</th>
                 <th class="px-4 py-3">Registro</th>
+                <th class="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -132,11 +133,21 @@
                     <td class="px-4 py-3"><%= usage.user&.display_name || usage.user&.username || 'Usuario eliminado' %></td>
                     <td class="px-4 py-3 text-slate-600"><%= usage.notes.to_s.strip.presence || '-' %></td>
                     <td class="whitespace-nowrap px-4 py-3 text-slate-500"><%= usage.created_at&.in_time_zone('America/Caracas')&.strftime('%d-%m-%Y %I:%M %p') %></td>
+                    <td class="whitespace-nowrap px-4 py-3 text-right">
+                      <%= link_to destroy_internal_usage_productos_path(usage),
+                                  data: {
+                                    turbo_method: :delete,
+                                    swal_delete: 'internal_usage'
+                                  },
+                                  class: 'inline-flex cursor-pointer items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-100' do %>
+                        Eliminar
+                      <% end %>
+                    </td>
                   </tr>
                 <% end %>
               <% else %>
                 <tr>
-                  <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No hay consumos registrados con esos filtros.</td>
+                  <td colspan="8" class="px-4 py-8 text-center text-sm text-slate-500">No hay consumos registrados con esos filtros.</td>
                 </tr>
               <% end %>
             </tbody>

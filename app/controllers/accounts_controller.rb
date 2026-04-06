@@ -263,15 +263,22 @@ class AccountsController < ApplicationController
     amount = parse_transfer_decimal(params[:amount])
     return redirect_to account_path(@account), alert: "Indica un monto valido mayor a 0." unless amount.positive?
 
+    movement_kind = normalize_payment_movement_kind(params[:movement_kind])
+    if movement_kind.blank?
+      return redirect_to account_path(@account),
+                         alert: "Selecciona un tipo de movimiento valido (debito o credito)."
+    end
+
     include_commission = ActiveModel::Type::Boolean.new.cast(params[:include_commission])
+    include_commission = false unless movement_kind == "expense"
     commission_amount = include_commission ? parse_transfer_decimal(params[:commission_amount]) : 0.to_d
     if include_commission && !commission_amount.positive?
       return redirect_to account_path(@account), alert: "Indica un monto de comision valido mayor a 0."
     end
 
-    total_debit = (amount + commission_amount).round(2)
+    total_debit = movement_kind == "expense" ? (amount + commission_amount).round(2) : 0.to_d
 
-    if total_debit > @account.balance.to_d
+    if movement_kind == "expense" && total_debit > @account.balance.to_d
       return redirect_to account_path(@account), alert: @account.insufficient_balance_message(total_debit)
     end
 
@@ -289,12 +296,15 @@ class AccountsController < ApplicationController
 
     AccountMovement.transaction do
       movement = @account.account_movements.create!(
-        movement_kind: "expense",
+        movement_kind: movement_kind,
         amount: amount,
         occurred_at: occurred_at,
         payment_method: payment_method,
         reference: reference.presence,
-        description: transfer_movement_description(base: "Pago: #{concept}", reference: reference),
+        description: transfer_movement_description(
+          base: "#{movement_kind == 'expense' ? 'Pago' : 'Credito manual'}: #{concept}",
+          reference: reference,
+        ),
       )
 
       if include_commission && commission_amount.positive?
@@ -309,7 +319,8 @@ class AccountsController < ApplicationController
       end
     end
 
-    redirect_to account_path(@account, movement_id: movement.id), notice: "Pago registrado correctamente."
+    notice_message = movement_kind == "expense" ? "Pago registrado correctamente." : "Credito registrado correctamente."
+    redirect_to account_path(@account, movement_id: movement.id), notice: notice_message
   rescue ActiveRecord::RecordInvalid => e
     redirect_to account_path(@account), alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
@@ -399,6 +410,14 @@ class AccountsController < ApplicationController
     BigDecimal(normalized)
   rescue ArgumentError
     0.to_d
+  end
+
+  def normalize_payment_movement_kind(raw_value)
+    value = raw_value.to_s.strip.downcase
+    return "expense" if value == "expense"
+    return "income" if value == "income"
+
+    nil
   end
 
   def suggested_transfer_amount(amount_from:, from_account:, to_account:, transfer_date:)

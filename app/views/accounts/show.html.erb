@@ -10,7 +10,7 @@
       <div class="flex items-center gap-2">
         <% unless Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
           <button id="account-payment-open" type="button" class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100">
-            Registrar pago
+            Registrar movimiento
           </button>
         <% end %>
         <%= link_to 'Editar', edit_account_path(@account), class: 'inline-flex items-center justify-center rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300' %>
@@ -284,8 +284,8 @@
     <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
       <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
         <div>
-          <h3 class="text-base font-bold text-slate-800">Registrar pago</h3>
-          <p class="text-xs text-slate-500">Registra un egreso directo desde la cuenta.</p>
+          <h3 class="text-base font-bold text-slate-800">Registrar movimiento</h3>
+          <p class="text-xs text-slate-500">Registra un debito (egreso) o credito (ingreso) directo.</p>
         </div>
         <button type="button" class="rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200" data-payment-close="true">Cerrar</button>
       </div>
@@ -294,6 +294,13 @@
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Concepto</label>
           <input type="text" name="concept" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Ej: Pago de proveedor" data-payment-concept required>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Tipo</label>
+          <select name="movement_kind" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-payment-kind required>
+            <option value="expense" selected>Debito (egreso)</option>
+            <option value="income">Credito (ingreso)</option>
+          </select>
         </div>
         <div class="grid gap-3 md:grid-cols-2">
           <div>
@@ -343,6 +350,7 @@
       const currencySymbol = String(modal.dataset.currencySymbol || '$').trim() || '$';
       const amountInput = modal.querySelector('[data-payment-amount]');
       const conceptInput = modal.querySelector('[data-payment-concept]');
+      const movementKindInput = modal.querySelector('[data-payment-kind]');
       const dateInput = modal.querySelector('[data-payment-date]');
       const includeCommissionInput = modal.querySelector('[data-payment-include-commission]');
       const commissionWrapper = modal.querySelector('[data-payment-commission-wrapper]');
@@ -373,6 +381,7 @@
       };
 
       const commissionEnabled = () => Boolean(includeCommissionInput?.checked);
+      const isDebitMovement = () => (movementKindInput?.value || 'expense') === 'expense';
 
       const sanitizeReference = () => {
         if (!referenceInput) return '';
@@ -383,22 +392,36 @@
       };
 
       const syncCommissionUI = () => {
-        const enabled = commissionEnabled();
+        const debitMovement = isDebitMovement();
+        const enabled = debitMovement && commissionEnabled();
+
+        if (includeCommissionInput) {
+          includeCommissionInput.disabled = !debitMovement;
+          if (!debitMovement) includeCommissionInput.checked = false;
+        }
+
         if (commissionWrapper) commissionWrapper.classList.toggle('hidden', !enabled);
         if (!enabled && commissionAmountInput) commissionAmountInput.value = '';
       };
 
       const syncRemaining = () => {
         const amount = parseAmount(amountInput);
-        const commission = commissionEnabled() ? parseAmount(commissionAmountInput) : 0;
+        const debitMovement = isDebitMovement();
+        const commission = debitMovement && commissionEnabled() ? parseAmount(commissionAmountInput) : 0;
         const total = amount + commission;
         const remaining = available - total;
-        const hasError = total > 0 && remaining < 0;
-        const commissionOk = !commissionEnabled() || commission > 0;
+        const hasError = debitMovement && total > 0 && remaining < 0;
+        const commissionOk = !debitMovement || !commissionEnabled() || commission > 0;
         if (errorEl) errorEl.classList.toggle('hidden', !hasError);
         if (remainingEl) {
-          const label = total > 0 ? formatAmount(Math.max(remaining, 0)) : '-';
-          remainingEl.textContent = `Saldo restante: ${label}`;
+          if (debitMovement) {
+            const label = total > 0 ? formatAmount(Math.max(remaining, 0)) : '-';
+            remainingEl.textContent = `Saldo restante: ${label}`;
+          } else {
+            const projected = available + amount;
+            const label = amount > 0 ? formatAmount(projected) : formatAmount(available);
+            remainingEl.textContent = `Saldo proyectado: ${label}`;
+          }
         }
         if (submitButton) {
           const conceptOk = String(conceptInput?.value || '').trim().length > 0;
@@ -416,6 +439,7 @@
         if (window.MoneyInputMask?.init) window.MoneyInputMask.init(modal);
         if (window.initializeMaterializeDatepickers) window.initializeMaterializeDatepickers(modal);
         if (dateInput && !dateInput.value) dateInput.value = defaultDateLabel();
+        if (movementKindInput) movementKindInput.value = 'expense';
         if (includeCommissionInput) includeCommissionInput.checked = false;
         if (commissionAmountInput) commissionAmountInput.value = '';
         syncCommissionUI();
@@ -433,6 +457,12 @@
       });
 
       if (amountInput) amountInput.addEventListener('input', syncRemaining);
+      if (movementKindInput) {
+        movementKindInput.addEventListener('change', () => {
+          syncCommissionUI();
+          syncRemaining();
+        });
+      }
       if (commissionAmountInput) commissionAmountInput.addEventListener('input', syncRemaining);
       if (referenceInput) referenceInput.addEventListener('input', syncRemaining);
       if (includeCommissionInput) {

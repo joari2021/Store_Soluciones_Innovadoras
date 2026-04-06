@@ -627,6 +627,10 @@ document.addEventListener(
         title: "¿Eliminar venta?",
         text: "Esta accion eliminara la venta y todo lo asociado: items, pagos, movimientos y reposicion de stock.",
       },
+      internal_usage: {
+        title: "¿Eliminar uso interno?",
+        text: "Esta accion eliminara el registro y restaurara el stock del producto en los lotes descontados.",
+      },
       logout: {
         title: "¿Cerrar sesion?",
         text: "Tu sesion actual se cerrara en este dispositivo.",

@@ -23,6 +23,7 @@ Rails.application.routes.draw do
       get :export_excel
       get :internal_usages, path: 'uso-interno'
       post :internal_usages, action: :create_internal_usage, path: 'uso-interno'
+      delete 'uso-interno/:id', action: :destroy_internal_usage, as: :destroy_internal_usage
       get :unpack_packs, path: 'destapar-pack'
       post :process_unpack, path: 'destapar-pack'
       get :unpack_histories, path: 'destapar-pack/historial'

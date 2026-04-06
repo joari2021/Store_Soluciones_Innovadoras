@@ -1179,12 +1179,15 @@ class VentasController < ApplicationController
   end
 
   def restore_stock_for_sale!(venta, strict: true)
+    restored_product_lot_quantities = restore_reserved_product_stock_from_notes!(venta, strict: strict)
+
     grouped_items = venta.venta_items
                          .select { |item| item.producto_id.present? && item.product_variation_id.present? }
                          .group_by { |item| [item.producto_id, item.product_variation_id] }
 
     grouped_items.each do |(producto_id, variation_id), items|
       quantity_units = items.sum { |item| item.quantity.to_d }
+      quantity_units -= restored_product_lot_quantities.fetch([producto_id.to_i, variation_id.to_i], 0.to_d)
       next unless quantity_units.positive?
 
       restore_product_variation_units!(
@@ -1197,6 +1200,35 @@ class VentasController < ApplicationController
     end
 
     restore_reserved_service_stock_from_notes!(venta, strict: strict)
+  end
+
+  def restore_reserved_product_stock_from_notes!(venta, strict: true)
+    notes_payload = parse_notes_payload(venta.notes)
+    rows = Array(notes_payload["product_lot_consumptions"])
+    restored_by_key = Hash.new(0.to_d)
+
+    rows.each do |row|
+      producto_id = row["product_id"] || row[:product_id]
+      variation_id = row["variation_id"] || row[:variation_id]
+      stock_lot_id = row["stock_lot_id"] || row[:stock_lot_id]
+      quantity_units = parse_decimal(row["quantity"] || row[:quantity], default: 0)
+      next if producto_id.blank? || variation_id.blank? || !quantity_units.positive?
+      next if stock_lot_id.blank?
+
+      restored_exact = restore_product_variation_units_in_lot!(
+        producto_id: producto_id,
+        variation_id: variation_id,
+        stock_lot_id: stock_lot_id,
+        quantity_units: quantity_units,
+        venta: venta,
+        strict: strict,
+      )
+      next unless restored_exact
+
+      restored_by_key[[producto_id.to_i, variation_id.to_i]] += quantity_units.to_d
+    end
+
+    restored_by_key
   end
 
   def restore_product_variation_units!(producto_id:, variation_id:, quantity_units:, venta:, strict: true)
@@ -1876,12 +1908,20 @@ class VentasController < ApplicationController
       producto = current_business.productos.find_by(id: producto_id)
       next unless producto
 
-      producto.consume_variation_stock!(variation_id: variation_id, quantity_units: quantity_units)
-      reservations << {
-        "product_id" => producto_id,
-        "variation_id" => variation_id,
-        "quantity" => quantity_units.to_d.to_f,
-      }
+      lot_breakdown = producto.consume_variation_stock_with_breakdown!(
+        variation_id: variation_id,
+        quantity_units: quantity_units
+      )
+
+      lot_breakdown.each do |entry|
+        reservations << {
+          "product_id" => producto_id,
+          "variation_id" => variation_id,
+          "stock_lot_id" => entry[:stock_lot_id],
+          "quantity" => entry[:quantity].to_d.to_f,
+          "unit_cost_usd" => entry[:unit_cost_usd].to_d.to_f,
+        }
+      end
     end
 
     reservations
@@ -2022,8 +2062,21 @@ class VentasController < ApplicationController
     rows.each do |row|
       producto_id = row["product_id"] || row[:product_id]
       variation_id = row["variation_id"] || row[:variation_id]
+      stock_lot_id = row["stock_lot_id"] || row[:stock_lot_id]
       quantity_units = parse_decimal(row["quantity"] || row[:quantity], default: 0)
       next if producto_id.blank? || variation_id.blank? || !quantity_units.positive?
+
+      if stock_lot_id.present?
+        restored_exact = restore_product_variation_units_in_lot!(
+          producto_id: producto_id,
+          variation_id: variation_id,
+          stock_lot_id: stock_lot_id,
+          quantity_units: quantity_units,
+          venta: venta,
+          strict: strict,
+        )
+        next if restored_exact
+      end
 
       restore_product_variation_units!(
         producto_id: producto_id,
@@ -2033,6 +2086,47 @@ class VentasController < ApplicationController
         strict: strict,
       )
     end
+  end
+
+  def restore_product_variation_units_in_lot!(producto_id:, variation_id:, stock_lot_id:, quantity_units:, venta:, strict: true)
+    producto = current_business.productos.find_by(id: producto_id)
+    if producto.blank?
+      return false unless strict
+
+      raise ActiveRecord::RecordInvalid.new(venta),
+            "No se encontro el producto ##{producto_id} para restaurar stock de la venta ##{venta.id}."
+    end
+
+    lot = producto.stock_lots.find_by(id: stock_lot_id)
+    if lot.blank?
+      return false unless strict
+
+      raise ActiveRecord::RecordInvalid.new(venta),
+            "No se encontro el lote ##{stock_lot_id} para restaurar stock de la venta ##{venta.id}."
+    end
+
+    row = lot.variation_row_for(variation_id, create_if_missing: true)
+    if row.blank?
+      return false unless strict
+
+      raise ActiveRecord::RecordInvalid.new(venta),
+            "No se encontro la variacion para restaurar en el lote ##{lot.id} de la venta ##{venta.id}."
+    end
+
+    current_remaining = row.quantity_remaining.to_d
+    max_quantity = row.quantity_in.to_d
+    available_capacity = max_quantity - current_remaining
+
+    if quantity_units.to_d > available_capacity
+      return false unless strict
+
+      raise ActiveRecord::RecordInvalid.new(venta),
+            "No se pudo restaurar en el lote ##{lot.id} toda la cantidad de la venta ##{venta.id}."
+    end
+
+    row.update!(quantity_remaining: current_remaining + quantity_units.to_d)
+    lot.sync_quantity_remaining_from_variations!
+    true
   end
 
   def venta_params

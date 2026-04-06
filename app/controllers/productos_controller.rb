@@ -7,10 +7,11 @@ class ProductosController < ApplicationController
   before_action :set_producto, only: %i[show edit update destroy]
   before_action :set_pack_unwrap, only: %i[edit_unpack_history update_unpack_history destroy_unpack_history]
   before_action :require_admin, except: %i[index search unpack_packs process_unpack unpack_histories edit_unpack_history
-                                           update_unpack_history destroy_unpack_history internal_usages create_internal_usage]
+                                           update_unpack_history destroy_unpack_history internal_usages create_internal_usage
+                                           destroy_internal_usage]
   before_action :require_unpack_access!, only: %i[unpack_packs process_unpack unpack_histories edit_unpack_history
                                                   update_unpack_history destroy_unpack_history]
-  before_action :require_internal_usage_access!, only: %i[internal_usages create_internal_usage]
+  before_action :require_internal_usage_access!, only: %i[internal_usages create_internal_usage destroy_internal_usage]
 
   def index
     @query_text = params[:query_text].to_s.strip
@@ -506,12 +507,34 @@ class ProductosController < ApplicationController
     )
 
     ActiveRecord::Base.transaction do
-      producto.consume_variation_stock!(variation_id: variation.id, quantity_units: quantity)
+      lot_breakdown = producto.consume_variation_stock_with_breakdown!(variation_id: variation.id, quantity_units: quantity)
+      usage.stock_lot_breakdown = lot_breakdown.map do |entry|
+        {
+          'stock_lot_id' => entry[:stock_lot_id].to_i,
+          'quantity' => entry[:quantity].to_d.to_s('F')
+        }
+      end
       usage.save!
     end
 
     redirect_to internal_usages_productos_path, notice: 'Uso interno registrado y descontado del inventario.'
   rescue ActiveRecord::RecordInvalid => e
+    redirect_to internal_usages_productos_path,
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def destroy_internal_usage
+    usage = current_business.product_usages
+                           .includes(:producto, :product_variation)
+                           .find(params[:id])
+
+    ActiveRecord::Base.transaction do
+      restore_stock_for_internal_usage!(usage)
+      usage.destroy!
+    end
+
+    redirect_to internal_usages_productos_path, notice: 'Uso interno eliminado y stock restaurado correctamente.'
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to internal_usages_productos_path,
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
@@ -648,6 +671,95 @@ class ProductosController < ApplicationController
     return if current_user_admin? || current_user_manager?
 
     deny_access('Solo encargado o administrador puede registrar uso interno de productos.')
+  end
+
+  def restore_stock_for_internal_usage!(usage)
+    producto = usage.producto
+    variation = usage.product_variation
+
+    if producto.blank? || variation.blank?
+      raise ActiveRecord::RecordInvalid.new(usage),
+            'No se pudo restaurar el stock: producto o variacion no disponible en el registro.'
+    end
+
+    breakdown_rows = Array(usage.stock_lot_breakdown)
+    restored_total = 0.to_d
+
+    breakdown_rows.each do |row|
+      source = row.respond_to?(:to_h) ? row.to_h : {}
+      stock_lot_id = (source['stock_lot_id'] || source[:stock_lot_id]).to_i
+      quantity_units = parse_unpack_decimal(source['quantity'] || source[:quantity])
+      next if stock_lot_id <= 0 || !quantity_units.positive?
+
+      stock_lot = producto.stock_lots.find_by(id: stock_lot_id)
+      next if stock_lot.blank?
+
+      restore_variation_units_in_lot!(
+        stock_lot: stock_lot,
+        variation_id: variation.id,
+        quantity_units: quantity_units,
+        usage: usage
+      )
+      restored_total += quantity_units
+    end
+
+    remaining_to_restore = usage.quantity.to_d - restored_total
+    return if remaining_to_restore <= 0
+
+    restore_variation_units_fifo!(
+      producto: producto,
+      variation_id: variation.id,
+      quantity_units: remaining_to_restore,
+      usage: usage
+    )
+  end
+
+  def restore_variation_units_in_lot!(stock_lot:, variation_id:, quantity_units:, usage:)
+    row = stock_lot.variation_row_for(variation_id, create_if_missing: true)
+    if row.blank?
+      raise ActiveRecord::RecordInvalid.new(usage),
+            "No se pudo restaurar en el lote ##{stock_lot.id}: variacion no encontrada."
+    end
+
+    current_remaining = row.quantity_remaining.to_d
+    max_quantity = row.quantity_in.to_d
+    available_capacity = max_quantity - current_remaining
+
+    if quantity_units.to_d > available_capacity
+      raise ActiveRecord::RecordInvalid.new(usage),
+            "No se pudo restaurar en el lote ##{stock_lot.id}: capacidad insuficiente para revertir #{quantity_units.to_f.round(4)} unidad(es)."
+    end
+
+    row.update!(quantity_remaining: current_remaining + quantity_units.to_d)
+    stock_lot.sync_quantity_remaining_from_variations!
+  end
+
+  def restore_variation_units_fifo!(producto:, variation_id:, quantity_units:, usage:)
+    remaining_to_restore = quantity_units.to_d
+
+    producto.stock_lots.ordered_fifo.each do |lot|
+      row = lot.variation_row_for(variation_id, create_if_missing: true)
+      next unless row
+
+      current_remaining = row.quantity_remaining.to_d
+      max_quantity = row.quantity_in.to_d
+      available_capacity = max_quantity - current_remaining
+      next unless available_capacity.positive?
+
+      restored = [available_capacity, remaining_to_restore].min
+      next unless restored.positive?
+
+      row.update!(quantity_remaining: current_remaining + restored)
+      lot.sync_quantity_remaining_from_variations!
+
+      remaining_to_restore -= restored
+      break if remaining_to_restore <= 0
+    end
+
+    return if remaining_to_restore <= 0
+
+    raise ActiveRecord::RecordInvalid.new(usage),
+          "No se pudo restaurar todo el stock del uso interno ##{usage.id} (faltan #{remaining_to_restore.to_f.round(4)} unidades)."
   end
 
   def usage_form_params
