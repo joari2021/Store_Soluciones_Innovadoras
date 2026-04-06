@@ -1082,12 +1082,21 @@ class ProductosController < ApplicationController
   end
 
   def filter_by_below_target_margin(scope)
-    scope.where(id: below_target_margin_scope(scope).select(:id))
+    product_ids = below_target_margin_product_ids(scope)
+    return scope.none if product_ids.empty?
+
+    scope.where(id: product_ids)
   end
 
   def calculate_below_target_margin_total_count
-    base_scope = current_business.productos
-    base_scope.where(id: below_target_margin_scope(base_scope).select(:id)).count
+    below_target_margin_product_ids(current_business.productos).size
+  end
+
+  def below_target_margin_product_ids(scope)
+    relation = scope.except(:includes, :preload, :eager_load)
+    relation.includes(:profit_margin_preset, :stock_lots)
+            .select(&:below_target_margin_for_highest_active_lot?)
+            .map(&:id)
   end
 
   def below_target_margin_scope(scope)
