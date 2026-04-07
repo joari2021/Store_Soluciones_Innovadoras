@@ -2251,6 +2251,8 @@ class VentasController < ApplicationController
         :agreed_reference_amount,
         :agreed_reference_symbol,
         :delivery_presentation,
+        :service_beneficiary_name,
+        :service_responsible_name,
         :selected_print_coverage_id,
         :selected_print_coverage_percent,
         :selected_print_price_bs,
