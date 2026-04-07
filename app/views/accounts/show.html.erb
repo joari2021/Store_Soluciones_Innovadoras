@@ -545,14 +545,33 @@
       if (window.lucide) window.lucide.createIcons();
     };
 
+    const maybeLoadNextMovementsFrame = () => {
+      const nextFrame = document.querySelector('turbo-frame[id^="account-movements-"][src]');
+      if (!(nextFrame instanceof Element)) return;
+      if (nextFrame.dataset.eagerRequested === 'true') return;
+
+      const rect = nextFrame.getBoundingClientRect();
+      const shouldLoadNow = rect.top <= (window.innerHeight + 320);
+      if (!shouldLoadNow) return;
+
+      nextFrame.dataset.eagerRequested = 'true';
+      nextFrame.setAttribute('loading', 'eager');
+    };
+
     document.addEventListener('turbo:frame-load', (event) => {
       mergeFrameRowsIntoMainTable(event.target);
+      maybeLoadNextMovementsFrame();
     });
 
     document.addEventListener('turbo:load', () => {
       document
         .querySelectorAll('turbo-frame[id^="account-movements-"]')
         .forEach((frame) => mergeFrameRowsIntoMainTable(frame));
+
+      maybeLoadNextMovementsFrame();
     });
+
+    document.addEventListener('scroll', maybeLoadNextMovementsFrame, { passive: true });
+    window.addEventListener('resize', maybeLoadNextMovementsFrame);
   })();
 </script>
