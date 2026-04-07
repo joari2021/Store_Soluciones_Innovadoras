@@ -514,12 +514,7 @@ class VentasController < ApplicationController
       line_subtotal = (unit_price.to_d * quantity.to_d).round(2)
       product_unit_base_amount = 0.to_d
       if base_currency == "VES" && tasa_dolar.to_d.positive?
-        gross_unit_base = (product.precio_venta_usd.to_d * tasa_dolar.to_d).round(2)
-        product_unit_base_amount = if vat_mode == "included" && vat_rate.positive? && !product_exento
-            (gross_unit_base / (1 + vat_rate)).round(2)
-          else
-            gross_unit_base
-          end
+        product_unit_base_amount = (unit_price.to_d * tasa_dolar.to_d).round(2)
       elsif base_currency == "USD"
         product_unit_base_amount = unit_price.to_d.round(2)
       end
@@ -1489,12 +1484,7 @@ class VentasController < ApplicationController
           unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
           product_unit_base_amount = 0.to_d
           if base_currency == "VES" && tasa_dolar.to_d.positive?
-            gross_unit_base = (product.precio_venta_usd.to_d * tasa_dolar.to_d).round(2)
-            product_unit_base_amount = if vat_mode == "included" && vat_rate.positive? && !product_exento
-                (gross_unit_base / (1 + vat_rate)).round(2)
-              else
-                gross_unit_base
-              end
+            product_unit_base_amount = (unit_price.to_d * tasa_dolar.to_d).round(2)
           elsif base_currency == "USD"
             product_unit_base_amount = unit_price.to_d.round(2)
           end
