@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_06_093000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_07_110000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -512,7 +512,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_06_093000) do
     t.decimal "precio_venta_usd", precision: 14, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.decimal "porcentaje_ganancia", precision: 5, scale: 2
+    t.decimal "porcentaje_ganancia", precision: 7, scale: 2
     t.bigint "business_id", null: false
     t.bigint "categoria_id", null: false
     t.bigint "profit_margin_preset_id"
