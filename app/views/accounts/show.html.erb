@@ -273,10 +273,12 @@
                                   aria: { label: 'Editar movimiento manual' } do %>
                           <i data-lucide="pencil" class="h-4 w-4"></i>
                         <% end %>
+                      <% end %>
+                      <% if current_user_admin? %>
                         <%= link_to destroy_movement_account_path(@account, movement_id: movement.id),
-                                  data: { turbo_method: :delete, swal_delete: 'manual_movement', tooltip: 'Eliminar movimiento manual', tooltip_side: 'left' },
+                                  data: { turbo_method: :delete, swal_delete: 'account_movement', tooltip: 'Eliminar movimiento', tooltip_side: 'left' },
                                   class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-800',
-                                  aria: { label: 'Eliminar movimiento manual' } do %>
+                                  aria: { label: 'Eliminar movimiento' } do %>
                           <i data-lucide="trash-2" class="h-4 w-4"></i>
                         <% end %>
                       <% elsif movement_source_link.blank? %>

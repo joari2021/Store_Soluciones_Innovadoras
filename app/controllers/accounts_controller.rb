@@ -3,7 +3,8 @@ class AccountsController < ApplicationController
   before_action -> { require_module_access!(:accounts) }
   before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment
                                        edit_movement update_movement destroy_movement]
-  before_action :set_manual_movement, only: %i[edit_movement update_movement destroy_movement]
+  before_action :set_manual_movement, only: %i[edit_movement update_movement]
+  before_action :set_movement_for_destroy, only: %i[destroy_movement]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
@@ -390,9 +391,9 @@ class AccountsController < ApplicationController
     movement_id = @movement.id
     @movement.destroy!
 
-    redirect_to account_path(@account), notice: "Movimiento manual ##{movement_id} eliminado correctamente."
+    redirect_to account_path(@account), notice: "Movimiento ##{movement_id} eliminado correctamente."
   rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordInvalid => e
-    redirect_to account_path(@account), alert: e.message.presence || "No se pudo eliminar el movimiento manual."
+    redirect_to account_path(@account), alert: e.message.presence || "No se pudo eliminar el movimiento."
   end
 
   private
@@ -556,6 +557,13 @@ class AccountsController < ApplicationController
     return if @movement.present? && manual_account_movement_editable?(@movement)
 
     redirect_to account_path(@account), alert: "Solo puedes editar o eliminar movimientos manuales."
+  end
+
+  def set_movement_for_destroy
+    @movement = @account.account_movements.find_by(id: params[:movement_id])
+    return if @movement.present?
+
+    redirect_to account_path(@account), alert: "No se encontro el movimiento seleccionado."
   end
 
   def manual_account_movement_editable?(movement)

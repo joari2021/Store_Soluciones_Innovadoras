@@ -635,6 +635,10 @@ document.addEventListener(
         title: "¿Eliminar movimiento manual?",
         text: "Esta accion eliminara el movimiento manual seleccionado de la cuenta.",
       },
+      account_movement: {
+        title: "¿Eliminar movimiento?",
+        text: "Esta accion eliminara el movimiento seleccionado de la cuenta.",
+      },
       logout: {
         title: "¿Cerrar sesion?",
         text: "Tu sesion actual se cerrara en este dispositivo.",
