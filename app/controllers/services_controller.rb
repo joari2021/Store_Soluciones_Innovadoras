@@ -1542,6 +1542,7 @@ class ServicesController < ApplicationController
           debt: debt,
           quantity: quantity
         )
+        party_data = pending_cost_service_party_data(settlement: settlement, debt: debt)
 
         rows << {
           sale_id: sale.id,
@@ -1562,6 +1563,8 @@ class ServicesController < ApplicationController
           cost_status_label: status_payload[:label],
           cost_status_class: status_payload[:css_class],
           pending_cost_usd: status_payload[:pending_usd],
+          service_beneficiary_name: party_data[:beneficiary_name],
+          service_responsible_name: party_data[:responsible_name],
           detail_debt_id: debt&.id,
           search_text: [
             service_name_snapshot,
@@ -1586,6 +1589,7 @@ class ServicesController < ApplicationController
 
         parent_debt = (debts_by_service_id[parent_service.id]&.max_by(&:id) if parent_service&.id.present?)
         parent_debt ||= debts_by_service_name[parent_name_key]&.max_by(&:id)
+        parent_party_data = pending_cost_service_party_data(settlement: settlement, debt: parent_debt)
 
         debt_lines_by_id = if parent_debt.present?
                              normalized_pending_cost_lines_for(parent_debt).index_by { |line| line['line_id'].to_s }
@@ -1639,6 +1643,8 @@ class ServicesController < ApplicationController
               cost_status_label: status_payload[:label],
               cost_status_class: status_payload[:css_class],
               pending_cost_usd: status_payload[:pending_usd],
+              service_beneficiary_name: parent_party_data[:beneficiary_name],
+              service_responsible_name: parent_party_data[:responsible_name],
               detail_debt_id: parent_debt&.id,
               search_text: [
                 print_label,
@@ -1703,6 +1709,8 @@ class ServicesController < ApplicationController
             cost_status_label: status_payload[:label],
             cost_status_class: status_payload[:css_class],
             pending_cost_usd: status_payload[:pending_usd],
+            service_beneficiary_name: parent_party_data[:beneficiary_name],
+            service_responsible_name: parent_party_data[:responsible_name],
             detail_debt_id: parent_debt&.id,
             search_text: [
               nested_service_name,
@@ -1746,6 +1754,10 @@ class ServicesController < ApplicationController
         )
 
         status_payload = pending_cost_status_metadata('no_cost', pending_usd: 0.to_d, total_usd: total_usd)
+        parent_name_key = normalized_pending_cost_lookup_value(parent_label)
+        parent_debt = (debts_by_service_id[parent_service.id]&.max_by(&:id) if parent_service&.id.present?)
+        parent_debt ||= debts_by_service_name[parent_name_key]&.max_by(&:id)
+        parent_party_data = pending_cost_service_party_data(settlement: nil, debt: parent_debt)
 
         rows << {
           sale_id: sale.id,
@@ -1767,6 +1779,8 @@ class ServicesController < ApplicationController
           cost_status_label: status_payload[:label],
           cost_status_class: status_payload[:css_class],
           pending_cost_usd: status_payload[:pending_usd],
+          service_beneficiary_name: parent_party_data[:beneficiary_name],
+          service_responsible_name: parent_party_data[:responsible_name],
           detail_debt_id: nil,
           search_text: [
             source_name,
@@ -2090,6 +2104,22 @@ class ServicesController < ApplicationController
       css_class: css_class,
       pending_usd: pending_usd.to_d.round(2),
       total_usd: total_usd.to_d.round(2)
+    }
+  end
+
+  def pending_cost_service_party_data(settlement:, debt: nil)
+    settlement_hash = settlement.is_a?(Hash) ? settlement.deep_stringify_keys : {}
+    debt_details = debt&.service_cost_details_hash || {}
+
+    beneficiary_name = settlement_hash['service_beneficiary_name'].to_s.strip.presence
+    beneficiary_name ||= debt_details['service_beneficiary_name'].to_s.strip.presence
+
+    responsible_name = settlement_hash['service_responsible_name'].to_s.strip.presence
+    responsible_name ||= debt_details['service_responsible_name'].to_s.strip.presence
+
+    {
+      beneficiary_name: beneficiary_name,
+      responsible_name: responsible_name,
     }
   end
 

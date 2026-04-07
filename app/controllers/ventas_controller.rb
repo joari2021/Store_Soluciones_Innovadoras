@@ -2263,6 +2263,8 @@ class VentasController < ApplicationController
       {
         "service_id" => service&.id,
         "service_name" => service&.description.to_s,
+        "service_beneficiary_name" => normalize_service_party_name(row[:service_beneficiary_name]),
+        "service_responsible_name" => normalize_service_party_name(row[:service_responsible_name]),
         "delivery_presentation" => row[:delivery_presentation].to_s.presence,
         "quantity" => row[:quantity].to_d.to_f,
         "unit_cost_usd" => row[:unit_cost_usd].to_d.to_f,
@@ -2443,6 +2445,8 @@ class VentasController < ApplicationController
         service: nil,
         quantity: 0.to_d,
         delivery_presentation: nil,
+        service_beneficiary_name: nil,
+        service_responsible_name: nil,
         consumable_decisions: {},
       }
     end
@@ -2466,6 +2470,14 @@ class VentasController < ApplicationController
       grouped_rows[group_key][:service] = service
       grouped_rows[group_key][:quantity] += quantity
       grouped_rows[group_key][:delivery_presentation] = delivery_presentation
+      beneficiary_name = normalize_service_party_name(
+        payload_hash["service_beneficiary_name"] || payload_hash[:service_beneficiary_name]
+      )
+      responsible_name = normalize_service_party_name(
+        payload_hash["service_responsible_name"] || payload_hash[:service_responsible_name]
+      )
+      grouped_rows[group_key][:service_beneficiary_name] ||= beneficiary_name if beneficiary_name.present?
+      grouped_rows[group_key][:service_responsible_name] ||= responsible_name if responsible_name.present?
 
       normalize_service_product_decisions(entry[:payload]).each do |expense_id, decision_row|
         grouped_rows[group_key][:consumable_decisions][expense_id.to_s] = decision_row
@@ -2500,6 +2512,8 @@ class VentasController < ApplicationController
         service_id: service.id,
         quantity: quantity,
         delivery_presentation: row[:delivery_presentation],
+        service_beneficiary_name: row[:service_beneficiary_name],
+        service_responsible_name: row[:service_responsible_name],
         unit_cost_usd: unit_cost_usd,
         total_cost_usd: total_cost_usd,
         detail_lines: detail_lines,
@@ -3134,6 +3148,8 @@ class VentasController < ApplicationController
       "version" => 1,
       "service_id" => settlement[:service_id],
       "service_name" => settlement[:service]&.description.to_s,
+      "service_beneficiary_name" => normalize_service_party_name(settlement[:service_beneficiary_name]),
+      "service_responsible_name" => normalize_service_party_name(settlement[:service_responsible_name]),
       "total_usd" => total_usd.to_f,
       "paid_usd" => paid_usd.to_f,
       "pending_usd" => pending_usd.to_f,
@@ -3202,6 +3218,10 @@ class VentasController < ApplicationController
     return default if normalized.blank?
 
     normalized
+  end
+
+  def normalize_service_party_name(value)
+    value.to_s.strip.presence
   end
 
   def convert_payment_to_usd(amount, currency, tasa_dolar)

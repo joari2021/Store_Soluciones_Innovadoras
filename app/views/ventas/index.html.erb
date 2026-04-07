@@ -6181,6 +6181,97 @@
         return true;
       };
 
+      const ensureServicePartiesForCheckout = async () => {
+        const serviceEntries = Array.from(cart.entries()).filter(([, item]) => item.itemType === 'service');
+        const rowsByServiceId = new Map();
+
+        serviceEntries.forEach(([, item]) => {
+          const service = servicesById.get(String(item.serviceId));
+          if (!serviceUsesCostDebit(service)) return;
+
+          const serviceId = String(item.serviceId || '').trim();
+          if (!serviceId) return;
+
+          const row = rowsByServiceId.get(serviceId) || {
+            serviceId,
+            serviceName: String(service?.name || service?.sale_display_name || `Servicio #${serviceId}`),
+            beneficiary: '',
+            responsible: '',
+          };
+
+          const beneficiary = String(item.service_beneficiary_name || '').trim();
+          const responsible = String(item.service_responsible_name || '').trim();
+          if (!row.beneficiary && beneficiary) row.beneficiary = beneficiary;
+          if (!row.responsible && responsible) row.responsible = responsible;
+
+          rowsByServiceId.set(serviceId, row);
+        });
+
+        if (rowsByServiceId.size === 0) return true;
+
+        const rowsHtml = Array.from(rowsByServiceId.values()).map((row) => {
+          const sid = escapeHtml(row.serviceId);
+          const sname = escapeHtml(row.serviceName);
+          const beneficiaryValue = escapeHtml(String(row.beneficiary || ''));
+          const responsibleValue = escapeHtml(String(row.responsible || ''));
+
+          return `
+            <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+              <p class="text-sm font-semibold text-slate-800">${sname}</p>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Beneficiario del servicio</label>
+              <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" data-service-beneficiary="${sid}" value="${beneficiaryValue}" placeholder="Nombre del beneficiario" autocomplete="off">
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Responsable del servicio (opcional)</label>
+              <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" data-service-responsible="${sid}" value="${responsibleValue}" placeholder="Nombre del responsable" autocomplete="off">
+            </div>
+          `;
+        }).join('');
+
+        const result = await window.Swal.fire({
+          title: 'Datos del servicio',
+          html: `<div class="space-y-3 text-left">${rowsHtml}</div>`,
+          showCancelButton: true,
+          confirmButtonText: 'Guardar y continuar',
+          cancelButtonText: 'Cancelar',
+          heightAuto: false,
+          preConfirm: () => {
+            const dialog = window.Swal.getHtmlContainer();
+            if (!dialog) return null;
+
+            const collected = {};
+
+            for (const row of rowsByServiceId.values()) {
+              const sid = String(row.serviceId || '').trim();
+              const beneficiary = String(dialog.querySelector(`[data-service-beneficiary="${sid}"]`)?.value || '').trim();
+              const responsible = String(dialog.querySelector(`[data-service-responsible="${sid}"]`)?.value || '').trim();
+
+              if (!beneficiary) {
+                window.Swal.showValidationMessage(`Debes indicar el beneficiario del servicio: ${row.serviceName}.`);
+                return null;
+              }
+
+              collected[sid] = { beneficiary, responsible };
+            }
+
+            return collected;
+          },
+        });
+
+        if (!result.isConfirmed) return false;
+
+        const collected = result.value || {};
+        serviceEntries.forEach(([key, item]) => {
+          const sid = String(item.serviceId || '').trim();
+          const values = collected[sid];
+          if (!values) return;
+
+          item.service_beneficiary_name = String(values.beneficiary || '').trim();
+          item.service_responsible_name = String(values.responsible || '').trim();
+          cart.set(key, item);
+        });
+
+        return true;
+      };
+
       const updateQuantity = (key, delta) => {
         const item = cart.get(key);
         if (!item) return;
@@ -6454,6 +6545,8 @@
             return {
               item_type: 'service',
               service_id: item.serviceId,
+              service_beneficiary_name: String(item.service_beneficiary_name || '').trim(),
+              service_responsible_name: String(item.service_responsible_name || '').trim(),
               delivery_presentation: deliveryPresentation,
               selected_print_coverage_id: String(item.selected_print_coverage_id || coverageFromKey || '').trim() || null,
               selected_print_coverage_percent: String(item.selected_print_coverage_percent || '').trim() || null,
@@ -8358,6 +8451,12 @@
                 return;
               }
 
+              const servicePartiesReady = await ensureServicePartiesForCheckout();
+              if (!servicePartiesReady) {
+                openPaymentModal(payload.modalState || null);
+                return;
+              }
+
               submitVenta(
                 payload.payments || [],
                 payload.change || [],
@@ -9122,6 +9221,8 @@
             const existing = cart.get(key) || {
               itemType: 'service',
               serviceId,
+              service_beneficiary_name: String(entry.service_beneficiary_name || '').trim() || null,
+              service_responsible_name: String(entry.service_responsible_name || '').trim() || null,
               delivery_presentation: deliveryPresentation || null,
               selected_print_coverage_id: selectedPrintCoverageId || null,
               selected_print_coverage_percent: selectedPrintCoveragePercent || null,
@@ -9148,6 +9249,8 @@
             existing.delivery_presentation = deliveryPresentation || existing.delivery_presentation;
             existing.selected_print_coverage_id = selectedPrintCoverageId || existing.selected_print_coverage_id;
             existing.selected_print_coverage_percent = selectedPrintCoveragePercent || existing.selected_print_coverage_percent;
+            existing.service_beneficiary_name = String(entry.service_beneficiary_name || existing.service_beneficiary_name || '').trim() || null;
+            existing.service_responsible_name = String(entry.service_responsible_name || existing.service_responsible_name || '').trim() || null;
             existing.selected_print_price_bs = Number.isFinite(selectedPrintPriceBs)
               ? roundTo(selectedPrintPriceBs, 2)
               : existing.selected_print_price_bs;

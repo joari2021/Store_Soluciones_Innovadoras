@@ -37,9 +37,11 @@
       </main>
       <!-- Mobile Bottom Navigation -->
       <nav class="md:hidden fixed bottom-0 w-full glass border-t border-sky-100 z-50 px-6 py-3 flex justify-between items-center pb-safe">
-        <button onclick="switchTab('dashboard')" class="mobile-nav-btn mobile-nav-active flex flex-col items-center gap-1 text-slate-400 transition-colors">
-          <i data-lucide="layout-grid" class="w-6 h-6"></i>
-        </button>
+        <% if current_user_admin? %>
+          <button onclick="switchTab('dashboard')" class="mobile-nav-btn mobile-nav-active flex flex-col items-center gap-1 text-slate-400 transition-colors">
+            <i data-lucide="layout-grid" class="w-6 h-6"></i>
+          </button>
+        <% end %>
         <%= link_to ventas_path, onclick: "switchTab('ventas')", class: 'mobile-nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors' do %>
           <i data-lucide="shopping-cart" class="w-6 h-6"></i>
         <% end %>

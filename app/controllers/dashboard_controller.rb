@@ -1,6 +1,6 @@
 class DashboardController < ApplicationController
   before_action :require_business
-  before_action -> { require_module_access!(:ventas) }
+  before_action :require_admin
 
   def index
     @from_date = parse_date(params[:from]) || 30.days.ago.to_date
