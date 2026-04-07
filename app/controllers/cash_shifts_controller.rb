@@ -346,6 +346,7 @@ class CashShiftsController < ApplicationController
     ventas.each do |venta|
       restore_stock_for_sale!(venta, strict: false)
       delete_account_movements_for_sale!(venta)
+      delete_receivable_debts_for_sale!(venta)
       delete_sale_debts_for_sale!(venta)
       venta.destroy!
     end
@@ -574,6 +575,24 @@ class CashShiftsController < ApplicationController
       .joins(:account)
       .where(accounts: { business_id: current_business.id })
       .where('account_movements.description LIKE ?', pattern)
+      .find_each(&:destroy!)
+  end
+
+  def delete_receivable_debts_for_sale!(venta)
+    receivable_scope = current_business.debts.where(debt_kind: 'receivable')
+
+    receivable_scope
+      .where(venta_id: venta.id)
+      .find_each(&:destroy!)
+
+    sale_pattern = "%[VENTA:#{venta.id}]%"
+    receivable_scope
+      .where('description LIKE ?', sale_pattern)
+      .find_each(&:destroy!)
+
+    legacy_name_pattern = "Saldo venta ##{venta.id}%"
+    receivable_scope
+      .where('name LIKE ?', legacy_name_pattern)
       .find_each(&:destroy!)
   end
 

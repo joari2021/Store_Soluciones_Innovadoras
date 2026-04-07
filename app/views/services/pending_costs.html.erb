@@ -50,7 +50,7 @@
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <%= form_with url: pending_costs_services_path, method: :get, local: true, class: "space-y-3" do %>
-      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <div class="xl:col-span-2">
           <%= label_tag :query_text, "Nombre / venta", class: "block text-[11px] font-semibold uppercase tracking-wide text-slate-500" %>
           <%= text_field_tag :query_text, @pending_cost_filters[:query_text], placeholder: "Servicio, anidado o #venta", class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" %>
@@ -74,6 +74,19 @@
           <%= select_tag :system_service_id,
                          options_for_select(@pending_cost_system_services.map { |system| [system.name, system.id] }, @pending_cost_filters[:system_service_id]),
                          include_blank: "Todos",
+                         class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" %>
+        </div>
+        <div>
+          <%= label_tag :cost_status, "Estado costo", class: "block text-[11px] font-semibold uppercase tracking-wide text-slate-500" %>
+          <%= select_tag :cost_status,
+                         options_for_select([
+                           ["Todos", "all"],
+                           ["Con deuda o parciales", "with_debt_or_partial"],
+                           ["Solo con deuda", "pending"],
+                           ["Solo parciales", "partial"],
+                           ["Solo pagados", "paid"],
+                           ["Sin costo", "no_cost"]
+                         ], @pending_cost_filters[:cost_status]),
                          class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" %>
         </div>
       </div>

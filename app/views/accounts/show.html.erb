@@ -8,12 +8,14 @@
         <p class="mt-1 text-sm text-slate-500">Historial de movimientos de la cuenta.</p>
       </div>
       <div class="flex items-center gap-2">
-        <% unless Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
+        <% if current_user_admin? && !Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
           <button id="account-payment-open" type="button" class="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100">
             Registrar movimiento
           </button>
         <% end %>
-        <%= link_to 'Editar', edit_account_path(@account), class: 'inline-flex items-center justify-center rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300' %>
+        <% if current_user_admin? %>
+          <%= link_to 'Editar', edit_account_path(@account), class: 'inline-flex items-center justify-center rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300' %>
+        <% end %>
         <%= link_to 'Volver', accounts_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300' %>
       </div>
     </div>
@@ -34,7 +36,7 @@
         <span class="rounded bg-white/70 px-2 py-0.5 text-xs font-bold"><%= @account.currency_symbol %></span>
       </div>
     </div>
-    <% if @account.settlement_enabled? %>
+    <% if @account.settlement_enabled? && current_user_admin? %>
       <div class="rounded-2xl border p-4 shadow-sm <%= theme[:card] %>">
         <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Cuenta asignada</p>
         <p class="mt-2 text-sm font-semibold text-slate-800">
@@ -58,7 +60,7 @@
       <p class="mt-2 text-sm text-slate-700"><%= @account.notes.presence || '-' %></p>
     </div>
   </div>
-  <% if @account.settlement_enabled? %>
+  <% if @account.settlement_enabled? && current_user_admin? %>
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -66,11 +68,11 @@
           <p class="mt-1 text-sm text-slate-500">Agrupa movimientos del turno y permite procesar el cierre real despues.</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
-          <% if @processed_settlements_count.to_i.positive? %>
+          <% if current_user_admin? && @processed_settlements_count.to_i.positive? %>
             <%= link_to 'Cierres procesados', account_account_settlements_path(@account),
                         class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer' %>
           <% end %>
-          <% if @account.account_type == 'biopago' %>
+          <% if current_user_admin? && @account.account_type == 'biopago' %>
             <%= button_to 'Cerrar dia pendiente de Biopago',
                           account_account_settlements_path(@account),
                           method: :post,
@@ -85,7 +87,7 @@
                 Sin dias anteriores pendientes por cerrar
               </span>
             <% end %>
-          <% else %>
+          <% elsif current_user_admin? %>
             <span class="inline-flex items-center rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">
               Cierre automatico desde Cierre de turno
             </span>
@@ -162,12 +164,14 @@
                   <p class="mt-1 text-sm font-bold text-amber-700">Pendiente</p>
                 </div>
               </div>
-              <div class="mt-4 flex justify-end gap-2">
-                <%= link_to 'Ver movimientos', account_account_settlement_path(@account, settlement),
-                            class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer' %>
-                <%= link_to 'Procesar cierre', account_account_settlement_path(@account, settlement),
-                            class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 cursor-pointer' %>
-              </div>
+              <% if current_user_admin? %>
+                <div class="mt-4 flex justify-end gap-2">
+                  <%= link_to 'Ver movimientos', account_account_settlement_path(@account, settlement),
+                              class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 cursor-pointer' %>
+                  <%= link_to 'Procesar cierre', account_account_settlement_path(@account, settlement),
+                              class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 cursor-pointer' %>
+                </div>
+              <% end %>
             </div>
           <% end %>
         </div>
@@ -179,10 +183,10 @@
   <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-100 px-5 py-4">
       <h2 class="text-lg font-semibold text-slate-800">
-        <%= @account.settlement_enabled? ? 'Movimientos pendientes' : 'Historial de movimientos' %>
+        <%= (@account.settlement_enabled? && current_user_admin?) ? 'Movimientos pendientes' : 'Historial de movimientos' %>
       </h2>
       <p class="mt-1 text-sm text-slate-500">
-        <%= @account.settlement_enabled? ? 'Solo movimientos sin cierre asociado.' : 'Ordenado desde el más reciente al más antiguo.' %>
+        <%= (@account.settlement_enabled? && current_user_admin?) ? 'Solo movimientos sin cierre asociado.' : 'Ordenado desde el más reciente al más antiguo.' %>
       </p>
       <%= form_with url: account_path(@account), method: :get, local: true, class: 'mt-4 grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end' do %>
         <div>
@@ -296,12 +300,12 @@
       <% end %>
     <% else %>
       <div class="px-5 py-8 text-center text-sm text-slate-500">
-        <%= @account.settlement_enabled? ? 'No hay movimientos pendientes para esta cuenta.' : 'No hay movimientos registrados para esta cuenta.' %>
+        <%= (@account.settlement_enabled? && current_user_admin?) ? 'No hay movimientos pendientes para esta cuenta.' : 'No hay movimientos registrados para esta cuenta.' %>
       </div>
     <% end %>
   </div>
 </div>
-<% unless Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
+<% if current_user_admin? && !Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
   <div id="account-payment-modal"
        class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-900/45 p-4"
        data-available="<%= @account.balance.to_d.to_f %>"

@@ -1,16 +1,19 @@
 class AccountsController < ApplicationController
   before_action :require_business
-  before_action :require_admin
+  before_action :require_module_access!(:accounts)
   before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment
                                        edit_movement update_movement destroy_movement]
   before_action :set_manual_movement, only: %i[edit_movement update_movement destroy_movement]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
+  before_action :ensure_accounts_management_allowed!, only: %i[new create edit update destroy set_primary unset_primary
+                                                               transfer register_payment edit_movement update_movement
+                                                               destroy_movement]
 
   def index
-    @accounts = current_business.accounts.with_attached_logo.order(name: :asc)
-    totals = current_business.accounts.group(:currency).sum(:balance)
+    @accounts = accounts_visible_scope.with_attached_logo.order(name: :asc)
+    totals = accounts_visible_scope.group(:currency).sum(:balance)
     @currency_totals = Account::CURRENCIES.keys.index_with { |code| totals[code] || 0 }
   end
 
@@ -18,7 +21,7 @@ class AccountsController < ApplicationController
     @highlight_movement_id = params[:movement_id].to_i if params[:movement_id].to_i.positive?
     initialize_movement_filters
 
-    if @account.settlement_enabled?
+    if @account.settlement_enabled? && current_user_admin?
       pending_scope = apply_movement_date_filters(@account.account_movements.where(account_settlement_id: nil))
       @pending_movements_count = pending_scope.count
       @pending_movements_total = pending_scope.sum(
@@ -556,6 +559,7 @@ class AccountsController < ApplicationController
   end
 
   def manual_account_movement_editable?(movement)
+    return false unless current_user_admin?
     return false if movement.blank?
     return false if movement.account_settlement_id.present? || movement.cambio_efectivo_id.present?
 
@@ -571,10 +575,12 @@ class AccountsController < ApplicationController
   end
 
   def set_account
-    @account = current_business.accounts.find(params[:id])
+    @account = accounts_visible_scope.find(params[:id])
   end
 
   def load_transfer_support_data
+    return @transfer_accounts_payload = [] unless current_user_admin?
+
     @transfer_accounts_payload = current_business.accounts.where(active: true).order(:name).map do |account|
       {
         id: account.id,
@@ -590,6 +596,24 @@ class AccountsController < ApplicationController
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: nil).to_d.to_f
     end
     @transfer_latest_rates["VES"] = 1.0
+  end
+
+  def ensure_accounts_management_allowed!
+    return if current_user_admin?
+
+    deny_access('Solo el administrador puede gestionar cuentas o registrar movimientos.')
+  end
+
+  def accounts_visible_scope
+    scope = current_business.accounts
+    return scope if current_user_admin?
+    return scope.none unless current_user_manager?
+
+    scope.where(
+      'accounts.account_type IN (:types) OR LOWER(accounts.name) LIKE :payall',
+      types: Account::SPECIAL_ACCOUNT_TYPES + ['cash_box'],
+      payall: '%payall%'
+    )
   end
 
   def account_params

@@ -74,6 +74,8 @@ class User < ApplicationRecord
     case module_key.to_sym
     when :ventas, :historial_ventas, :productos, :deudas, :services, :rates, :clientes, :cash_shifts
       true
+    when :accounts
+      manager?
     else
       false
     end

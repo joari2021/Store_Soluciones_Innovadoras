@@ -307,6 +307,7 @@ class VentasController < ApplicationController
       restore_stock_for_sale!(@venta)
       delete_account_movements_for_sale!(@venta)
       delete_service_cost_debts_for_sale!(@venta)
+      delete_receivable_debts_for_sale!(@venta)
       @venta.destroy!
     end
 
@@ -1278,6 +1279,19 @@ class VentasController < ApplicationController
     current_business
       .debts
       .where(venta_id: venta.id, service_cost_pending: true)
+      .find_each(&:destroy!)
+  end
+
+  def delete_receivable_debts_for_sale!(venta)
+    debts_scope = current_business.debts.where(debt_kind: "receivable")
+
+    debts_scope
+      .where(venta_id: venta.id)
+      .find_each(&:destroy!)
+
+    pattern = "%[VENTA:#{venta.id}]%"
+    debts_scope
+      .where("description LIKE ?", pattern)
       .find_each(&:destroy!)
   end
 
@@ -3701,6 +3715,7 @@ class VentasController < ApplicationController
       issued_on: issued_on,
       due_on: due_on,
       cliente: venta.cliente,
+      venta: venta,
     )
   end
 

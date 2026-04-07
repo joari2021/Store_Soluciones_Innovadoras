@@ -1388,8 +1388,17 @@ class ServicesController < ApplicationController
       fecha_desde: parse_pending_cost_filter_date(params[:fecha_desde]),
       fecha_hasta: parse_pending_cost_filter_date(params[:fecha_hasta]),
       system_service_id: parse_pending_cost_filter_integer(params[:system_service_id]),
-      manager_id: parse_pending_cost_filter_integer(params[:manager_id])
+      manager_id: parse_pending_cost_filter_integer(params[:manager_id]),
+      cost_status: normalize_pending_cost_status_filter(params[:cost_status])
     }
+  end
+
+  def normalize_pending_cost_status_filter(value)
+    normalized = value.to_s.strip
+    return 'all' if normalized.blank?
+
+    allowed_values = %w[all with_debt_or_partial pending partial paid no_cost]
+    allowed_values.include?(normalized) ? normalized : 'all'
   end
 
   def parse_pending_cost_filter_integer(value)
@@ -2108,6 +2117,13 @@ class ServicesController < ApplicationController
       filtered_rows = filtered_rows.select do |row|
         service_ids_for_manager.include?(row[:service_id].to_i)
       end
+    end
+
+    case filters[:cost_status]
+    when 'with_debt_or_partial'
+      filtered_rows = filtered_rows.select { |row| %w[pending partial].include?(row[:cost_status].to_s) }
+    when 'pending', 'partial', 'paid', 'no_cost'
+      filtered_rows = filtered_rows.select { |row| row[:cost_status].to_s == filters[:cost_status] }
     end
 
     filtered_rows
