@@ -1467,6 +1467,33 @@ class ServicesController < ApplicationController
     sales.each do |sale|
       sale_settlements = settlements_by_sale_id[sale.id] || []
       sale_printings = pending_cost_printing_sales_for_sale(sale: sale)
+      sale_parties = pending_cost_parties_for_sale(sale: sale)
+      parties_by_service_id = Hash.new
+      parties_by_service_name = Hash.new
+      sale_parties.each do |row|
+        row_hash = row.is_a?(Hash) ? row.deep_stringify_keys : {}
+        beneficiary = row_hash['service_beneficiary_name'].to_s.strip.presence
+        responsible = row_hash['service_responsible_name'].to_s.strip.presence
+        next if beneficiary.blank? && responsible.blank?
+
+        service_id = row_hash['service_id'].to_i
+        if service_id.positive?
+          parties_by_service_id[service_id] ||= {
+            beneficiary_name: beneficiary,
+            responsible_name: responsible,
+          }
+        end
+
+        [row_hash['service_name'], row_hash['sale_display_name']].each do |raw_name|
+          name_key = normalized_pending_cost_lookup_value(raw_name)
+          next if name_key.blank?
+
+          parties_by_service_name[name_key] ||= {
+            beneficiary_name: beneficiary,
+            responsible_name: responsible,
+          }
+        end
+      end
       printing_row_key_map = {}
       settlement_queue_by_name = Hash.new { |hash, key| hash[key] = [] }
       sale_settlements.each do |settlement|
@@ -1543,6 +1570,13 @@ class ServicesController < ApplicationController
           quantity: quantity
         )
         party_data = pending_cost_service_party_data(settlement: settlement, debt: debt)
+        fallback_party_data = pending_cost_party_fallback_for_row(
+          service_id: resolved_service&.id,
+          service_name: service_name_snapshot,
+          parties_by_service_id: parties_by_service_id,
+          parties_by_service_name: parties_by_service_name,
+        )
+        party_data = merge_pending_cost_party_data(primary: party_data, fallback: fallback_party_data)
 
         rows << {
           sale_id: sale.id,
@@ -1590,6 +1624,16 @@ class ServicesController < ApplicationController
         parent_debt = (debts_by_service_id[parent_service.id]&.max_by(&:id) if parent_service&.id.present?)
         parent_debt ||= debts_by_service_name[parent_name_key]&.max_by(&:id)
         parent_party_data = pending_cost_service_party_data(settlement: settlement, debt: parent_debt)
+        fallback_parent_party_data = pending_cost_party_fallback_for_row(
+          service_id: parent_service&.id,
+          service_name: parent_service_name,
+          parties_by_service_id: parties_by_service_id,
+          parties_by_service_name: parties_by_service_name,
+        )
+        parent_party_data = merge_pending_cost_party_data(
+          primary: parent_party_data,
+          fallback: fallback_parent_party_data,
+        )
 
         debt_lines_by_id = if parent_debt.present?
                              normalized_pending_cost_lines_for(parent_debt).index_by { |line| line['line_id'].to_s }
@@ -1758,6 +1802,16 @@ class ServicesController < ApplicationController
         parent_debt = (debts_by_service_id[parent_service.id]&.max_by(&:id) if parent_service&.id.present?)
         parent_debt ||= debts_by_service_name[parent_name_key]&.max_by(&:id)
         parent_party_data = pending_cost_service_party_data(settlement: nil, debt: parent_debt)
+        fallback_parent_party_data = pending_cost_party_fallback_for_row(
+          service_id: parent_service&.id,
+          service_name: parent_label,
+          parties_by_service_id: parties_by_service_id,
+          parties_by_service_name: parties_by_service_name,
+        )
+        parent_party_data = merge_pending_cost_party_data(
+          primary: parent_party_data,
+          fallback: fallback_parent_party_data,
+        )
 
         rows << {
           sale_id: sale.id,
@@ -1823,6 +1877,41 @@ class ServicesController < ApplicationController
 
       row.deep_stringify_keys
     end
+  end
+
+  def pending_cost_parties_for_sale(sale:)
+    parsed_notes = begin
+      parsed = JSON.parse(sale.notes.to_s)
+      parsed.is_a?(Hash) ? parsed : {}
+    rescue JSON::ParserError
+      {}
+    end
+
+    Array(parsed_notes['sold_service_parties']).filter_map do |row|
+      next unless row.is_a?(Hash)
+
+      row.deep_stringify_keys
+    end
+  end
+
+  def pending_cost_party_fallback_for_row(service_id:, service_name:, parties_by_service_id:, parties_by_service_name:)
+    by_id = service_id.to_i.positive? ? parties_by_service_id[service_id.to_i] : nil
+    return by_id if by_id.present?
+
+    name_key = normalized_pending_cost_lookup_value(service_name)
+    return nil if name_key.blank?
+
+    parties_by_service_name[name_key]
+  end
+
+  def merge_pending_cost_party_data(primary:, fallback:)
+    primary_hash = primary.is_a?(Hash) ? primary : {}
+    fallback_hash = fallback.is_a?(Hash) ? fallback : {}
+
+    {
+      beneficiary_name: primary_hash[:beneficiary_name].presence || fallback_hash[:beneficiary_name].presence,
+      responsible_name: primary_hash[:responsible_name].presence || fallback_hash[:responsible_name].presence,
+    }
   end
 
   def build_pending_cost_service_lookup(service_items:)

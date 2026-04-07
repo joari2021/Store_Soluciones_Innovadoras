@@ -797,6 +797,7 @@ class VentasController < ApplicationController
         notes_payload["product_lot_consumptions"] = consumed_product_lots
         notes_payload["reserved_service_products"] = reserved_service_products
         notes_payload["service_cost_settlements"] = service_cost_settlements_payload_for_notes(service_cost_settlements)
+        notes_payload["sold_service_parties"] = sold_service_parties_payload_for_notes(service_item_rows)
         notes_payload["sold_service_printings"] = sold_service_printings_payload_for_notes(
           service_item_rows: service_item_rows,
           tasa_dolar: tasa_dolar,
@@ -2517,6 +2518,30 @@ class VentasController < ApplicationController
     end
 
     rows
+  end
+
+  def sold_service_parties_payload_for_notes(service_item_rows)
+    Array(service_item_rows).filter_map do |entry|
+      service = entry[:service]
+      next unless service
+
+      payload_hash = entry[:payload].respond_to?(:to_h) ? entry[:payload].to_h : {}
+      beneficiary_name = normalize_service_party_name(
+        payload_hash["service_beneficiary_name"] || payload_hash[:service_beneficiary_name]
+      )
+      responsible_name = normalize_service_party_name(
+        payload_hash["service_responsible_name"] || payload_hash[:service_responsible_name]
+      )
+      next if beneficiary_name.blank? && responsible_name.blank?
+
+      {
+        "service_id" => service.id,
+        "service_name" => service.description.to_s,
+        "sale_display_name" => service_sale_display_name(service: service, payload: payload_hash).to_s,
+        "service_beneficiary_name" => beneficiary_name,
+        "service_responsible_name" => responsible_name,
+      }
+    end
   end
 
   def build_service_cost_obligations(service_item_rows:, tasa_dolar:)
