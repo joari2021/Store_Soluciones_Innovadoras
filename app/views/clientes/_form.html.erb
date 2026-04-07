@@ -60,14 +60,14 @@
             <p class="text-xs text-fuchsia-600">Aplica solo a este cliente registrado al vender en POS.</p>
           </div>
         </div>
-        <%= hidden_field_tag 'cliente[benefits_config_json]', '', id: 'cliente-benefits-config-json' %>
+        <%= hidden_field_tag 'cliente[benefits_config_json]', initial_benefits.to_json, id: 'cliente-benefits-config-json' %>
         <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
           <div class="md:col-span-2">
             <label class="block text-xs font-semibold uppercase tracking-wide text-fuchsia-700">Productos generales (todos)</label>
             <p class="mt-1 text-xs text-fuchsia-600">Descuento porcentual para todos los productos.</p>
           </div>
           <div>
-            <input type="number" min="0" max="100" step="0.01" id="cliente-benefits-general-product-percent" class="<%= editable_input %>" placeholder="0.00">
+            <input type="number" min="0" max="100" step="0.01" id="cliente-benefits-general-product-percent" name="cliente[general_product_discount_percent]" class="<%= editable_input %>" placeholder="0.00">
           </div>
         </div>
         <div class="mt-5 rounded-xl border border-fuchsia-200 bg-white p-3">
@@ -175,16 +175,16 @@
         tr.className = 'border-b border-slate-100';
         tr.innerHTML = `
           <td class="px-2 py-2">
-            <input type="text" list="cliente-benefits-products-list" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-id" placeholder="ID producto" value="${String(row.productId || '')}">
+            <input type="text" list="cliente-benefits-products-list" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-id" name="cliente[product_rules_rows][][product_id]" placeholder="ID producto" value="${String(row.productId || '')}">
           </td>
           <td class="px-2 py-2">
-            <select class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-mode">
+            <select class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-mode" name="cliente[product_rules_rows][][mode]">
               <option value="percent" ${row.mode === 'fixed' ? '' : 'selected'}>Descuento %</option>
               <option value="fixed" ${row.mode === 'fixed' ? 'selected' : ''}>Monto fijo USD</option>
             </select>
           </td>
           <td class="px-2 py-2">
-            <input type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-value" value="${String(row.value || '')}">
+            <input type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-value" name="cliente[product_rules_rows][][value]" value="${String(row.value || '')}">
           </td>
           <td class="px-2 py-2 text-right">
             <button type="button" class="rounded-lg bg-rose-50 px-2 py-1 text-rose-600 hover:bg-rose-100" data-role="remove-row">Quitar</button>
@@ -198,10 +198,10 @@
         tr.className = 'border-b border-slate-100';
         tr.innerHTML = `
           <td class="px-2 py-2">
-            <input type="text" list="cliente-benefits-services-list" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-id" placeholder="ID servicio" value="${String(row.serviceId || '')}">
+            <input type="text" list="cliente-benefits-services-list" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-id" name="cliente[service_fixed_price_rows][][service_id]" placeholder="ID servicio" value="${String(row.serviceId || '')}">
           </td>
           <td class="px-2 py-2">
-            <input type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-value" value="${String(row.value || '')}">
+            <input type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-value" name="cliente[service_fixed_price_rows][][value]" value="${String(row.value || '')}">
           </td>
           <td class="px-2 py-2 text-right">
             <button type="button" class="rounded-lg bg-rose-50 px-2 py-1 text-rose-600 hover:bg-rose-100" data-role="remove-row">Quitar</button>
@@ -281,6 +281,13 @@
       root.addEventListener('input', () => {
         buildPayload();
       });
+
+      const form = root.closest('form');
+      if (form) {
+        form.addEventListener('submit', () => {
+          buildPayload();
+        });
+      }
 
       buildPayload();
     })();
