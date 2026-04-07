@@ -47,13 +47,13 @@ class AccountsController < ApplicationController
       end
 
       ordered_scope = pending_scope.order(occurred_at: :desc, id: :desc)
-      @pagy, @account_movements = pagy_countless(ordered_scope, items: 24)
+      @pagy, @account_movements = pagy(ordered_scope, items: 24)
       @movement_query_params = build_movement_query_params
       return
     end
 
     ordered_scope = apply_movement_date_filters(@account.account_movements).order(occurred_at: :desc, id: :desc)
-    @pagy, @account_movements = pagy_countless(ordered_scope, items: 24)
+    @pagy, @account_movements = pagy(ordered_scope, items: 24)
     @movement_query_params = build_movement_query_params
   end
 

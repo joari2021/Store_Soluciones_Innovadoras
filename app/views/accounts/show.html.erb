@@ -218,86 +218,106 @@
       <% end %>
     </div>
     <% if @account_movements.any? %>
-      <%= turbo_frame_tag "account-movements-#{@pagy.page}", class: 'contents' do %>
-        <div data-account-movements-root="true">
-          <table class="min-w-full table-fixed divide-y divide-slate-200">
-            <colgroup>
-              <col class="w-[10%]">
-              <col class="w-[14%]">
-              <col class="w-[11%]">
-              <col class="w-[9%]">
-              <col class="w-[34%]">
-              <col class="w-[12%]">
-              <col class="w-[10%]">
-            </colgroup>
-            <% if @pagy.page == 1 %>
-              <thead>
-                <tr>
-                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
-                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Fecha</th>
-                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
-                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Referencia</th>
-                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Descripcion</th>
-                  <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Monto</th>
-                  <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Acciones</th>
-                </tr>
-              </thead>
+      <div>
+        <table class="min-w-full table-fixed divide-y divide-slate-200">
+          <colgroup>
+            <col class="w-[10%]">
+            <col class="w-[14%]">
+            <col class="w-[11%]">
+            <col class="w-[9%]">
+            <col class="w-[34%]">
+            <col class="w-[12%]">
+            <col class="w-[10%]">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
+              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Fecha</th>
+              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
+              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Referencia</th>
+              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Descripcion</th>
+              <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Monto</th>
+              <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Acciones</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            <% @account_movements.each do |movement| %>
+              <% signed_amount = movement.signed_amount %>
+              <% amount_positive = signed_amount >= 0 %>
+              <% highlighted_movement = @highlight_movement_id.present? && movement.id == @highlight_movement_id %>
+              <% movement_source_link = account_movement_source_link_data(movement) %>
+              <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>">
+                <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
+                <td class="px-5 py-3 text-xs text-slate-500"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
+                <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
+                <td class="px-5 py-3 text-xs text-slate-600"><%= account_movement_reference(movement).presence || '-' %></td>
+                <td class="px-5 py-3 text-sm text-slate-600"><%= account_movement_display_description(movement) %></td>
+                <td class="px-5 py-3 text-right text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>"><%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %></td>
+                <td class="px-5 py-3 text-right">
+                  <div class="inline-flex items-center justify-end gap-2">
+                    <% if movement_source_link.present? %>
+                      <%= link_to movement_source_link[:path],
+                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800',
+                                data: { turbo_frame: '_top', tooltip: movement_source_link[:label], tooltip_side: 'left' },
+                                aria: { label: movement_source_link[:label] } do %>
+                        <i data-lucide="eye" class="h-4 w-4"></i>
+                      <% end %>
+                    <% end %>
+                    <% if manual_account_movement_editable?(movement) %>
+                      <%= link_to edit_movement_account_path(@account, movement_id: movement.id),
+                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-colors hover:bg-amber-100 hover:text-amber-800',
+                                data: { tooltip: 'Editar movimiento manual', tooltip_side: 'left' },
+                                aria: { label: 'Editar movimiento manual' } do %>
+                        <i data-lucide="pencil" class="h-4 w-4"></i>
+                      <% end %>
+                    <% end %>
+                    <% if current_user_admin? %>
+                      <%= link_to destroy_movement_account_path(@account, movement_id: movement.id),
+                                data: { turbo_method: :delete, swal_delete: 'account_movement', tooltip: 'Eliminar movimiento', tooltip_side: 'left' },
+                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-800',
+                                aria: { label: 'Eliminar movimiento' } do %>
+                        <i data-lucide="trash-2" class="h-4 w-4"></i>
+                      <% end %>
+                    <% elsif movement_source_link.blank? %>
+                      <span class="text-xs text-slate-400">-</span>
+                    <% end %>
+                  </div>
+                </td>
+              </tr>
             <% end %>
-            <tbody class="divide-y divide-slate-100 bg-white" data-account-movements-main-body="<%= @pagy.page == 1 ? 'true' : 'false' %>">
-              <% @account_movements.each do |movement| %>
-                <% signed_amount = movement.signed_amount %>
-                <% amount_positive = signed_amount >= 0 %>
-                <% highlighted_movement = @highlight_movement_id.present? && movement.id == @highlight_movement_id %>
-                <% movement_source_link = account_movement_source_link_data(movement) %>
-                <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>">
-                  <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
-                  <td class="px-5 py-3 text-xs text-slate-500"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
-                  <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
-                  <td class="px-5 py-3 text-xs text-slate-600"><%= account_movement_reference(movement).presence || '-' %></td>
-                  <td class="px-5 py-3 text-sm text-slate-600"><%= account_movement_display_description(movement) %></td>
-                  <td class="px-5 py-3 text-right text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>"><%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %></td>
-                  <td class="px-5 py-3 text-right">
-                    <div class="inline-flex items-center justify-end gap-2">
-                      <% if movement_source_link.present? %>
-                        <%= link_to movement_source_link[:path],
-                                  class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800',
-                                  data: { turbo_frame: '_top', tooltip: movement_source_link[:label], tooltip_side: 'left' },
-                                  aria: { label: movement_source_link[:label] } do %>
-                          <i data-lucide="eye" class="h-4 w-4"></i>
-                        <% end %>
-                      <% end %>
-                      <% if manual_account_movement_editable?(movement) %>
-                        <%= link_to edit_movement_account_path(@account, movement_id: movement.id),
-                                  class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-colors hover:bg-amber-100 hover:text-amber-800',
-                                  data: { tooltip: 'Editar movimiento manual', tooltip_side: 'left' },
-                                  aria: { label: 'Editar movimiento manual' } do %>
-                          <i data-lucide="pencil" class="h-4 w-4"></i>
-                        <% end %>
-                      <% end %>
-                      <% if current_user_admin? %>
-                        <%= link_to destroy_movement_account_path(@account, movement_id: movement.id),
-                                  data: { turbo_method: :delete, swal_delete: 'account_movement', tooltip: 'Eliminar movimiento', tooltip_side: 'left' },
-                                  class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-800',
-                                  aria: { label: 'Eliminar movimiento' } do %>
-                          <i data-lucide="trash-2" class="h-4 w-4"></i>
-                        <% end %>
-                      <% elsif movement_source_link.blank? %>
-                        <span class="text-xs text-slate-400">-</span>
-                      <% end %>
-                    </div>
-                  </td>
-                </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <% if @pagy.pages > 1 %>
+        <div class="border-t border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-5 py-4">
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <% if @pagy.prev %>
+              <%= link_to account_path(@account, movement_query_params.merge(page: @pagy.prev)),
+                          class: 'inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sky-300 hover:text-sky-700 hover:shadow' do %>
+                Anterior
               <% end %>
-            </tbody>
-          </table>
-          <% if @pagy.next %>
-            <%= turbo_frame_tag "account-movements-#{@pagy.next}", src: account_path(@account, movement_query_params.merge(page: @pagy.next)), loading: :lazy do %>
-              <div class="flex items-center justify-center gap-3 px-5 py-6 text-sm text-slate-500">
-                <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500"></span>
-                Cargando más movimientos...
-              </div>
             <% end %>
-          <% end %>
+
+            <% @pagy.series.each do |item| %>
+              <% if item == :gap %>
+                <span class="inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-transparent px-2 text-sm font-semibold text-slate-400">...</span>
+              <% elsif item.is_a?(String) %>
+                <span class="inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-sky-400 bg-sky-600 px-3 text-sm font-bold text-white shadow-sm"><%= item %></span>
+              <% else %>
+                <%= link_to item,
+                            account_path(@account, movement_query_params.merge(page: item)),
+                            class: 'inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sky-300 hover:text-sky-700 hover:shadow' %>
+              <% end %>
+            <% end %>
+
+            <% if @pagy.next %>
+              <%= link_to account_path(@account, movement_query_params.merge(page: @pagy.next)),
+                          class: 'inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sky-300 hover:text-sky-700 hover:shadow' do %>
+                Siguiente
+              <% end %>
+            <% end %>
+          </div>
         </div>
       <% end %>
     <% else %>
@@ -518,62 +538,3 @@
     })();
   </script>
 <% end %>
-<script>
-  (() => {
-    if (window.__accountMovementsInfiniteMergedBound) return;
-    window.__accountMovementsInfiniteMergedBound = true;
-
-    const mergeFrameRowsIntoMainTable = (frame) => {
-      if (!(frame instanceof Element)) return;
-      if (!frame.id || !frame.id.startsWith('account-movements-')) return;
-      if (frame.querySelector('[data-account-movements-main-body="true"]')) return;
-
-      const mainBody = document.querySelector('[data-account-movements-main-body="true"]');
-      if (!mainBody) return;
-      if (frame.closest('tbody') === mainBody) return;
-
-      const rows = Array.from(frame.querySelectorAll('tbody > tr'));
-      if (rows.length > 0) {
-        rows.forEach((row) => mainBody.appendChild(row));
-      }
-
-      const nextFrame = frame.querySelector('turbo-frame[id^="account-movements-"]');
-      if (nextFrame) {
-        frame.replaceWith(nextFrame);
-      } else {
-        frame.remove();
-      }
-
-      if (window.lucide) window.lucide.createIcons();
-    };
-
-    const maybeLoadNextMovementsFrame = () => {
-      const nextFrame = document.querySelector('turbo-frame[id^="account-movements-"][src]');
-      if (!(nextFrame instanceof Element)) return;
-      if (nextFrame.dataset.eagerRequested === 'true') return;
-
-      const rect = nextFrame.getBoundingClientRect();
-      const shouldLoadNow = rect.top <= (window.innerHeight + 320);
-      if (!shouldLoadNow) return;
-
-      nextFrame.dataset.eagerRequested = 'true';
-      nextFrame.setAttribute('loading', 'eager');
-    };
-
-    document.addEventListener('turbo:frame-load', (event) => {
-      mergeFrameRowsIntoMainTable(event.target);
-      maybeLoadNextMovementsFrame();
-    });
-
-    document.addEventListener('turbo:load', () => {
-      document
-        .querySelectorAll('turbo-frame[id^="account-movements-"]')
-        .forEach((frame) => mergeFrameRowsIntoMainTable(frame));
-
-      maybeLoadNextMovementsFrame();
-    });
-
-    document.addEventListener('scroll', maybeLoadNextMovementsFrame, { passive: true });
-    window.addEventListener('resize', maybeLoadNextMovementsFrame);
-  })();
-</script>
