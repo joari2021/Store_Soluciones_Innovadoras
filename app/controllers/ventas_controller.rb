@@ -383,6 +383,8 @@ class VentasController < ApplicationController
       venta.cliente = cliente if cliente
     end
 
+    client_benefits = normalized_client_benefits_config(venta.cliente)
+
     service_item_rows = []
 
     items.each do |item|
@@ -445,6 +447,20 @@ class VentasController < ApplicationController
           base_currency: base_currency,
         )
 
+        client_service_price_usd = client_service_fixed_price_usd(
+          benefits_config: client_benefits,
+          service_id: service.id,
+        )
+        if client_service_price_usd.positive?
+          unit_price_usd = client_service_price_usd
+          unit_price_base_amount = if base_currency == "VES" && tasa_dolar.to_d.positive?
+              (client_service_price_usd * tasa_dolar.to_d).round(2)
+            else
+              client_service_price_usd.round(2)
+            end
+          discount_percent = 0.to_d
+        end
+
         unit_price_usd /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive?
         if unit_price_base_amount.positive? && vat_mode == "included" && vat_rate.positive?
           unit_price_base_amount /= (1 + vat_rate)
@@ -490,7 +506,10 @@ class VentasController < ApplicationController
       variation ||= product.product_variations.order(:id).first
       next unless variation
 
-      unit_price = product.precio_venta_usd.to_d
+      unit_price = client_product_unit_price_usd(
+        product: product,
+        benefits_config: client_benefits,
+      )
       unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
       line_subtotal = (unit_price.to_d * quantity.to_d).round(2)
       product_unit_base_amount = 0.to_d
@@ -1349,6 +1368,8 @@ class VentasController < ApplicationController
           draft.cliente = nil
         end
 
+        client_benefits = normalized_client_benefits_config(draft.cliente)
+
         items.each do |item|
           item_type = item[:item_type].to_s
           if item_type == "service" || item[:service_id].present?
@@ -1402,6 +1423,20 @@ class VentasController < ApplicationController
               base_currency: base_currency,
             )
 
+            client_service_price_usd = client_service_fixed_price_usd(
+              benefits_config: client_benefits,
+              service_id: service.id,
+            )
+            if client_service_price_usd.positive?
+              unit_price_usd = client_service_price_usd
+              unit_price_base_amount = if base_currency == "VES" && tasa_dolar.to_d.positive?
+                  (client_service_price_usd * tasa_dolar.to_d).round(2)
+                else
+                  client_service_price_usd.round(2)
+                end
+              discount_percent = 0.to_d
+            end
+
             unit_price_usd /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive?
             if unit_price_base_amount.positive? && vat_mode == "included" && vat_rate.positive?
               unit_price_base_amount /= (1 + vat_rate)
@@ -1447,7 +1482,10 @@ class VentasController < ApplicationController
           variation ||= product.product_variations.order(:id).first
           next unless variation
 
-          unit_price = product.precio_venta_usd.to_d
+          unit_price = client_product_unit_price_usd(
+            product: product,
+            benefits_config: client_benefits,
+          )
           unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
           product_unit_base_amount = 0.to_d
           if base_currency == "VES" && tasa_dolar.to_d.positive?
@@ -1813,6 +1851,8 @@ class VentasController < ApplicationController
       name: cliente.name.to_s,
       document: document,
       phone: cliente.phone.to_s,
+      has_benefits: cliente.has_special_benefits?,
+      benefits: cliente.normalized_benefits_config,
     }
   end
 
@@ -2142,6 +2182,56 @@ class VentasController < ApplicationController
     row.update!(quantity_remaining: current_remaining + quantity_units.to_d)
     lot.sync_quantity_remaining_from_variations!
     true
+  end
+
+  def normalized_client_benefits_config(cliente)
+    return {} unless cliente
+
+    cliente.normalized_benefits_config
+  rescue StandardError
+    {}
+  end
+
+  def client_product_unit_price_usd(product:, benefits_config: {})
+    base_price = product.precio_venta_usd.to_d
+    return base_price unless benefits_config.is_a?(Hash)
+
+    config = benefits_config.deep_stringify_keys
+    product_rules = config["product_rules"]
+    specific_rule = product_rules.is_a?(Hash) ? product_rules[product.id.to_s] : nil
+
+    if specific_rule.is_a?(Hash)
+      mode = specific_rule["mode"].to_s
+      value = specific_rule["value"].to_d
+      if mode == "fixed" && value.positive?
+        return value.round(2)
+      end
+
+      if mode == "percent" && value.positive?
+        percent = [value, 100.to_d].min
+        discounted = base_price * (1 - (percent / 100))
+        return discounted.positive? ? discounted.round(2) : 0.to_d
+      end
+    end
+
+    general_percent = config["general_product_discount_percent"].to_d
+    return base_price unless general_percent.positive?
+
+    general_percent = [general_percent, 100.to_d].min
+    discounted = base_price * (1 - (general_percent / 100))
+    discounted.positive? ? discounted.round(2) : 0.to_d
+  end
+
+  def client_service_fixed_price_usd(benefits_config:, service_id:)
+    return 0.to_d unless benefits_config.is_a?(Hash)
+
+    service_prices = benefits_config.deep_stringify_keys["service_fixed_prices"]
+    return 0.to_d unless service_prices.is_a?(Hash)
+
+    amount = service_prices[service_id.to_s].to_d
+    return 0.to_d unless amount.positive?
+
+    amount.round(2)
   end
 
   def venta_params

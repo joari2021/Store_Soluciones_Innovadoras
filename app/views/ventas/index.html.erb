@@ -561,6 +561,7 @@
             <div>
               <p class="text-xs text-slate-500">Cliente seleccionado</p>
               <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
+              <span id="ventas-client-benefits-badge" class="mt-1 hidden inline-flex items-center rounded-full bg-pink-100 px-2.5 py-0.5 text-[11px] font-semibold text-pink-700">Cliente con beneficios</span>
             </div>
             <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
               <i data-lucide="x" class="h-4 w-4"></i>
@@ -794,6 +795,84 @@
       let draftLoadInProgress = false;
       let liveProductsSyncInterval = null;
       let liveProductsSyncInFlight = false;
+
+      const normalizeClientBenefits = (rawBenefits) => {
+        const source = rawBenefits && typeof rawBenefits === 'object' ? rawBenefits : {};
+        const productRulesRaw = source.product_rules && typeof source.product_rules === 'object'
+          ? source.product_rules
+          : {};
+        const servicePricesRaw = source.service_fixed_prices && typeof source.service_fixed_prices === 'object'
+          ? source.service_fixed_prices
+          : {};
+
+        const productRules = {};
+        Object.entries(productRulesRaw).forEach(([key, rule]) => {
+          if (!rule || typeof rule !== 'object') return;
+          const mode = String(rule.mode || '').trim().toLowerCase();
+          const value = Number(rule.value);
+          if (!['fixed', 'percent'].includes(mode)) return;
+          if (!(Number.isFinite(value) && value > 0)) return;
+          productRules[String(key)] = {
+            mode,
+            value: mode === 'percent' ? Math.max(0, Math.min(100, value)) : value,
+          };
+        });
+
+        const serviceFixedPrices = {};
+        Object.entries(servicePricesRaw).forEach(([key, value]) => {
+          const numeric = Number(value);
+          if (!(Number.isFinite(numeric) && numeric > 0)) return;
+          serviceFixedPrices[String(key)] = numeric;
+        });
+
+        const generalDiscount = Number(source.general_product_discount_percent);
+
+        return {
+          general_product_discount_percent: Number.isFinite(generalDiscount)
+            ? Math.max(0, Math.min(100, generalDiscount))
+            : 0,
+          product_rules: productRules,
+          service_fixed_prices: serviceFixedPrices,
+        };
+      };
+
+      const clientHasBenefits = (client) => {
+        const benefits = normalizeClientBenefits(client?.benefits || {});
+        return benefits.general_product_discount_percent > 0
+          || Object.keys(benefits.product_rules).length > 0
+          || Object.keys(benefits.service_fixed_prices).length > 0;
+      };
+
+      const resolveProductUnitPriceUsdForClient = (product, client) => {
+        const basePrice = Number(product?.price_usd || 0);
+        if (!(Number.isFinite(basePrice) && basePrice > 0)) return 0;
+        if (!client) return basePrice;
+
+        const benefits = normalizeClientBenefits(client.benefits || {});
+        const productRule = benefits.product_rules[String(product.id)];
+
+        if (productRule) {
+          if (productRule.mode === 'fixed') return roundTo(Number(productRule.value) || 0, 2);
+          if (productRule.mode === 'percent') {
+            return roundTo(basePrice * (1 - (Number(productRule.value) || 0) / 100), 2);
+          }
+        }
+
+        const generalDiscount = Number(benefits.general_product_discount_percent || 0);
+        if (generalDiscount > 0) {
+          return roundTo(basePrice * (1 - generalDiscount / 100), 2);
+        }
+
+        return basePrice;
+      };
+
+      const resolveServiceFixedUnitPriceUsdForClient = (service, client) => {
+        if (!client || !service) return null;
+        const benefits = normalizeClientBenefits(client.benefits || {});
+        const fixed = Number(benefits.service_fixed_prices[String(service.id)]);
+        if (!(Number.isFinite(fixed) && fixed > 0)) return null;
+        return roundTo(fixed, 2);
+      };
 
       const saveDraftButton = document.getElementById('ventas-save-draft-button');
       const clearPanelButton = document.getElementById('ventas-clear-panel-button');
@@ -3329,6 +3408,11 @@
       };
 
       const computeServicePricing = (service, item = {}) => {
+        const clientFixedUnitPriceUsd = resolveServiceFixedUnitPriceUsdForClient(service, selectedClient);
+        if (Number.isFinite(clientFixedUnitPriceUsd) && clientFixedUnitPriceUsd > 0) {
+          return computePricing(clientFixedUnitPriceUsd, item.quantity, { exento: false });
+        }
+
         const baseCode = currentBaseCurrencyCode();
         const persistedBaseAmount = Number(item.unit_price_base_amount);
         const persistedBaseCurrency = normalizeCurrencyCode(item.unit_price_base_currency);
@@ -3362,6 +3446,11 @@
         return computePricing(discountedUnitPriceUsd, item.quantity, { exento: false });
       };
 
+      const computeProductPricing = (product, item = {}) => {
+        const unitPriceUsd = resolveProductUnitPriceUsdForClient(product, selectedClient);
+        return computePricing(unitPriceUsd, item.quantity, { exento: Boolean(product?.exento) });
+      };
+
       const calculateCartTotals = () => {
         let taxableSubtotalBase = 0;
         let exentoSubtotalBase = 0;
@@ -3382,7 +3471,7 @@
           if (!product) return;
 
           const isExento = Boolean(product.exento);
-          const pricing = computePricing(product.price_usd, item.quantity, { exento: isExento });
+          const pricing = computeProductPricing(product, item);
           if (isExento) {
             exentoSubtotalBase = roundTo(exentoSubtotalBase + pricing.lineNet, 2);
           } else {
@@ -4589,7 +4678,7 @@
           const product = productsById.get(String(item.productId));
           if (!product) return '';
 
-          const pricing = computePricing(product.price_usd, item.quantity, { exento: Boolean(product.exento) });
+          const pricing = computeProductPricing(product, item);
           const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizeVariationId(item.variationId));
           const variationName = variation ? variation.name : 'Unica';
           const displayName = `${product.name} ${variationName}`.trim();
@@ -8477,11 +8566,15 @@
       const clientSelected = document.getElementById('ventas-client-selected');
       const clientName = document.getElementById('ventas-client-name');
       const clientEmpty = document.getElementById('ventas-client-empty');
+      const clientBenefitsBadge = document.getElementById('ventas-client-benefits-badge');
       const clientClear = document.getElementById('ventas-client-clear');
       let clientSearchTimeout = null;
 
       const setSelectedClient = (client) => {
-        selectedClient = client;
+        selectedClient = client ? {
+          ...client,
+          benefits: normalizeClientBenefits(client.benefits || {}),
+        } : null;
         if (client && clientSearchInput) {
           clientSearchInput.value = '';
         }
@@ -8491,20 +8584,38 @@
             clientSelected.classList.remove('hidden');
             clientSelected.classList.add('flex');
             clientEmpty.classList.add('hidden');
+            if (clientBenefitsBadge) {
+              clientBenefitsBadge.classList.toggle('hidden', !clientHasBenefits(selectedClient));
+            }
           } else {
             clientName.textContent = '';
             clientSelected.classList.add('hidden');
             clientSelected.classList.remove('flex');
             clientEmpty.classList.remove('hidden');
+            if (clientBenefitsBadge) {
+              clientBenefitsBadge.classList.add('hidden');
+            }
           }
         }
 
+        renderCart();
         queueActiveDraftSync();
       };
 
       const hideClientResults = () => {
         if (clientResults) {
           clientResults.classList.add('hidden');
+        }
+      };
+
+      const parseClientBenefits = (rawValue) => {
+        if (rawValue && typeof rawValue === 'object') return normalizeClientBenefits(rawValue);
+        const serialized = String(rawValue || '').trim();
+        if (!serialized) return normalizeClientBenefits({});
+        try {
+          return normalizeClientBenefits(JSON.parse(serialized));
+        } catch (_error) {
+          return normalizeClientBenefits({});
         }
       };
 
@@ -8518,8 +8629,9 @@
 
         const rows = clients
           .map((client) => {
+            const benefitsJson = escapeHtml(JSON.stringify(client.benefits || {}));
             return `
-              <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${escapeHtml(client.name)}" data-client-doc="${escapeHtml(client.document || '')}" data-client-phone="${escapeHtml(client.phone || '')}">
+              <button type="button" class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50" data-client-id="${client.id}" data-client-name="${escapeHtml(client.name)}" data-client-doc="${escapeHtml(client.document || '')}" data-client-phone="${escapeHtml(client.phone || '')}" data-client-has-benefits="${client.has_benefits ? '1' : '0'}" data-client-benefits="${benefitsJson}">
                 <span>${escapeHtml(client.name)}</span>
                 <span class="text-xs text-slate-400">${escapeHtml(client.document || '')}</span>
               </button>
@@ -9355,6 +9467,7 @@
               name: draftClient.name,
               document: draftClient.document,
               phone: draftClient.phone || '',
+              benefits: parseClientBenefits(draftClient.benefits || {}),
             });
           } else {
             setSelectedClient(null);
@@ -9445,6 +9558,7 @@
             name: button.dataset.clientName,
             document: button.dataset.clientDoc,
             phone: button.dataset.clientPhone || '',
+            benefits: parseClientBenefits(button.dataset.clientBenefits),
           });
           hideClientResults();
         });

@@ -35,7 +35,9 @@ class ClientesController < ApplicationController
           id: client.id,
           name: client.name,
           document: client.document_label,
-          phone: client.phone.to_s
+          phone: client.phone.to_s,
+          has_benefits: client.has_special_benefits?,
+          benefits: client.normalized_benefits_config,
         }
       end
     }
@@ -52,7 +54,9 @@ class ClientesController < ApplicationController
             id: @cliente.id,
             name: @cliente.name,
             document: @cliente.document_label,
-            phone: @cliente.phone.to_s
+            phone: @cliente.phone.to_s,
+            has_benefits: @cliente.has_special_benefits?,
+            benefits: @cliente.normalized_benefits_config,
           }, status: :created
         end
       else
@@ -84,12 +88,27 @@ class ClientesController < ApplicationController
   end
 
   def cliente_params
-    params.require(:cliente).permit(:document_type, :document_number, :name, :phone, :address)
+    permitted = params.require(:cliente).permit(
+      :document_type,
+      :document_number,
+      :name,
+      :phone,
+      :address,
+      :benefits_config_json,
+    )
+    build_cliente_attributes(permitted)
   end
 
   def cliente_update_params
     return cliente_params if current_user_admin?
 
     params.require(:cliente).permit(:phone, :address)
+  end
+
+  def build_cliente_attributes(permitted)
+    attrs = permitted.to_h
+    raw_benefits_json = attrs.delete("benefits_config_json")
+    attrs["benefits_config"] = Cliente.normalize_benefits_config(raw_benefits_json)
+    attrs
   end
 end
