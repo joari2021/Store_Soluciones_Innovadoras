@@ -1,6 +1,6 @@
 class AccountsController < ApplicationController
   before_action :require_business
-  before_action :require_module_access!(:accounts)
+  before_action -> { require_module_access!(:accounts) }
   before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment
                                        edit_movement update_movement destroy_movement]
   before_action :set_manual_movement, only: %i[edit_movement update_movement destroy_movement]
