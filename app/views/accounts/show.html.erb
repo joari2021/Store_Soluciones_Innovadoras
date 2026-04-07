@@ -219,7 +219,7 @@
     </div>
     <% if @account_movements.any? %>
       <%= turbo_frame_tag "account-movements-#{@pagy.page}", class: 'contents' do %>
-        <div class="max-h-[70vh] overflow-auto" data-account-movements-root="true">
+        <div data-account-movements-root="true">
           <table class="min-w-full table-fixed divide-y divide-slate-200">
             <colgroup>
               <col class="w-[10%]">
@@ -233,13 +233,13 @@
             <% if @pagy.page == 1 %>
               <thead>
                 <tr>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Tipo</th>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Fecha</th>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Metodo</th>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Referencia</th>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Descripcion</th>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Monto</th>
-                  <th class="sticky top-0 z-20 bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500 shadow-[0_1px_0_0_rgba(148,163,184,0.35)]">Acciones</th>
+                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
+                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Fecha</th>
+                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
+                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Referencia</th>
+                  <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Descripcion</th>
+                  <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Monto</th>
+                  <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Acciones</th>
                 </tr>
               </thead>
             <% end %>
