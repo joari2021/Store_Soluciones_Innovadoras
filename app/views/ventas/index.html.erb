@@ -6786,7 +6786,7 @@
         });
       };
 
-      const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null) => {
+      const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null) => {
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
         applyBaseCurrencySelection(selectedBaseCurrency, { syncInputs: true, syncCart: true, render: false });
         const currentTotals = calculateCartTotals();
@@ -6906,10 +6906,18 @@
           };
         }
 
+        if (checkoutDiscount && checkoutDiscount.enabled) {
+          payload.checkout_discount = {
+            enabled: true,
+            amount: checkoutDiscount.amount,
+            reason: String(checkoutDiscount.reason || '').trim(),
+          };
+        }
+
         return payload;
       };
 
-      const submitVenta = async (payments, change, creditSale = null, forcedBaseCurrency = null) => {
+      const submitVenta = async (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null) => {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         if (!csrfToken) {
           if (window.Swal) {
@@ -6923,7 +6931,7 @@
           return;
         }
 
-        const payload = buildVentaPayload(payments, change, creditSale, forcedBaseCurrency);
+        const payload = buildVentaPayload(payments, change, creditSale, forcedBaseCurrency, checkoutDiscount);
 
         if (window.Swal) {
           window.Swal.fire({
@@ -7355,6 +7363,7 @@
           };
 
           const todayPaymentDate = formatDisplayDate(new Date());
+          const baseMoneySymbol = baseCurrencyCode === 'VES' ? 'Bs' : '$';
 
           const capturePaymentModalState = (dialog) => {
             if (!dialog) return null;
@@ -7374,6 +7383,9 @@
             const changeToggle = dialog.querySelector('[data-change-toggle]');
             const creditToggle = dialog.querySelector('[data-credit-toggle]');
             const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
+            const discountToggle = dialog.querySelector('[data-discount-toggle]');
+            const discountAmountInput = dialog.querySelector('[data-discount-amount]');
+            const discountReasonSelect = dialog.querySelector('[data-discount-reason]');
             const change = Array.from(dialog.querySelectorAll('[data-change-row]')).map((row) => {
               const accountId = row.dataset.changeRow;
               return {
@@ -7401,6 +7413,9 @@
               changeEnabled: Boolean(changeToggle?.checked),
               creditEnabled: Boolean(creditToggle?.checked),
               creditDueOn: creditDueOnInput?.value || '',
+              discountEnabled: Boolean(discountToggle?.checked),
+              discountAmount: discountAmountInput?.value || '',
+              discountReason: discountReasonSelect?.value || '',
               showExtraBankAccounts,
             };
           };
@@ -7621,6 +7636,23 @@
                   <span class="text-[11px] font-semibold text-slate-500">Selecciona cuenta y monto</span>
                 </div>
                 <div class="mt-3 space-y-2">${paymentRowsHtml}</div>
+                <div class="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3" data-discount-panel>
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">Descuento en cobro</p>
+                    <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-rose-700">
+                      <input type="checkbox" class="h-4 w-4 cursor-pointer text-rose-600" data-discount-toggle>
+                      Registrar descuento
+                    </label>
+                  </div>
+                  <div class="mt-2 grid gap-2 md:grid-cols-2" data-discount-fields>
+                    <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(baseMoneySymbol)} 0,00" class="ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400" data-discount-amount data-money-mask="true" data-money-symbol="${escapeHtml(baseMoneySymbol)}" disabled>
+                    <select class="ventas-payment-modal-field w-full rounded-xl border border-transparent bg-white px-3 py-2 text-sm text-slate-700 disabled:cursor-not-allowed disabled:border-transparent disabled:bg-slate-100 disabled:text-slate-400" data-discount-reason disabled>
+                      <option value="">Motivo del descuento</option>
+                      <option value="exoneracion_de_faltante">Exoneracion de faltante</option>
+                      <option value="oferta_por_compra">Oferta por compra</option>
+                    </select>
+                  </div>
+                </div>
               </div>
               <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 space-y-3">
                 <div class="flex items-center justify-between gap-2">
@@ -7787,6 +7819,10 @@
                 const creditToggle = dialog.querySelector('[data-credit-toggle]');
                 const creditFields = dialog.querySelector('[data-credit-fields]');
                 const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
+                const discountToggle = dialog.querySelector('[data-discount-toggle]');
+                const discountFields = dialog.querySelector('[data-discount-fields]');
+                const discountAmountInput = dialog.querySelector('[data-discount-amount]');
+                const discountReasonSelect = dialog.querySelector('[data-discount-reason]');
 
                 const syncMethodSelectTone = (select) => {
                   if (!select) return;
@@ -7943,12 +7979,30 @@
                   }
                 };
 
+                const setDiscountFieldsEnabled = (enabled) => {
+                  if (discountFields) {
+                    discountFields.classList.toggle('opacity-70', !enabled);
+                  }
+
+                  if (discountAmountInput) {
+                    setFieldEnabledState(discountAmountInput, enabled, 'sky');
+                  }
+
+                  if (discountReasonSelect) {
+                    setFieldEnabledState(discountReasonSelect, enabled, 'sky');
+                  }
+                };
+
 
                 const updateRemaining = () => {
                 let paidBase = 0;
                 let paidAlt = 0;
                 const altCurrencyCode = baseCurrencyCode === 'USD' ? 'VES' : 'USD';
                 const altAvailable = bcvRate > 0;
+                  const discountEnabled = Boolean(discountToggle?.checked);
+                  const discountAmount = discountEnabled ? parseMoneyInput(discountAmountInput) : 0;
+                  const sanitizedDiscountBase = Math.min(Math.max(discountAmount, 0), totalBase);
+                  const effectiveTotalBase = roundTo(Math.max(totalBase - sanitizedDiscountBase, 0), 2);
                 dialog.querySelectorAll('[data-pay-row]').forEach((row) => {
                   const accountId = row.dataset.payRow;
                   const account = accountsById.get(String(accountId));
@@ -8001,12 +8055,12 @@
                   });
                 });
 
-                let remaining = roundTo(totalBase - paidBase, 2);
+                let remaining = roundTo(effectiveTotalBase - paidBase, 2);
                 if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
 
                 let remainingAlt = null;
                 if (altAvailable) {
-                  const totalAlt = convertAmount(totalBase, baseCurrencyCode, altCurrencyCode);
+                  const totalAlt = convertAmount(effectiveTotalBase, baseCurrencyCode, altCurrencyCode);
                   if (totalAlt !== null) {
                     remainingAlt = roundTo(totalAlt - paidAlt, 2);
                   }
@@ -8148,6 +8202,21 @@
                     setCreditFieldsEnabled(creditToggle.checked);
                     updateRemaining();
                   });
+                }
+
+                if (discountToggle) {
+                  discountToggle.addEventListener('change', () => {
+                    setDiscountFieldsEnabled(discountToggle.checked);
+                    updateRemaining();
+                  });
+                }
+
+                if (discountAmountInput) {
+                  discountAmountInput.addEventListener('input', updateRemaining);
+                }
+
+                if (discountReasonSelect) {
+                  discountReasonSelect.addEventListener('change', updateRemaining);
                 }
 
                 const rowHasPaymentData = (row) => {
@@ -8348,6 +8417,7 @@
                 });
 
                 setCreditFieldsEnabled(Boolean(creditToggle?.checked));
+                setDiscountFieldsEnabled(Boolean(discountToggle?.checked));
                 if (typeof window.initializeMaterializeDatepickers === 'function') {
                   window.initializeMaterializeDatepickers(dialog);
                 }
@@ -8406,6 +8476,19 @@
                     creditDueOnInput.value = normalizedCreditDueOn ? normalizedCreditDueOn.display : '';
                   }
 
+                  if (discountToggle) {
+                    discountToggle.checked = Boolean(initialState.discountEnabled);
+                    setDiscountFieldsEnabled(discountToggle.checked);
+                  }
+
+                  if (discountAmountInput && typeof initialState.discountAmount === 'string') {
+                    discountAmountInput.value = initialState.discountAmount;
+                  }
+
+                  if (discountReasonSelect && typeof initialState.discountReason === 'string') {
+                    discountReasonSelect.value = initialState.discountReason;
+                  }
+
                   (initialState.change || []).forEach((entry) => {
                     const accountId = String(entry.accountId || '');
                     const checkbox = dialog.querySelector(`[data-change-check="${accountId}"]`);
@@ -8448,6 +8531,7 @@
 
                 } else {
                   setCreditFieldsEnabled(false);
+                  setDiscountFieldsEnabled(false);
                 }
 
                 updateRemaining();
@@ -8462,6 +8546,15 @@
                 const creditEnabled = Boolean(creditToggle?.checked);
                 const creditDueOn = String(creditDueOnInput?.value || '').trim();
                 const normalizedCreditDueOn = creditDueOn ? normalizePaymentDateInput(creditDueOn) : null;
+                const discountToggle = dialog.querySelector('[data-discount-toggle]');
+                const discountAmountInput = dialog.querySelector('[data-discount-amount]');
+                const discountReasonSelect = dialog.querySelector('[data-discount-reason]');
+                const discountEnabled = Boolean(discountToggle?.checked);
+                const rawDiscountAmount = parseMoneyInput(discountAmountInput);
+                const sanitizedDiscountBase = discountEnabled
+                  ? roundTo(Math.min(Math.max(rawDiscountAmount, 0), totalBase), 2)
+                  : 0;
+                const discountReason = String(discountReasonSelect?.value || '').trim();
                 let paidBase = 0;
                 const payments = [];
                 let missingMethod = false;
@@ -8603,7 +8696,23 @@
                   return null;
                 }
 
-                let remaining = roundTo(totalBase - paidBase, 2);
+                if (discountEnabled && sanitizedDiscountBase <= 0) {
+                  window.Swal.showValidationMessage('Indica un monto de descuento mayor a cero.');
+                  return null;
+                }
+
+                if (discountEnabled && sanitizedDiscountBase > totalBase) {
+                  window.Swal.showValidationMessage('El descuento no puede superar el total de la venta.');
+                  return null;
+                }
+
+                if (discountEnabled && !discountReason) {
+                  window.Swal.showValidationMessage('Selecciona el motivo del descuento.');
+                  return null;
+                }
+
+                const effectiveTotalBase = roundTo(Math.max(totalBase - sanitizedDiscountBase, 0), 2);
+                let remaining = roundTo(effectiveTotalBase - paidBase, 2);
                 if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
                 const creditCoversPendingBalance = creditEnabled && remaining > paymentTolerance;
 
@@ -8707,6 +8816,11 @@
                     enabled: creditCoversPendingBalance,
                     due_on: creditCoversPendingBalance ? (normalizedCreditDueOn?.iso || '') : '',
                   },
+                  checkout_discount: {
+                    enabled: discountEnabled && sanitizedDiscountBase > 0,
+                    amount: sanitizedDiscountBase,
+                    reason: discountReason,
+                  },
                   totalBase,
                   suggestedChangeBase,
                   hasPendingSuggestedChange: suggestedChangeBase > paymentTolerance && changeEntries.length === 0,
@@ -8742,6 +8856,39 @@
                 }
               }
 
+              if (payload.checkout_discount?.enabled && window.Swal) {
+                const discountAmount = Number(payload.checkout_discount.amount || 0);
+                const discountConfirmation = await window.Swal.fire({
+                  icon: 'warning',
+                  title: 'Confirmar venta con descuento',
+                  html: `
+                    <div class="space-y-2 text-left text-sm text-slate-600">
+                      <p>Se aplicara un descuento de <strong>${formatBaseMoney(discountAmount)}</strong> en esta venta.</p>
+                      <p>Motivo: <strong>${escapeHtml(String(payload.checkout_discount.reason || '').replaceAll('_', ' '))}</strong>.</p>
+                      <p class="text-amber-700 font-semibold">Esta venta sera revisada por el administrador, quien determinara si el descuento aplicado fue conveniente.</p>
+                      <p class="text-amber-700">Si no corresponde, el monto descontado podra ser cargado como deuda al usuario que facturo la venta.</p>
+                    </div>
+                  `,
+                  showCancelButton: true,
+                  confirmButtonText: 'Si, registrar venta',
+                  cancelButtonText: 'Volver al cobro',
+                  buttonsStyling: false,
+                  customClass: {
+                    popup: 'rounded-2xl border border-amber-200 shadow-xl',
+                    title: 'text-lg font-extrabold text-slate-800',
+                    actions: 'w-full flex flex-wrap items-center justify-end gap-2 mt-5',
+                    confirmButton: 'inline-flex items-center justify-center rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-500',
+                    cancelButton: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
+                  },
+                  heightAuto: false,
+                });
+
+                if (!discountConfirmation.isConfirmed) {
+                  openPaymentModal(payload.modalState || null);
+                  return;
+                }
+              }
+
               const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
               if (!checkoutDecisionsReady) {
                 openPaymentModal(payload.modalState || null);
@@ -8758,7 +8905,8 @@
                 payload.payments || [],
                 payload.change || [],
                 payload.credit_sale || null,
-                checkoutBaseCurrency
+                checkoutBaseCurrency,
+                payload.checkout_discount || null
               );
             });
           };

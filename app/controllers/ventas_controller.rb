@@ -1,7 +1,7 @@
 class VentasController < ApplicationController
   POS_CATALOG_ITEMS_PER_PAGE = 24
 
-  helper_method :sale_deletable_by_current_user?
+  helper_method :sale_deletable_by_current_user?, :checkout_discount_payload_for_sale
 
   before_action :require_business
   before_action -> { require_module_access!(:ventas) }
@@ -331,6 +331,34 @@ class VentasController < ApplicationController
     sale.user_id == Current.user&.id
   end
 
+  def checkout_discount_payload_for_sale(sale)
+    return nil if sale.blank?
+
+    notes_payload = parse_notes_payload(sale.notes)
+    raw_discount = notes_payload["checkout_discount"]
+    return nil unless raw_discount.is_a?(Hash)
+
+    amount = raw_discount["amount"].to_d
+    return nil unless amount.positive?
+
+    reason = raw_discount["reason"].to_s.strip
+    reason_label = case reason
+      when "exoneracion_de_faltante"
+        "Exoneracion de faltante"
+      when "oferta_por_compra"
+        "Oferta por compra"
+      else
+        reason.humanize.presence || "Motivo no indicado"
+      end
+
+    {
+      amount: amount.round(2),
+      currency: raw_discount["currency"].to_s.upcase.presence || sale.base_currency,
+      reason: reason,
+      reason_label: reason_label,
+    }
+  end
+
   def create
     payload = venta_params
     draft_id = payload[:draft_id].presence
@@ -356,6 +384,7 @@ class VentasController < ApplicationController
         []
       end
     credit_sale = normalize_credit_sale_payload(payload[:credit_sale])
+    checkout_discount = normalize_checkout_discount_payload(payload[:checkout_discount])
     credit_sale_due_on = parse_payment_date(credit_sale[:due_on])
     service_cost_payment_entries = Array(payload[:service_cost_payments])
     if credit_sale[:due_on].present? && credit_sale_due_on.blank?
@@ -760,6 +789,34 @@ class VentasController < ApplicationController
     comparison_currency = base_currency
     comparison_currency = "USD" if comparison_currency == "VES" && tasa_dolar.to_d <= 0
     total_due = total_due_in_currency(venta, comparison_currency, tasa_dolar, calculated_totals: server_totals)
+
+    discount_amount = 0.to_d
+    if checkout_discount[:enabled]
+      if checkout_discount[:reason].blank?
+        return render json: { error: "Selecciona un motivo de descuento valido." }, status: :unprocessable_entity
+      end
+
+      discount_amount = convert_checkout_discount_to_currency(
+        amount: checkout_discount[:amount],
+        from_currency: base_currency,
+        to_currency: comparison_currency,
+        tasa_dolar: tasa_dolar,
+      )
+      if discount_amount.nil?
+        return render json: { error: "No se pudo convertir el descuento al total de la venta." }, status: :unprocessable_entity
+      end
+
+      if discount_amount <= 0
+        return render json: { error: "El monto del descuento debe ser mayor a cero." }, status: :unprocessable_entity
+      end
+
+      if discount_amount > total_due
+        return render json: { error: "El descuento no puede ser mayor al total de la venta." }, status: :unprocessable_entity
+      end
+    end
+
+    total_due = (total_due - discount_amount).round(2)
+    total_due = 0.to_d if total_due.negative?
     paid_total = 0.to_d
 
     payment_rows.each do |row|
@@ -843,6 +900,15 @@ class VentasController < ApplicationController
         )
         discount_payload = service_item_discounts_payload_for_sale(venta: venta, service_item_rows: service_item_rows)
         notes_payload["service_item_discounts"] = discount_payload if discount_payload.present?
+        if checkout_discount[:enabled]
+          notes_payload["checkout_discount"] = {
+            "amount" => checkout_discount[:amount].to_d.round(2).to_f,
+            "currency" => base_currency,
+            "reason" => checkout_discount[:reason],
+          }
+        else
+          notes_payload.delete("checkout_discount")
+        end
         venta.update!(notes: serialize_notes_payload(notes_payload))
 
         payment_rows.each do |row|
@@ -2459,6 +2525,7 @@ class VentasController < ApplicationController
       payments: %i[method amount account_id currency reference payment_date],
       change: %i[method amount account_id currency reference],
       credit_sale: %i[enabled due_on],
+      checkout_discount: %i[enabled amount reason],
       totals: %i[taxable_subtotal_base exento_subtotal_base vat_base total_base],
       service_cost_payments: %i[
         service_id
@@ -3666,6 +3733,35 @@ class VentasController < ApplicationController
       enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
       due_on: due_on_value.to_s.strip.presence,
     }
+  end
+
+  def normalize_checkout_discount_payload(raw_payload)
+    source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
+    enabled_value = source["enabled"] || source[:enabled]
+    amount_value = source["amount"] || source[:amount]
+    reason_value = source["reason"] || source[:reason]
+
+    enabled = ActiveModel::Type::Boolean.new.cast(enabled_value)
+    amount = parse_decimal(amount_value, default: 0).to_d.round(2)
+    reason = normalize_checkout_discount_reason(reason_value)
+
+    {
+      enabled: enabled,
+      amount: amount,
+      reason: reason,
+    }
+  end
+
+  def normalize_checkout_discount_reason(raw_reason)
+    normalized = raw_reason.to_s.strip.downcase
+    allowed = %w[exoneracion_de_faltante oferta_por_compra]
+    return normalized if allowed.include?(normalized)
+
+    nil
+  end
+
+  def convert_checkout_discount_to_currency(amount:, from_currency:, to_currency:, tasa_dolar:)
+    convert_payment_to_currency(amount, from_currency, to_currency, tasa_dolar)
   end
 
   def load_sale_credit_context!

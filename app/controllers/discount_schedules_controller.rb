@@ -1,5 +1,6 @@
 class DiscountSchedulesController < ApplicationController
   before_action :require_business
+  before_action :require_admin
   before_action -> { require_module_access!(:ventas) }
   before_action :set_discount_schedule, only: %i[edit update destroy]
   before_action :load_catalog_collections, only: %i[index create edit update]
