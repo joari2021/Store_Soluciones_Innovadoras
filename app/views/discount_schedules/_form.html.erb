@@ -1,0 +1,381 @@
+<%= form_with model: discount_schedule, local: true, class: 'space-y-4', data: { discount_schedule_form: true } do |form| %>
+  <% if discount_schedule.errors.any? %>
+    <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+      <p class="font-semibold">Corrige los siguientes puntos:</p>
+      <ul class="mt-2 list-disc space-y-1 pl-5">
+        <% discount_schedule.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+  <div>
+    <%= form.label :name, 'Nombre de la regla', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+    <%= form.text_field :name,
+                        placeholder: 'Ej: Promo mayorista impresiones',
+                        class: 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none' %>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= form.label :applies_to, 'Aplicar a', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.select :applies_to,
+                      options_for_select([
+                        ['Productos', 'products'],
+                        ['Servicios', 'services']
+                      ], discount_schedule.applies_to),
+                      {},
+                      class: 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none',
+                      data: { discount_target_select: true } %>
+    </div>
+    <div>
+      <label class="block text-xs font-bold uppercase tracking-wide text-slate-500">Aplicación</label>
+      <p class="mt-2 text-sm font-semibold text-slate-700">La regla aplica de forma global para todos los clientes.</p>
+    </div>
+  </div>
+  <div class="grid gap-4 lg:grid-cols-2">
+    <div data-discount-product-picker>
+      <label class="block text-xs font-bold uppercase tracking-wide text-slate-500">Producto</label>
+      <div class="relative mt-1">
+        <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none" placeholder="Buscar producto..." data-discount-search="products" autocomplete="off">
+        <div class="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 hidden max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg" data-discount-results="products"></div>
+      </div>
+      <div class="mt-2 flex min-h-11 flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2" data-discount-chips="products"></div>
+      <%= form.select :product_ids,
+                      options_for_select(
+                        products.map { |product| [product.display_name_with_presentation, product.id, { data: { currency_symbol: '$' } }] },
+                        discount_schedule.product_ids
+                      ),
+                      {},
+                      multiple: true,
+                      size: 8,
+                      class: 'hidden',
+                      data: { discount_select: 'products' } %>
+      <p class="mt-1 text-xs text-slate-500">Escribe para buscar y selecciona un solo producto.</p>
+    </div>
+    <div data-discount-service-picker>
+      <label class="block text-xs font-bold uppercase tracking-wide text-slate-500">Servicio</label>
+      <div class="relative mt-1">
+        <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none" placeholder="Buscar servicio..." data-discount-search="services" autocomplete="off">
+        <div class="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 hidden max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg" data-discount-results="services"></div>
+      </div>
+      <div class="mt-2 flex min-h-11 flex-wrap gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2" data-discount-chips="services"></div>
+      <%= form.select :service_ids,
+                      options_for_select(
+                        services.map do |service|
+                          [service.description, service.id, { data: { currency_symbol: (@service_discount_symbols[service.id] || '$') } }]
+                        end,
+                        discount_schedule.service_ids
+                      ),
+                      {},
+                      multiple: true,
+                      size: 8,
+                      class: 'hidden',
+                      data: { discount_select: 'services' } %>
+      <p class="mt-1 text-xs text-slate-500">Escribe para buscar y selecciona un solo servicio.</p>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= form.label :quantity_mode, 'Regla por cantidad', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.select :quantity_mode,
+                      options_for_select([
+                        ['A partir de X cantidad', 'from_quantity'],
+                        ['Solo cuando sea X cantidad exacta', 'exact_quantity']
+                      ], discount_schedule.quantity_mode),
+                      {},
+                      class: 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none' %>
+    </div>
+    <div>
+      <%= form.label :quantity_threshold, 'Cantidad objetivo', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.number_field :quantity_threshold,
+                            min: 1,
+                            step: 1,
+                            class: 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none' %>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= form.label :discount_mode, 'Tipo de descuento', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.select :discount_mode,
+                      options_for_select([
+                        ['Porcentaje', 'percent'],
+                        ['Monto fijo', 'fixed_amount']
+                      ], discount_schedule.discount_mode),
+                      {},
+                      class: 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none' %>
+    </div>
+    <div>
+      <%= form.label :discount_value, 'Valor del descuento', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.text_field :discount_value,
+                          value: (discount_schedule.discount_value.to_d.positive? ? discount_schedule.discount_value.to_d.to_s('F') : nil),
+                          autocomplete: 'off',
+                          class: 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none',
+                          data: { money_mask: true, money_symbol: '%', discount_value_input: true } %>
+      <p class="mt-1 text-xs text-slate-500">Si es porcentaje usa %, si es monto fijo define el precio final por unidad en la moneda del producto/servicio seleccionado.</p>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= form.label :starts_on, 'Fecha inicio (opcional)', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.text_field :starts_on,
+                          value: (discount_schedule.starts_on&.strftime('%d-%m-%Y') if discount_schedule.starts_on.present?),
+                          autocomplete: 'off',
+                          placeholder: 'dd-mm-aaaa',
+                          class: 'js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none' %>
+    </div>
+    <div>
+      <%= form.label :ends_on, 'Fecha fin (opcional)', class: 'block text-xs font-bold uppercase tracking-wide text-slate-500' %>
+      <%= form.text_field :ends_on,
+                          value: (discount_schedule.ends_on&.strftime('%d-%m-%Y') if discount_schedule.ends_on.present?),
+                          autocomplete: 'off',
+                          placeholder: 'dd-mm-aaaa',
+                          class: 'js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:outline-none' %>
+    </div>
+  </div>
+  <label class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+    <%= form.check_box :active, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
+    Regla activa
+  </label>
+  <div class="flex items-center gap-2">
+    <%= form.submit submit_label,
+                    class: 'inline-flex cursor-pointer items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700' %>
+    <% if discount_schedule.persisted? %>
+      <%= link_to 'Cancelar', discount_schedules_path,
+                  class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50' %>
+    <% end %>
+  </div>
+<% end %>
+<script>
+  (() => {
+    const createPickerApi = ({ container, select, searchInput, resultsPanel, chipsPanel, onSelectionChange }) => {
+      if (!container || !select || !searchInput || !resultsPanel || !chipsPanel) return null;
+      if (container.dataset.autocompleteBound === '1') return null;
+
+      container.dataset.autocompleteBound = '1';
+
+      const options = () => Array.from(select.options || []);
+
+      const selectedOptions = () => options().filter((option) => option.selected);
+
+      const escapeHtml = (value) => String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+      const renderChips = () => {
+        const selected = selectedOptions();
+
+        if (!selected.length) {
+          chipsPanel.innerHTML = '<span class="text-xs text-slate-400">Sin elementos seleccionados.</span>';
+          return;
+        }
+
+        chipsPanel.innerHTML = selected.map((option) => {
+          return `
+            <span class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700" data-chip-value="${escapeHtml(option.value)}">
+              <span class="max-w-[13rem] truncate">${escapeHtml(option.textContent)}</span>
+              <button type="button" class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-100 text-[10px] text-sky-700 hover:bg-sky-200" data-chip-remove="${escapeHtml(option.value)}">x</button>
+            </span>
+          `;
+        }).join('');
+      };
+
+      const renderResults = () => {
+        const query = String(searchInput.value || '').trim().toLowerCase();
+        const available = options().filter((option) => {
+          if (option.selected) return false;
+          if (!query) return true;
+          return String(option.textContent || '').toLowerCase().includes(query);
+        }).slice(0, 25);
+
+        if (!available.length) {
+          resultsPanel.innerHTML = '<div class="px-3 py-2 text-xs text-slate-400">Sin resultados</div>';
+          resultsPanel.classList.remove('hidden');
+          return;
+        }
+
+        resultsPanel.innerHTML = available.map((option) => {
+          return `<button type="button" class="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 last:border-b-0" data-result-value="${escapeHtml(option.value)}">${escapeHtml(option.textContent)}</button>`;
+        }).join('');
+        resultsPanel.classList.remove('hidden');
+      };
+
+      const hideResults = () => {
+        resultsPanel.classList.add('hidden');
+      };
+
+      const selectValue = (value) => {
+        const option = options().find((item) => String(item.value) === String(value));
+        if (!option) return;
+        options().forEach((item) => { item.selected = false; });
+        option.selected = true;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        if (typeof onSelectionChange === 'function') onSelectionChange();
+        searchInput.value = '';
+        renderChips();
+        renderResults();
+        searchInput.focus();
+      };
+
+      const unselectValue = (value) => {
+        const option = options().find((item) => String(item.value) === String(value));
+        if (!option) return;
+        option.selected = false;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        if (typeof onSelectionChange === 'function') onSelectionChange();
+        renderChips();
+        renderResults();
+      };
+
+      searchInput.addEventListener('focus', renderResults);
+      searchInput.addEventListener('input', renderResults);
+      searchInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') hideResults();
+        if (event.key === 'Enter') {
+          const first = resultsPanel.querySelector('[data-result-value]');
+          if (first) {
+            event.preventDefault();
+            selectValue(first.dataset.resultValue);
+          }
+        }
+      });
+
+      resultsPanel.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-result-value]');
+        if (!button) return;
+        selectValue(button.dataset.resultValue);
+      });
+
+      chipsPanel.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-chip-remove]');
+        if (!button) return;
+        unselectValue(button.dataset.chipRemove);
+      });
+
+      document.addEventListener('click', (event) => {
+        if (!container.contains(event.target)) hideResults();
+      });
+
+      renderChips();
+
+      return {
+        clearSelection: () => {
+          options().forEach((option) => { option.selected = false; });
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          renderChips();
+          hideResults();
+          searchInput.value = '';
+        },
+        refresh: () => {
+          renderChips();
+          hideResults();
+          searchInput.value = '';
+        }
+      };
+    };
+
+    const bindDiscountTargetPickers = () => {
+      document.querySelectorAll('[data-discount-schedule-form="true"]').forEach((form) => {
+        const targetSelect = form.querySelector('[data-discount-target-select]');
+        if (!targetSelect || targetSelect.dataset.bound === '1') return;
+
+        targetSelect.dataset.bound = '1';
+        const productBlock = form.querySelector('[data-discount-product-picker]');
+        const serviceBlock = form.querySelector('[data-discount-service-picker]');
+        const productSelect = form.querySelector('[data-discount-select="products"]');
+        const serviceSelect = form.querySelector('[data-discount-select="services"]');
+        const discountModeSelect = form.querySelector('select[name="discount_schedule[discount_mode]"]')
+          || form.querySelector('#discount_schedule_discount_mode');
+        const discountValueInput = form.querySelector('[data-discount-value-input="true"]');
+
+        const selectedOption = (select) => {
+          if (!select) return null;
+          return Array.from(select.options || []).find((option) => option.selected) || null;
+        };
+
+        const resolveDiscountSymbol = () => {
+          const mode = String(discountModeSelect?.value || 'percent');
+          if (mode === 'percent') return '%';
+
+          const target = String(targetSelect.value || 'products');
+          if (target === 'services') {
+            return selectedOption(serviceSelect)?.dataset?.currencySymbol || '$';
+          }
+
+          return selectedOption(productSelect)?.dataset?.currencySymbol || '$';
+        };
+
+        const refreshDiscountMask = () => {
+          if (!discountValueInput) return;
+          const symbol = resolveDiscountSymbol();
+          discountValueInput.dataset.moneySymbol = symbol;
+          discountValueInput.setAttribute('data-money-symbol', symbol);
+
+          if (window.MoneyInputMask?.setValue) {
+            const parsed = window.MoneyInputMask?.parseValue
+              ? (window.MoneyInputMask.parseValue(discountValueInput) || 0)
+              : 0;
+            window.MoneyInputMask.setValue(discountValueInput, parsed, symbol);
+          }
+        };
+
+        const productPickerApi = createPickerApi({
+          container: productBlock,
+          select: productSelect,
+          searchInput: form.querySelector('[data-discount-search="products"]'),
+          resultsPanel: form.querySelector('[data-discount-results="products"]'),
+          chipsPanel: form.querySelector('[data-discount-chips="products"]'),
+          onSelectionChange: refreshDiscountMask,
+        });
+
+        const servicePickerApi = createPickerApi({
+          container: serviceBlock,
+          select: serviceSelect,
+          searchInput: form.querySelector('[data-discount-search="services"]'),
+          resultsPanel: form.querySelector('[data-discount-results="services"]'),
+          chipsPanel: form.querySelector('[data-discount-chips="services"]'),
+          onSelectionChange: refreshDiscountMask,
+        });
+
+        const applyVisibility = () => {
+          const value = String(targetSelect.value || 'products');
+          if (productBlock) productBlock.classList.toggle('hidden', value === 'services');
+          if (serviceBlock) serviceBlock.classList.toggle('hidden', value === 'products');
+
+          if (value === 'products') {
+            servicePickerApi?.clearSelection();
+            productPickerApi?.refresh();
+          }
+
+          if (value === 'services') {
+            productPickerApi?.clearSelection();
+            servicePickerApi?.refresh();
+          }
+
+          refreshDiscountMask();
+        };
+
+        targetSelect.addEventListener('change', applyVisibility);
+        discountModeSelect?.addEventListener('change', refreshDiscountMask);
+        productSelect?.addEventListener('change', refreshDiscountMask);
+        serviceSelect?.addEventListener('change', refreshDiscountMask);
+        applyVisibility();
+
+        if (typeof window.initializeMaterializeDatepickers === 'function') {
+          window.initializeMaterializeDatepickers(form);
+        }
+
+        if (typeof window.MoneyInputMask?.init === 'function') {
+          window.MoneyInputMask.init(form);
+        }
+
+        refreshDiscountMask();
+      });
+    };
+
+    document.addEventListener('turbo:load', bindDiscountTargetPickers);
+    document.addEventListener('DOMContentLoaded', bindDiscountTargetPickers);
+  })();
+</script>

@@ -12,10 +12,12 @@ class CambioEfectivosController < ApplicationController
 
   def create
     payload = cambio_efectivo_params
+    delivery_option = normalize_delivery_option(payload[:delivery_option], payload[:delivery_target])
+    delivery_target = delivery_target_from_option(delivery_option)
 
     open_cash_shift = current_business.cash_shifts.open.first
     if open_cash_shift.blank?
-      return render json: { error: "Debes abrir un turno antes de realizar el cambio de efectivo." },
+      return render json: { error: "Debes abrir un turno antes de registrar la pasarela de cambios." },
                     status: :unprocessable_entity
     end
 
@@ -23,6 +25,7 @@ class CambioEfectivosController < ApplicationController
     monto_caja_operativa = parse_decimal(payload[:monto_caja_operativa], default: 0).round(2)
     monto_caja_deposito = parse_decimal(payload[:monto_caja_deposito], default: 0).round(2)
     monto_recibido = parse_decimal(payload[:monto_recibido], default: 0).round(2)
+    monto_cuenta_origen = parse_decimal(payload[:monto_cuenta_origen], default: 0).round(2)
     recargo_percent = parse_decimal(payload[:recargo_percent], default: 0).round(2)
     payment_group = payload[:payment_group].to_s
 
@@ -34,7 +37,7 @@ class CambioEfectivosController < ApplicationController
       return render json: { error: "Debes indicar el monto a cobrar." }, status: :unprocessable_entity
     end
 
-    if (monto_caja_operativa + monto_caja_deposito - efectivo_vendido).abs > 0.01
+    if delivery_target == 'cash' && (monto_caja_operativa + monto_caja_deposito - efectivo_vendido).abs > 0.01
       return render json: { error: "Los montos de caja no cuadran con el efectivo a vender." },
                     status: :unprocessable_entity
     end
@@ -49,23 +52,46 @@ class CambioEfectivosController < ApplicationController
       cash_role: "cash_deposit",
       currency: "VES",
     )
+    primary_bank_account = current_business.accounts.find_by(
+      account_type: "bank_account",
+      currency: "VES",
+      is_primary: true,
+    )
 
-    if cash_box_account.blank? || cash_deposit_account.blank?
-      return render json: { error: "No se encontraron las cajas en Bs configuradas." },
-                    status: :unprocessable_entity
+    if delivery_target == 'cash'
+      if cash_box_account.blank? || cash_deposit_account.blank?
+        return render json: { error: "No se encontraron las cajas en Bs configuradas." },
+                      status: :unprocessable_entity
+      end
+
+      if monto_caja_operativa > cash_box_account.balance.to_d
+        return render json: { error: "El monto en caja operativa excede el disponible." },
+                      status: :unprocessable_entity
+      end
+
+      if monto_caja_deposito > cash_deposit_account.balance.to_d
+        return render json: { error: "El monto en caja deposito excede el disponible." },
+                      status: :unprocessable_entity
+      end
+    else
+      if primary_bank_account.blank?
+        return render json: { error: "No existe una cuenta bancaria principal en Bs para enviar fondos." },
+                      status: :unprocessable_entity
+      end
+
+      if (monto_cuenta_origen - efectivo_vendido).abs > 0.01
+        return render json: { error: "El monto a enviar debe coincidir con el descuento en la cuenta origen." },
+                      status: :unprocessable_entity
+      end
+
+      if monto_cuenta_origen > primary_bank_account.balance.to_d
+        return render json: { error: "El monto a enviar excede el saldo disponible en la cuenta bancaria principal." },
+                      status: :unprocessable_entity
+      end
     end
 
-    if monto_caja_operativa > cash_box_account.balance.to_d
-      return render json: { error: "El monto en caja operativa excede el disponible." },
-                    status: :unprocessable_entity
-    end
-
-    if monto_caja_deposito > cash_deposit_account.balance.to_d
-      return render json: { error: "El monto en caja deposito excede el disponible." },
-                    status: :unprocessable_entity
-    end
-
-    allowed_payment_group = CambioEfectivo::PAYMENT_GROUPS.key?(payment_group)
+    allowed_payment_group = payment_group_allowed_for_delivery_target?(payment_group: payment_group,
+                                                                      delivery_target: delivery_target)
     unless allowed_payment_group
       return render json: { error: "Metodo de pago no valido." }, status: :unprocessable_entity
     end
@@ -82,24 +108,17 @@ class CambioEfectivosController < ApplicationController
       return render json: { error: "Cuenta de pago no encontrada." }, status: :unprocessable_entity if account.nil?
 
       if account.currency.to_s != "VES"
-        return render json: { error: "Solo se permiten pagos en Bs para el cambio de efectivo." },
+        return render json: { error: "Solo se permiten pagos en Bs para la pasarela de cambios." },
                       status: :unprocessable_entity
       end
 
-      if payment_group == "bank"
-        unless account.account_type == "bank_account"
-          return render json: { error: "Solo se permiten cuentas bancarias para pago movil o transferencia." },
-                        status: :unprocessable_entity
-        end
-      else
-        unless %w[biopago pos].include?(account.account_type)
-          return render json: { error: "Solo se permiten cuentas Biopago o Punto de venta." },
-                        status: :unprocessable_entity
-        end
+      unless payment_account_allowed?(account: account, payment_group: payment_group, delivery_target: delivery_target)
+        return render json: { error: "La cuenta seleccionada no es valida para el metodo de pago elegido." },
+                      status: :unprocessable_entity
       end
 
-      method = payment[:method].to_s
-      if account.account_type == "bank_account"
+      method = payment_method_for_account(account: account, payment_group: payment_group, raw_method: payment[:method])
+      if account.account_type == "bank_account" && payment_group == "bank"
         unless %w[transfer mobile].include?(method)
           return render json: { error: "Selecciona transferencia o pago movil." }, status: :unprocessable_entity
         end
@@ -113,8 +132,6 @@ class CambioEfectivosController < ApplicationController
         if payment_date.blank?
           return render json: { error: "Debes indicar la fecha del pago." }, status: :unprocessable_entity
         end
-      else
-        method = account.account_type == "pos" ? "pos" : "biopago"
       end
 
       payment_rows << {
@@ -140,7 +157,7 @@ class CambioEfectivosController < ApplicationController
     payment_details = payment_rows.map do |row|
       {
         account_id: row[:account].id,
-        account_name: row[:account].name,
+        account_name: row[:account].name_with_cash_role,
         account_type: row[:account].account_type,
         amount: row[:amount].to_d.to_f,
         method: row[:method],
@@ -159,7 +176,14 @@ class CambioEfectivosController < ApplicationController
       recargo_percent: recargo_percent,
       payment_group: payment_group,
       currency: "VES",
-      payment_details: { payments: payment_details },
+      payment_details: {
+        delivery_target: delivery_target,
+        delivery_option: delivery_option,
+        source_account_id: primary_bank_account&.id,
+        source_account_name: primary_bank_account&.name_with_cash_role,
+        source_amount: monto_cuenta_origen.to_d.to_f,
+        payments: payment_details,
+      },
       occurred_at: Time.current,
     )
 
@@ -167,24 +191,51 @@ class CambioEfectivosController < ApplicationController
       CambioEfectivo.transaction do
         cambio_efectivo.save!
 
-        if monto_caja_operativa.positive?
+        if delivery_target == 'cash' && monto_caja_operativa.positive?
           cash_box_account.account_movements.create!(
             cambio_efectivo: cambio_efectivo,
             movement_kind: "expense",
             amount: monto_caja_operativa,
-            description: "Retiro de caja por cambio de efectivo [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
+            description: "Retiro de caja por pasarela de cambios [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
             occurred_at: Time.current,
           )
         end
 
-        if monto_caja_deposito.positive?
+        if delivery_target == 'cash' && monto_caja_deposito.positive?
           cash_deposit_account.account_movements.create!(
             cambio_efectivo: cambio_efectivo,
             movement_kind: "expense",
             amount: monto_caja_deposito,
-            description: "Retiro de deposito por cambio de efectivo [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
+            description: "Retiro de deposito por pasarela de cambios [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
             occurred_at: Time.current,
           )
+        end
+
+        if delivery_target == 'digital' && monto_cuenta_origen.positive? && primary_bank_account.present?
+          source_payment_method = delivery_option == 'third_party_bancamiga' ? 'third_party_transfer' : 'mobile_payment'
+
+          primary_bank_account.account_movements.create!(
+            cambio_efectivo: cambio_efectivo,
+            movement_kind: "expense",
+            amount: monto_cuenta_origen,
+            description: "Salida por pasarela de cambios [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
+            payment_method: source_payment_method,
+            occurred_at: Time.current,
+          )
+
+          if delivery_option_requires_mobile_commission?(delivery_option)
+            commission_amount = (monto_cuenta_origen.to_d * 0.003).round(2)
+            if commission_amount.positive?
+              primary_bank_account.account_movements.create!(
+                cambio_efectivo: cambio_efectivo,
+                movement_kind: "expense",
+                amount: commission_amount,
+                description: "Comision pago movil pasarela [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
+                payment_method: "mobile_payment",
+                occurred_at: Time.current,
+              )
+            end
+          end
         end
 
         payment_rows.each do |row|
@@ -192,7 +243,7 @@ class CambioEfectivosController < ApplicationController
             cambio_efectivo: cambio_efectivo,
             movement_kind: "income",
             amount: row[:amount],
-            description: "Ingreso por cambio de efectivo [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
+            description: "Ingreso por pasarela de cambios [CAMBIO_EFECTIVO:#{cambio_efectivo.id}]",
             occurred_at: Time.current,
           }
 
@@ -211,16 +262,18 @@ class CambioEfectivosController < ApplicationController
 
     render json: {
       id: cambio_efectivo.id,
-      message: "Cambio de efectivo registrado correctamente.",
+      message: "Pasarela de cambios registrada correctamente.",
     }, status: :created
   end
 
   def validate
     payload = cambio_efectivo_params
+    delivery_option = normalize_delivery_option(payload[:delivery_option], payload[:delivery_target])
+    delivery_target = delivery_target_from_option(delivery_option)
 
     open_cash_shift = current_business.cash_shifts.open.first
     if open_cash_shift.blank?
-      return render json: { error: "Debes abrir un turno antes de realizar el cambio de efectivo." },
+      return render json: { error: "Debes abrir un turno antes de registrar la pasarela de cambios." },
                     status: :unprocessable_entity
     end
 
@@ -228,6 +281,7 @@ class CambioEfectivosController < ApplicationController
     monto_caja_operativa = parse_decimal(payload[:monto_caja_operativa], default: 0).round(2)
     monto_caja_deposito = parse_decimal(payload[:monto_caja_deposito], default: 0).round(2)
     monto_recibido = parse_decimal(payload[:monto_recibido], default: 0).round(2)
+    monto_cuenta_origen = parse_decimal(payload[:monto_cuenta_origen], default: 0).round(2)
     payment_group = payload[:payment_group].to_s
 
     if efectivo_vendido <= 0
@@ -238,7 +292,7 @@ class CambioEfectivosController < ApplicationController
       return render json: { error: "Debes indicar el monto a cobrar." }, status: :unprocessable_entity
     end
 
-    if (monto_caja_operativa + monto_caja_deposito - efectivo_vendido).abs > 0.01
+    if delivery_target == 'cash' && (monto_caja_operativa + monto_caja_deposito - efectivo_vendido).abs > 0.01
       return render json: { error: "Los montos de caja no cuadran con el efectivo a vender." },
                     status: :unprocessable_entity
     end
@@ -254,22 +308,45 @@ class CambioEfectivosController < ApplicationController
       currency: "VES",
     )
 
-    if cash_box_account.blank? || cash_deposit_account.blank?
-      return render json: { error: "No se encontraron las cajas en Bs configuradas." },
-                    status: :unprocessable_entity
+    if delivery_target == 'cash'
+      if cash_box_account.blank? || cash_deposit_account.blank?
+        return render json: { error: "No se encontraron las cajas en Bs configuradas." },
+                      status: :unprocessable_entity
+      end
+
+      if monto_caja_operativa > cash_box_account.balance.to_d
+        return render json: { error: "El monto en caja operativa excede el disponible." },
+                      status: :unprocessable_entity
+      end
+
+      if monto_caja_deposito > cash_deposit_account.balance.to_d
+        return render json: { error: "El monto en caja deposito excede el disponible." },
+                      status: :unprocessable_entity
+      end
+    else
+      primary_bank_account = current_business.accounts.find_by(
+        account_type: "bank_account",
+        currency: "VES",
+        is_primary: true,
+      )
+
+      if primary_bank_account.blank?
+        return render json: { error: "No existe una cuenta bancaria principal en Bs para enviar fondos." },
+                      status: :unprocessable_entity
+      end
+
+      if (monto_cuenta_origen - efectivo_vendido).abs > 0.01
+        return render json: { error: "El monto a enviar debe coincidir con el descuento en la cuenta origen." },
+                      status: :unprocessable_entity
+      end
+
+      if monto_cuenta_origen > primary_bank_account.balance.to_d
+        return render json: { error: "El monto a enviar excede el saldo disponible en la cuenta bancaria principal." },
+                      status: :unprocessable_entity
+      end
     end
 
-    if monto_caja_operativa > cash_box_account.balance.to_d
-      return render json: { error: "El monto en caja operativa excede el disponible." },
-                    status: :unprocessable_entity
-    end
-
-    if monto_caja_deposito > cash_deposit_account.balance.to_d
-      return render json: { error: "El monto en caja deposito excede el disponible." },
-                    status: :unprocessable_entity
-    end
-
-    unless CambioEfectivo::PAYMENT_GROUPS.key?(payment_group)
+    unless payment_group_allowed_for_delivery_target?(payment_group: payment_group, delivery_target: delivery_target)
       return render json: { error: "Metodo de pago no valido." }, status: :unprocessable_entity
     end
 
@@ -282,9 +359,9 @@ class CambioEfectivosController < ApplicationController
       @cambio_efectivo.destroy!
     end
 
-    redirect_to cambio_efectivos_path, notice: "Cambio de efectivo eliminado y movimientos revertidos."
+    redirect_to historial_ventas_path, notice: "Operacion de pasarela eliminada y movimientos revertidos."
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
-    redirect_to cambio_efectivos_path, alert: e.message.presence || "No se pudo eliminar el cambio de efectivo."
+    redirect_to historial_ventas_path, alert: e.message.presence || "No se pudo eliminar la operacion de pasarela."
   end
 
   private
@@ -296,9 +373,9 @@ class CambioEfectivosController < ApplicationController
   def authorize_destroy!
     return if current_user_admin?
 
-    return if current_user_manager? && @cambio_efectivo&.cash_shift&.open?
+    return if @cambio_efectivo&.cash_shift&.open? && @cambio_efectivo.user_id == Current.user&.id
 
-    deny_access("No tienes permisos para eliminar este cambio de efectivo.")
+    deny_access("No tienes permisos para eliminar esta operacion de pasarela.")
     return
   end
 
@@ -307,11 +384,65 @@ class CambioEfectivosController < ApplicationController
       :efectivo_vendido,
       :monto_caja_operativa,
       :monto_caja_deposito,
+      :monto_cuenta_origen,
       :monto_recibido,
       :recargo_percent,
+      :delivery_target,
+      :delivery_option,
       :payment_group,
       payments: %i[account_id amount method reference payment_date],
     )
+  end
+
+  def normalize_delivery_option(raw_option, fallback_target = nil)
+    value = raw_option.to_s
+    return 'cash' if value == 'cash'
+    return 'mobile_other_banks' if value == 'mobile_other_banks'
+    return 'third_party_bancamiga' if value == 'third_party_bancamiga'
+
+    fallback = fallback_target.to_s
+    return 'mobile_other_banks' if fallback == 'digital'
+
+    'cash'
+  end
+
+  def delivery_target_from_option(delivery_option)
+    delivery_option == 'cash' ? 'cash' : 'digital'
+  end
+
+  def delivery_option_requires_mobile_commission?(delivery_option)
+    delivery_option == 'mobile_other_banks'
+  end
+
+  def payment_group_allowed_for_delivery_target?(payment_group:, delivery_target:)
+    return %w[bank pos_biopago].include?(payment_group) if delivery_target == 'cash'
+
+    %w[cash pos_biopago].include?(payment_group)
+  end
+
+  def payment_account_allowed?(account:, payment_group:, delivery_target:)
+    account_type = account.account_type.to_s
+
+    if delivery_target == 'cash'
+      return account_type == 'bank_account' if payment_group == 'bank'
+
+      return %w[biopago pos].include?(account_type)
+    end
+
+    return account_type == 'cash_box' if payment_group == 'cash'
+
+    %w[biopago pos].include?(account_type)
+  end
+
+  def payment_method_for_account(account:, payment_group:, raw_method:)
+    account_type = account.account_type.to_s
+
+    return raw_method.to_s if account_type == 'bank_account' && payment_group == 'bank'
+    return 'cash' if account_type == 'cash_box'
+    return 'pos' if account_type == 'pos'
+    return 'biopago' if account_type == 'biopago'
+
+    raw_method.to_s
   end
 
   def parse_decimal(value, default: 0)

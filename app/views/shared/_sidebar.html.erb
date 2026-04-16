@@ -57,9 +57,9 @@
       <% end %>
     <% end %>
     <% if can_access_module?(:ventas) %>
-      <%= link_to cambio_efectivos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Cambios de efectivo' } do %>
-        <i data-lucide="banknote" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
-        <span class="sidebar-label">Cambio de efectivo</span>
+      <%= link_to discount_schedules_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Descuentos Programados' } do %>
+        <i data-lucide="badge-percent" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span class="sidebar-label">Descuentos</span>
       <% end %>
     <% end %>
     <% if can_access_module?(:deudas) %>

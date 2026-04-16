@@ -416,13 +416,13 @@
     <% if factura.new_record? %>
       <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '' }] %>
       <% payment_account_options = Array(@bs_accounts).map do |account| %>
-        <% ["#{account.name} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
+        <% ["#{account.name_with_cash_role} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
       <% end %>
       <% selected_source_accounts = if intercompany_selected_source_business_id.to_i > 0
                                       Business.find_by(id: intercompany_selected_source_business_id)&.accounts
                                               &.where(account_type: 'bank_account', currency: 'VES')
                                               &.order(:name)
-                                              &.map { |account| { id: account.id, name: account.name, balance: account.balance.to_d, currency: account.currency, active: account.active } } || []
+                                              &.map { |account| { id: account.id, name: account.name_with_cash_role, balance: account.balance.to_d, currency: account.currency, active: account.active } } || []
                                     else
                                       []
                                     end %>

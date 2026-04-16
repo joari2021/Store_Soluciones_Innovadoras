@@ -1,10 +1,12 @@
 class VentasController < ApplicationController
   POS_CATALOG_ITEMS_PER_PAGE = 24
 
+  helper_method :sale_deletable_by_current_user?
+
   before_action :require_business
   before_action -> { require_module_access!(:ventas) }
-  before_action :require_admin, only: %i[destroy]
   before_action :set_venta, only: %i[destroy]
+  before_action :authorize_destroy_sale!, only: %i[destroy]
   before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft borrador destroy_borrador]
 
   def index
@@ -55,6 +57,7 @@ class VentasController < ApplicationController
       {
         id: account.id,
         name: account.name,
+        display_name: account.name_with_cash_role,
         account_type: account.account_type,
         cash_role: account.cash_role,
         currency: account.currency,
@@ -74,7 +77,7 @@ class VentasController < ApplicationController
                                                  .map do |account|
       {
         id: account.id,
-        name: account.name,
+        name: account.name_with_cash_role,
         account_type: account.account_type,
         cash_role: account.cash_role,
         currency: account.currency,
@@ -266,6 +269,7 @@ class VentasController < ApplicationController
     @pagy, @ventas = pagy_countless(ventas_scope, items: 24)
     load_sales_reference_data!(sales: @ventas)
     load_historial_invoice_statuses!(sales: @ventas)
+    load_historial_cash_exchanges!
   end
 
   def show
@@ -318,6 +322,15 @@ class VentasController < ApplicationController
                 alert: e.message.presence || "No se pudo eliminar la venta."
   end
 
+  def sale_deletable_by_current_user?(sale)
+    return true if current_user_admin?
+
+    return false if sale.blank?
+    return false unless sale.cash_shift&.open?
+
+    sale.user_id == Current.user&.id
+  end
+
   def create
     payload = venta_params
     draft_id = payload[:draft_id].presence
@@ -368,6 +381,8 @@ class VentasController < ApplicationController
     base_currency = normalize_currency(payload[:base_currency], default: "USD")
     base_currency = "USD" unless Venta::BASE_CURRENCIES.key?(base_currency)
 
+    seller_user = source_draft&.user || Current.user
+
     venta = current_business.ventas.new(
       status: "draft",
       vat_mode: vat_mode,
@@ -375,7 +390,7 @@ class VentasController < ApplicationController
       tasa_dolar: tasa_dolar,
       base_currency: base_currency,
       cash_shift: open_cash_shift,
-      user: Current.user,
+      user: seller_user,
     )
 
     if payload[:cliente_id].present?
@@ -461,6 +476,21 @@ class VentasController < ApplicationController
           discount_percent = 0.to_d
         end
 
+        unit_price_usd = apply_discount_schedule_to_unit_price_usd(
+          base_unit_price_usd: unit_price_usd,
+          quantity: quantity,
+          rules: active_discount_rules_by_target(:services)[service.id],
+          fixed_currency: service_discount_currency(service),
+          tasa_dolar: tasa_dolar,
+        )
+
+        unit_price_base_amount = 0.to_d
+        if base_currency == "VES" && tasa_dolar.to_d.positive?
+          unit_price_base_amount = (unit_price_usd.to_d * tasa_dolar.to_d).round(2)
+        elsif base_currency == "USD"
+          unit_price_base_amount = unit_price_usd.to_d.round(2)
+        end
+
         unit_price_usd /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive?
         if unit_price_base_amount.positive? && vat_mode == "included" && vat_rate.positive?
           unit_price_base_amount /= (1 + vat_rate)
@@ -510,6 +540,15 @@ class VentasController < ApplicationController
         product: product,
         benefits_config: client_benefits,
       )
+
+      unit_price = apply_discount_schedule_to_unit_price_usd(
+        base_unit_price_usd: unit_price,
+        quantity: quantity,
+        rules: active_discount_rules_by_target(:products)[product.id],
+        fixed_currency: 'USD',
+        tasa_dolar: tasa_dolar,
+      )
+
       unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
       line_subtotal = (unit_price.to_d * quantity.to_d).round(2)
       product_unit_base_amount = 0.to_d
@@ -926,6 +965,13 @@ class VentasController < ApplicationController
     end
   end
 
+  def authorize_destroy_sale!
+    return if sale_deletable_by_current_user?(@venta)
+
+    redirect_to historial_ventas_path,
+                alert: "Solo puedes eliminar ventas de turnos abiertos facturadas por ti."
+  end
+
   def destroy_draft_record!(draft)
     Venta.transaction do
       restore_stock_for_sale!(draft, strict: false)
@@ -1195,6 +1241,24 @@ class VentasController < ApplicationController
     end
   end
 
+  def load_historial_cash_exchanges!
+    scope = current_business.cambio_efectivos.includes(:user).order(occurred_at: :desc)
+
+    if @selected_cash_shift_id.present?
+      scope = scope.where(cash_shift_id: @selected_cash_shift_id.to_i)
+    end
+
+    if @selected_fecha_desde.present?
+      scope = scope.where("occurred_at >= ?", @selected_fecha_desde.in_time_zone.beginning_of_day)
+    end
+
+    if @selected_fecha_hasta.present?
+      scope = scope.where("occurred_at <= ?", @selected_fecha_hasta.in_time_zone.end_of_day)
+    end
+
+    @historial_cash_exchanges = scope.limit(50)
+  end
+
   def restore_stock_for_sale!(venta, strict: true)
     restored_product_lot_quantities = restore_reserved_product_stock_from_notes!(venta, strict: strict)
 
@@ -1433,6 +1497,21 @@ class VentasController < ApplicationController
               discount_percent = 0.to_d
             end
 
+            unit_price_usd = apply_discount_schedule_to_unit_price_usd(
+              base_unit_price_usd: unit_price_usd,
+              quantity: quantity,
+              rules: active_discount_rules_by_target(:services)[service.id],
+              fixed_currency: service_discount_currency(service),
+              tasa_dolar: tasa_dolar,
+            )
+
+            unit_price_base_amount = 0.to_d
+            if base_currency == "VES" && tasa_dolar.to_d.positive?
+              unit_price_base_amount = (unit_price_usd.to_d * tasa_dolar.to_d).round(2)
+            elsif base_currency == "USD"
+              unit_price_base_amount = unit_price_usd.to_d.round(2)
+            end
+
             unit_price_usd /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive?
             if unit_price_base_amount.positive? && vat_mode == "included" && vat_rate.positive?
               unit_price_base_amount /= (1 + vat_rate)
@@ -1482,6 +1561,15 @@ class VentasController < ApplicationController
             product: product,
             benefits_config: client_benefits,
           )
+
+          unit_price = apply_discount_schedule_to_unit_price_usd(
+            base_unit_price_usd: unit_price,
+            quantity: quantity,
+            rules: active_discount_rules_by_target(:products)[product.id],
+            fixed_currency: 'USD',
+            tasa_dolar: tasa_dolar,
+          )
+
           unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
           product_unit_base_amount = 0.to_d
           if base_currency == "VES" && tasa_dolar.to_d.positive?
@@ -1580,6 +1668,8 @@ class VentasController < ApplicationController
   end
 
   def build_products_payload(productos)
+    product_discount_rules = active_discount_rules_by_target(:products)
+
     productos.map do |producto|
       variation_rows = producto.stock_lot_variations.to_a
       variation_groups = variation_rows.group_by(&:product_variation_id)
@@ -1622,11 +1712,17 @@ class VentasController < ApplicationController
         exento: producto.respond_to?(:exento?) ? producto.exento? : false,
         available_total: total_units.to_f,
         variations: variations_payload,
+        scheduled_discount_rules: serialize_discount_rules_for_front(
+          product_discount_rules[producto.id],
+          default_fixed_currency: 'USD',
+          default_fixed_symbol: '$'
+        ),
       }
     end
   end
 
   def build_services_payload(services, tasa_dolar:, unidad_vi:, effective_bcv_rate:)
+    service_discount_rules = active_discount_rules_by_target(:services)
     reference_cache = {}
     symbol_cache = {}
     service_references = services.map do |service|
@@ -1734,6 +1830,11 @@ class VentasController < ApplicationController
           }
         end,
         consumable_costs: consumable_costs,
+        scheduled_discount_rules: serialize_discount_rules_for_front(
+          service_discount_rules[service.id],
+          default_fixed_currency: service_discount_currency(service),
+          default_fixed_symbol: (service_discount_currency(service) == 'VES' ? 'Bs' : '$')
+        ),
       }
     end
   end
@@ -2223,6 +2324,94 @@ class VentasController < ApplicationController
     return 0.to_d unless amount.positive?
 
     amount.round(2)
+  end
+
+  def active_discount_rules
+    @active_discount_rules ||= current_business
+      .discount_schedules
+      .enabled
+      .active_on(Date.current)
+      .to_a
+  end
+
+  def active_discount_rules_by_target(target)
+    target_key = target.to_s
+    @active_discount_rules_by_target ||= {}
+    return @active_discount_rules_by_target[target_key] if @active_discount_rules_by_target.key?(target_key)
+
+    filtered = active_discount_rules.select { |rule| rule.applies_to.to_s == target_key }
+
+    @active_discount_rules_by_target[target_key] = filtered.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |rule, hash|
+      target_ids = target_key == 'products' ? rule.product_ids : rule.service_ids
+      Array(target_ids).each do |target_id|
+        hash[target_id.to_i] << rule
+      end
+    end
+  end
+
+  def apply_discount_schedule_to_unit_price_usd(base_unit_price_usd:, quantity:, rules:, fixed_currency:, tasa_dolar:)
+    unit_price_usd = base_unit_price_usd.to_d
+    return unit_price_usd unless unit_price_usd.positive?
+
+    applicable_rule = pick_discount_rule_for_quantity(rules, quantity)
+    return unit_price_usd if applicable_rule.blank?
+
+    if applicable_rule.discount_mode.to_s == 'percent'
+      percent = [applicable_rule.discount_value.to_d, 100.to_d].min
+      discounted = unit_price_usd * (1 - (percent / 100))
+      return discounted.positive? ? discounted.round(6) : 0.to_d
+    end
+
+    fixed_amount = applicable_rule.discount_value.to_d
+    fixed_amount_usd = if fixed_currency.to_s == 'VES'
+        tasa = tasa_dolar.to_d
+        tasa.positive? ? (fixed_amount / tasa) : 0.to_d
+      else
+        fixed_amount
+      end
+
+    fixed_amount_usd.positive? ? fixed_amount_usd.round(6) : 0.to_d
+  end
+
+  def pick_discount_rule_for_quantity(rules, quantity)
+    qty = quantity.to_d
+    return nil unless qty.positive?
+
+    Array(rules)
+      .select { |rule| discount_rule_applies_to_quantity?(rule, qty) }
+      .max_by { |rule| [rule.quantity_threshold.to_i, rule.id.to_i] }
+  end
+
+  def discount_rule_applies_to_quantity?(rule, quantity)
+    threshold = rule.quantity_threshold.to_d
+    return false unless threshold.positive?
+
+    if rule.quantity_mode.to_s == 'exact_quantity'
+      quantity == threshold
+    else
+      quantity >= threshold
+    end
+  end
+
+  def service_discount_currency(service)
+    return 'USD' if service.blank?
+
+    reference = service.currency_base_price.to_s.strip
+    reference == Service::BOLIVAR_REFERENCE ? 'VES' : 'USD'
+  end
+
+  def serialize_discount_rules_for_front(rules, default_fixed_currency:, default_fixed_symbol:)
+    Array(rules).map do |rule|
+      {
+        id: rule.id,
+        quantity_mode: rule.quantity_mode.to_s,
+        quantity_threshold: rule.quantity_threshold.to_i,
+        discount_mode: rule.discount_mode.to_s,
+        discount_value: rule.discount_value.to_d.to_f,
+        fixed_currency: default_fixed_currency,
+        fixed_symbol: default_fixed_symbol,
+      }
+    end
   end
 
   def venta_params

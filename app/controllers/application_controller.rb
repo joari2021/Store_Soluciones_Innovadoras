@@ -87,7 +87,7 @@ class ApplicationController < ActionController::Base
       end
 
       biopago_accounts = current_business.accounts.where(account_type: 'biopago')
-      today_start_caracas = Time.current.in_time_zone('America/Caracas').beginning_of_day
+      today_start_caracas = closure_reference_day_start_caracas
       biopago_pending_closure_accounts_count = biopago_accounts.count do |account|
         account.account_movements.where(account_settlement_id: nil).where('occurred_at < ?', today_start_caracas).exists?
       end
@@ -211,6 +211,18 @@ class ApplicationController < ActionController::Base
 
   def current_user
     Current.user
+  end
+
+  def closure_reference_day_start_caracas
+    closure_reference_today_caracas.in_time_zone('America/Caracas').beginning_of_day
+  end
+
+  def closure_reference_today_caracas
+    base_today = Time.current.in_time_zone('America/Caracas').to_date
+    # Ajuste temporal solo para pruebas locales de cierres. Se retirara luego.
+    return base_today + 1.day if Rails.env.development? && ENV.fetch('DEV_CLOSURE_TEST_NEXT_DAY', '1') == '1'
+
+    base_today
   end
 
   def require_business

@@ -547,7 +547,8 @@
 
               const option = document.createElement('option');
               option.value = account.id;
-              option.textContent = `${account.name} (${account.currency})`;
+              const accountLabel = String(account.display_name || account.name || '').trim();
+              option.textContent = `${accountLabel} (${account.currency})`;
               option.dataset.currency = account.currency;
               option.dataset.symbol = account.symbol;
               option.dataset.balance = account.balance;
@@ -567,7 +568,8 @@
 
               const option = document.createElement('option');
               option.value = account.id;
-              option.textContent = `${account.name} (${account.currency})`;
+              const accountLabel = String(account.display_name || account.name || '').trim();
+              option.textContent = `${accountLabel} (${account.currency})`;
               option.dataset.symbol = account.symbol;
               option.dataset.currency = account.currency;
               option.dataset.balance = account.balance;

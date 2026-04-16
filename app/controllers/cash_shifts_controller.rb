@@ -898,12 +898,15 @@ class CashShiftsController < ApplicationController
 
   def process_turn_settlements_for_shift!(verification_rows:)
     sale_ids = @cash_shift.ventas.pluck(:id)
-    return [] if sale_ids.empty?
+    cash_exchange_ids = current_business.cambio_efectivos.where(cash_shift_id: @cash_shift.id).pluck(:id)
+    return [] if sale_ids.empty? && cash_exchange_ids.empty?
 
     settlement_rows = []
 
     current_business.accounts.where(account_type: AUTO_SETTLEMENT_ACCOUNT_TYPES).find_each do |account|
-      pending_scope = pending_shift_movements_scope(account: account, sale_ids: sale_ids)
+      pending_scope = pending_shift_movements_scope(account: account,
+                                                    sale_ids: sale_ids,
+                                                    cash_exchange_ids: cash_exchange_ids)
       pending_total = pending_scope.sum(
         Arel.sql("CASE WHEN movement_kind = 'expense' THEN -amount ELSE amount END")
       ).to_d
@@ -942,16 +945,31 @@ class CashShiftsController < ApplicationController
     settlement_rows
   end
 
-  def pending_shift_movements_scope(account:, sale_ids:)
-    return account.account_movements.none if sale_ids.blank?
+  def pending_shift_movements_scope(account:, sale_ids:, cash_exchange_ids: [])
+    normalized_sale_ids = Array(sale_ids).map(&:to_i).select(&:positive?).uniq
+    normalized_cash_exchange_ids = Array(cash_exchange_ids).map(&:to_i).select(&:positive?).uniq
 
-    sale_ids_pattern = sale_ids.map(&:to_i).uniq.join('|')
-    regex_pattern = "\\[VENTA:(#{sale_ids_pattern})\\]"
+    return account.account_movements.none if normalized_sale_ids.empty? && normalized_cash_exchange_ids.empty?
+
+    conditions = []
+    values = []
+
+    if normalized_sale_ids.any?
+      sale_ids_pattern = normalized_sale_ids.join('|')
+      conditions << 'account_movements.description ~ ?'
+      values << "\\[VENTA:(#{sale_ids_pattern})\\]"
+    end
+
+    if normalized_cash_exchange_ids.any?
+      cash_exchange_ids_pattern = normalized_cash_exchange_ids.join('|')
+      conditions << 'account_movements.description ~ ?'
+      values << "\\[CAMBIO_EFECTIVO:(#{cash_exchange_ids_pattern})\\]"
+    end
 
     account
       .account_movements
       .where(account_settlement_id: nil)
-      .where('account_movements.description ~ ?', regex_pattern)
+      .where(conditions.join(' OR '), *values)
   end
 
   def build_shift_closing_notes_payload(raw_notes:, verification_rows:, settlement_rows:)

@@ -93,7 +93,7 @@ Rails.application.routes.draw do
       delete 'drafts/:id', action: :destroy_draft
     end
   end
-  resources :cambio_efectivos, path: 'cambios-efectivo', only: %i[index create destroy] do
+  resources :cambio_efectivos, path: 'cambios-efectivo', only: %i[create destroy] do
     collection do
       post :validate
     end
@@ -103,6 +103,7 @@ Rails.application.routes.draw do
       patch :close
     end
   end
+  resources :discount_schedules, path: 'descuentos-programados', only: %i[index create edit update destroy]
   resources :purchase_invoices, path: 'facturas-compra' do
     collection do
       get :initial_inventory, path: 'inventario-inicial'

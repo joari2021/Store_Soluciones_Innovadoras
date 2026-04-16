@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_07_110000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_16_132000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -268,6 +268,27 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_07_110000) do
     t.index ["service_cost_pending", "debt_kind"], name: "index_debts_on_service_cost_pending_and_kind"
     t.index ["service_id"], name: "index_debts_on_service_id"
     t.index ["venta_id"], name: "index_debts_on_venta_id"
+  end
+
+  create_table "discount_schedules", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "name", default: "", null: false
+    t.string "applies_to", default: "products", null: false
+    t.jsonb "product_ids", default: [], null: false
+    t.jsonb "service_ids", default: [], null: false
+    t.string "quantity_mode", default: "from_quantity", null: false
+    t.integer "quantity_threshold", default: 1, null: false
+    t.string "discount_mode", default: "percent", null: false
+    t.decimal "discount_value", precision: 12, scale: 2, null: false
+    t.date "starts_on"
+    t.date "ends_on"
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "active"], name: "index_discount_schedules_on_business_id_and_active"
+    t.index ["business_id"], name: "index_discount_schedules_on_business_id"
+    t.index ["ends_on"], name: "index_discount_schedules_on_ends_on"
+    t.index ["starts_on"], name: "index_discount_schedules_on_starts_on"
   end
 
   create_table "expense_payments", force: :cascade do |t|
@@ -954,6 +975,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_07_110000) do
   add_foreign_key "debts", "debts", column: "mirror_debt_id"
   add_foreign_key "debts", "services", on_delete: :nullify
   add_foreign_key "debts", "ventas", on_delete: :nullify
+  add_foreign_key "discount_schedules", "businesses"
   add_foreign_key "expense_payments", "accounts"
   add_foreign_key "expense_payments", "expenses"
   add_foreign_key "expenses", "businesses"

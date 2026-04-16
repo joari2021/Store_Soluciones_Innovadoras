@@ -271,6 +271,25 @@ class Account < ApplicationRecord
     CURRENCIES.dig(currency, :icon) || 'coins'
   end
 
+  def cash_role_label
+    CASH_ROLES[cash_role].to_s.presence || cash_role.to_s.humanize
+  end
+
+  def name_with_cash_role
+    raw_name = name.to_s.strip
+    return raw_name unless cash_box_account? && cash_role.present?
+
+    role_suffix = cash_role_label.to_s.downcase
+    return raw_name if role_suffix.blank?
+    return raw_name if raw_name.downcase.end_with?("(#{role_suffix})")
+
+    "#{raw_name} (#{role_suffix})"
+  end
+
+  def option_label
+    "#{name_with_cash_role} (#{currency})"
+  end
+
   def theme_config
     COLOR_THEMES[theme_color] || COLOR_THEMES['sky']
   end

@@ -42,8 +42,7 @@ class AccountSettlementsController < ApplicationController
       return redirect_to account_account_settlement_path(@account, existing_pending_settlement), alert: message
     end
 
-    now_caracas = Time.current.in_time_zone('America/Caracas')
-    today_start = now_caracas.beginning_of_day
+    today_start = closure_reference_day_start_caracas
 
     pending_before_today = @account.account_movements
                                    .where(account_settlement_id: nil)

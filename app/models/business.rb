@@ -258,6 +258,7 @@ class Business < ApplicationRecord
   has_many :cambio_efectivos, dependent: :destroy
   has_many :pack_unwraps, dependent: :destroy
   has_many :product_usages, dependent: :destroy
+  has_many :discount_schedules, dependent: :destroy
   has_many :expenses, dependent: :destroy
   has_many :expense_payments, through: :expenses
   has_many :debts, dependent: :destroy

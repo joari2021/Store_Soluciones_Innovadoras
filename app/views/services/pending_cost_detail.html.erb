@@ -98,7 +98,7 @@
              .select { |account| account.currency.to_s.upcase == expected_payment_currency }
              .map do |account|
                [
-                 "#{account.name} (#{account.currency})",
+                 account.option_label,
                  account.id,
                  {
                    data: {

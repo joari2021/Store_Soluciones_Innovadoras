@@ -1,7 +1,7 @@
 <% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
 <% currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
 <% payment_account_options = @accounts.map do |account| %>
-  <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
+  <% [account.option_label, account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
 <% end %>
 <% selected_account = @accounts.find { |account| account.id == @debt_payment.account_id } %>
 <% selected_payment_currency = selected_account&.currency || @debt_payment.currency || @debt.currency %>

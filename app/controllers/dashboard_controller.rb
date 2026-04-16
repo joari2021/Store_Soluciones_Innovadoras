@@ -98,8 +98,19 @@ class DashboardController < ApplicationController
       convert_to_usd(payment.amount.to_d, payment.currency, payment.occurred_at)
     end
 
+    cash_exchange_profit_usd = current_business.cambio_efectivos
+      .where(occurred_at: @from_date.beginning_of_day..@to_date.end_of_day)
+      .sum do |exchange|
+      convert_to_usd(
+        exchange.monto_recibido.to_d - exchange.efectivo_vendido.to_d,
+        exchange.currency,
+        exchange.occurred_at,
+      )
+    end
+
     gross_profit = (totals[:product_revenue_usd] - totals[:product_cost_usd]) +
-                   (totals[:service_revenue_usd] - totals[:service_cost_usd])
+                   (totals[:service_revenue_usd] - totals[:service_cost_usd]) +
+                   cash_exchange_profit_usd.to_d
 
     {
       product_revenue_usd: totals[:product_revenue_usd].round(2),
@@ -108,6 +119,7 @@ class DashboardController < ApplicationController
       service_revenue_usd: totals[:service_revenue_usd].round(2),
       service_cost_usd: totals[:service_cost_usd].round(2),
       service_profit_usd: (totals[:service_revenue_usd] - totals[:service_cost_usd]).round(2),
+      cash_exchange_profit_usd: cash_exchange_profit_usd.round(2),
       gross_profit_usd: gross_profit.round(2),
       expense_paid_usd: expense_paid_usd.round(2),
       net_profit_after_expenses_usd: (gross_profit - expense_paid_usd).round(2),
@@ -136,6 +148,18 @@ class DashboardController < ApplicationController
       monthly[key][:revenue] += revenue
       monthly[key][:cost] += total_cost
       monthly[key][:profit] += (revenue - total_cost)
+    end
+
+    current_business.cambio_efectivos
+      .where(occurred_at: @from_date.beginning_of_day..@to_date.end_of_day)
+      .find_each do |exchange|
+      key = exchange.occurred_at.in_time_zone("America/Caracas").beginning_of_month
+      profit_usd = convert_to_usd(
+        exchange.monto_recibido.to_d - exchange.efectivo_vendido.to_d,
+        exchange.currency,
+        exchange.occurred_at,
+      )
+      monthly[key][:profit] += profit_usd
     end
 
     monthly.keys.sort.map do |month_start|

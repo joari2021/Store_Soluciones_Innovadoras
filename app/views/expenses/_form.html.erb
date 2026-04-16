@@ -1,5 +1,5 @@
 <% payment_account_options = Array(@accounts).map do |account| %>
-  <% ["#{account.name} (#{account.currency})", account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+  <% [account.option_label, account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
 <% end %>
 <% currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
 <% selected_payment_account = Array(@accounts).find { |account| account.id.to_s == params[:payment_account_id].to_s } %>

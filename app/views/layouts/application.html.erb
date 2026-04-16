@@ -304,6 +304,7 @@
           if (/\/ventas\/\d+(\/|$)/.test(path)) return 'historial_ventas';
           if (path.includes('/productos')) return 'productos';
           if (path.includes('/porcentajes-ganancia')) return 'productos';
+          if (path.includes('/descuentos-programados')) return 'descuentos';
           if (path.includes('/facturas') || path.includes('/facturas-compra')) return 'facturas';
           if (path.includes('/suppliers')) return 'proveedores';
           if (path.includes('/cuentas')) return 'cuentas';

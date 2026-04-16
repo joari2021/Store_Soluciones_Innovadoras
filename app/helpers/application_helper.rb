@@ -62,7 +62,7 @@ module ApplicationHelper
 
     if (cambio_id = extract_movement_source_id(description, 'CAMBIO_EFECTIVO')).present?
       cambio = current_business&.cambio_efectivos&.select(:id)&.find_by(id: cambio_id)
-      return { label: 'Ver cambios', path: cambio_efectivos_path } if cambio.present?
+      return { label: 'Ver historial de ventas', path: historial_ventas_path } if cambio.present?
     end
 
     if (related_movement_id = extract_movement_source_id(description, 'AM')).present?

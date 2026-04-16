@@ -593,6 +593,7 @@ class AccountsController < ApplicationController
       {
         id: account.id,
         name: account.name,
+        display_name: account.name_with_cash_role,
         currency: account.currency,
         symbol: account.currency_symbol,
         balance: account.balance.to_d.to_f,
@@ -672,8 +673,7 @@ class AccountsController < ApplicationController
              }
     end
 
-    now_caracas = Time.current.in_time_zone("America/Caracas")
-    today_start = now_caracas.beginning_of_day
+    today_start = closure_reference_day_start_caracas
 
     pending_before_today = account.account_movements
                                   .where(account_settlement_id: nil)

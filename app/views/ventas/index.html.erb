@@ -340,7 +340,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <button id="ventas-cash-exchange-button" type="button" class="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100">
                 <i data-lucide="repeat" class="h-4 w-4"></i>
-                Cambio de efectivo
+                Pasarela de cambios
               </button>
               <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1.5 shadow-inner shadow-slate-100">
                 <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-200">Productos</button>
@@ -872,6 +872,78 @@
         const fixed = Number(benefits.service_fixed_prices[String(service.id)]);
         if (!(Number.isFinite(fixed) && fixed > 0)) return null;
         return roundTo(fixed, 2);
+      };
+
+      const normalizeScheduledDiscountRules = (rawRules) => {
+        if (!Array.isArray(rawRules)) return [];
+
+        return rawRules
+          .map((rule) => {
+            const quantityMode = String(rule?.quantity_mode || '').trim();
+            const quantityThreshold = Number(rule?.quantity_threshold || 0);
+            const discountMode = String(rule?.discount_mode || '').trim();
+            const discountValue = Number(rule?.discount_value || 0);
+            const fixedCurrency = String(rule?.fixed_currency || 'USD').trim().toUpperCase();
+
+            if (!['exact_quantity', 'from_quantity'].includes(quantityMode)) return null;
+            if (!['percent', 'fixed_amount'].includes(discountMode)) return null;
+            if (!(Number.isFinite(quantityThreshold) && quantityThreshold > 0)) return null;
+            if (!(Number.isFinite(discountValue) && discountValue > 0)) return null;
+
+            return {
+              id: rule?.id,
+              quantity_mode: quantityMode,
+              quantity_threshold: quantityThreshold,
+              discount_mode: discountMode,
+              discount_value: discountValue,
+              fixed_currency: fixedCurrency,
+            };
+          })
+          .filter(Boolean);
+      };
+
+      const resolveScheduledDiscountRule = (rules, quantity) => {
+        const normalizedRules = normalizeScheduledDiscountRules(rules);
+        if (!normalizedRules.length) return null;
+
+        const qty = Number(quantity || 0);
+        if (!(Number.isFinite(qty) && qty > 0)) return null;
+
+        const applicable = normalizedRules.filter((rule) => {
+          if (rule.quantity_mode === 'exact_quantity') return qty === Number(rule.quantity_threshold);
+          return qty >= Number(rule.quantity_threshold);
+        });
+
+        if (!applicable.length) return null;
+
+        applicable.sort((a, b) => {
+          const thresholdDiff = Number(b.quantity_threshold) - Number(a.quantity_threshold);
+          if (thresholdDiff !== 0) return thresholdDiff;
+          return Number(b.id || 0) - Number(a.id || 0);
+        });
+
+        return applicable[0];
+      };
+
+      const applyScheduledDiscountRuleToUnitPriceUsd = (unitPriceUsd, quantity, rules) => {
+        const baseUnit = Number(unitPriceUsd || 0);
+        if (!(Number.isFinite(baseUnit) && baseUnit > 0)) return 0;
+
+        const rule = resolveScheduledDiscountRule(rules, quantity);
+        if (!rule) return roundTo(baseUnit, 6);
+
+        if (rule.discount_mode === 'percent') {
+          const percent = Math.max(0, Math.min(100, Number(rule.discount_value || 0)));
+          return roundTo(Math.max(0, baseUnit * (1 - percent / 100)), 6);
+        }
+
+        let fixedUnitPriceUsd = Number(rule.discount_value || 0);
+        if (String(rule.fixed_currency || 'USD') === 'VES') {
+          if (!(bcvRate > 0)) return roundTo(baseUnit, 6);
+          fixedUnitPriceUsd = fixedUnitPriceUsd / bcvRate;
+        }
+
+        return roundTo(Math.max(0, fixedUnitPriceUsd), 6);
       };
 
       const saveDraftButton = document.getElementById('ventas-save-draft-button');
@@ -1441,7 +1513,7 @@
                           <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
                         </svg>`}
                   </span>
-                  <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
+                  <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.display_name || account.name)}</span>
                   <span class="ventas-pay-chevron" aria-hidden="true">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M6 9l6 6 6-6"></path>
@@ -1537,7 +1609,7 @@
                 <label class="flex cursor-pointer items-start gap-2 text-sm font-semibold ${labelClass} ${labelSurfaceClass}">
                   <input type="checkbox" class="${checkClass}" data-change-check="${account.id}">
                   <span class="inline-flex flex-col">
-                    <span class="inline-flex items-center gap-2 leading-tight"><span>${escapeHtml(account.name)}</span></span>
+                    <span class="inline-flex items-center gap-2 leading-tight"><span>${escapeHtml(account.display_name || account.name)}</span></span>
                     ${typeBadgeHtml}
                   </span>
                 </label>
@@ -2797,7 +2869,7 @@
         if (window.Swal) {
           window.Swal.fire({
             title: 'Procesando cambio',
-            text: 'Registrando el cambio de efectivo, espera...',
+            text: 'Registrando la pasarela de cambios, espera...',
             allowOutsideClick: false,
             allowEscapeKey: false,
             didOpen: () => window.Swal.showLoading(),
@@ -2806,9 +2878,12 @@
         }
 
         const requestPayload = {
+          delivery_target: exchangeData.delivery_target,
+          delivery_option: exchangeData.delivery_option,
           efectivo_vendido: exchangeData.efectivo_vendido,
           monto_caja_operativa: exchangeData.monto_caja_operativa,
           monto_caja_deposito: exchangeData.monto_caja_deposito,
+          monto_cuenta_origen: exchangeData.monto_cuenta_origen,
           monto_recibido: exchangeData.monto_recibido,
           recargo_percent: exchangeData.recargo_percent,
           payment_group: exchangeData.payment_group,
@@ -2833,7 +2908,7 @@
           }
 
           if (!response.ok) {
-            throw new Error(data.error || 'No se pudo registrar el cambio de efectivo.');
+            throw new Error(data.error || 'No se pudo registrar la pasarela de cambios.');
           }
 
           const updateAccountBalance = (accountId, delta) => {
@@ -2850,8 +2925,19 @@
             entry.balance = roundTo(Number(entry.balance || 0) + delta, 2);
           };
 
-          updateCashBoxBalance('cash_box', -exchangeData.monto_caja_operativa);
-          updateCashBoxBalance('cash_deposit', -exchangeData.monto_caja_deposito);
+          if (exchangeData.delivery_target === 'cash') {
+            updateCashBoxBalance('cash_box', -exchangeData.monto_caja_operativa);
+            updateCashBoxBalance('cash_deposit', -exchangeData.monto_caja_deposito);
+          }
+
+          if (exchangeData.delivery_target === 'digital') {
+            const primaryBankAccount = accounts.find((account) => account.account_type === 'bank_account'
+              && account.is_primary
+              && String(account.currency || '').toUpperCase() === 'VES');
+            if (primaryBankAccount) {
+              updateAccountBalance(primaryBankAccount.id, -Number(exchangeData.monto_cuenta_origen || 0));
+            }
+          }
 
           (payload?.payments || []).forEach((payment) => {
             updateAccountBalance(payment.account_id, Number(payment.amount || 0));
@@ -2860,8 +2946,8 @@
           if (window.Swal) {
             window.Swal.fire({
               icon: 'success',
-              title: 'Cambio registrado',
-              text: data.message || 'Cambio de efectivo registrado correctamente.',
+              title: 'Pasarela registrada',
+              text: data.message || 'Pasarela de cambios registrada correctamente.',
               heightAuto: false,
             });
           }
@@ -2889,27 +2975,28 @@
         const cashDepositAccount = cashBoxes.find((account) => account.account_type === 'cash_box'
           && account.cash_role === 'cash_deposit'
           && String(account.currency || '').toUpperCase() === 'VES');
-
-        if (!cashBoxAccount || !cashDepositAccount) {
-          window.Swal.fire({
-            icon: 'error',
-            title: 'Cajas no configuradas',
-            text: 'No se encontraron las cajas en Bs configuradas.',
-            heightAuto: false,
-          });
-          return;
-        }
+        const primaryBankVesAccount = accounts.find((account) => account.account_type === 'bank_account'
+          && account.is_primary
+          && String(account.currency || '').toUpperCase() === 'VES');
 
         const modalHtml = `
           <div class="space-y-4 text-left">
             <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
               <strong>Importante!!:</strong> El monto a cobrar al cliente debe ser completo en el metodo seleccionado, no fraccionado.
             </div>
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Indicar que necesita recibir el cliente</label>
+              <select data-cash-exchange-target class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+                <option value="cash">Efectivo</option>
+                <option value="mobile_other_banks">Pago movil/transf. otros bcos</option>
+                <option value="third_party_bancamiga">Transferencia de tercero (Bancamiga)</option>
+              </select>
+            </div>
             <div class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Calculo de montos y metodo</p>
               <div class="mt-3 grid gap-3 md:grid-cols-3">
                 <div>
-                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Efectivo a vender</label>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500" data-cash-exchange-amount-label>Efectivo a vender</label>
                   <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-amount class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs">
                 </div>
                 <div>
@@ -2926,8 +3013,8 @@
               </div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Origen de los fondos (Bs)</p>
-              <div class="mt-3 grid gap-3 md:grid-cols-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-500" data-cash-exchange-source-title>Origen de los fondos (Bs)</p>
+              <div class="mt-3 grid gap-3 md:grid-cols-2" data-cash-exchange-cash-origin>
                 <div>
                   <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Caja Bs (Caja)</label>
                   <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-box class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs">
@@ -2939,16 +3026,32 @@
                   <div data-cash-exchange-badge-deposit class="mt-2 inline-flex items-center rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"></div>
                 </div>
               </div>
+              <div class="mt-3 hidden" data-cash-exchange-digital-origin>
+                <div>
+                  <label class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cuenta bancaria principal (Bs)</label>
+                  <input type="text" inputmode="decimal" autocomplete="off" data-cash-exchange-origin-bank class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs" readonly>
+                  <div data-cash-exchange-badge-origin-bank class="mt-2 inline-flex items-center rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200"></div>
+                </div>
+              </div>
             </div>
           </div>
         `;
 
         const openCashExchangePaymentModal = (exchangeData, initialState = null) => {
           const paymentGroup = exchangeData.payment_group;
+          const deliveryTarget = exchangeData.delivery_target;
           const filteredAccounts = accounts.filter((account) => {
             const currency = String(account.currency || '').toUpperCase();
             if (currency !== 'VES') return false;
-            if (paymentGroup === 'bank') return account.account_type === 'bank_account';
+            if (deliveryTarget === 'cash') {
+              if (paymentGroup === 'bank') return account.account_type === 'bank_account';
+              return ['pos', 'biopago'].includes(String(account.account_type || '').toLowerCase());
+            }
+
+            if (paymentGroup === 'cash') {
+              return account.account_type === 'cash_box' && account.cash_role === 'cash_box';
+            }
+
             return ['pos', 'biopago'].includes(String(account.account_type || '').toLowerCase());
           });
 
@@ -2958,6 +3061,8 @@
               title: 'Sin cuentas disponibles',
               text: paymentGroup === 'bank'
                 ? 'No hay cuentas bancarias en Bs disponibles para registrar el pago.'
+                : paymentGroup === 'cash'
+                  ? 'No hay cuentas de caja operativa en Bs disponibles para registrar el pago.'
                 : 'No hay cuentas Biopago o Punto de venta disponibles para registrar el pago.',
               heightAuto: false,
             });
@@ -2971,7 +3076,7 @@
               exentoBase: 0,
               vatBase: 0,
             },
-            vatLabel: 'Cambio de efectivo',
+            vatLabel: 'Pasarela de cambios',
             allowCredit: false,
             allowChange: false,
             baseCurrencyOverride: 'ves',
@@ -2987,7 +3092,7 @@
         };
 
         window.Swal.fire({
-          title: 'Cambio de efectivo',
+          title: 'Pasarela de cambios',
           html: modalHtml,
           confirmButtonText: 'Procesar cambio',
           cancelButtonText: 'Cancelar',
@@ -3010,6 +3115,8 @@
 
             initMoneyMasks(dialog);
 
+            const targetSelect = dialog.querySelector('[data-cash-exchange-target]');
+            const amountLabel = dialog.querySelector('[data-cash-exchange-amount-label]');
             const amountInput = dialog.querySelector('[data-cash-exchange-amount]');
             const methodSelect = dialog.querySelector('[data-cash-exchange-method]');
             const chargeInput = dialog.querySelector('[data-cash-exchange-charge]');
@@ -3017,6 +3124,31 @@
             const depositInput = dialog.querySelector('[data-cash-exchange-deposit]');
             const boxBadge = dialog.querySelector('[data-cash-exchange-badge-box]');
             const depositBadge = dialog.querySelector('[data-cash-exchange-badge-deposit]');
+            const sourceTitle = dialog.querySelector('[data-cash-exchange-source-title]');
+            const cashOriginSection = dialog.querySelector('[data-cash-exchange-cash-origin]');
+            const digitalOriginSection = dialog.querySelector('[data-cash-exchange-digital-origin]');
+            const originBankInput = dialog.querySelector('[data-cash-exchange-origin-bank]');
+            const originBankBadge = dialog.querySelector('[data-cash-exchange-badge-origin-bank]');
+
+            const deliveryOption = () => String(targetSelect?.value || 'cash');
+            const isDigitalOption = () => deliveryOption() !== 'cash';
+
+            const updateMethodOptions = () => {
+              if (!methodSelect) return;
+              const current = String(methodSelect.value || '');
+              const options = isDigitalOption()
+                ? [
+                    { value: 'cash', label: 'Efectivo (+5%)' },
+                    { value: 'pos_biopago', label: 'Biopago/Punto de venta (+8%)' },
+                  ]
+                : [
+                    { value: 'bank', label: 'Pago movil/Transferencia (+5%)' },
+                    { value: 'pos_biopago', label: 'Biopago/Punto de venta (+8%)' },
+                  ];
+
+              methodSelect.innerHTML = options.map((option) => `<option value="${option.value}">${option.label}</option>`).join('');
+              methodSelect.value = options.some((option) => option.value === current) ? current : options[0].value;
+            };
 
             const updateBadge = (badge, balance, used) => {
               if (!badge) return;
@@ -3033,7 +3165,7 @@
               badge.classList.toggle('ring-red-200', isNegative);
             };
 
-            const percentForMethod = () => (methodSelect?.value === 'pos_biopago' ? 0.08 : 0.05);
+            const percentForMethod = () => (String(methodSelect?.value || '') === 'pos_biopago' ? 0.08 : 0.05);
             let lastEdited = 'cash';
             let lastBoxEdited = 'box';
 
@@ -3052,8 +3184,14 @@
             };
 
             const syncBoxesFromCash = () => {
-              if (!amountInput || !boxInput || !depositInput) return;
+              if (!amountInput || !boxInput || !depositInput || !originBankInput) return;
               const cashAmount = parseMoneyInput(amountInput);
+
+              if (isDigitalOption()) {
+                setMoneyInputValue(originBankInput, cashAmount, 'Bs ');
+                return;
+              }
+
               const boxAmount = parseMoneyInput(boxInput);
               const depositAmount = parseMoneyInput(depositInput);
 
@@ -3067,15 +3205,33 @@
             };
 
             const refreshBadges = () => {
+              if (isDigitalOption()) {
+                const used = parseMoneyInput(originBankInput);
+                updateBadge(originBankBadge, Number(primaryBankVesAccount?.balance || 0), used);
+                return;
+              }
+
               const boxAmount = parseMoneyInput(boxInput);
               const depositAmount = parseMoneyInput(depositInput);
-              updateBadge(boxBadge, cashBoxAccount.balance, boxAmount);
-              updateBadge(depositBadge, cashDepositAccount.balance, depositAmount);
+              updateBadge(boxBadge, Number(cashBoxAccount?.balance || 0), boxAmount);
+              updateBadge(depositBadge, Number(cashDepositAccount?.balance || 0), depositAmount);
             };
 
-            if (methodSelect) {
-              methodSelect.value = methodSelect.value || 'bank';
+            const updateTargetVisibility = () => {
+              const targetIsDigital = isDigitalOption();
+              if (amountLabel) amountLabel.textContent = targetIsDigital ? 'Monto a enviar' : 'Efectivo a vender';
+              if (sourceTitle) sourceTitle.textContent = targetIsDigital ? 'Cuenta origen del envio (Bs)' : 'Origen de los fondos (Bs)';
+              if (cashOriginSection) cashOriginSection.classList.toggle('hidden', targetIsDigital);
+              if (digitalOriginSection) digitalOriginSection.classList.toggle('hidden', !targetIsDigital);
+            };
+
+            if (targetSelect) {
+              const hasCashBoxes = Boolean(cashBoxAccount && cashDepositAccount);
+              const hasPrimaryBank = Boolean(primaryBankVesAccount);
+              const defaultTarget = hasCashBoxes ? 'cash' : (hasPrimaryBank ? 'mobile_other_banks' : 'cash');
+              targetSelect.value = targetSelect.value || defaultTarget;
             }
+            updateMethodOptions();
 
             if (amountInput) {
               setMoneyInputValue(amountInput, 0, 'Bs ');
@@ -3089,6 +3245,10 @@
             if (depositInput) {
               setMoneyInputValue(depositInput, 0, 'Bs ');
             }
+            if (originBankInput) {
+              setMoneyInputValue(originBankInput, 0, 'Bs ');
+            }
+            updateTargetVisibility();
             refreshBadges();
 
             amountInput?.addEventListener('input', () => {
@@ -3117,6 +3277,18 @@
               refreshBadges();
             });
 
+            targetSelect?.addEventListener('change', () => {
+              updateMethodOptions();
+              updateTargetVisibility();
+              if (lastEdited === 'charge') {
+                syncCashFromCharge();
+              } else {
+                syncChargeFromCash();
+              }
+              syncBoxesFromCash();
+              refreshBadges();
+            });
+
             boxInput?.addEventListener('input', () => {
               lastBoxEdited = 'box';
               syncBoxesFromCash();
@@ -3134,20 +3306,27 @@
             if (!dialog) return null;
 
             const amountInput = dialog.querySelector('[data-cash-exchange-amount]');
+            const targetSelect = dialog.querySelector('[data-cash-exchange-target]');
             const methodSelect = dialog.querySelector('[data-cash-exchange-method]');
             const chargeInput = dialog.querySelector('[data-cash-exchange-charge]');
             const boxInput = dialog.querySelector('[data-cash-exchange-box]');
             const depositInput = dialog.querySelector('[data-cash-exchange-deposit]');
+            const originBankInput = dialog.querySelector('[data-cash-exchange-origin-bank]');
 
+            const deliveryOption = String(targetSelect?.value || 'cash');
+            const deliveryTarget = deliveryOption === 'cash' ? 'cash' : 'digital';
             const efectivoVendido = roundTo(parseMoneyInput(amountInput), 2);
             const montoRecibido = roundTo(parseMoneyInput(chargeInput), 2);
             const montoCajaOperativa = roundTo(parseMoneyInput(boxInput), 2);
             const montoCajaDeposito = roundTo(parseMoneyInput(depositInput), 2);
+            const montoCuentaOrigen = roundTo(parseMoneyInput(originBankInput), 2);
             const paymentGroup = String(methodSelect?.value || 'bank');
             const recargoPercent = paymentGroup === 'pos_biopago' ? 8 : 5;
 
             if (!(efectivoVendido > 0)) {
-              window.Swal.showValidationMessage('Debes indicar el efectivo a vender.');
+              window.Swal.showValidationMessage(deliveryTarget === 'digital'
+                ? 'Debes indicar el monto a enviar.'
+                : 'Debes indicar el efectivo a vender.');
               return null;
             }
 
@@ -3156,20 +3335,42 @@
               return null;
             }
 
-            if ((montoCajaOperativa + montoCajaDeposito - efectivoVendido) > 0.01
-              || (montoCajaOperativa + montoCajaDeposito - efectivoVendido) < -0.01) {
-              window.Swal.showValidationMessage('Los montos de caja no cuadran con el efectivo a vender.');
-              return null;
-            }
+            if (deliveryTarget === 'cash') {
+              if (!cashBoxAccount || !cashDepositAccount) {
+                window.Swal.showValidationMessage('No se encontraron las cajas en Bs configuradas para entregar efectivo.');
+                return null;
+              }
 
-            if (montoCajaOperativa > Number(cashBoxAccount.balance || 0)) {
-              window.Swal.showValidationMessage('El monto en caja operativa excede el disponible.');
-              return null;
-            }
+              if ((montoCajaOperativa + montoCajaDeposito - efectivoVendido) > 0.01
+                || (montoCajaOperativa + montoCajaDeposito - efectivoVendido) < -0.01) {
+                window.Swal.showValidationMessage('Los montos de caja no cuadran con el efectivo a vender.');
+                return null;
+              }
 
-            if (montoCajaDeposito > Number(cashDepositAccount.balance || 0)) {
-              window.Swal.showValidationMessage('El monto en caja deposito excede el disponible.');
-              return null;
+              if (montoCajaOperativa > Number(cashBoxAccount.balance || 0)) {
+                window.Swal.showValidationMessage('El monto en caja operativa excede el disponible.');
+                return null;
+              }
+
+              if (montoCajaDeposito > Number(cashDepositAccount.balance || 0)) {
+                window.Swal.showValidationMessage('El monto en caja deposito excede el disponible.');
+                return null;
+              }
+            } else {
+              if (!primaryBankVesAccount) {
+                window.Swal.showValidationMessage('No existe una cuenta bancaria principal en Bs.');
+                return null;
+              }
+
+              if ((montoCuentaOrigen - efectivoVendido) > 0.01 || (montoCuentaOrigen - efectivoVendido) < -0.01) {
+                window.Swal.showValidationMessage('El monto a enviar debe coincidir con el monto descontado de la cuenta principal.');
+                return null;
+              }
+
+              if (montoCuentaOrigen > Number(primaryBankVesAccount.balance || 0)) {
+                window.Swal.showValidationMessage('El monto a enviar excede el disponible de la cuenta bancaria principal.');
+                return null;
+              }
             }
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -3186,9 +3387,12 @@
               },
               body: JSON.stringify({
                 cambio_efectivo: {
+                  delivery_target: deliveryTarget,
+                  delivery_option: deliveryOption,
                   efectivo_vendido: efectivoVendido,
                   monto_caja_operativa: montoCajaOperativa,
                   monto_caja_deposito: montoCajaDeposito,
+                  monto_cuenta_origen: montoCuentaOrigen,
                   monto_recibido: montoRecibido,
                   payment_group: paymentGroup,
                 },
@@ -3203,14 +3407,17 @@
             }
 
             if (!response.ok) {
-              window.Swal.showValidationMessage(data.error || 'No se pudo validar el cambio de efectivo.');
+              window.Swal.showValidationMessage(data.error || 'No se pudo validar la pasarela de cambios.');
               return null;
             }
 
             return {
+              delivery_target: deliveryTarget,
+              delivery_option: deliveryOption,
               efectivo_vendido: efectivoVendido,
               monto_caja_operativa: montoCajaOperativa,
               monto_caja_deposito: montoCajaDeposito,
+              monto_cuenta_origen: montoCuentaOrigen,
               monto_recibido: montoRecibido,
               recargo_percent: recargoPercent,
               payment_group: paymentGroup,
@@ -3408,46 +3615,44 @@
       };
 
       const computeServicePricing = (service, item = {}) => {
+        let unitPriceUsd = 0;
         const clientFixedUnitPriceUsd = resolveServiceFixedUnitPriceUsdForClient(service, selectedClient);
         if (Number.isFinite(clientFixedUnitPriceUsd) && clientFixedUnitPriceUsd > 0) {
-          return computePricing(clientFixedUnitPriceUsd, item.quantity, { exento: false });
+          unitPriceUsd = roundTo(clientFixedUnitPriceUsd, 6);
         }
 
-        const baseCode = currentBaseCurrencyCode();
-        const persistedBaseAmount = Number(item.unit_price_base_amount);
-        const persistedBaseCurrency = normalizeCurrencyCode(item.unit_price_base_currency);
         const discountPercent = resolvePrintVolumeDiscountPercent(service);
-        const discountMultiplier = discountPercent > 0 ? (1 - discountPercent / 100) : 1;
-        const convertedPersistedBaseAmount = Number.isFinite(persistedBaseAmount) && persistedBaseAmount > 0
-          ? (persistedBaseCurrency === baseCode
-              ? roundTo(persistedBaseAmount, 2)
-              : convertAmount(persistedBaseAmount, persistedBaseCurrency, baseCode))
-          : null;
-
-        if (Number.isFinite(convertedPersistedBaseAmount) && convertedPersistedBaseAmount > 0) {
-          const vatMode = getVatMode();
-          const safeQty = Number(item.quantity) || 0;
-          let unitNet = roundTo(convertedPersistedBaseAmount * discountMultiplier, 2);
-
-          if (vatMode === 'included' && vatRate > 0) {
-            unitNet = roundTo(unitNet / (1 + vatRate), 2);
+        if (!(unitPriceUsd > 0)) {
+          if (service?.printing_type_service && Number(item?.selected_print_unit_price_bs) > 0 && bcvRate > 0) {
+            const baseUnitBs = Number(item.selected_print_unit_price_bs);
+            const discountedBs = discountPercent > 0
+              ? roundTo(baseUnitBs * (1 - discountPercent / 100), 2)
+              : roundTo(baseUnitBs, 2);
+            unitPriceUsd = roundTo(discountedBs / bcvRate, 6);
+          } else {
+            const baseUnitUsd = resolveServiceUnitPriceUsd(service, item);
+            unitPriceUsd = discountPercent > 0
+              ? roundTo(baseUnitUsd * (1 - discountPercent / 100), 6)
+              : roundTo(baseUnitUsd, 6);
           }
-
-          const lineNet = roundTo(unitNet * safeQty, 2);
-          return {
-            unitDisplay: unitNet,
-            lineNet,
-            lineTotal: lineNet,
-          };
         }
 
-        const unitPriceUsd = resolveServiceUnitPriceUsd(service, item);
-        const discountedUnitPriceUsd = unitPriceUsd * discountMultiplier;
-        return computePricing(discountedUnitPriceUsd, item.quantity, { exento: false });
+        unitPriceUsd = applyScheduledDiscountRuleToUnitPriceUsd(
+          unitPriceUsd,
+          item.quantity,
+          service?.scheduled_discount_rules
+        );
+
+        return computePricing(unitPriceUsd, item.quantity, { exento: false });
       };
 
       const computeProductPricing = (product, item = {}) => {
-        const unitPriceUsd = resolveProductUnitPriceUsdForClient(product, selectedClient);
+        let unitPriceUsd = resolveProductUnitPriceUsdForClient(product, selectedClient);
+        unitPriceUsd = applyScheduledDiscountRuleToUnitPriceUsd(
+          unitPriceUsd,
+          item.quantity,
+          product?.scheduled_discount_rules
+        );
         return computePricing(unitPriceUsd, item.quantity, { exento: Boolean(product?.exento) });
       };
 
@@ -6465,7 +6670,10 @@
 
         const modalHtml = `
           <div class="space-y-3 text-left" data-variation-modal-product-id="${product.id}">
-            <p class="text-sm text-slate-500">${escapeHtml(product.name)}</p>
+            <div class="rounded-xl border border-sky-200 bg-gradient-to-r from-sky-50 via-cyan-50 to-white px-3 py-2">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.12em] text-sky-700">Producto seleccionado</p>
+              <p class="mt-1 text-base font-extrabold leading-tight text-slate-800">${escapeHtml(product.name)}</p>
+            </div>
             <p class="text-xs text-slate-400">Agrega cantidades por variacion para incluir varias en una sola vez.</p>
             <div class="space-y-2" data-variation-modal-list>${optionsHtml}</div>
           </div>
@@ -7241,7 +7449,7 @@
                             <path d="M7 20v-4a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v4"></path>
                           </svg>`}
                     </span>
-                    <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.name)}</span>
+                    <span class="ventas-pay-title" data-pay-account-label>${escapeHtml(account.display_name || account.name)}</span>
                     <span class="ventas-pay-chevron" aria-hidden="true">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M6 9l6 6 6-6"></path>
@@ -7337,7 +7545,7 @@
                   <label class="flex cursor-pointer items-start gap-2 text-sm font-semibold ${labelClass} ${labelSurfaceClass}">
                     <input type="checkbox" class="${checkClass}" data-change-check="${account.id}">
                     <span class="inline-flex flex-col">
-                      <span class="inline-flex items-center gap-2 leading-tight"><span>${escapeHtml(account.name)}</span></span>
+                      <span class="inline-flex items-center gap-2 leading-tight"><span>${escapeHtml(account.display_name || account.name)}</span></span>
                       ${typeBadgeHtml}
                     </span>
                   </label>

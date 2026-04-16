@@ -64,7 +64,7 @@
   </div>
   <% debt_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
   <% loan_account_options = @accounts.map do |account| %>
-    <% ["#{account.name} (#{account.currency})", account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
+    <% [account.option_label, account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
   <% end %>
   <% normalize_iso_date = lambda do |value|
        raw = value.to_s.strip
@@ -385,7 +385,7 @@
         <% payment_currency_symbol = debt_currency_symbols[selected_payment_currency] || selected_currency_symbol %>
         <% show_payment_method = selected_payment_account&.account_type == "bank_account" %>
         <% payment_account_options = @accounts.map do |account| %>
-          <% ["#{account.name} (#{account.currency})", account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+          <% [account.option_label, account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
         <% end %>
         <% payment_date_display = normalize_display_date.call(params[:payment_occurred_on].presence) %>
         <% payment_date_display = Date.current.strftime('%d-%m-%Y') if payment_date_display.blank? %>

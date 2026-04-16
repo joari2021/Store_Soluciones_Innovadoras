@@ -288,7 +288,6 @@
           </tbody>
         </table>
       </div>
-
       <% if @pagy.pages > 1 %>
         <div class="border-t border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-5 py-4">
           <div class="flex flex-wrap items-center justify-center gap-2">
@@ -298,7 +297,6 @@
                 Anterior
               <% end %>
             <% end %>
-
             <% @pagy.series.each do |item| %>
               <% if item == :gap %>
                 <span class="inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-transparent px-2 text-sm font-semibold text-slate-400">...</span>
@@ -310,7 +308,6 @@
                             class: 'inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sky-300 hover:text-sky-700 hover:shadow' %>
               <% end %>
             <% end %>
-
             <% if @pagy.next %>
               <%= link_to account_path(@account, movement_query_params.merge(page: @pagy.next)),
                           class: 'inline-flex h-9 min-w-[2.25rem] items-center justify-center rounded-xl border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:border-sky-300 hover:text-sky-700 hover:shadow' do %>
