@@ -74,6 +74,7 @@ Rails.application.routes.draw do
   end
   resources :ventas, only: %i[index create show destroy] do
     member do
+      get :resumen_modal
       get :delivery_note, path: 'nota-entrega'
       get :borrador, path: 'borrador'
       delete :destroy_borrador, path: 'borrador'

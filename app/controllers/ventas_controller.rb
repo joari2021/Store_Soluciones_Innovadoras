@@ -306,6 +306,17 @@ class VentasController < ApplicationController
     render :delivery_note, layout: "print"
   end
 
+  def resumen_modal
+    venta = current_business.ventas.includes(:cliente, :venta_items).find_by(id: params[:id])
+
+    if venta.nil?
+      render html: "<p class='text-sm text-rose-600'>No se encontró la venta solicitada.</p>".html_safe, status: :not_found
+      return
+    end
+
+    render partial: 'ventas/venta_resumen_modal', locals: { venta: venta }
+  end
+
   def destroy
     Venta.transaction do
       restore_stock_for_sale!(@venta)

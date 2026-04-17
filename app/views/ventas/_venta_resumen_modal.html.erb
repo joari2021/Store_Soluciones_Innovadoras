@@ -1,0 +1,29 @@
+<%# Partial para mostrar resumen de venta en modal %>
+<%# Variables esperadas: venta %>
+<div>
+  <h3 class="text-lg font-bold text-slate-800 mb-2">Resumen de venta #<%= venta.id %></h3>
+  <p class="text-sm text-slate-600 mb-1">Cliente: <%= venta.cliente_display_name %></p>
+  <p class="text-sm text-slate-600 mb-1">Fecha: <%= venta.created_at.strftime('%d/%m/%Y %H:%M') %></p>
+  <p class="text-sm text-slate-600 mb-1">Total: <strong><%= number_to_currency(venta.total_usd, unit: '$') %></strong> | <strong><%= number_to_currency(venta.total_bs, unit: 'Bs ') %></strong></p>
+  <div class="mt-2">
+    <p class="text-xs font-semibold text-slate-500 mb-1">Items:</p>
+    <ul class="list-disc pl-5 text-xs text-slate-700">
+      <% venta.venta_items.limit(5).each do |item| %>
+        <% item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
+        <% item_qty = item.quantity.to_d %>
+        <% item_subtotal = item.subtotal_usd.to_d %>
+        <li><%= item_name %> x <%= item_qty %> - <%= number_to_currency(item_subtotal, unit: '$') %></li>
+      <% end %>
+      <% if venta.venta_items.count > 5 %>
+        <li>...y <%= venta.venta_items.count - 5 %> más</li>
+      <% end %>
+    </ul>
+  </div>
+  <div class="mt-4 flex gap-2">
+    <a href="<%= venta_path(venta) %>" class="inline-flex items-center gap-2 rounded bg-sky-700 px-3 py-2 text-xs font-semibold text-white hover:bg-sky-800" data-turbo-frame="_top">
+      <i data-lucide="arrow-up-right" class="h-4 w-4"></i>
+      Ir a venta completa
+    </a>
+    <button type="button" class="inline-flex items-center gap-2 rounded border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" data-action="click->venta-modal#close">Cerrar</button>
+  </div>
+</div>
