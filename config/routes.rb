@@ -66,11 +66,13 @@ Rails.application.routes.draw do
     resources :expense_payments, only: %i[new create]
     post 'convert_amount', to: 'api/expense_payments#convert_amount', on: :member
   end
-  resources :debts, path: 'deudas' do
+  resources :debts, path: 'deudas', except: %i[edit update] do
     collection do
+      get :prepare_group, path: 'preparar-grupo'
       post :create_cliente, path: 'crear-cliente'
+      delete :hide_paid_group, path: 'ocultar-pagada'
     end
-    resources :debt_payments, only: %i[new create]
+    resources :debt_payments, only: %i[new create destroy]
   end
   resources :ventas, only: %i[index create show destroy] do
     member do

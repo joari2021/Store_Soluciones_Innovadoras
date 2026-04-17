@@ -5,10 +5,10 @@
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Deudas</h1>
         <p class="mt-1 text-sm text-slate-500">Controla cuentas por cobrar y por pagar en un solo lugar.</p>
       </div>
-      <%= link_to new_debt_path, class: "w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium", data: { turbo_frame: "_top" } do %>
+      <button type="button" class="w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" data-prepare-group-open="true">
         <i data-lucide="plus" class="h-5 w-5"></i>
         Nueva deuda
-      <% end %>
+      </button>
     </div>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -59,23 +59,25 @@
         </div>
       </div>
     </div>
-    <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm" data-debt-reveal="true">
-      <p class="text-right text-xs font-semibold uppercase tracking-wider text-amber-700">Resumen por pagar</p>
-      <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <div class="rounded-xl border border-amber-200 bg-white p-3 sm:min-w-[220px] sm:text-right">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Vencimiento mas proximo/pasado</p>
-          <p class="mt-2 text-lg font-bold text-slate-800"><%= @payable_next_due_on ? @payable_next_due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
-          <p class="mt-1 text-xs <%= @payable_overdue_count.positive? ? 'text-rose-600' : 'text-slate-500' %>">
-            <%= @payable_overdue_count.positive? ? "#{@payable_overdue_count} vencidas" : "Sin vencidas" %>
-          </p>
-        </div>
-        <div class="rounded-xl border border-amber-200 bg-white p-3 sm:min-w-[220px] sm:text-right">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Total deuda por pagar $ (BCV)</p>
-          <p class="mt-2 text-lg font-bold text-amber-700"><%= number_to_currency(@payable_total_usd_bcv, unit: "$ ") %></p>
-          <p class="mt-1 text-xs text-amber-700/80"><%= @payable_count %> registros activos.</p>
+    <% if current_user_admin? %>
+      <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm" data-debt-reveal="true">
+        <p class="text-right text-xs font-semibold uppercase tracking-wider text-amber-700">Resumen por pagar</p>
+        <div class="mt-3 flex flex-col gap-3 sm:flex-row sm:justify-end">
+          <div class="rounded-xl border border-amber-200 bg-white p-3 sm:min-w-[220px] sm:text-right">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Vencimiento mas proximo/pasado</p>
+            <p class="mt-2 text-lg font-bold text-slate-800"><%= @payable_next_due_on ? @payable_next_due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
+            <p class="mt-1 text-xs <%= @payable_overdue_count.positive? ? 'text-rose-600' : 'text-slate-500' %>">
+              <%= @payable_overdue_count.positive? ? "#{@payable_overdue_count} vencidas" : "Sin vencidas" %>
+            </p>
+          </div>
+          <div class="rounded-xl border border-amber-200 bg-white p-3 sm:min-w-[220px] sm:text-right">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Total deuda por pagar $ (BCV)</p>
+            <p class="mt-2 text-lg font-bold text-amber-700"><%= number_to_currency(@payable_total_usd_bcv, unit: "$ ") %></p>
+            <p class="mt-1 text-xs text-amber-700/80"><%= @payable_count %> registros activos.</p>
+          </div>
         </div>
       </div>
-    </div>
+    <% end %>
   </div>
   <% if @has_any_debts %>
     <div class="grid gap-6 xl:grid-cols-2">
@@ -101,47 +103,38 @@
               <% grouped_by_currency = debts.group_by(&:currency) %>
               <% grouped_by_currency.each do |currency, debts_in_currency| %>
                 <% is_usdt = currency.to_s.upcase == 'USDT' %>
+                <% group_key = [cliente.present? ? cliente.id : 'none', currency.to_s.upcase] %>
+                <% totals = @receivable_group_totals[group_key] || { display_total: 0.to_d, display_symbol: '$', badge_label: 'USD $', ves_total: 0.to_d } %>
                 <article class="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Cliente</p>
                       <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
-                      <% if is_usdt %>
-                        <span class="inline-block mt-1 rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">USDT</span>
-                      <% end %>
+                      <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold <%= is_usdt ? 'bg-yellow-100 text-yellow-700' : 'bg-sky-100 text-sky-700' %>"><%= totals[:badge_label] %></span>
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
                       <p class="text-base font-bold text-emerald-600"><%= debts_in_currency.count %></p>
                       <p class="text-[11px] text-slate-500">Moneda: <%= currency %></p>
+                      <p class="text-[11px] text-slate-500">Actualizado: <%= debts_in_currency.first.card_last_activity_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') || '-' %></p>
                     </div>
                   </div>
                   <div class="mt-3 grid gap-3">
-                    <!-- Mostrar solo el total agrupado -->
-                    <% total_balance = debts_in_currency.sum { |d| d.balance } %>
-                    <% total_balance_usd = CurrencyConverter.convert(amount: total_balance, from_currency: currency, to_currency: 'USD')[:amount].round(2) rescue total_balance %>
-                    <% total_balance_ves = CurrencyConverter.convert(amount: total_balance, from_currency: currency, to_currency: 'VES')[:amount].round(2) rescue total_balance %>
                     <div class="rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                       <div>
                         <span class="block text-xs font-semibold text-emerald-700">Saldo total</span>
-                        <span class="block text-lg font-bold text-emerald-800">$ <%= total_balance_usd %> | Bs <%= total_balance_ves %></span>
+                        <span class="block text-lg font-bold text-emerald-800"><%= totals[:display_symbol] %> <%= number_with_precision(totals[:display_total], precision: 2, delimiter: '.', separator: ',') %> | Bs <%= number_with_precision(totals[:ves_total], precision: 2, delimiter: '.', separator: ',') %></span>
                       </div>
                       <div class="flex flex-wrap gap-2 mt-2 md:mt-0">
-                        <%= link_to new_debt_debt_payment_path(debts_in_currency.first), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
-                          <i data-lucide="credit-card" class="h-4 w-4"></i>
-                          Registrar cobro
-                        <% end %>
-                        <% if can_manage_action?(:edit_debt) %>
-                          <%= link_to edit_debt_path(debts_in_currency.first), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
-                            <i data-lucide="pencil" class="h-4 w-4"></i>
-                            Editar
-                          <% end %>
-                        <% end %>
-                        <% if can_manage_action?(:destroy_debt) %>
-                          <%= link_to debt_path(debts_in_currency.first), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100", data: { turbo_method: :delete, swal_delete: "debt" } do %>
-                            <i data-lucide="trash" class="h-4 w-4"></i>
-                            Eliminar
-                          <% end %>
+                        <% show_group_params = {
+                             group_currency: currency,
+                             group_cliente_id: cliente.present? ? cliente.id : 'none',
+                              only_active: 1,
+                              group_token: debts_in_currency.first.try(:group_token)
+                           } %>
+                        <%= link_to debt_path(debts_in_currency.first, show_group_params), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
+                          <i data-lucide="list" class="h-4 w-4"></i>
+                          Ver deudas
                         <% end %>
                       </div>
                     </div>
@@ -169,111 +162,177 @@
           </button>
           <div class="mt-3 hidden space-y-3" data-debt-paid-list="receivable">
             <% @receivable_paid_groups.each do |cliente, debts| %>
-              <% grouped_currencies = debts.map(&:currency).uniq %>
-              <article class="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Cliente</p>
-                    <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
+              <% debts.each do |debt| %>
+                <% currency = debt.currency.to_s.upcase %>
+                <% is_usdt = currency == 'USDT' %>
+                <% rate_reference = CurrencyConverter.reference_for_currency(currency) %>
+                <% rate_symbol = TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence %>
+                <% fallback_symbol = Account::CURRENCIES.dig(currency, :symbol) || currency %>
+                <% display_symbol = rate_symbol.presence || fallback_symbol %>
+                <% badge_name = rate_reference.presence || currency %>
+                <% display_total = currency == 'USD' ? debt.card_total_balance.to_d : debt.card_total_balance.to_d %>
+                <% ves_conversion = CurrencyConverter.convert(amount: display_total, from_currency: currency == 'USD' ? 'USD' : currency, to_currency: 'VES') %>
+                <% totals = { display_total: display_total, display_symbol: display_symbol, badge_label: "#{badge_name} #{display_symbol}", ves_total: ves_conversion&.dig(:amount).to_d.round(2) } %>
+                <article class="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-xs font-semibold uppercase tracking-wider text-emerald-600">Cliente</p>
+                      <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
+                      <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold <%= is_usdt ? 'bg-yellow-100 text-yellow-700' : 'bg-sky-100 text-sky-700' %>"><%= totals[:badge_label] %></span>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</p>
+                      <p class="text-base font-bold text-emerald-600">Pagado</p>
+                      <p class="text-[11px] text-slate-500">Moneda: <%= currency %></p>
+                      <p class="text-[11px] text-slate-500">Actualizado: <%= debt.card_last_activity_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') || '-' %></p>
+                    </div>
                   </div>
-                  <div class="text-right">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Pagadas</p>
-                    <p class="text-base font-bold text-emerald-600"><%= debts.count %></p>
-                    <p class="text-[11px] text-slate-500">Monedas: <%= grouped_currencies.join(', ') %></p>
+                  <div class="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                    <div>
+                      <span class="block text-xs font-semibold text-emerald-700">Saldo total</span>
+                      <span class="block text-lg font-bold text-emerald-800"><%= totals[:display_symbol] %> <%= number_with_precision(totals[:display_total], precision: 2, delimiter: '.', separator: ',') %> | Bs <%= number_with_precision(totals[:ves_total], precision: 2, delimiter: '.', separator: ',') %></span>
+                    </div>
+                    <div class="flex flex-wrap gap-2 mt-2 md:mt-0">
+                      <% show_group_params = {
+                           group_currency: currency,
+                           group_cliente_id: cliente.present? ? cliente.id : 'none',
+                           only_active: 0,
+                          group_token: debt.try(:group_token)
+                         } %>
+                      <%= link_to debt_path(debt, show_group_params), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
+                        <i data-lucide="list" class="h-4 w-4"></i>
+                        Ver deudas
+                      <% end %>
+                      <% if current_user_admin? %>
+                        <% hidden_group_key = @collapsed_group_keys[debt.id] %>
+                        <%= link_to hide_paid_group_debts_path(group_key: hidden_group_key), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100", title: "Ocultar de pagadas", aria: { label: "Ocultar de pagadas" }, data: { turbo_method: :delete, swal_delete: "debt_paid_group_hide" } do %>
+                          <i data-lucide="trash" class="h-4 w-4"></i>
+                        <% end %>
+                      <% end %>
+                    </div>
                   </div>
-                </div>
-                <div class="mt-3 grid gap-3">
-                  <% debts.each do |debt| %>
-                    <%= render "debt_card", debt: debt %>
-                  <% end %>
-                </div>
-              </article>
+                </article>
+              <% end %>
             <% end %>
           </div>
         <% end %>
       </section>
-      <section class="rounded-3xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white p-4 shadow-sm md:p-5" data-debt-reveal="true">
-        <div class="mb-4 flex items-center justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-xs font-semibold uppercase tracking-widest text-amber-600">Compromisos</p>
-            <h2 class="text-xl font-extrabold tracking-tight text-slate-800">Deudas por pagar</h2>
-            <p class="mt-1 text-xs text-slate-500">Obligaciones pendientes con proveedores.</p>
-          </div>
-          <div class="text-right">
-            <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Registros</p>
-            <p class="text-2xl font-extrabold text-amber-600"><%= @payable_count %></p>
-            <p class="text-xs <%= @payable_overdue_count.positive? ? 'text-rose-600' : 'text-slate-500' %>">
-              <%= @payable_overdue_count.positive? ? "#{@payable_overdue_count} vencidas" : "Sin vencidas" %>
-            </p>
-            <p class="mt-1 text-[11px] font-semibold text-amber-700">Vencidas $ (BCV): <%= number_to_currency(@payable_overdue_total_usd_bcv, unit: "$ ") %></p>
-          </div>
-        </div>
-        <% if @payable_debts.any? %>
-          <div class="grid gap-4">
-            <% @payable_groups.each do |cliente, debts| %>
-              <% grouped_currencies = debts.map(&:currency).uniq %>
-              <article class="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Cliente</p>
-                    <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
-                    <p class="text-base font-bold text-amber-600"><%= debts.count %></p>
-                    <p class="text-[11px] text-slate-500">Monedas: <%= grouped_currencies.join(', ') %></p>
-                  </div>
-                </div>
-                <div class="mt-3 grid gap-3">
-                  <% debts.each do |debt| %>
-                    <%= render "debt_card", debt: debt %>
-                  <% end %>
-                </div>
-              </article>
-            <% end %>
-          </div>
-        <% else %>
-          <div class="rounded-2xl border border-dashed border-amber-300 bg-white/80 p-8 text-center" data-debt-reveal="true">
-            <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-              <i data-lucide="credit-card" class="h-5 w-5"></i>
+      <% if current_user_admin? %>
+        <section class="rounded-3xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white p-4 shadow-sm md:p-5" data-debt-reveal="true">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs font-semibold uppercase tracking-widest text-amber-600">Compromisos</p>
+              <h2 class="text-xl font-extrabold tracking-tight text-slate-800">Deudas por pagar</h2>
+              <p class="mt-1 text-xs text-slate-500">Obligaciones pendientes con proveedores.</p>
             </div>
-            <p class="text-sm font-semibold text-slate-700">No hay deudas por pagar pendientes</p>
-            <p class="mt-1 text-xs text-slate-500">Los pagos pendientes apareceran aqui.</p>
+            <div class="text-right">
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Registros</p>
+              <p class="text-2xl font-extrabold text-amber-600"><%= @payable_count %></p>
+              <p class="text-xs <%= @payable_overdue_count.positive? ? 'text-rose-600' : 'text-slate-500' %>">
+                <%= @payable_overdue_count.positive? ? "#{@payable_overdue_count} vencidas" : "Sin vencidas" %>
+              </p>
+              <p class="mt-1 text-[11px] font-semibold text-amber-700">Vencidas $ (BCV): <%= number_to_currency(@payable_overdue_total_usd_bcv, unit: "$ ") %></p>
+            </div>
           </div>
-        <% end %>
-        <% if @payable_paid_count.positive? %>
-          <button
+          <% if @payable_debts.any? %>
+            <div class="grid gap-4">
+              <% @payable_groups.each do |cliente, debts| %>
+                <% grouped_currencies = debts.map(&:currency).uniq %>
+                <article class="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Cliente</p>
+                      <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
+                      <p class="text-base font-bold text-amber-600"><%= debts.count %></p>
+                      <p class="text-[11px] text-slate-500">Monedas: <%= grouped_currencies.join(', ') %></p>
+                    </div>
+                  </div>
+                  <div class="mt-3 grid gap-3">
+                    <% debts.each do |debt| %>
+                      <%= render "debt_card", debt: debt %>
+                    <% end %>
+                  </div>
+                </article>
+              <% end %>
+            </div>
+          <% else %>
+            <div class="rounded-2xl border border-dashed border-amber-300 bg-white/80 p-8 text-center" data-debt-reveal="true">
+              <div class="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                <i data-lucide="credit-card" class="h-5 w-5"></i>
+              </div>
+              <p class="text-sm font-semibold text-slate-700">No hay deudas por pagar pendientes</p>
+              <p class="mt-1 text-xs text-slate-500">Los pagos pendientes apareceran aqui.</p>
+            </div>
+          <% end %>
+          <% if @payable_paid_count.positive? %>
+            <button
             type="button"
             class="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50"
             data-debt-paid-toggle="payable"
           >
-            Mostrar deudas pagadas (<%= @payable_paid_count %>)
-          </button>
-          <div class="mt-3 hidden space-y-3" data-debt-paid-list="payable">
-            <% @payable_paid_groups.each do |cliente, debts| %>
-              <% grouped_currencies = debts.map(&:currency).uniq %>
-              <article class="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Cliente</p>
-                    <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Pagadas</p>
-                    <p class="text-base font-bold text-amber-600"><%= debts.count %></p>
-                    <p class="text-[11px] text-slate-500">Monedas: <%= grouped_currencies.join(', ') %></p>
-                  </div>
-                </div>
-                <div class="mt-3 grid gap-3">
-                  <% debts.each do |debt| %>
-                    <%= render "debt_card", debt: debt %>
-                  <% end %>
-                </div>
-              </article>
-            <% end %>
-          </div>
-        <% end %>
-      </section>
+              Mostrar deudas pagadas (<%= @payable_paid_count %>)
+            </button>
+            <div class="mt-3 hidden space-y-3" data-debt-paid-list="payable">
+              <% @payable_paid_groups.each do |cliente, debts| %>
+                <% debts.each do |debt| %>
+                  <% currency = debt.currency.to_s.upcase %>
+                  <% is_usdt = currency == 'USDT' %>
+                  <% rate_reference = CurrencyConverter.reference_for_currency(currency) %>
+                  <% rate_symbol = TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence %>
+                  <% fallback_symbol = Account::CURRENCIES.dig(currency, :symbol) || currency %>
+                  <% display_symbol = rate_symbol.presence || fallback_symbol %>
+                  <% badge_name = rate_reference.presence || currency %>
+                  <% display_total = currency == 'USD' ? debt.card_total_balance.to_d : debt.card_total_balance.to_d %>
+                  <% ves_conversion = CurrencyConverter.convert(amount: display_total, from_currency: currency == 'USD' ? 'USD' : currency, to_currency: 'VES') %>
+                  <% totals = { display_total: display_total, display_symbol: display_symbol, badge_label: "#{badge_name} #{display_symbol}", ves_total: ves_conversion&.dig(:amount).to_d.round(2) } %>
+                  <article class="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Cliente</p>
+                        <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
+                        <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold <%= is_usdt ? 'bg-yellow-100 text-yellow-700' : 'bg-sky-100 text-sky-700' %>"><%= totals[:badge_label] %></span>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</p>
+                        <p class="text-base font-bold text-amber-600">Pagado</p>
+                        <p class="text-[11px] text-slate-500">Moneda: <%= currency %></p>
+                        <p class="text-[11px] text-slate-500">Actualizado: <%= debt.card_last_activity_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') || '-' %></p>
+                      </div>
+                    </div>
+                    <div class="mt-3 rounded-xl border border-amber-100 bg-amber-50/60 p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                      <div>
+                        <span class="block text-xs font-semibold text-amber-700">Saldo total</span>
+                        <span class="block text-lg font-bold text-amber-800"><%= totals[:display_symbol] %> <%= number_with_precision(totals[:display_total], precision: 2, delimiter: '.', separator: ',') %> | Bs <%= number_with_precision(totals[:ves_total], precision: 2, delimiter: '.', separator: ',') %></span>
+                      </div>
+                      <div class="flex flex-wrap gap-2 mt-2 md:mt-0">
+                        <% show_group_params = {
+                           group_currency: currency,
+                           group_cliente_id: cliente.present? ? cliente.id : 'none',
+                           only_active: 0,
+                          group_token: debt.try(:group_token)
+                         } %>
+                        <%= link_to debt_path(debt, show_group_params), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
+                          <i data-lucide="list" class="h-4 w-4"></i>
+                          Ver deudas
+                        <% end %>
+                        <% if current_user_admin? %>
+                          <% hidden_group_key = @collapsed_group_keys[debt.id] %>
+                          <%= link_to hide_paid_group_debts_path(group_key: hidden_group_key), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100", title: "Ocultar de pagadas", aria: { label: "Ocultar de pagadas" }, data: { turbo_method: :delete, swal_delete: "debt_paid_group_hide" } do %>
+                            <i data-lucide="trash" class="h-4 w-4"></i>
+                          <% end %>
+                        <% end %>
+                      </div>
+                    </div>
+                  </article>
+                <% end %>
+              <% end %>
+            </div>
+          <% end %>
+        </section>
+      <% end %>
     </div>
   <% else %>
     <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm" data-debt-reveal="true">
@@ -289,63 +348,135 @@
     </div>
   <% end %>
 </div>
-<script>
-  (function () {
-    const initDebtIndexTransition = () => {
-      const nodes = Array.from(document.querySelectorAll("[data-debt-reveal='true']"));
-      if (nodes.length === 0) return;
+<div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-prepare-group-modal="true">
+  <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+    <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-prepare-group-close="true">&times;</button>
+    <div class="mb-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
+      <h3 class="text-lg font-bold text-slate-800">Selecciona cliente y moneda</h3>
+      <p class="mt-1 text-xs text-slate-500">Si ya existe un grupo activo para esa combinacion te enviaremos directo; si no, abriremos un grupo nuevo sin guardar nada hasta registrar la deuda.</p>
+    </div>
+    <%= form_with url: prepare_group_debts_path, method: :get, local: true, class: "space-y-4", data: { prepare_group_form: true } do %>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500">Cliente</label>
+        <select name="cliente_id" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+          <option value="">Selecciona un cliente</option>
+          <% @group_setup_clientes.each do |cliente| %>
+            <option value="<%= cliente.id %>"><%= cliente.name %></option>
+          <% end %>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500">Moneda</label>
+        <select name="currency" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+          <% @group_setup_currency_options.each do |currency| %>
+            <option value="<%= currency %>" <%= 'selected' if currency.to_s.upcase == 'USD' %>><%= currency %></option>
+            <% end %>
+          </select>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            Continuar
+          </button>
+          <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-prepare-group-close="true">
+            Cancelar
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const initDebtIndexTransition = () => {
+        const nodes = Array.from(document.querySelectorAll("[data-debt-reveal='true']"));
+        if (nodes.length === 0) return;
 
-      nodes.forEach((node, index) => {
-        node.classList.add("transition-all", "duration-500");
-        node.classList.add("opacity-0", "translate-y-3");
-        node.style.transitionTimingFunction = "cubic-bezier(0.22, 1, 0.36, 1)";
-        node.style.transitionDelay = `${Math.min(index * 40, 360)}ms`;
-      });
+        nodes.forEach((node, index) => {
+          node.classList.add("transition-all", "duration-500");
+          node.classList.add("opacity-0", "translate-y-3");
+          node.style.transitionTimingFunction = "cubic-bezier(0.22, 1, 0.36, 1)";
+          node.style.transitionDelay = `${Math.min(index * 40, 360)}ms`;
+        });
 
-      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          nodes.forEach((node) => {
-            node.classList.remove("opacity-0", "translate-y-3");
-            node.classList.add("opacity-100", "translate-y-0");
+          requestAnimationFrame(() => {
+            nodes.forEach((node) => {
+              node.classList.remove("opacity-0", "translate-y-3");
+              node.classList.add("opacity-100", "translate-y-0");
+            });
           });
         });
-      });
-    };
+      };
 
-    const initPaidDebtToggles = () => {
-      const buttons = Array.from(document.querySelectorAll("[data-debt-paid-toggle]"));
-      if (buttons.length === 0) return;
+      const initPaidDebtToggles = () => {
+        const buttons = Array.from(document.querySelectorAll("[data-debt-paid-toggle]"));
+        if (buttons.length === 0) return;
 
-      buttons.forEach((button) => {
-        if (button.dataset.boundToggle === "true") return;
-        button.dataset.boundToggle = "true";
+        buttons.forEach((button) => {
+          if (button.dataset.boundToggle === "true") return;
+          button.dataset.boundToggle = "true";
 
-        button.addEventListener("click", () => {
-          const section = button.dataset.debtPaidToggle;
-          const list = document.querySelector(`[data-debt-paid-list='${section}']`);
-          if (!list) return;
+          button.addEventListener("click", () => {
+            const section = button.dataset.debtPaidToggle;
+            const list = document.querySelector(`[data-debt-paid-list='${section}']`);
+            if (!list) return;
 
-          const isHidden = list.classList.contains("hidden");
-          list.classList.toggle("hidden", !isHidden);
+            const isHidden = list.classList.contains("hidden");
+            list.classList.toggle("hidden", !isHidden);
 
-          const countMatch = button.textContent.match(/\(\d+\)/);
-          const countLabel = countMatch ? ` ${countMatch[0]}` : "";
-          button.textContent = isHidden
-            ? `Ocultar deudas pagadas${countLabel}`
-            : `Mostrar deudas pagadas${countLabel}`;
+            const countMatch = button.textContent.match(/\(\d+\)/);
+            const countLabel = countMatch ? ` ${countMatch[0]}` : "";
+            button.textContent = isHidden
+              ? `Ocultar deudas pagadas${countLabel}`
+              : `Mostrar deudas pagadas${countLabel}`;
+          });
         });
-      });
-    };
+      };
 
-    if (window.__debtIndexTransitionBound !== true) {
-      document.addEventListener("turbo:load", initDebtIndexTransition);
-      document.addEventListener("turbo:render", initDebtIndexTransition);
-      document.addEventListener("turbo:load", initPaidDebtToggles);
-      document.addEventListener("turbo:render", initPaidDebtToggles);
-      window.__debtIndexTransitionBound = true;
-    }
+      const initPrepareGroupModal = () => {
+        const modal = document.querySelector("[data-prepare-group-modal='true']");
+        if (!modal || modal.dataset.boundPrepareGroupModal === "true") return;
 
-    initDebtIndexTransition();
-    initPaidDebtToggles();
-  })();
-</script>
+        modal.dataset.boundPrepareGroupModal = "true";
+
+        const openButtons = document.querySelectorAll("[data-prepare-group-open='true']");
+        const closeButtons = modal.querySelectorAll("[data-prepare-group-close='true']");
+
+        const openModal = () => {
+          modal.classList.remove("hidden");
+          modal.classList.add("flex");
+        };
+
+        const closeModal = () => {
+          modal.classList.add("hidden");
+          modal.classList.remove("flex");
+        };
+
+        openButtons.forEach((button) => {
+          button.addEventListener("click", openModal);
+        });
+
+        closeButtons.forEach((button) => {
+          button.addEventListener("click", closeModal);
+        });
+
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) closeModal();
+        });
+      };
+
+      if (window.__debtIndexTransitionBound !== true) {
+        document.addEventListener("turbo:load", initDebtIndexTransition);
+        document.addEventListener("turbo:render", initDebtIndexTransition);
+        document.addEventListener("turbo:load", initPaidDebtToggles);
+        document.addEventListener("turbo:render", initPaidDebtToggles);
+        document.addEventListener("turbo:load", initPrepareGroupModal);
+        document.addEventListener("turbo:render", initPrepareGroupModal);
+        window.__debtIndexTransitionBound = true;
+      }
+
+      initDebtIndexTransition();
+      initPaidDebtToggles();
+      initPrepareGroupModal();
+    })();
+  </script>

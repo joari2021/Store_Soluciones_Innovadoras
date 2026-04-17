@@ -61,7 +61,7 @@ class DebtPayment < ApplicationRecord
   def reference_rules
     return if account.blank?
     return unless account.account_type == "bank_account"
-    return if payment_method.blank?
+    return unless debt&.receivable?
 
     if reference.blank?
       errors.add(:reference, "es requerido")

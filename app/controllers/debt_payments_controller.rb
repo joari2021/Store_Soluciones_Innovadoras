@@ -1,30 +1,53 @@
 class DebtPaymentsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
+  before_action :ensure_can_register_debt_payment!, only: %i[new create]
   before_action :set_debt
-  before_action :load_accounts
+  before_action :load_accounts, only: %i[new create]
   before_action :load_currency_rates, only: %i[new create]
+  before_action :set_debt_payment, only: %i[destroy]
 
   def new
-    default_account = @accounts.first
-    default_currency = default_account&.currency || @debt.currency
-    occurred_on = Date.current
+    redirect_to debt_path(@debt, show_return_params.merge(open_payment_modal: 1))
+  end
 
-    @debt_payment = @debt.debt_payments.new(
-      account: default_account,
-      occurred_at: occurred_on,
-      amount: default_payment_amount(default_currency, occurred_on),
-      currency: default_currency,
-    )
+  def destroy
+    shift = cash_shift_for_payment(@debt_payment)
 
-    build_payment_context(selected_currency: default_currency, occurred_on: occurred_on)
+    if shift&.closed? && !current_user_admin?
+      redirect_to debt_path(@debt, show_return_params),
+                  alert: 'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
+      return
+    end
+
+    if shift.nil? && !current_user_admin?
+      redirect_to debt_path(@debt, show_return_params),
+                  alert: 'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
+      return
+    end
+
+    payments_to_delete = [@debt_payment] + mirror_synced_payments_for(@debt_payment)
+    movements_to_delete = payments_to_delete.flat_map { |payment| linked_account_movements_for_payment(payment) }
+    movements_to_delete = movements_to_delete.uniq { |movement| movement.id }
+
+    DebtPayment.transaction do
+      movements_to_delete.each(&:destroy!)
+      payments_to_delete.each(&:destroy!)
+    end
+
+    notice = 'Pago eliminado junto con sus movimientos en cuentas.'
+    notice = "#{notice} El pago pertenecía a un turno cerrado." if shift&.closed?
+    redirect_to debt_path(@debt, show_return_params), notice: notice
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to debt_path(@debt, show_return_params), alert: e.message
   end
 
   def create
-    account = current_business.accounts.find_by(id: debt_payment_params[:account_id])
+    account = @accounts.find { |item| item.id == debt_payment_params[:account_id].to_i }
     payment_currency = account&.currency
     amount = parse_decimal(debt_payment_params[:amount])
-    occurred_on = parse_payment_date(debt_payment_params[:occurred_at]) || Date.current
+    submitted_occurred_on = parse_payment_date(debt_payment_params[:occurred_at])
+    occurred_on = resolved_occurred_on_for_current_user(debt_payment_params[:occurred_at])
     allow_overpayment = overpayment_allowed?
 
     @debt_payment = @debt.debt_payments.new(
@@ -37,16 +60,21 @@ class DebtPaymentsController < ApplicationController
       notes: debt_payment_params[:notes],
     )
 
+    unless payment_date_allowed_for_current_user?(submitted_occurred_on)
+      @debt_payment.errors.add(:occurred_at, 'el encargado solo puede registrar cobros/pagos con la fecha actual')
+      return handle_payment_form_error
+    end
+
     build_payment_context(selected_currency: payment_currency, occurred_on: occurred_on)
 
     if account.blank?
       @debt_payment.errors.add(:account, "debe seleccionarse")
-      return render :new, status: :unprocessable_entity
+      return handle_payment_form_error
     end
 
     if payment_currency.blank?
       @debt_payment.errors.add(:account, "debe tener una moneda configurada")
-      return render :new, status: :unprocessable_entity
+      return handle_payment_form_error
     end
 
     if @debt.receivable? && account.account_type == "bank_account"
@@ -67,23 +95,23 @@ class DebtPaymentsController < ApplicationController
             reference: debt_payment_params[:reference].to_s.strip,
           )
         )
-        return render :new, status: :unprocessable_entity
+        return handle_payment_form_error
       end
     end
 
     if @debt.payable? && amount.to_d.positive? && amount.to_d > account.balance.to_d
       @debt_payment.errors.add(:base, account.insufficient_balance_message(amount))
-      return render :new, status: :unprocessable_entity
+      return handle_payment_form_error
     end
 
-    return render :new, status: :unprocessable_entity unless @debt_payment.valid?
+    return handle_payment_form_error unless @debt_payment.valid?
 
     total_pending = total_balance_in_payment_currency(@grouped_debts, payment_currency, occurred_on)
     overpayment_amount = [amount.to_d - total_pending, 0.to_d].max.round(2)
 
     if overpayment_amount > 0.01.to_d && !allow_overpayment
       @debt_payment.errors.add(:amount, "excede el saldo pendiente total del grupo de deudas")
-      return render :new, status: :unprocessable_entity
+      return handle_payment_form_error
     end
 
     payments_to_persist = build_grouped_payments(
@@ -94,7 +122,7 @@ class DebtPaymentsController < ApplicationController
       allow_overpayment: allow_overpayment,
     )
 
-    return render :new, status: :unprocessable_entity if payments_to_persist.blank?
+    return handle_payment_form_error if payments_to_persist.blank?
 
     DebtPayment.transaction do
       payments_to_persist.each(&:save!)
@@ -112,23 +140,66 @@ class DebtPaymentsController < ApplicationController
       notice = "#{notice} Sobregiro registrado por #{overpayment_label}."
     end
 
-    redirect_to debt_path(@debt), notice: notice
+    if ActiveModel::Type::Boolean.new.cast(params[:only_active]) && active_group_debts_after_payment.empty?
+      redirect_to debts_path, notice: "#{notice} El grupo quedo saldado y ahora aparece en deudas pagadas."
+    else
+      redirect_to debt_path(@debt, show_return_params), notice: notice
+    end
   rescue ActiveRecord::RecordInvalid => e
     @debt_payment.errors.add(:base, e.message)
-    render :new, status: :unprocessable_entity
+    handle_payment_form_error
   end
 
   private
 
+  def ensure_can_register_debt_payment!
+    return if current_user_admin? || current_user_manager?
+
+    deny_access('Solo administrador o encargado pueden registrar cobros/pagos de deudas.')
+  end
+
   def set_debt
     current_debt = current_business.debts.excluding_service_cost_records.find(params[:debt_id])
     @debt = group_root_for(current_debt)
-    grouped_debts = debts_in_same_group(@debt)
-    @grouped_debts = sort_debts([@debt] + grouped_debts.reject { |item| item.id == @debt.id })
+    @show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
+    @show_group_token = params[:group_token].to_s.strip.presence || @debt.try(:group_token).to_s.strip.presence
+
+    grouped_debts = if @show_group_token.present?
+                      debts_with_effective_group_token(
+                        debt_kind: @debt.debt_kind,
+                        token: @show_group_token,
+                        currency: @show_group_currency,
+                        cliente_id: @debt.cliente_id,
+                      )
+                    elsif params[:group_currency].present?
+                      debts_for_show_group(@debt)
+                    else
+                      debts_in_same_group(@debt)
+                    end
+
+    @grouped_debts = sort_debts(grouped_debts).uniq { |item| item.id }
+  end
+
+  def set_debt_payment
+    @debt_payment = current_business
+                    .debt_payments
+                    .joins(:debt)
+                    .where(debts: { business_id: current_business.id })
+                    .find(params[:id])
   end
 
   def load_accounts
-    @accounts = current_business.accounts.where(active: true).order(:currency, :name)
+    scope = current_business.accounts.where(active: true)
+    scope = scope.where.not(account_type: 'cashea')
+    scope = scope.where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    if @show_group_currency == 'USDT'
+      scope = scope.where(currency: 'USDT')
+    else
+      scope = scope.where(currency: %w[USD VES])
+    end
+
+    @accounts = scope.order(:currency, :name).to_a
   end
 
   def load_currency_rates
@@ -168,6 +239,19 @@ class DebtPaymentsController < ApplicationController
     rescue ArgumentError
       nil
     end
+  end
+
+  def resolved_occurred_on_for_current_user(raw_value)
+    return parse_payment_date(raw_value) || Date.current if current_user_admin?
+
+    Date.current
+  end
+
+  def payment_date_allowed_for_current_user?(submitted_date)
+    return true if current_user_admin?
+    return true if submitted_date.blank?
+
+    submitted_date == Date.current
   end
 
   def find_duplicate_bank_receivable_payment(account_id:, occurred_on:, amount:, reference:)
@@ -330,7 +414,7 @@ class DebtPaymentsController < ApplicationController
   end
 
   def debt_amount_usd_bcv(debt)
-    convert_to_usd_bcv(amount: debt.amount.to_d, currency: debt.currency, date: debt.issued_on)
+    convert_to_usd_bcv(amount: debt.amount.to_d, currency: debt.currency, date: debt_reference_date_for_usd(debt))
   end
 
   def payment_amount_usd_bcv(payment)
@@ -379,7 +463,13 @@ class DebtPaymentsController < ApplicationController
     (debt.amount.to_d - paid_in_debt_currency).round(2)
   end
 
+  def debt_reference_date_for_usd(debt)
+    debt.issued_on || debt.venta&.created_at&.to_date || Date.current
+  end
+
   def group_root_for(debt)
+    return debt if debt.group_token.present?
+
     root_id = debt.group_root_debt_id
     return debt if root_id.blank?
 
@@ -387,6 +477,17 @@ class DebtPaymentsController < ApplicationController
   end
 
   def debts_in_same_group(debt)
+    if debt.group_token.present?
+      grouped = debts_with_effective_group_token(
+        debt_kind: debt.debt_kind,
+        token: debt.group_token,
+        currency: debt.currency,
+        cliente_id: debt.cliente_id,
+      )
+
+      return grouped if grouped.present?
+    end
+
     root_id = debt.group_root_debt_id
     return [debt] if root_id.blank?
 
@@ -399,19 +500,182 @@ class DebtPaymentsController < ApplicationController
     grouped.presence || [debt]
   end
 
+  def debts_for_show_group(debt)
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: debt.debt_kind, currency: @show_group_currency)
+            .includes(:debt_payments, :venta)
+
+    cliente_param = params[:group_cliente_id].to_s
+    if cliente_param == 'none'
+      scope = scope.where(cliente_id: nil)
+    elsif cliente_param.present?
+      scope = scope.where(cliente_id: cliente_param.to_i)
+    elsif debt.cliente_id.present?
+      scope = scope.where(cliente_id: debt.cliente_id)
+    end
+
+    debts = scope.to_a
+    if ActiveModel::Type::Boolean.new.cast(params[:only_active])
+      debts = debts.select { |candidate| candidate.balance > 0.01.to_d }
+    end
+
+    debts.presence || debts_in_same_group(debt)
+  end
+
+  def show_return_params
+    result = {}
+    result[:group_currency] = params[:group_currency] if params[:group_currency].present?
+    result[:group_cliente_id] = params[:group_cliente_id] if params[:group_cliente_id].present?
+    result[:only_active] = params[:only_active] if params[:only_active].present?
+    result[:group_token] = params[:group_token] if params[:group_token].present?
+
+    if result[:group_currency].blank?
+      result[:group_currency] = @debt.currency.to_s.upcase
+    end
+
+    if result[:group_cliente_id].blank?
+      result[:group_cliente_id] = @debt.cliente_id.present? ? @debt.cliente_id : 'none'
+    end
+
+    if result[:group_token].blank?
+      fallback_token = @debt.try(:group_token).to_s.strip
+      result[:group_token] = fallback_token if fallback_token.present?
+    end
+
+    result
+  end
+
+  def linked_account_movements_for_payment(payment)
+    business_account_movements_scope
+      .where(account_id: payment.account_id)
+      .where('description ILIKE ?', "%[DP:#{payment.id}]%")
+      .to_a
+  end
+
+  def mirror_synced_payments_for(payment)
+    current_business
+      .debt_payments
+      .joins(:debt)
+      .where(debts: { business_id: current_business.id })
+      .where('notes ILIKE ?', "%[MIRROR_FROM_DP:#{payment.id}]%")
+      .to_a
+  end
+
+  def business_account_movements_scope
+    AccountMovement.joins(:account).where(accounts: { business_id: current_business.id })
+  end
+
+  def cash_shift_for_payment(payment)
+    payment_date = payment.occurred_at
+    return nil if payment_date.blank?
+
+    current_business
+      .cash_shifts
+      .order(opened_at: :desc)
+      .detect do |shift|
+        start_date = shift.opened_at.in_time_zone('America/Caracas').to_date
+        end_date = (shift.closed_at || Time.current).in_time_zone('America/Caracas').to_date
+        payment_date >= start_date && payment_date <= end_date
+      end
+  end
+
+  def modal_request?
+    ActiveModel::Type::Boolean.new.cast(params[:from_debt_show_modal])
+  end
+
+  def handle_payment_form_error
+    if modal_request?
+      redirect_to debt_path(@debt, show_return_params.merge(open_payment_modal: 1)),
+                  alert: @debt_payment.errors.full_messages.to_sentence.presence || 'No se pudo registrar el pago.'
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
+
+  def active_group_debts_after_payment
+    if @show_group_token.present?
+      grouped = debts_with_effective_group_token(
+        debt_kind: @debt.debt_kind,
+        token: @show_group_token,
+        currency: @show_group_currency,
+        cliente_id: @debt.cliente_id,
+      )
+
+      return grouped.select { |candidate| candidate.balance > 0.01.to_d }
+    end
+
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: @debt.debt_kind, currency: @show_group_currency)
+            .includes(:debt_payments)
+
+    cliente_param = params[:group_cliente_id].to_s
+    if cliente_param == 'none'
+      scope = scope.where(cliente_id: nil)
+    elsif cliente_param.present?
+      scope = scope.where(cliente_id: cliente_param.to_i)
+    elsif @debt.cliente_id.present?
+      scope = scope.where(cliente_id: @debt.cliente_id)
+    end
+
+    scope.select { |candidate| candidate.balance > 0.01.to_d }
+  end
+
   def debt_sort_key(debt)
-    due_on = debt.due_on
+    issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+    created_at = debt.created_at || Time.zone.at(0)
     normalized_name = debt.display_name.to_s.strip.downcase
     normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
 
-    if due_on.present?
-      [0, due_on, normalized_name, normalized_cliente, debt.id.to_i]
-    else
-      [1, normalized_name, normalized_cliente, debt.id.to_i]
-    end
+    [
+      -issued_on.jd,
+      -created_at.to_i,
+      -debt.id.to_i,
+      normalized_name,
+      normalized_cliente
+    ]
   end
 
   def sort_debts(debts)
     debts.sort_by { |debt| debt_sort_key(debt) }
+  end
+
+  def debt_group_token(debt)
+    token = debt.try(:group_token).to_s.strip
+    return token if token.present?
+
+    root_id = debt.group_root_debt_id
+    return "legacy-#{root_id}" if root_id.present?
+
+    "legacy-debt-#{debt.id}"
+  end
+
+  def debts_with_effective_group_token(debt_kind:, token:, currency: nil, cliente_id: nil)
+    effective_token = token.to_s.strip
+    return [] if effective_token.blank?
+
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: debt_kind)
+            .includes(:debt_payments, :venta)
+
+    normalized_currency = currency.to_s.strip.upcase
+    scope = scope.where(currency: normalized_currency) if normalized_currency.present?
+
+    if cliente_id.present?
+      scope = scope.where(cliente_id: cliente_id)
+    elsif !cliente_id.nil?
+      scope = scope.where(cliente_id: nil)
+    end
+
+    debts = scope.to_a.select do |candidate|
+      debt_group_token(candidate) == effective_token
+    end
+
+    sort_debts(debts)
   end
 end

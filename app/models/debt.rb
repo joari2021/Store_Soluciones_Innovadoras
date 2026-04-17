@@ -18,7 +18,7 @@ class Debt < ApplicationRecord
   has_many :debt_payments, dependent: :destroy
 
   scope :excluding_service_cost_records, lambda {
-    where("description NOT LIKE ?", "%[SERVICE_COST]%")
+    where("description IS NULL OR description NOT LIKE ?", "%[SERVICE_COST]%")
   }
 
   validates :name, presence: true

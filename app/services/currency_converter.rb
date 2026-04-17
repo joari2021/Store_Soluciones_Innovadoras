@@ -27,6 +27,13 @@ class CurrencyConverter
     normalized_currency = normalize_currency(currency)
     return 1.to_d if normalized_currency == 'VES'
 
+    if normalized_currency == 'USDT'
+      usdt_rate = rate_value('USDT', on_date: on_date)
+      return usdt_rate if usdt_rate.positive?
+
+      return rate_to_ves('USD', on_date: on_date)
+    end
+
     reference = reference_for_currency(normalized_currency)
     return 0.to_d if reference.blank?
 
@@ -51,11 +58,19 @@ class CurrencyConverter
   end
 
   def self.candidate_references(currency)
-    [
+    label = Account::CURRENCIES.dig(currency, :label).to_s.strip
+    label = nil if label.blank?
+
+    (
+      [
       currency,
+      label,
       "#{currency} BCV",
-      "#{currency} Bybit"
+      "#{currency} Bybit",
+      (label.present? ? "#{label} BCV" : nil),
+      (label.present? ? "#{label} Bybit" : nil)
     ]
+    ).uniq
   end
 
   def self.conversion_result(amount:, rate:)

@@ -13,7 +13,94 @@
 <% default_invoice_status = { label: 'Pagada', badge_class: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' } %>
 <% historial_cash_exchanges = @historial_cash_exchanges || [] %>
 <div class="space-y-6 fade-in">
-  <!-- Caja de Pasarela de Cambios -->
+  <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
+    <div class="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-sky-200/30 blur-2xl"></div>
+    <div class="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div class="max-w-2xl">
+        <span class="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-sky-700 shadow-sm backdrop-blur">
+          <i data-lucide="history" class="h-3.5 w-3.5"></i>
+          Ventas registradas
+        </span>
+        <h1 class="mt-4 text-3xl font-extrabold tracking-tight text-slate-800 md:text-4xl">Historial de ventas</h1>
+        <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Consulta operaciones, detecta rapido la moneda base de cada venta y navega al detalle con una lectura visual mucho mas clara.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to borradores_ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95 md:w-auto" do %>
+          <i data-lucide="files" class="h-4 w-4"></i>
+          Borradores
+        <% end %>
+        <%= link_to ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-slate-800 active:scale-95 md:w-auto" do %>
+          <i data-lucide="shopping-cart" class="h-4 w-4"></i>
+          Ir al POS
+        <% end %>
+      </div>
+    </div>
+    <div class="relative mt-6 rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
+      <%= form_with url: historial_ventas_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,14rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' do %>
+        <div>
+          <label for="historial_cliente_query" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Cliente</label>
+          <%= text_field_tag :cliente_query,
+                             selected_cliente_query,
+                             id: 'historial_cliente_query',
+                             autocomplete: 'off',
+                             placeholder: 'Nombre, documento...',
+                             class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="historial_cash_shift_id" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Turno</label>
+          <%= select_tag :cash_shift_id,
+                         options_for_select(cash_shift_options, selected_cash_shift_id),
+                         id: 'historial_cash_shift_id',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="historial_fecha_desde" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Desde</label>
+          <%= text_field_tag :fecha_desde,
+                             selected_fecha_desde_value,
+                             id: 'historial_fecha_desde',
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="historial_fecha_hasta" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Hasta</label>
+          <%= text_field_tag :fecha_hasta,
+                             selected_fecha_hasta_value,
+                             id: 'historial_fecha_hasta',
+                             autocomplete: 'off',
+                             placeholder: 'dd-mm-aaaa',
+                             class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">Filtrar</button>
+        <%= link_to historial_ventas_path, class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
+          Limpiar
+        <% end %>
+      <% end %>
+    </div>
+    <div class="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ventas filtradas</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= total_sales %></p>
+        <p class="mt-1 text-xs text-slate-500">Incluye paginas aun no cargadas</p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Con cliente</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= sales_with_client %></p>
+        <p class="mt-1 text-xs text-slate-500">Aplicado al filtro activo</p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total USD</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(total_usd, unit: '$') %></p>
+        <p class="mt-1 text-xs text-slate-500">Referencia del filtro activo</p>
+      </div>
+      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total VES</p>
+        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(total_ves, unit: 'Bs ') %></p>
+        <p class="mt-1 text-xs text-slate-500">Referencia del filtro activo</p>
+      </div>
+    </div>
+  </div>
   <div class="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
     <div class="flex items-center justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-6 py-4">
       <div>
@@ -138,8 +225,6 @@
       </div>
     <% end %>
   </div>
-  <!-- Fin Caja de Pasarela de Cambios -->
-  ...existing code...
   <% if @ventas.any? %>
     <div class="grid gap-4 md:hidden">
       <%= turbo_frame_tag "ventas-history-mobile-#{@pagy.page}", class: "contents" do %>
@@ -334,128 +419,4 @@
       <p class="mt-1 text-sm text-slate-500">Registra una venta para empezar a ver el historial.</p>
     </div>
   <% end %>
-  <div class="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
-    <div class="flex items-center justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-6 py-4">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Contexto de ventas</p>
-        <h2 class="mt-1 text-lg font-bold text-slate-800">Pasarela de cambios</h2>
-      </div>
-      <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100"><%= historial_cash_exchanges.size %> operaciones</span>
-    </div>
-    <% if historial_cash_exchanges.any? %>
-      <div class="grid grid-cols-[minmax(0,0.55fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.45fr)] gap-3 border-b border-emerald-100 bg-emerald-50/70 px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
-        <div class="text-left">Operacion</div>
-        <div class="text-left">Fecha</div>
-        <div class="text-left">Facturo</div>
-        <div class="text-center">Entrada</div>
-        <div class="text-center">Salida</div>
-        <div class="text-center">Ganancia</div>
-        <div class="text-right">Acciones</div>
-      </div>
-      <div class="divide-y divide-slate-100">
-        <% historial_cash_exchanges.each_with_index do |exchange, index| %>
-          <% can_delete_exchange = current_user_admin? || (exchange.cash_shift&.open? && exchange.user_id == Current.user&.id) %>
-          <% gain = (exchange.monto_recibido.to_d - exchange.efectivo_vendido.to_d).round(2) %>
-          <% gain_percent = exchange.efectivo_vendido.to_d.positive? ? ((gain / exchange.efectivo_vendido.to_d) * 100).round(2) : 0.to_d %>
-          <% salida_method = exchange.payment_group_label %>
-          <% details = exchange.payment_details.is_a?(Hash) ? exchange.payment_details : {} %>
-          <% payments = Array(details['payments'] || details[:payments]) %>
-          <% entrega_rows = [] %>
-          <% if exchange.delivery_target == 'cash' %>
-            <% entrega_rows << ['Caja', exchange.monto_caja_operativa.to_d] if exchange.monto_caja_operativa.to_d.positive? %>
-            <% entrega_rows << ['Deposito', exchange.monto_caja_deposito.to_d] if exchange.monto_caja_deposito.to_d.positive? %>
-          <% else %>
-            <% source_name = (details['source_account_name'] || details[:source_account_name]).to_s.strip.presence || 'Banco principal' %>
-            <% source_amount = (details['source_amount'] || details[:source_amount]).to_d %>
-            <% entrega_rows << [source_name, source_amount] if source_amount.positive? %>
-          <% end %>
-          <% salida_rows = payments.map do |payment| %>
-            <% payment_hash = payment.is_a?(Hash) ? payment : {} %>
-            <% name = (payment_hash['account_name'] || payment_hash[:account_name]).to_s.strip.presence || 'Cuenta' %>
-            <% amount = (payment_hash['amount'] || payment_hash[:amount]).to_d %>
-            <% [name, amount] %>
-          <% end.select { |(_name, amount)| amount.positive? } %>
-          <% entrada_caja_amount = entrega_rows.find { |(name, _amount)| name.to_s.downcase.include?('caja') }&.last.to_d %>
-          <% entrada_dep_amount = entrega_rows.find { |(name, _amount)| name.to_s.downcase.include?('dep') }&.last.to_d %>
-          <% salida_caja_amount = salida_rows.find { |(name, _amount)| name.to_s.downcase.include?('(caja)') || name.to_s.downcase == 'caja' || (name.to_s.downcase.include?('caja') && !name.to_s.downcase.include?('dep')) }&.last.to_d %>
-          <% salida_dep_amount = salida_rows.find { |(name, _amount)| name.to_s.downcase.include?('dep') }&.last.to_d %>
-          <% entrada_has_cash_split = entrada_caja_amount.positive? || entrada_dep_amount.positive? %>
-          <% salida_has_cash_split = salida_caja_amount.positive? || salida_dep_amount.positive? %>
-          <div class="grid grid-cols-[minmax(0,0.55fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.45fr)] items-center gap-3 px-6 py-4 transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-emerald-50/70">
-            <div class="font-semibold text-slate-800">Pasarela #<%= exchange.id %></div>
-            <div>
-              <p class="font-medium text-slate-700"><%= exchange.occurred_at.in_time_zone('America/Caracas').strftime('%d/%m/%Y') %></p>
-              <p class="text-xs text-slate-500"><%= exchange.occurred_at.in_time_zone('America/Caracas').strftime('%H:%M') %></p>
-            </div>
-            <div>
-              <p class="font-medium text-slate-700"><%= exchange.seller_display_name %></p>
-              <% if exchange.cash_shift_id.present? %>
-                <p class="text-xs text-slate-500">Turno #<%= exchange.cash_shift_id %></p>
-              <% end %>
-            </div>
-            <div class="text-center space-y-1">
-              <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100"><%= exchange.delivery_target_label %></span>
-              <% if entrega_rows.any? %>
-                <% if entrada_has_cash_split %>
-                  <p class="text-[11px] text-slate-500">
-                    <span class="font-semibold text-slate-600">Caja</span>: <%= format_money(entrada_caja_amount, unit: 'Bs ') %>
-                    <% if entrada_dep_amount.positive? %>
-                      | <span class="font-semibold text-slate-600">Dep</span>: <%= format_money(entrada_dep_amount, unit: 'Bs ') %>
-                    <% end %>
-                  </p>
-                <% else %>
-                  <div class="space-y-0.5">
-                    <% entrega_rows.each do |(name, amount)| %>
-                      <p class="text-[11px] text-slate-500"><span class="font-semibold text-slate-600"><%= name %></span>: <%= format_money(amount, unit: 'Bs ') %></p>
-                    <% end %>
-                  </div>
-                <% end %>
-              <% end %>
-            </div>
-            <div class="text-center space-y-1">
-              <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"><%= salida_method %></span>
-              <% if salida_rows.any? %>
-                <% if salida_has_cash_split %>
-                  <p class="text-[11px] text-slate-500">
-                    <span class="font-semibold text-slate-600">Caja</span>: <%= format_money(salida_caja_amount, unit: 'Bs ') %>
-                    <% if salida_dep_amount.positive? %>
-                      | <span class="font-semibold text-slate-600">Dep</span>: <%= format_money(salida_dep_amount, unit: 'Bs ') %>
-                    <% end %>
-                  </p>
-                <% else %>
-                  <div class="space-y-0.5">
-                    <% salida_rows.each do |(name, amount)| %>
-                      <p class="text-[11px] text-slate-500"><span class="font-semibold text-slate-600"><%= name %></span>: <%= format_money(amount, unit: 'Bs ') %></p>
-                    <% end %>
-                  </div>
-                <% end %>
-              <% end %>
-            </div>
-            <div class="text-center">
-              <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= gain.negative? ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-200' : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' %>"><%= format_money(gain, unit: 'Bs ') %> (<%= number_with_precision(gain_percent, precision: 2, strip_insignificant_zeros: true) %>%)</span>
-            </div>
-            <div class="text-right">
-              <% if can_delete_exchange %>
-                <%= link_to cambio_efectivo_path(exchange),
-                            class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl bg-rose-50 p-2.5 text-rose-600 ring-1 ring-rose-100 transition-colors hover:bg-rose-100',
-                            title: 'Eliminar',
-                            'aria-label': 'Eliminar',
-                            data: { turbo_method: :delete, swal_delete: 'cambio_efectivo', turbo_frame: '_top' } do %>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-5 w-5">
-                    <path d="M9 3a1 1 0 0 0-1 1v1H5a1 1 0 1 0 0 2h.636l.89 12.46A2 2 0 0 0 8.52 21h6.96a2 2 0 0 0 1.994-1.54L18.364 7H19a1 1 0 1 0 0-2h-3V4a1 1 0 0 0-1-1H9Zm2 2h2v1h-2V5Zm-2.37 2h6.74l-.86 12.04a.5.5 0 0 1-.498.46H9.988a.5.5 0 0 1-.498-.46L8.63 7Z" />
-                  </svg>
-                <% end %>
-              <% else %>
-                <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-400 ring-1 ring-slate-200">ND</span>
-              <% end %>
-            </div>
-          </div>
-        <% end %>
-      </div>
-    <% else %>
-      <div class="px-6 py-8 text-center text-sm text-slate-500">
-        No hay operaciones de pasarela para el filtro seleccionado.
-      </div>
-    <% end %>
-  </div>
 </div>

@@ -643,6 +643,16 @@ document.addEventListener(
         title: "¿Eliminar movimiento?",
         text: "Esta accion eliminara el movimiento seleccionado de la cuenta.",
       },
+      debt_paid_group_hide: {
+        title: "¿Ocultar conjunto pagado?",
+        text: "Este conjunto se ocultará solo del listado de deudas pagadas. No se eliminarán deudas, pagos ni movimientos.",
+        confirmButtonText: "Sí, ocultar",
+      },
+      debt_payment: {
+        title: "¿Eliminar pago?",
+        text: "Se eliminará el pago y sus movimientos asociados en cuentas. Esta acción no se puede deshacer.",
+        confirmButtonText: "Sí, eliminar pago",
+      },
       logout: {
         title: "¿Cerrar sesion?",
         text: "Tu sesion actual se cerrara en este dispositivo.",
@@ -764,6 +774,11 @@ document.addEventListener(
       text: "Esta acción no se puede deshacer.",
       confirmButtonText: "Sí, eliminar",
     };
+
+    const customTitle = deleteLink.dataset.swalTitle;
+    const customText = deleteLink.dataset.swalText;
+    if (customTitle) config.title = customTitle;
+    if (customText) config.text = customText;
 
     Swal.fire({
       title: config.title,

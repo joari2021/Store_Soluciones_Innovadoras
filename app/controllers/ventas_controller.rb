@@ -1009,10 +1009,21 @@ class VentasController < ApplicationController
         )
 
         if remaining_credit_amount.positive?
+          debt_amount_usd = convert_payment_to_currency(
+            remaining_credit_amount,
+            comparison_currency,
+            "USD",
+            tasa_dolar,
+          )
+          if debt_amount_usd.nil?
+            venta.errors.add(:base, "No se pudo convertir el saldo pendiente a USD para generar la deuda.")
+            raise ActiveRecord::RecordInvalid.new(venta)
+          end
+
           create_receivable_debt_for_sale!(
             venta: venta,
-            amount: remaining_credit_amount,
-            currency: comparison_currency,
+            amount: debt_amount_usd,
+            currency: "USD",
             due_on: credit_sale_due_on,
           )
         end
@@ -4185,18 +4196,51 @@ class VentasController < ApplicationController
 
   def create_receivable_debt_for_sale!(venta:, amount:, currency:, due_on: nil)
     issued_on = Time.use_zone("America/Caracas") { Time.zone.today }
+    normalized_currency = currency.to_s.upcase
 
-    current_business.debts.create!(
+    debt_attrs = {
       name: "Saldo venta ##{venta.id}",
       description: "Saldo pendiente venta ##{venta.id} [VENTA:#{venta.id}]",
       debt_kind: "receivable",
       amount: amount.to_d.round(2),
-      currency: currency.to_s.upcase,
+      currency: normalized_currency,
       issued_on: issued_on,
       due_on: due_on,
       cliente: venta.cliente,
       venta: venta,
-    )
+    }
+
+    if Debt.column_names.include?("group_token")
+      debt_attrs[:group_token] = sale_debt_group_token_for(
+        cliente_id: venta.cliente_id,
+        currency: normalized_currency,
+      )
+    end
+
+    current_business.debts.create!(debt_attrs)
+  end
+
+  def sale_debt_group_token_for(cliente_id:, currency:)
+    return generated_sale_group_token if cliente_id.blank?
+
+    active_debts = current_business
+                   .debts
+                   .excluding_service_cost_records
+                   .where(debt_kind: "receivable", cliente_id: cliente_id, currency: currency)
+                   .includes(:debt_payments)
+                   .select { |debt| debt.balance.to_d > 0.01.to_d }
+
+    latest_token = active_debts
+                   .sort_by { |debt| [debt.issued_on || Date.new(1970, 1, 1), debt.created_at || Time.zone.at(0), debt.id.to_i] }
+                   .reverse
+                   .map { |debt| debt.group_token.to_s.strip }
+                   .find(&:present?)
+
+    latest_token.presence || generated_sale_group_token
+  end
+
+  def generated_sale_group_token
+    "grp_#{SecureRandom.hex(10)}"
   end
 
   def service_cost_debit_enabled?(service)

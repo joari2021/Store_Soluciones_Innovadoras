@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_16_132000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_17_195000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -258,6 +258,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_16_132000) do
     t.bigint "mirror_debt_id"
     t.bigint "mirror_account_id"
     t.boolean "mirror_sync_enabled", default: false, null: false
+    t.string "group_token"
+    t.index ["business_id", "debt_kind", "group_token"], name: "idx_debts_group_token"
     t.index ["business_id"], name: "index_debts_on_business_id"
     t.index ["cliente_id"], name: "index_debts_on_cliente_id"
     t.index ["debt_kind"], name: "index_debts_on_debt_kind"
@@ -406,6 +408,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_16_132000) do
     t.datetime "updated_at", null: false
     t.index ["genero_id"], name: "index_generos_serie_tvs_on_genero_id"
     t.index ["serie_tv_id"], name: "index_generos_serie_tvs_on_serie_tv_id"
+  end
+
+  create_table "hidden_debt_groups", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "group_key", null: false
+    t.datetime "hidden_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "group_key"], name: "index_hidden_debt_groups_on_business_id_and_group_key", unique: true
+    t.index ["business_id"], name: "index_hidden_debt_groups_on_business_id"
   end
 
   create_table "juegos", force: :cascade do |t|
@@ -992,6 +1004,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_16_132000) do
   add_foreign_key "generos_peliculas", "peliculas"
   add_foreign_key "generos_serie_tvs", "generos"
   add_foreign_key "generos_serie_tvs", "serie_tvs"
+  add_foreign_key "hidden_debt_groups", "businesses"
   add_foreign_key "pack_unwrap_items", "pack_unwraps"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "source_product_variation_id"

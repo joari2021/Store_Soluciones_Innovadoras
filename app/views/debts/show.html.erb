@@ -1,5 +1,6 @@
 <% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
-<div class="space-y-6">
+<% payment_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+<div class="space-y-6" data-controller="venta-modal">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
@@ -8,16 +9,6 @@
         <p class="mt-1 text-sm text-slate-500"><%= @grouped_debts.size %> deudas asociadas en este registro.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <%= link_to new_debt_debt_payment_path(@debt), class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
-          <i data-lucide="credit-card" class="h-4 w-4"></i>
-          <%= action_label %>
-        <% end %>
-        <% if can_manage_action?(:edit_debt) %>
-          <%= link_to edit_debt_path(@debt), class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
-            <i data-lucide="pencil" class="h-4 w-4"></i>
-            Editar
-          <% end %>
-        <% end %>
         <%= link_to debts_path, class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" do %>
           Volver
         <% end %>
@@ -41,6 +32,11 @@
           <dd class="font-semibold text-slate-800"><%= @grouped_debts.size %></dd>
         </div>
         <div class="flex items-center justify-between">
+          <dt>Estado</dt>
+          <% paid_group = @show_total_balance_usd_bcv.to_d <= 0.01.to_d %>
+          <dd class="font-semibold <%= paid_group ? 'text-emerald-700' : 'text-slate-800' %>"><%= paid_group ? 'Pagado' : 'Pendiente' %></dd>
+        </div>
+        <div class="flex items-center justify-between">
           <dt>Vencidas</dt>
           <dd class="font-semibold text-slate-800"><%= @show_overdue_count %></dd>
         </div>
@@ -51,6 +47,10 @@
         <div class="flex items-center justify-between">
           <dt>Ultimo pago</dt>
           <dd class="font-semibold text-slate-800"><%= @show_last_payment_at ? @show_last_payment_at.strftime("%d/%m/%Y") : "Sin pagos" %></dd>
+        </div>
+        <div class="flex items-center justify-between">
+          <dt>Ultima actualizacion</dt>
+          <dd class="font-semibold text-slate-800"><%= @show_last_activity_at ? @show_last_activity_at.in_time_zone('America/Caracas').strftime("%d/%m/%Y %H:%M") : "-" %></dd>
         </div>
       </dl>
     </div>
@@ -67,10 +67,13 @@
         </div>
         <div class="flex items-center justify-between">
           <dt>Saldo real</dt>
+          <% balance_abs_usd = @show_total_balance_usd_bcv.to_d.abs %>
+          <% balance_equivalent_ves = CurrencyConverter.convert(amount: balance_abs_usd, from_currency: 'USD', to_currency: 'VES', on_date: Date.current)&.dig(:amount) %>
+          <% balance_ves_label = balance_equivalent_ves.present? ? " (#{number_to_currency(balance_equivalent_ves.to_d, unit: 'Bs ')})" : '' %>
           <% if @show_total_balance_usd_bcv.negative? %>
-            <dd class="font-semibold text-emerald-700">Excedente pagado: <%= number_to_currency(@show_total_balance_usd_bcv.abs, unit: "$ ") %></dd>
+            <dd class="font-semibold text-emerald-700">Excedente pagado: <%= number_to_currency(@show_total_balance_usd_bcv.abs, unit: "$ ") %><%= balance_ves_label %></dd>
           <% else %>
-            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: "$ ") %></dd>
+            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: "$ ") %><%= balance_ves_label %></dd>
           <% end %>
         </div>
       </dl>
@@ -79,12 +82,23 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Deudas asociadas</p>
-      <span class="text-xs font-semibold text-slate-500"><%= @show_debt_rows.size %> deudas</span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500"><%= @show_debt_rows.size %> deudas</span>
+        <button
+          type="button"
+          class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+          data-add-debt-open="true"
+        >
+          <i data-lucide="plus" class="h-4 w-4"></i>
+          Agregar deuda
+        </button>
+      </div>
     </div>
     <% if @show_debt_rows.any? %>
       <% grouped_by_currency = @show_debt_rows.group_by { |row| row[:debt].currency } %>
       <% grouped_by_currency.each do |currency, rows| %>
         <% is_usdt = currency.to_s.upcase == 'USDT' %>
+        <% display_symbol = is_usdt ? (Account::CURRENCIES.dig('USDT', :symbol) || 'USDT') : '$' %>
         <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
           <div class="flex items-center gap-2 mb-2">
             <span class="font-bold text-slate-700">Moneda: <%= currency %></span>
@@ -97,9 +111,8 @@
               <tr>
                 <th class="px-4 py-3 text-left">Emision</th>
                 <th class="px-4 py-3 text-left">Descripcion</th>
-                <th class="px-4 py-3 text-right">Monto original</th>
-                <th class="px-4 py-3 text-right">Pagado real $ (BCV)</th>
-                <th class="px-4 py-3 text-right">Saldo real $ (BCV)</th>
+                <th class="px-4 py-3 text-right">Monto USD</th>
+                <th class="px-4 py-3 text-right">Monto VES / Bs</th>
                 <th class="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
@@ -107,33 +120,87 @@
               <% rows.each do |row| %>
                 <% debt = row[:debt] %>
                 <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
+                <% amount_usd = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'USD', on_date: Date.current)&.dig(:amount).to_d %>
+                <% amount_ves = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'VES', on_date: Date.current)&.dig(:amount).to_d %>
                 <% source_link = debt_source_link_data(debt) %>
+                <% sale_id = debt_source_sale_id(debt) %>
                 <tr>
                   <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
                   <td class="px-4 py-3">
                     <p><%= debt_display_description(debt.description) %></p>
-                    <% if source_link.present? %>
+                    <% if row[:loan_enabled] && row[:loan_account_name].present? && row[:loan_amount].to_d.positive? %>
+                      <% loan_currency = row[:loan_account_currency].to_s.upcase.presence || debt.currency.to_s.upcase %>
+                      <% loan_symbol = Account::CURRENCIES.dig(loan_currency, :symbol) || loan_currency %>
+                      <p class="mt-1 text-xs font-semibold text-slate-600">
+                        Prestamo desde <span class="text-slate-800"><%= row[:loan_account_name] %></span>:
+                        <span class="text-slate-800"><%= number_to_currency(row[:loan_amount].to_d, unit: "#{loan_symbol} ") %></span>
+                      </p>
+                    <% end %>
+                    <% if sale_id.present? %>
+                      <p class="mt-1">
+                        <button type="button" class="inline-flex cursor-pointer items-center rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800" data-action="click->venta-modal#open" data-venta-id="<%= sale_id %>">
+                          Ver venta #<%= sale_id %>
+                        </button>
+                      </p>
+                    <% elsif source_link.present? %>
                       <p class="mt-1">
                         <%= link_to source_link[:label], source_link[:path], class: 'inline-flex cursor-pointer items-center rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800', data: { turbo_frame: '_top' } %>
                       </p>
                     <% end %>
                   </td>
-                  <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount, unit: "#{debt_symbol} ") %></td>
-                  <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %></td>
-                  <td class="px-4 py-3 text-right"><%= number_to_currency(row[:balance_usd_bcv], unit: "$ ") %></td>
+                  <td class="px-4 py-3 text-right"><%= number_to_currency(amount_usd, unit: "$ ") %></td>
+                  <td class="px-4 py-3 text-right"><%= number_to_currency(amount_ves, unit: "Bs ") %></td>
                   <td class="px-4 py-3 text-right">
-                    <%= link_to edit_debt_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
-                      <i data-lucide="pencil" class="h-4 w-4"></i>
-                      Editar
-                    <% end %>
-                    <%= link_to new_debt_debt_payment_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
-                      <i data-lucide="credit-card" class="h-4 w-4"></i>
-                      Registrar cobro
-                    <% end %>
-                    <% if can_manage_action?(:destroy_debt) %>
-                      <%= link_to debt_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100", data: { turbo_method: :delete, swal_delete: "debt" } do %>
-                        <i data-lucide="trash" class="h-4 w-4"></i>
-                        Eliminar
+                    <% if sale_id.present? %>
+                      <button
+                        type="button"
+                        class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                        title="Informacion"
+                        aria-label="Informacion"
+                        data-sale-debt-info="true"
+                      >
+                        <i data-lucide="info" class="h-4 w-4"></i>
+                      </button>
+                    <% else %>
+                      <% debt_entry = {
+                           debt_id: debt.id,
+                           description: debt.description.to_s,
+                           amount: (row[:loan_enabled] && row[:loan_amount].to_d.positive?) ? row[:loan_amount].to_d : debt.amount.to_d,
+                           currency: debt.currency.to_s.upcase,
+                           issued_on: debt.issued_on&.strftime('%d-%m-%Y'),
+                           due_on: debt.due_on&.strftime('%d-%m-%Y'),
+                           loan_enabled: row[:loan_enabled],
+                           loan_account_id: row[:loan_account_id],
+                           amount_input_currency: (row[:loan_enabled] && row[:loan_account_currency].present?) ? row[:loan_account_currency].to_s.upcase : debt.currency.to_s.upcase
+                         } %>
+                      <button
+                        type="button"
+                        class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white p-2 text-slate-700 hover:bg-slate-50"
+                        title="Editar"
+                        aria-label="Editar"
+                        data-add-debt-edit="true"
+                        data-edit-debt-id="<%= debt_entry[:debt_id] %>"
+                        data-edit-description="<%= debt_entry[:description] %>"
+                        data-edit-amount="<%= debt_entry[:amount].to_s('F') %>"
+                        data-edit-currency="<%= debt_entry[:currency] %>"
+                        data-edit-issued-on="<%= debt_entry[:issued_on] %>"
+                        data-edit-due-on="<%= debt_entry[:due_on] %>"
+                        data-edit-loan-enabled="<%= debt_entry[:loan_enabled] ? '1' : '0' %>"
+                        data-edit-loan-account-id="<%= debt_entry[:loan_account_id] %>"
+                        data-edit-amount-input-currency="<%= debt_entry[:amount_input_currency] %>"
+                      >
+                        <i data-lucide="pencil" class="h-4 w-4"></i>
+                      </button>
+                      <% if can_manage_action?(:destroy_debt) %>
+                        <%= link_to debt_path(
+                              debt,
+                              group_currency: params[:group_currency],
+                              group_cliente_id: params[:group_cliente_id],
+                              only_active: params[:only_active],
+                              group_token: params[:group_token]
+                            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar", aria: { label: "Eliminar" }, data: { turbo_method: :delete, swal_delete: "debt" } do %>
+                          <i data-lucide="trash" class="h-4 w-4"></i>
+                        <% end %>
                       <% end %>
                     <% end %>
                   </td>
@@ -150,7 +217,21 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pagos registrados</p>
-      <span class="text-xs font-semibold text-slate-500"><%= @payments.count %> pagos</span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500"><%= @payments.count %> pagos</span>
+        <% unless @debt.new_record? %>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold shadow-sm <%= @can_register_group_payment ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-slate-200 text-slate-500 cursor-not-allowed' %>"
+            data-register-payment-open="true"
+            data-register-payment-allowed="<%= @can_register_group_payment ? '1' : '0' %>"
+            data-register-payment-denied-message="Solo el administrador o encargado pueden realizar el cobro/pago de deudas."
+          >
+            <i data-lucide="credit-card" class="h-4 w-4"></i>
+            <%= action_label %>
+          </button>
+        <% end %>
+      </div>
     </div>
     <% if @show_payment_rows.any? %>
       <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
@@ -165,6 +246,7 @@
               <th class="px-4 py-3 text-left">Referencia</th>
               <th class="px-4 py-3 text-right">Monto pago</th>
               <th class="px-4 py-3 text-right">Equivalente $ (BCV)</th>
+              <th class="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -180,6 +262,24 @@
                 <td class="px-4 py-3"><%= payment.reference.presence || '-' %></td>
                 <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount, unit: "#{payment_symbol} ") %></td>
                 <td class="px-4 py-3 text-right"><%= number_to_currency(row[:equivalent_usd_bcv], unit: "$ ") %></td>
+                <td class="px-4 py-3 text-right">
+                  <% if row[:delete_allowed] %>
+                    <%= link_to debt_debt_payment_path(
+                          @debt,
+                          payment,
+                          group_currency: params[:group_currency],
+                          group_cliente_id: params[:group_cliente_id],
+                          only_active: params[:only_active],
+                          group_token: params[:group_token]
+                        ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar pago", aria: { label: "Eliminar pago" }, data: { turbo_method: :delete, swal_delete: 'debt_payment', swal_text: (row[:delete_warning] ? 'Este pago pertenece a un turno ya cerrado y se eliminará junto con sus movimientos asociados. Esta acción no se puede deshacer.' : nil) } do %>
+                      <i data-lucide="trash" class="h-4 w-4"></i>
+                    <% end %>
+                  <% else %>
+                    <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-100 p-2 text-slate-500" title="No permitido" aria-label="No permitido" data-payment-delete-blocked="true" data-payment-delete-blocked-message="<%= row[:delete_block_reason] %>">
+                      <i data-lucide="trash" class="h-4 w-4"></i>
+                    </button>
+                  <% end %>
+                </td>
               </tr>
             <% end %>
           </tbody>
@@ -189,4 +289,828 @@
       <p class="mt-4 text-sm text-slate-500">Aun no hay pagos registrados.</p>
     <% end %>
   </div>
-</div>
+  <div id="venta-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40" data-venta-modal-target="modal">
+    <div class="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg">
+      <button class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-action="click->venta-modal#close">&times;</button>
+      <div data-venta-modal-target="content"></div>
+    </div>
+  </div>
+  <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-register-payment-modal="true">
+    <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+      <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-register-payment-close="true">&times;</button>
+      <div class="mb-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400"><%= action_label %></p>
+        <h3 class="text-lg font-bold text-slate-800">Cobro/Pago del conjunto</h3>
+        <p class="mt-1 text-xs text-slate-500">Un solo registro se distribuye automaticamente en todas las deudas activas del grupo.</p>
+      </div>
+      <%= form_with url: debt_debt_payments_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { register_payment_form: true, register_payment_receivable: (@debt.receivable? ? '1' : '0') } do |form| %>
+        <input type="hidden" name="debt_payment[allow_overpayment]" value="0" />
+        <input type="hidden" name="from_debt_show_modal" value="1" />
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Fecha del pago</label>
+            <input type="text" name="debt_payment[occurred_at]" value="<%= Date.current.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="<%= current_user_admin? ? 'js-materialize-datepicker materialize-datepicker-input' : '' %> mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-date="true" <%= 'readonly' unless current_user_admin? %> required />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Cuenta</label>
+            <select name="debt_payment[account_id]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-account="true" required>
+              <option value="">Selecciona una cuenta</option>
+              <% @payment_accounts.each do |account| %>
+                <option
+                  value="<%= account.id %>"
+                  data-account-currency="<%= account.currency.to_s.upcase %>"
+                  data-account-symbol="<%= payment_currency_symbols[account.currency] || account.currency %>"
+                  data-account-type="<%= account.account_type %>"
+                ><%= account.name %> (<%= account.currency %>)</option>
+              <% end %>
+            </select>
+          </div>
+          <div class="hidden" data-register-payment-method-wrapper="true">
+            <label class="block text-xs font-semibold text-slate-500">Metodo (solo banco)</label>
+            <select name="debt_payment[payment_method]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-method="true">
+              <option value="">Selecciona</option>
+              <option value="transfer">Transferencia</option>
+              <option value="mobile">Pago movil</option>
+            </select>
+          </div>
+          <div class="hidden" data-register-payment-reference-wrapper="true">
+            <label class="block text-xs font-semibold text-slate-500">Referencia</label>
+            <input type="text" name="debt_payment[reference]" maxlength="4" pattern="\d{4}" inputmode="numeric" autocomplete="off" placeholder="4 digitos" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-reference="true" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Monto</label>
+            <input type="hidden" name="debt_payment[amount]" value="0" data-register-payment-amount-hidden="true" />
+            <input
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              data-money-mask="true"
+              data-money-symbol="$"
+              data-register-payment-amount-masked="true"
+              placeholder="$ 0,00"
+              class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              required
+            />
+          </div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" data-register-payment-summary="true" data-base-usd="<%= @show_total_balance_usd_bcv.to_d.to_s('F') %>">
+          <p class="text-xs text-slate-500">Saldo pendiente real total $ (BCV)</p>
+          <p class="text-sm font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: '$ ') %></p>
+          <% if @show_group_currency.to_s.upcase == 'USD' %>
+            <p class="mt-1 text-xs text-slate-500">Equivalente en Bs</p>
+            <p class="text-sm font-semibold text-slate-800" data-register-payment-pending-bs="true"><%= number_to_currency(@show_total_balance_ves_for_usd_group, unit: 'Bs ') %></p>
+          <% end %>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500">Notas</label>
+          <textarea name="debt_payment[notes]" rows="3" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"></textarea>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            <%= action_label %>
+          </button>
+          <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-register-payment-close="true">
+            Cancelar
+          </button>
+        </div>
+      <% end %>
+    </div>
+  </div>
+  <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-add-debt-modal="true">
+    <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+      <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-add-debt-close="true">&times;</button>
+      <div class="mb-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
+        <h3 class="text-lg font-bold text-slate-800" data-add-debt-title="true">Agregar deuda al registro</h3>
+      </div>
+      <%= form_with url: debts_path, method: :post, local: true, class: "space-y-4", data: { add_debt_form: true } do %>
+        <%= hidden_field_tag "debt[debt_kind]", @debt.debt_kind %>
+        <%= hidden_field_tag "debt[cliente_id]", @debt.cliente_id %>
+        <%= hidden_field_tag :return_to_debt_id, @debt.id %>
+        <%= hidden_field_tag :return_group_currency, params[:group_currency].presence || @debt.currency %>
+        <%= hidden_field_tag :return_group_cliente_id, params[:group_cliente_id].presence || (@debt.cliente_id.present? ? @debt.cliente_id : 'none') %>
+        <%= hidden_field_tag :return_only_active, params[:only_active].presence || 1 %>
+        <%= hidden_field_tag :return_group_token, params[:group_token].presence || @debt.try(:group_token) %>
+        <%= hidden_field_tag :edit_debt_id, '', data: { add_debt_edit_id: true } %>
+        <% if current_user_admin? || current_user_manager? %>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <input type="hidden" name="debt_entries[0][loan_enabled]" value="0" />
+            <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" name="debt_entries[0][loan_enabled]" value="1" class="h-4 w-4 rounded border-slate-300" data-add-debt-loan-enabled="true" />
+              Esta deuda es un prestamo
+            </label>
+            <div class="mt-3 hidden" data-add-debt-loan-fields="true">
+              <label class="block text-xs font-semibold text-slate-500">Cuenta desde donde saldra el dinero</label>
+              <select name="debt_entries[0][loan_account_id]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-add-debt-loan-account="true" disabled>
+                <option value="">Selecciona una cuenta</option>
+                <% @loan_accounts.each do |account| %>
+                  <option
+                    value="<%= account.id %>"
+                    data-loan-account="true"
+                    data-account-currency="<%= account.currency.to_s.upcase %>"
+                    data-account-balance="<%= account.balance.to_d.to_s('F') %>"
+                    data-account-symbol="<%= account.currency_symbol %>"
+                  ><%= account.name %> (<%= account.currency %>) - Disponible: <%= format_money(account.balance, unit: "#{account.currency_symbol} ") %></option>
+                <% end %>
+              </select>
+            </div>
+          </div>
+        <% end %>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Descripcion</label>
+            <input type="text" name="debt_entries[0][description]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" placeholder="Detalle de la deuda" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Tasa base de cobro</label>
+            <select name="debt_entries[0][currency]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-add-debt-currency="true">
+              <% @show_currency_options.each do |currency| %>
+                <% symbol = Account::CURRENCIES.dig(currency.to_s.upcase, :symbol) || currency.to_s.upcase %>
+                <option value="<%= currency %>" data-currency-symbol="<%= symbol %>"><%= currency %></option>
+              <% end %>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Monto</label>
+            <input type="hidden" name="debt_entries[0][amount]" value="0" data-add-debt-amount-hidden="true" />
+            <input type="hidden" name="debt_entries[0][amount_input_currency]" value="<%= @show_group_currency %>" data-add-debt-amount-input-currency="true" />
+            <input
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              data-money-mask="true"
+              data-money-symbol="<%= Account::CURRENCIES.dig(@show_group_currency.to_s.upcase, :symbol) || '$' %>"
+              data-add-debt-amount-masked="true"
+              placeholder="<%= (Account::CURRENCIES.dig(@show_group_currency.to_s.upcase, :symbol) || '$') %> 0,00"
+              class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              required
+            />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Emision</label>
+            <input type="text" name="debt_entries[0][issued_on]" value="<%= Date.current.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="<%= current_user_admin? ? 'js-materialize-datepicker materialize-datepicker-input' : '' %> mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" <%= 'readonly' unless current_user_admin? %> required />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Vencimiento</label>
+            <input type="text" name="debt_entries[0][due_on]" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" data-add-debt-submit="true">
+            Guardar deuda
+          </button>
+          <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-add-debt-close="true">
+            Cancelar
+          </button>
+        </div>
+      <% end %>
+    </div>
+            </div>
+            <script>
+              (() => {
+                const root = document.querySelector("[data-controller='venta-modal']");
+                if (!root || root.dataset.saleDebtInfoBound === "true") return;
+                root.dataset.saleDebtInfoBound = "true";
+
+                const addDebtModal = root.querySelector("[data-add-debt-modal='true']");
+                const openAddDebtButtons = root.querySelectorAll("[data-add-debt-open='true']");
+                const closeAddDebtButtons = root.querySelectorAll("[data-add-debt-close='true']");
+                const loanEnabled = root.querySelector("[data-add-debt-loan-enabled='true']");
+                const loanFields = root.querySelector("[data-add-debt-loan-fields='true']");
+                const loanAccount = root.querySelector("[data-add-debt-loan-account='true']");
+                const addDebtForm = root.querySelector("[data-add-debt-form='true']");
+                const addDebtTitle = root.querySelector("[data-add-debt-title='true']");
+                const addDebtSubmit = root.querySelector("[data-add-debt-submit='true']");
+                const addDebtEditId = root.querySelector("[data-add-debt-edit-id='true']");
+                const descriptionInput = root.querySelector("input[name='debt_entries[0][description]']");
+                const currencySelect = root.querySelector("[data-add-debt-currency='true']");
+                const amountMaskedInput = root.querySelector("[data-add-debt-amount-masked='true']");
+                const amountHiddenInput = root.querySelector("[data-add-debt-amount-hidden='true']");
+                const amountInputCurrency = root.querySelector("[data-add-debt-amount-input-currency='true']");
+                const issuedOnInput = root.querySelector("input[name='debt_entries[0][issued_on]']");
+                const dueOnInput = root.querySelector("input[name='debt_entries[0][due_on]']");
+                const registerPaymentModal = root.querySelector("[data-register-payment-modal='true']");
+                const openRegisterPaymentButtons = root.querySelectorAll("[data-register-payment-open='true']");
+                const closeRegisterPaymentButtons = root.querySelectorAll("[data-register-payment-close='true']");
+                const registerPaymentForm = root.querySelector("[data-register-payment-form='true']");
+                const registerPaymentIsReceivable = registerPaymentForm?.dataset?.registerPaymentReceivable === "1";
+                const registerPaymentAccount = root.querySelector("[data-register-payment-account='true']");
+                const registerPaymentMethodWrapper = root.querySelector("[data-register-payment-method-wrapper='true']");
+                const registerPaymentMethod = root.querySelector("[data-register-payment-method='true']");
+                const registerPaymentReferenceWrapper = root.querySelector("[data-register-payment-reference-wrapper='true']");
+                const registerPaymentReference = root.querySelector("[data-register-payment-reference='true']");
+                const registerPaymentAmountMasked = root.querySelector("[data-register-payment-amount-masked='true']");
+                const registerPaymentAmountHidden = root.querySelector("[data-register-payment-amount-hidden='true']");
+                const registerPaymentDateInput = root.querySelector("[data-register-payment-date='true']");
+                const registerPaymentNotes = root.querySelector("textarea[name='debt_payment[notes]']");
+                const registerPaymentSummary = root.querySelector("[data-register-payment-summary='true']");
+                const registerPaymentPendingBs = root.querySelector("[data-register-payment-pending-bs='true']");
+                const registerPaymentBaseUsd = Number.parseFloat(registerPaymentSummary?.dataset?.baseUsd || "0");
+
+                const showInfoAlert = ({ title, text }) => {
+                  if (window.Swal) {
+                    window.Swal.fire({
+                      icon: "info",
+                      title,
+                      text,
+                      confirmButtonText: "Entendido",
+                      heightAuto: false,
+                      scrollbarPadding: false,
+                    });
+                  } else {
+                    window.alert(text);
+                  }
+                };
+
+                const resetAddDebtForm = () => {
+                  if (!addDebtForm) return;
+
+                  addDebtForm.reset();
+
+                  if (addDebtEditId) addDebtEditId.value = "";
+                  if (addDebtTitle) addDebtTitle.textContent = "Agregar deuda al registro";
+                  if (addDebtSubmit) addDebtSubmit.textContent = "Guardar deuda";
+
+                  if (issuedOnInput) {
+                    const now = new Date();
+                    const dd = String(now.getDate()).padStart(2, "0");
+                    const mm = String(now.getMonth() + 1).padStart(2, "0");
+                    const yyyy = String(now.getFullYear());
+                    issuedOnInput.value = `${dd}-${mm}-${yyyy}`;
+                  }
+
+                  if (dueOnInput) dueOnInput.value = "";
+                  if (amountMaskedInput) amountMaskedInput.value = "";
+                  if (amountHiddenInput) amountHiddenInput.value = "0";
+                  if (amountInputCurrency && currencySelect) amountInputCurrency.value = normalizeCurrency(currencySelect.value);
+
+                  if (loanEnabled) loanEnabled.checked = false;
+                  if (loanFields) loanFields.classList.add("hidden");
+                  if (loanAccount) {
+                    loanAccount.disabled = true;
+                    loanAccount.required = false;
+                    loanAccount.value = "";
+                  }
+                };
+
+                const normalizeCurrency = (value) => String(value || "").trim().toUpperCase();
+
+                const parseRegisterPaymentMaskedValue = (input) => {
+                  if (!input) return 0;
+
+                  if (window.MoneyInputMask?.parseValue) {
+                    const parsed = Number(window.MoneyInputMask.parseValue(input));
+                    return Number.isFinite(parsed) ? parsed : 0;
+                  }
+
+                  const raw = String(input.value || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+                  const parsed = Number.parseFloat(raw);
+                  return Number.isFinite(parsed) ? parsed : 0;
+                };
+
+                const updateAmountHidden = () => {
+                  if (!amountHiddenInput || !amountMaskedInput) return;
+                  amountHiddenInput.value = parseMaskedValue(amountMaskedInput).toFixed(2);
+                };
+
+                const syncAmountSymbolByCurrency = () => {
+                  if (!amountMaskedInput || !currencySelect) return;
+
+                  const selectedCurrency = normalizeCurrency(currencySelect.value);
+                  const selectedOption = currencySelect.options[currencySelect.selectedIndex];
+                  const symbol = selectedOption?.dataset?.currencySymbol || (selectedCurrency === "USDT" ? "₮" : "$");
+
+                  if (amountInputCurrency) amountInputCurrency.value = selectedCurrency;
+
+                  amountMaskedInput.dataset.moneySymbol = symbol;
+                  amountMaskedInput.placeholder = `${symbol} 0,00`;
+
+                  if (window.MoneyInputMask?.init) {
+                    window.MoneyInputMask.init(amountMaskedInput.closest("form") || root);
+                  }
+                };
+
+                const syncAmountSymbolByLoanAccount = () => {
+                  if (!amountMaskedInput || !loanEnabled || !loanAccount) return;
+
+                  const selectedOption = loanAccount.options[loanAccount.selectedIndex];
+                  if (!loanEnabled.checked || !selectedOption?.value) {
+                    syncAmountSymbolByCurrency();
+                    return;
+                  }
+
+                  const accountSymbol = selectedOption.dataset.accountSymbol || "$";
+                  const accountCurrency = normalizeCurrency(selectedOption.dataset.accountCurrency);
+
+                  if (amountInputCurrency) amountInputCurrency.value = accountCurrency;
+
+                  amountMaskedInput.dataset.moneySymbol = accountSymbol;
+                  amountMaskedInput.placeholder = `${accountSymbol} 0,00`;
+
+                  if (window.MoneyInputMask?.init) {
+                    window.MoneyInputMask.init(amountMaskedInput.closest("form") || root);
+                  }
+                };
+
+                const syncLoanAccountsByCurrency = () => {
+                  if (!loanAccount || !currencySelect) return;
+
+                  const selectedCurrency = normalizeCurrency(currencySelect.value);
+                  const options = Array.from(loanAccount.querySelectorAll("option[data-loan-account='true']"));
+
+                  options.forEach((option) => {
+                    const accountCurrency = normalizeCurrency(option.dataset.accountCurrency);
+                    const allowed = selectedCurrency === "USDT" ? accountCurrency === "USDT" : accountCurrency !== "USDT";
+
+                    option.hidden = !allowed;
+                    option.disabled = !allowed;
+                  });
+
+                  const selectedOption = loanAccount.options[loanAccount.selectedIndex];
+                  if (selectedOption?.disabled) {
+                    loanAccount.value = "";
+                  }
+                };
+
+                const openAddDebtModal = () => {
+                  if (!addDebtModal) return;
+                  resetAddDebtForm();
+                  addDebtModal.classList.remove("hidden");
+                  addDebtModal.classList.add("flex");
+
+                  if (typeof window.initializeMaterializeDatepickers === "function") {
+                    window.initializeMaterializeDatepickers(addDebtModal);
+                  }
+
+                  if (window.MoneyInputMask?.init) {
+                    window.MoneyInputMask.init(addDebtModal);
+                  }
+
+                  syncAmountSymbolByCurrency();
+                  syncLoanAccountsByCurrency();
+                  toggleLoanFields();
+                  updateAmountHidden();
+                };
+
+                const closeAddDebtModal = () => {
+                  if (!addDebtModal) return;
+                  addDebtModal.classList.add("hidden");
+                  addDebtModal.classList.remove("flex");
+                };
+
+                const parseMaskedValue = (input) => {
+                  if (!input) return 0;
+
+                  if (window.MoneyInputMask?.parseValue) {
+                    const parsed = Number(window.MoneyInputMask.parseValue(input));
+                    return Number.isFinite(parsed) ? parsed : 0;
+                  }
+
+                  const raw = String(input.value || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
+                  const parsed = Number.parseFloat(raw);
+                  return Number.isFinite(parsed) ? parsed : 0;
+                };
+
+                const updateRegisterPaymentAmount = () => {
+                  if (!registerPaymentAmountHidden || !registerPaymentAmountMasked) return;
+                  registerPaymentAmountHidden.value = parseRegisterPaymentMaskedValue(registerPaymentAmountMasked).toFixed(2);
+                };
+
+                const parseDmyDate = (value) => {
+                  const raw = String(value || "").trim();
+                  const match = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+                  if (!match) return null;
+
+                  const day = Number.parseInt(match[1], 10);
+                  const month = Number.parseInt(match[2], 10);
+                  const year = Number.parseInt(match[3], 10);
+                  const date = new Date(year, month - 1, day);
+                  if (
+                    Number.isNaN(date.getTime()) ||
+                    date.getFullYear() !== year ||
+                    date.getMonth() !== month - 1 ||
+                    date.getDate() !== day
+                  ) {
+                    return null;
+                  }
+
+                  return date;
+                };
+
+                const formatIsoDate = (date) => {
+                  if (!(date instanceof Date)) return "";
+                  const yyyy = String(date.getFullYear());
+                  const mm = String(date.getMonth() + 1).padStart(2, "0");
+                  const dd = String(date.getDate()).padStart(2, "0");
+                  return `${yyyy}-${mm}-${dd}`;
+                };
+
+                const isTodayDate = (date) => {
+                  if (!(date instanceof Date)) return false;
+                  const now = new Date();
+                  return (
+                    date.getFullYear() === now.getFullYear() &&
+                    date.getMonth() === now.getMonth() &&
+                    date.getDate() === now.getDate()
+                  );
+                };
+
+                const isRestrictedAccountTypeByDate = (accountType) => {
+                  const normalized = String(accountType || "").trim().toLowerCase();
+                  return ["biopago", "pos", "cash_box"].includes(normalized);
+                };
+
+                const formatBsAmount = (value) => {
+                  const number = Number.isFinite(Number(value)) ? Number(value) : 0;
+                  return `Bs ${number.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                };
+
+                const resetRegisterPaymentForm = ({ preserveDate = true } = {}) => {
+                  if (!registerPaymentForm) return;
+
+                  const currentDate = registerPaymentDateInput?.value || "";
+                  registerPaymentForm.reset();
+                  if (preserveDate && registerPaymentDateInput) {
+                    registerPaymentDateInput.value = currentDate;
+                  }
+
+                  if (registerPaymentAccount) registerPaymentAccount.value = "";
+                  if (registerPaymentMethod) registerPaymentMethod.value = "";
+                  if (registerPaymentReference) {
+                    registerPaymentReference.value = "";
+                    registerPaymentReference.setCustomValidity("");
+                  }
+                  if (registerPaymentAmountMasked) registerPaymentAmountMasked.value = "";
+                  if (registerPaymentAmountHidden) registerPaymentAmountHidden.value = "0";
+                  if (registerPaymentNotes) registerPaymentNotes.value = "";
+
+                  if (window.MoneyInputMask?.init && registerPaymentModal) {
+                    window.MoneyInputMask.init(registerPaymentModal);
+                  }
+
+                  syncRegisterPaymentByAccount();
+                  updateRegisterPaymentAmount();
+                };
+
+                const filterRegisterPaymentAccountsByDate = () => {
+                  if (!registerPaymentAccount) return;
+
+                  const selectedDate = parseDmyDate(registerPaymentDateInput?.value);
+                  const allowRestricted = isTodayDate(selectedDate);
+
+                  Array.from(registerPaymentAccount.options).forEach((option) => {
+                    if (!option.value) {
+                      option.hidden = false;
+                      option.disabled = false;
+                      return;
+                    }
+
+                    const accountType = option.dataset.accountType;
+                    const shouldHide = !allowRestricted && isRestrictedAccountTypeByDate(accountType);
+
+                    option.hidden = shouldHide;
+                    option.disabled = shouldHide;
+                  });
+
+                  const selectedOption = registerPaymentAccount.options[registerPaymentAccount.selectedIndex];
+                  if (!selectedOption || selectedOption.disabled) {
+                    registerPaymentAccount.value = "";
+                  }
+
+                  syncRegisterPaymentByAccount();
+                };
+
+                const updateRegisterPaymentEquivalentBsByDate = () => {
+                  if (!registerPaymentPendingBs) return;
+
+                  const selectedDate = parseDmyDate(registerPaymentDateInput?.value);
+                  if (!(selectedDate instanceof Date) || !Number.isFinite(registerPaymentBaseUsd)) {
+                    registerPaymentPendingBs.textContent = formatBsAmount(0);
+                    return;
+                  }
+
+                  const isoDate = formatIsoDate(selectedDate);
+                  if (!isoDate) {
+                    registerPaymentPendingBs.textContent = formatBsAmount(0);
+                    return;
+                  }
+
+                  fetch(`/tasa_cambios/bcv_por_fecha?fecha=${encodeURIComponent(isoDate)}`)
+                    .then(async (response) => {
+                      const data = await response.json().catch(() => ({}));
+                      if (!response.ok) throw new Error(data.error || "rate_not_found");
+
+                      const rate = Number.parseFloat(data.valor);
+                      if (!Number.isFinite(rate) || rate <= 0) throw new Error("invalid_rate");
+
+                      const equivalent = registerPaymentBaseUsd * rate;
+                      registerPaymentPendingBs.textContent = formatBsAmount(equivalent);
+                    })
+                    .catch(() => {
+                      registerPaymentPendingBs.textContent = formatBsAmount(0);
+                    });
+                };
+
+                const syncRegisterPaymentByAccount = () => {
+                  if (!registerPaymentAccount) return;
+
+                  const option = registerPaymentAccount.options[registerPaymentAccount.selectedIndex];
+                  const accountType = option?.dataset?.accountType || "";
+                  const symbol = option?.dataset?.accountSymbol || "$";
+
+                  if (registerPaymentMethodWrapper) {
+                    const isBank = accountType === "bank_account";
+                    registerPaymentMethodWrapper.classList.toggle("hidden", !isBank);
+                    if (!isBank && registerPaymentMethod) registerPaymentMethod.value = "";
+
+                    if (registerPaymentReferenceWrapper) {
+                      registerPaymentReferenceWrapper.classList.toggle("hidden", !isBank);
+                    }
+
+                    if (registerPaymentReference) {
+                      if (!isBank) {
+                        registerPaymentReference.required = false;
+                        registerPaymentReference.value = "";
+                        registerPaymentReference.setCustomValidity("");
+                      } else {
+                        registerPaymentReference.required = registerPaymentIsReceivable;
+                        registerPaymentReference.setCustomValidity("");
+                      }
+                    }
+                  }
+
+                  if (registerPaymentAmountMasked) {
+                    registerPaymentAmountMasked.dataset.moneySymbol = symbol;
+                    registerPaymentAmountMasked.placeholder = `${symbol} 0,00`;
+                    if (window.MoneyInputMask?.init) {
+                      window.MoneyInputMask.init(registerPaymentAmountMasked.closest("form") || root);
+                    }
+                  }
+                };
+
+                const openRegisterPaymentModal = () => {
+                  if (!registerPaymentModal) return;
+
+                  const triggerButton = document.activeElement?.closest?.("[data-register-payment-open='true']") || openRegisterPaymentButtons[0];
+                  const allowed = triggerButton?.dataset?.registerPaymentAllowed === "1";
+                  if (!allowed) {
+                    showInfoAlert({
+                      title: "Acceso restringido",
+                      text: triggerButton?.dataset?.registerPaymentDeniedMessage || "Solo el administrador o encargado pueden realizar el cobro/pago de deudas.",
+                    });
+                    return;
+                  }
+
+                  registerPaymentModal.classList.remove("hidden");
+                  registerPaymentModal.classList.add("flex");
+
+                  resetRegisterPaymentForm({ preserveDate: false });
+
+                  if (typeof window.initializeMaterializeDatepickers === "function") {
+                    window.initializeMaterializeDatepickers(registerPaymentModal);
+                  }
+
+                  if (window.MoneyInputMask?.init) {
+                    window.MoneyInputMask.init(registerPaymentModal);
+                  }
+
+                  syncRegisterPaymentByAccount();
+                  updateRegisterPaymentAmount();
+                  filterRegisterPaymentAccountsByDate();
+                  updateRegisterPaymentEquivalentBsByDate();
+                };
+
+                const closeRegisterPaymentModal = () => {
+                  if (!registerPaymentModal) return;
+                  registerPaymentModal.classList.add("hidden");
+                  registerPaymentModal.classList.remove("flex");
+                };
+
+                const toggleLoanFields = () => {
+                  if (!loanEnabled || !loanFields || !loanAccount) return;
+
+                  if (loanEnabled.checked) {
+                    syncLoanAccountsByCurrency();
+                    loanFields.classList.remove("hidden");
+                    loanAccount.disabled = false;
+                    loanAccount.required = true;
+                    syncAmountSymbolByLoanAccount();
+                  } else {
+                    loanFields.classList.add("hidden");
+                    loanAccount.disabled = true;
+                    loanAccount.required = false;
+                    loanAccount.value = "";
+                    syncAmountSymbolByCurrency();
+                  }
+                };
+
+                openAddDebtButtons.forEach((button) => {
+                  button.addEventListener("click", openAddDebtModal);
+                });
+
+                openRegisterPaymentButtons.forEach((button) => {
+                  button.addEventListener("click", (event) => {
+                    event.preventDefault();
+
+                    const allowed = button.dataset.registerPaymentAllowed === "1";
+                    if (!allowed) {
+                      showInfoAlert({
+                        title: "Acceso restringido",
+                        text: button.dataset.registerPaymentDeniedMessage || "Solo el administrador o encargado pueden realizar el cobro/pago de deudas.",
+                      });
+                      return;
+                    }
+
+                    openRegisterPaymentModal();
+                  });
+                });
+
+                root.addEventListener("click", (event) => {
+                  const editButton = event.target.closest("[data-add-debt-edit='true']");
+                  if (!editButton) return;
+
+                  if (!addDebtModal) return;
+
+                  const data = editButton.dataset;
+
+                  if (addDebtEditId) addDebtEditId.value = data.editDebtId || "";
+                  if (descriptionInput) descriptionInput.value = data.editDescription || "";
+                  if (currencySelect && data.editCurrency) currencySelect.value = data.editCurrency;
+                  if (issuedOnInput) issuedOnInput.value = data.editIssuedOn || "";
+                  if (dueOnInput) dueOnInput.value = data.editDueOn || "";
+
+                  if (amountHiddenInput) {
+                    const amount = Number.parseFloat(data.editAmount || "0");
+                    amountHiddenInput.value = Number.isFinite(amount) ? amount.toFixed(2) : "0.00";
+                  }
+
+                  if (amountInputCurrency && data.editAmountInputCurrency) {
+                    amountInputCurrency.value = normalizeCurrency(data.editAmountInputCurrency);
+                  }
+
+                  syncAmountSymbolByCurrency();
+                  syncLoanAccountsByCurrency();
+
+                  if (amountMaskedInput && window.MoneyInputMask?.setValue) {
+                    window.MoneyInputMask.setValue(amountMaskedInput, Number.parseFloat(data.editAmount || "0") || 0, amountMaskedInput.dataset.moneySymbol || "$");
+                  } else if (amountMaskedInput) {
+                    amountMaskedInput.value = data.editAmount || "";
+                  }
+
+                  if (loanEnabled) {
+                    loanEnabled.checked = data.editLoanEnabled === "1";
+                    toggleLoanFields();
+                  }
+
+                  if (loanAccount && data.editLoanAccountId) {
+                    loanAccount.value = data.editLoanAccountId;
+                  }
+
+                  syncAmountSymbolByLoanAccount();
+
+                  if (addDebtTitle) addDebtTitle.textContent = "Editar deuda del registro";
+                  if (addDebtSubmit) addDebtSubmit.textContent = "Guardar cambios";
+
+                  addDebtModal.classList.remove("hidden");
+                  addDebtModal.classList.add("flex");
+
+                  if (typeof window.initializeMaterializeDatepickers === "function") {
+                    window.initializeMaterializeDatepickers(addDebtModal);
+                  }
+                });
+
+                closeAddDebtButtons.forEach((button) => {
+                  button.addEventListener("click", closeAddDebtModal);
+                });
+
+                closeRegisterPaymentButtons.forEach((button) => {
+                  button.addEventListener("click", closeRegisterPaymentModal);
+                });
+
+                if (loanEnabled) {
+                  loanEnabled.addEventListener("change", toggleLoanFields);
+                  toggleLoanFields();
+                }
+
+                if (currencySelect) {
+                  currencySelect.addEventListener("change", () => {
+                    syncAmountSymbolByCurrency();
+                    syncLoanAccountsByCurrency();
+                    syncAmountSymbolByLoanAccount();
+                    updateAmountHidden();
+                  });
+                }
+
+                if (loanAccount) {
+                  loanAccount.addEventListener("change", () => {
+                    syncAmountSymbolByLoanAccount();
+                    updateAmountHidden();
+                  });
+                }
+
+                if (amountMaskedInput) {
+                  amountMaskedInput.addEventListener("input", updateAmountHidden);
+                }
+
+                if (registerPaymentAccount) {
+                  registerPaymentAccount.addEventListener("change", syncRegisterPaymentByAccount);
+                }
+
+                if (registerPaymentDateInput) {
+                  registerPaymentDateInput.addEventListener("change", () => {
+                    resetRegisterPaymentForm({ preserveDate: true });
+                    filterRegisterPaymentAccountsByDate();
+                    updateRegisterPaymentEquivalentBsByDate();
+                  });
+                }
+
+                if (registerPaymentReference) {
+                  registerPaymentReference.addEventListener("input", () => {
+                    const digits = String(registerPaymentReference.value || "").replace(/\D/g, "").slice(0, 4);
+                    registerPaymentReference.value = digits;
+                  });
+                }
+
+                if (registerPaymentAmountMasked) {
+                  registerPaymentAmountMasked.addEventListener("input", updateRegisterPaymentAmount);
+                }
+
+                if (registerPaymentForm) {
+                  registerPaymentForm.addEventListener("submit", () => {
+                    updateRegisterPaymentAmount();
+                  });
+                }
+
+                if ("<%= params[:open_payment_modal].to_s %>" === "1") {
+                  openRegisterPaymentModal();
+                }
+
+                if (addDebtForm) {
+                  addDebtForm.addEventListener("submit", (event) => {
+                    updateAmountHidden();
+
+                    if (!loanEnabled?.checked) return;
+
+                    const selectedOption = loanAccount?.options?.[loanAccount.selectedIndex];
+                    if (!selectedOption || !selectedOption.value) return;
+
+                    const requestedAmount = parseMaskedValue(amountMaskedInput);
+                    const availableBalance = Number.parseFloat(selectedOption.dataset.accountBalance || "0");
+
+                    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) return;
+
+                    if (requestedAmount > availableBalance) {
+                      event.preventDefault();
+
+                      const message = "Saldo insuficiente en la cuenta seleccionada para registrar el prestamo.";
+                      if (window.Swal) {
+                        window.Swal.fire({
+                          icon: "warning",
+                          title: "Saldo insuficiente",
+                          text: message,
+                          confirmButtonText: "Entendido",
+                          heightAuto: false,
+                          scrollbarPadding: false
+                        });
+                      } else {
+                        window.alert(message);
+                      }
+                    }
+                  });
+                }
+
+                root.addEventListener("click", (event) => {
+                  const infoButton = event.target.closest("[data-sale-debt-info='true']");
+                  if (!infoButton) return;
+
+                  event.preventDefault();
+
+                  const message = "Si deseas eliminar este registro de deuda, debes eliminar la venta directamente.";
+
+                  if (window.Swal) {
+                    window.Swal.fire({
+                      icon: "info",
+                      title: "Registro bloqueado",
+                      text: message,
+                      confirmButtonText: "Entendido",
+                      heightAuto: false,
+                      scrollbarPadding: false
+                    });
+                  } else {
+                    window.alert(message);
+                  }
+                });
+
+                root.addEventListener("click", (event) => {
+                  const blockedDeleteButton = event.target.closest("[data-payment-delete-blocked='true']");
+                  if (!blockedDeleteButton) return;
+
+                  event.preventDefault();
+                  showInfoAlert({
+                    title: "No permitido",
+                    text: blockedDeleteButton.dataset.paymentDeleteBlockedMessage || "Este pago no puede eliminarse con tu perfil.",
+                  });
+                });
+              })();
+            </script>
+          </div>

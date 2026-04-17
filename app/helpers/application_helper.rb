@@ -156,6 +156,20 @@ module ApplicationHelper
     }
   end
 
+  def debt_source_sale_id(debt)
+    direct_sale_id = debt&.venta_id
+    return direct_sale_id.to_i if direct_sale_id.present?
+
+    description = debt&.description.to_s
+    return nil if description.blank?
+
+    tagged_sale_id = extract_movement_source_id(description, 'VENTA')
+    return nil if tagged_sale_id.blank?
+
+    sale = current_business&.ventas&.select(:id)&.find_by(id: tagged_sale_id)
+    sale&.id
+  end
+
   private
 
   def normalize_debt_movement_description(movement)

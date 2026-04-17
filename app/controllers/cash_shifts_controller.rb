@@ -7,6 +7,7 @@ class CashShiftsController < ApplicationController
   before_action :ensure_can_manage_cash_shifts!, only: %i[create]
   before_action :set_open_cash_shift, only: %i[create]
   before_action :set_cash_shift, only: %i[show close destroy]
+  before_action :ensure_can_view_cash_shift!, only: %i[show]
   before_action :ensure_can_close_shift!, only: %i[close]
   before_action :ensure_can_destroy_shift!, only: %i[destroy]
 
@@ -27,6 +28,7 @@ class CashShiftsController < ApplicationController
     ].any?(&:present?)
 
     @cash_shifts = current_business.cash_shifts.includes(:opened_by, :closed_by)
+    @cash_shifts = @cash_shifts.open unless current_user_admin? || current_user_manager?
 
     if @selected_fecha_desde.present?
       @cash_shifts = @cash_shifts.where('opened_at >= ?',
@@ -236,6 +238,13 @@ class CashShiftsController < ApplicationController
 
   def set_cash_shift
     @cash_shift = current_business.cash_shifts.includes(:opened_by, :closed_by).find(params[:id])
+  end
+
+  def ensure_can_view_cash_shift!
+    return if current_user_admin? || current_user_manager?
+    return if @cash_shift.open?
+
+    redirect_to cash_shifts_path, alert: 'Solo encargado o administrador pueden ver turnos cerrados.'
   end
 
   def close_shift_params

@@ -1,9 +1,9 @@
 class DebtsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
-  before_action :ensure_can_create_debt!, only: %i[new create]
+  before_action :ensure_can_create_debt!, only: %i[new create prepare_group]
   before_action :ensure_can_edit_debt!, only: %i[edit update]
-  before_action :ensure_can_destroy_debt!, only: %i[destroy]
+  before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
   before_action :set_debt, only: %i[show edit update destroy]
   before_action :load_parties, only: %i[new create edit update]
   before_action :load_accounts, only: %i[new create edit update]
@@ -15,7 +15,7 @@ class DebtsController < ApplicationController
     scope = current_business
             .debts
             .excluding_service_cost_records
-            .includes(:cliente, :debt_payments)
+          .includes(:cliente, :debt_payments, :venta)
 
     if @search_query.present?
       query = "%#{ActiveRecord::Base.sanitize_sql_like(@search_query)}%"
@@ -30,6 +30,10 @@ class DebtsController < ApplicationController
     pending_payable_individual_debts = pending_individual_debts.select(&:payable?)
 
     all_collapsed_debts = collapse_grouped_debts(all_debts)
+    @collapsed_group_keys = all_collapsed_debts.each_with_object({}) do |debt, hash|
+      hash[debt.id] = collapsed_group_key(debt)
+    end
+    hidden_paid_group_keys = current_business.hidden_debt_groups.pluck(:group_key)
     @has_any_debts = all_collapsed_debts.any?
 
     @debts = all_collapsed_debts.select { |debt| debt_pending_for_index?(debt) }
@@ -37,13 +41,23 @@ class DebtsController < ApplicationController
     @payable_debts = @debts.select(&:payable?)
     @receivable_paid_debts = all_collapsed_debts.select(&:receivable?).reject { |debt| debt_pending_for_index?(debt) }
     @payable_paid_debts = all_collapsed_debts.select(&:payable?).reject { |debt| debt_pending_for_index?(debt) }
+    @receivable_paid_debts = @receivable_paid_debts.reject do |debt|
+      hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
+    end
+    @payable_paid_debts = @payable_paid_debts.reject do |debt|
+      hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
+    end
     @receivable_groups = build_cliente_groups(@receivable_debts)
     @payable_groups = build_cliente_groups(@payable_debts)
     @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts)
     @payable_paid_groups = build_cliente_groups(@payable_paid_debts)
+    @receivable_group_totals = build_group_totals(@receivable_groups)
+    @payable_group_totals = build_group_totals(@payable_groups)
+    @receivable_paid_group_totals = build_group_totals(@receivable_paid_groups)
+    @payable_paid_group_totals = build_group_totals(@payable_paid_groups)
 
-    @receivable_count = @receivable_debts.size
-    @payable_count = @payable_debts.size
+    @receivable_count = count_debt_groups(@receivable_groups)
+    @payable_count = count_debt_groups(@payable_groups)
     @receivable_paid_count = @receivable_paid_debts.size
     @payable_paid_count = @payable_paid_debts.size
     receivable_overdue_debts = all_receivable_debts.select(&:overdue?)
@@ -60,6 +74,74 @@ class DebtsController < ApplicationController
     @next_due_on = closest_due_on(pending_individual_debts)
     @search_pending_count = @debts.count
     @search_paid_count = @receivable_paid_count + @payable_paid_count
+    @group_setup_clientes = current_business.clientes.order(:name)
+    @group_setup_currency_options = allowed_group_currency_codes
+  end
+
+  def hide_paid_group
+    group_key = params[:group_key].to_s.strip
+
+    if group_key.blank?
+      redirect_to debts_path, alert: 'No se pudo ocultar el conjunto pagado seleccionado.'
+      return
+    end
+
+    current_business.hidden_debt_groups.find_or_create_by!(group_key: group_key)
+    redirect_to debts_path, notice: 'Conjunto pagado ocultado del listado.'
+  rescue ActiveRecord::RecordInvalid
+    redirect_to debts_path, alert: 'No se pudo ocultar el conjunto pagado seleccionado.'
+  end
+
+  def prepare_group
+    cliente_id = params[:cliente_id].presence
+    currency = params[:currency].to_s.upcase.presence || 'USD'
+
+    if cliente_id.blank?
+      redirect_to debts_path, notice: 'Debes seleccionar un cliente para crear o abrir un grupo de deudas.'
+      return
+    end
+
+    if blocked_group_currency?(currency)
+      redirect_to debts_path, notice: 'La moneda del grupo no puede ser VES ni Unidad VI.'
+      return
+    end
+
+    unless allowed_group_currency_codes.include?(currency)
+      redirect_to debts_path, notice: 'La moneda seleccionada no tiene una tasa registrada disponible para trabajar deudas.'
+      return
+    end
+
+    active_group_debts = active_receivable_group_debts(cliente_id: cliente_id, currency: currency)
+
+    if active_group_debts.any?
+      target_debt = active_group_debts.first
+      redirect_to debt_path(target_debt, group_currency: currency, group_cliente_id: cliente_id, only_active: 1,
+                                         group_token: debt_group_token(target_debt))
+      return
+    end
+
+    @debt = current_business.debts.new(
+      debt_kind: 'receivable',
+      issued_on: Date.current,
+      cliente_id: cliente_id,
+      currency: currency
+    )
+
+    @grouped_debts = []
+    @show_group_currency = currency
+    @payments = []
+    @show_total_amount_usd_bcv = 0.to_d
+    @show_total_paid_usd_bcv = 0.to_d
+    @show_total_balance_usd_bcv = 0.to_d
+    @show_last_payment_at = nil
+    @show_overdue_count = 0
+    @show_payment_rows = []
+    @show_debt_rows = []
+
+    @loan_accounts = loan_accounts_for_group_currency(currency)
+    @show_currency_options = [currency]
+
+    render :show
   end
 
   def new
@@ -105,6 +187,39 @@ class DebtsController < ApplicationController
     @debt_entries_form = debt_entries_form_params
     normalized_entries = normalized_debt_entries
     shared_attrs = shared_debt_params
+    @debt = current_business.debts.new(shared_attrs)
+
+    if shared_attrs[:cliente_id].blank?
+      @debt = current_business.debts.new(shared_attrs)
+      @debt.errors.add(:base, 'Debes seleccionar un cliente para registrar la deuda.')
+      render :new, status: :unprocessable_entity
+      return
+    end
+
+    if normalized_entries.any? { |entry| blocked_group_currency?(entry[:currency]) }
+      @debt = current_business.debts.new(shared_attrs)
+      @debt.errors.add(:base, 'No puedes registrar deudas en VES ni en Unidad VI como moneda del grupo.')
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
+      return
+    end
+
+    if normalized_entries.any? { |entry| !allowed_group_currency_codes.include?(entry[:currency].to_s.upcase) }
+      @debt = current_business.debts.new(shared_attrs)
+      @debt.errors.add(:base, 'La moneda seleccionada no tiene una tasa registrada disponible para registrar la deuda.')
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
+      return
+    end
+
+    conversion_ok = convert_entry_amounts_to_group_currency!(normalized_entries)
+    unless conversion_ok
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
+      return
+    end
+
+    if params[:edit_debt_id].present?
+      handle_inline_edit_from_show(normalized_entries, shared_attrs)
+      return
+    end
 
     if normalized_entries.empty?
       @debt = current_business.debts.new(shared_attrs)
@@ -113,53 +228,17 @@ class DebtsController < ApplicationController
       return
     end
 
-    # Buscar grupo activo (no saldado) para el cliente y moneda (excepto USDT)
+    # Buscar grupo activo (no saldado) para el cliente y moneda.
     cliente_id = shared_attrs[:cliente_id]
-    moneda = shared_attrs[:currency] || 'USD'
-    es_usdt = moneda.to_s.upcase == 'USDT'
-    scope = current_business.debts.where(debt_kind: 'receivable')
-    scope = scope.where(cliente_id: cliente_id) if cliente_id.present?
-    scope = scope.where(currency: moneda)
-    scope = scope.excluding_service_cost_records
-    scope = scope.includes(:debt_payments)
+    moneda = normalized_entries.first&.dig(:currency).presence || 'USD'
+    active_group_debts = active_receivable_group_debts(cliente_id: cliente_id, currency: moneda)
+    group_token = active_group_debts.any? ? debt_group_token(active_group_debts.first) : generate_debt_group_token
 
-    group_root_id = nil
-    unless es_usdt
-      scope.group_by { |d| d.group_root_debt_id || d.id }.each do |root_id, deudas|
-        saldo_total = deudas.sum { |d| d.balance }
-        if saldo_total > 0.01
-          group_root_id = root_id
-          break
-        end
-      end
-    end
-
-
-    debts_to_create = []
-    if group_root_id.present? && !es_usdt
-      # Hay grupo activo, usar el mismo prefijo
-      normalized_entries.each_with_index do |entry, index|
-        attrs = shared_attrs.merge(debt_attributes_from_entry(entry))
-        attrs[:name] = "[GRP:#{group_root_id}] #{debt_name_for_entry(index, entry[:description])}"
-        debts_to_create << current_business.debts.new(attrs)
-      end
-    else
-      # No hay grupo activo, crear el grupo con el primer registro y su propio id
-      normalized_entries.each_with_index do |entry, index|
-        attrs = shared_attrs.merge(debt_attributes_from_entry(entry))
-        if index == 0 && !es_usdt
-          # Guardar primero para obtener el id
-          temp_debt = current_business.debts.new(attrs)
-          temp_debt.save(validate: false) # Guardar sin validación para obtener el id
-          group_id = temp_debt.id
-          temp_debt.update(name: "[GRP:#{group_id}] #{debt_name_for_entry(index, entry[:description])}")
-          debts_to_create << temp_debt
-        else
-          # Las siguientes usan el mismo prefijo
-          attrs[:name] = "[GRP:#{group_id}] #{debt_name_for_entry(index, entry[:description])}"
-          debts_to_create << current_business.debts.new(attrs)
-        end
-      end
+    debts_to_create = normalized_entries.each_with_index.map do |entry, index|
+      attrs = shared_attrs.merge(debt_attributes_from_entry(entry))
+      attrs[:name] = debt_name_for_entry(index, entry[:description])
+      attrs[:group_token] = group_token if Debt.column_names.include?('group_token')
+      current_business.debts.new(attrs)
     end
 
     @debt = debts_to_create.first
@@ -198,7 +277,7 @@ class DebtsController < ApplicationController
 
     if success
       notice = debts_to_create.size == 1 ? 'Deuda creada exitosamente.' : "#{debts_to_create.size} deudas creadas exitosamente."
-      redirect_to debts_path, notice: notice
+      redirect_to_show_or_index(notice: notice, fallback_debt: debts_to_create.first)
     else
       render :new, status: :unprocessable_entity
     end
@@ -208,8 +287,9 @@ class DebtsController < ApplicationController
 
   def show
     @debt = group_root_for(@debt)
-    grouped_debts = debts_in_same_edit_group(@debt)
-    @grouped_debts = [@debt] + sort_debts(grouped_debts.reject { |item| item.id == @debt.id })
+    grouped_debts = debts_for_show(@debt)
+    @grouped_debts = sort_debts(grouped_debts).uniq { |item| item.id }
+    @show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
 
     @payments = DebtPayment
                 .where(debt_id: @grouped_debts.map(&:id))
@@ -219,31 +299,72 @@ class DebtsController < ApplicationController
     @show_total_amount_usd_bcv = total_usd_amount(@grouped_debts)
     @show_total_paid_usd_bcv = total_usd_paid_for_debts(@grouped_debts)
     @show_total_balance_usd_bcv = total_usd_balance_for_card(@grouped_debts)
+    @show_total_balance_ves_for_usd_group = if @show_group_currency == 'USD'
+                                              conversion = CurrencyConverter.convert(
+                                                amount: @show_total_balance_usd_bcv,
+                                                from_currency: 'USD',
+                                                to_currency: 'VES',
+                                                on_date: Date.current
+                                              )
+                                              conversion&.dig(:amount).to_d.round(2)
+                                            else
+                                              0.to_d
+                                            end
     @show_last_payment_at = @payments.first&.occurred_at
+    @show_last_activity_at = group_last_activity_at_for(@grouped_debts)
     @show_overdue_count = @grouped_debts.count(&:overdue?)
+    @can_register_group_payment = current_user_admin? || current_user_manager?
 
     @show_payment_rows = @payments.map do |payment|
+      shift = cash_shift_for_payment(payment)
+      closed_shift = shift&.closed?
+      delete_allowed = shift&.open? || (closed_shift && current_user_admin?)
+      delete_block_reason = if closed_shift && !current_user_admin?
+                              'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
+                            elsif shift.nil? && !current_user_admin?
+                              'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
+                            end
+
       {
         payment: payment,
         equivalent_usd_bcv: payment_amount_usd_bcv(payment),
-        debt_label: payment.excess_payment? ? 'Excedente' : (payment.debt&.description.to_s.strip.presence || 'Deuda sin descripcion')
+        debt_label: payment.excess_payment? ? 'Excedente' : (payment.debt&.description.to_s.strip.presence || 'Deuda sin descripcion'),
+        delete_allowed: delete_allowed,
+        delete_warning: closed_shift,
+        delete_block_reason: delete_block_reason,
       }
     end
 
     @show_debt_rows = @grouped_debts.map do |debt|
+      loan_movement = original_loan_account_movement_for_debt(debt)
+      loan_account = loan_movement&.account
+
       {
         debt: debt,
         amount_usd_bcv: amount_in_usd_bcv_for_debt(debt.amount.to_d, debt),
         paid_usd_bcv: paid_amount_usd_bcv_for_debt(debt),
-        balance_usd_bcv: real_balance_usd_bcv_for_debt(debt)
+        balance_usd_bcv: real_balance_usd_bcv_for_debt(debt),
+        loan_enabled: loan_movement.present?,
+        loan_account_id: loan_movement&.account_id,
+        loan_account_name: loan_account&.name,
+        loan_account_currency: loan_account&.currency,
+        loan_amount: loan_movement&.amount.to_d
       }
     end
+
+    @payment_accounts = payment_accounts_for_group_currency(@show_group_currency)
+    @currency_rates_to_ves = @payment_accounts.map(&:currency).uniq.each_with_object({}) do |currency, hash|
+      hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: Date.current).to_d.to_f
+    end
+    @currency_rates_to_ves['USD'] ||= CurrencyConverter.rate_to_ves('USD', on_date: Date.current).to_d.to_f
+    @currency_rates_to_ves['VES'] = 1.0
+
+    @loan_accounts = loan_accounts_for_group_currency(@show_group_currency)
+    @show_currency_options = [@show_group_currency]
   end
 
   def edit
-    @debt = group_root_for(@debt)
-    grouped_debts = editable_active_debts_for(@debt)
-    @debt_entries_form = grouped_debts.map { |debt| debt_entry_from_record(debt) }
+    redirect_to debt_path(@debt), notice: 'La edicion desde esta vista ya no esta disponible.'
   end
 
   def update
@@ -254,7 +375,7 @@ class DebtsController < ApplicationController
 
     if normalized_entries.empty?
       @debt.errors.add(:base, 'Debes agregar al menos una deuda con monto, moneda y fecha de emision.')
-      render :edit, status: :unprocessable_entity
+      redirect_to debt_path(@debt), notice: @debt.errors.full_messages.to_sentence
       return
     end
 
@@ -284,6 +405,9 @@ class DebtsController < ApplicationController
       end
 
       debt.name = group_name
+      if debt.respond_to?(:group_token) && @debt.respond_to?(:group_token)
+        debt.group_token ||= @debt.group_token.presence || debt_group_token(@debt)
+      end
       debt
     end
 
@@ -320,7 +444,7 @@ class DebtsController < ApplicationController
     invalid_rows = true unless validate_loan_entries(normalized_entries, shared_attrs[:debt_kind])
 
     if invalid_rows
-      render :edit, status: :unprocessable_entity
+      redirect_to debt_path(@debt), notice: @debt.errors.full_messages.to_sentence
       return
     end
 
@@ -350,31 +474,33 @@ class DebtsController < ApplicationController
 
       redirect_to debts_path, notice: notice
     else
-      render :edit, status: :unprocessable_entity
+      redirect_to debt_path(@debt), notice: @debt.errors.full_messages.to_sentence.presence || 'No se pudo actualizar la deuda.'
     end
   rescue ActiveRecord::RecordInvalid
-    render :edit, status: :unprocessable_entity
+    redirect_to debt_path(@debt), notice: @debt.errors.full_messages.to_sentence.presence || 'No se pudo actualizar la deuda.'
   end
 
   def destroy
-    @debt = group_root_for(@debt)
-    grouped_debts = debts_in_same_edit_group(@debt)
+    original_debt = @debt
+    grouped_debts = debts_in_same_edit_group(group_root_for(@debt))
+    delete_group = params[:delete_scope].to_s == 'group'
+    debts_to_delete = delete_group ? grouped_debts : [original_debt]
     remove_movements = params[:delete_mode].to_s == 'with_movements'
-    movements_to_remove = remove_movements ? linked_account_movements_for_debts(grouped_debts) : []
+    movements_to_remove = remove_movements ? linked_account_movements_for_debts(debts_to_delete) : []
 
     Debt.transaction do
       movements_to_remove.each(&:destroy!)
-      grouped_debts.each(&:destroy!)
+      debts_to_delete.each(&:destroy!)
     end
 
-    notice = grouped_debts.size > 1 ? "#{grouped_debts.size} deudas eliminadas." : 'Deuda eliminada.'
+    notice = debts_to_delete.size > 1 ? "#{debts_to_delete.size} deudas eliminadas." : 'Deuda eliminada.'
     notice = if remove_movements
                "#{notice} #{movements_to_remove.size} movimientos de cuenta eliminados."
              else
                "#{notice} Los movimientos en cuentas se conservaron."
              end
 
-    redirect_to debts_path, notice: notice
+    redirect_after_debt_destroy(notice: notice, delete_group: delete_group)
   end
 
   def create_cliente
@@ -470,6 +596,7 @@ class DebtsController < ApplicationController
       venta_id = row_value(row, :venta_id)
       loan_enabled = row_value(row, :loan_enabled)
       loan_account_id = row_value(row, :loan_account_id)
+      amount_input_currency = row_value(row, :amount_input_currency)
       next if [amount, currency, issued_on, due_on].all?(&:blank?)
 
       {
@@ -481,7 +608,8 @@ class DebtsController < ApplicationController
         debt_id: debt_id,
         venta_id: venta_id,
         loan_enabled: loan_enabled,
-        loan_account_id: loan_account_id
+        loan_account_id: loan_account_id,
+        amount_input_currency: amount_input_currency
       }
     end.compact
 
@@ -490,18 +618,134 @@ class DebtsController < ApplicationController
     rows
   end
 
+  def handle_inline_edit_from_show(normalized_entries, shared_attrs)
+    edit_debt_id = params[:edit_debt_id].to_i
+    editable_debt = current_business.debts.excluding_service_cost_records.find_by(id: edit_debt_id)
+
+    if editable_debt.blank?
+      redirect_to_show_or_index(notice: 'No se encontro la deuda a editar.')
+      return
+    end
+
+    if editable_debt.venta_id.present?
+      redirect_to_show_or_index(notice: 'Las deudas provenientes de ventas no se editan desde este formulario.', fallback_debt: editable_debt)
+      return
+    end
+
+    entry = normalized_entries.first
+    if entry.blank?
+      @debt = editable_debt
+      @debt.errors.add(:base, 'Debes completar los datos de la deuda para editarla.')
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence, fallback_debt: editable_debt)
+      return
+    end
+
+    @debt = editable_debt
+    @debt.assign_attributes(shared_attrs.merge(debt_attributes_from_entry(entry)))
+
+    invalid_rows = false
+    unless @debt.valid?
+      invalid_rows = true
+      @debt.errors.full_messages.each { |message| @debt.errors.add(:base, message) }
+    end
+
+    invalid_rows = true unless validate_loan_entries([entry], shared_attrs[:debt_kind])
+
+    if invalid_rows
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence, fallback_debt: @debt)
+      return
+    end
+
+    success = false
+    Debt.transaction do
+      @debt.save!
+      success = record_loan_disbursements([@debt], [entry])
+      raise ActiveRecord::Rollback unless success
+    end
+
+    if success
+      redirect_to_show_or_index(notice: 'Deuda actualizada exitosamente.', fallback_debt: @debt)
+    else
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence, fallback_debt: @debt)
+    end
+  rescue ActiveRecord::RecordInvalid
+    redirect_to_show_or_index(notice: 'No se pudo actualizar la deuda.', fallback_debt: editable_debt)
+  end
+
+  def redirect_to_show_or_index(notice:, fallback_debt: nil)
+    if params[:return_to_debt_id].present?
+      return_debt = current_business.debts.excluding_service_cost_records.find_by(id: params[:return_to_debt_id])
+      return_debt ||= fallback_debt
+
+      if return_debt.present?
+        return_params = {}
+        return_params[:group_currency] = params[:return_group_currency] if params[:return_group_currency].present?
+        return_params[:group_cliente_id] = params[:return_group_cliente_id] if params[:return_group_cliente_id].present?
+        return_params[:only_active] = params[:return_only_active] if params[:return_only_active].present?
+        return_params[:group_token] = params[:return_group_token] if params[:return_group_token].present?
+        redirect_to debt_path(return_debt, return_params), notice: notice
+        return
+      end
+    end
+
+    if params[:return_group_currency].present? && params[:return_group_cliente_id].present?
+      if fallback_debt.present?
+        return_params = {
+          group_currency: params[:return_group_currency],
+          group_cliente_id: params[:return_group_cliente_id],
+          only_active: params[:return_only_active].presence || 1,
+          group_token: params[:return_group_token].presence
+        }
+        redirect_to debt_path(fallback_debt, return_params), notice: notice
+        return
+      end
+
+      redirect_to prepare_group_debts_path(
+        cliente_id: params[:return_group_cliente_id],
+        currency: params[:return_group_currency]
+      ), notice: notice
+      return
+    end
+
+    redirect_to debts_path, notice: notice
+  end
+
+  def active_receivable_group_debts(cliente_id:, currency:)
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: 'receivable', currency: currency)
+            .where(cliente_id: cliente_id)
+            .includes(:debt_payments)
+
+    active = scope.select { |debt| debt.balance.to_d > 0.01.to_d }
+    return [] if active.empty?
+
+    grouped = active.group_by { |debt| debt_group_token(debt) }
+    selected = grouped.max_by do |_token, debts|
+      debts.map { |debt| debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1) }.max
+    end
+
+    selected ? selected.last : []
+  end
+
   def normalized_debt_entries
     debt_entries_form_params.map do |row|
+      debt_id = row[:debt_id].to_i
       {
         amount: parse_decimal(row[:amount]),
         currency: row[:currency].to_s.strip.upcase,
-        issued_on: parse_debt_date(row[:issued_on]),
+        amount_input_currency: row[:amount_input_currency].to_s.strip.upcase,
+        issued_on: resolved_issued_on_for_current_user(
+          raw_issued_on: row[:issued_on],
+          debt_id: debt_id,
+        ),
         due_on: parse_debt_date(row[:due_on]),
         description: row[:description].to_s.strip.presence,
-        debt_id: row[:debt_id].to_i,
+        debt_id: debt_id,
         venta_id: row[:venta_id].to_i,
-        loan_enabled: ActiveModel::Type::Boolean.new.cast(row[:loan_enabled]),
-        loan_account_id: row[:loan_account_id].presence
+        loan_enabled: loan_enabled_for_current_user?(row[:loan_enabled]),
+        loan_account_id: loan_enabled_for_current_user?(row[:loan_enabled]) ? row[:loan_account_id].presence : nil
       }
     end
   end
@@ -548,6 +792,7 @@ class DebtsController < ApplicationController
     {
       amount: '0',
       currency: 'USD',
+      amount_input_currency: 'USD',
       issued_on: Date.current.strftime('%d-%m-%Y'),
       due_on: '',
       description: '',
@@ -557,7 +802,7 @@ class DebtsController < ApplicationController
   end
 
   def debt_entry_from_record(debt)
-    loan_movement = latest_loan_account_movement_for_debt(debt)
+    loan_movement = original_loan_account_movement_for_debt(debt)
 
     {
       debt_id: debt.id,
@@ -739,12 +984,17 @@ class DebtsController < ApplicationController
   end
 
   def validate_loan_entries(entries, _debt_kind)
+    if entries.any? { |entry| entry[:loan_enabled] } && !current_user_can_manage_loan_debts?
+      @debt.errors.add(:base, 'Solo administrador o encargado puede registrar deudas como prestamo.')
+      return false
+    end
+
     valid = true
 
     entries.each_with_index do |entry, index|
       next unless entry[:loan_enabled]
 
-      account = current_business.accounts.where(active: true).find_by(id: entry[:loan_account_id])
+      account = eligible_loan_accounts_scope.find_by(id: entry[:loan_account_id])
 
       if account.blank?
         @debt.errors.add(:base, "Deuda #{index + 1}: selecciona la cuenta del prestamo.")
@@ -765,20 +1015,50 @@ class DebtsController < ApplicationController
 
       next if account.blank?
 
-      conversion = CurrencyConverter.convert(
-        amount: debt_amount,
-        from_currency: debt_currency,
-        to_currency: account.currency
-      )
-
-      if conversion.blank? || conversion[:amount].to_d <= 0
+      if debt_currency.to_s.upcase == 'USDT' && account.currency.to_s.upcase != 'USDT'
         @debt.errors.add(:base,
-                         "Deuda #{index + 1}: no se pudo convertir el monto de la deuda a la moneda de la cuenta seleccionada.")
+                         "Deuda #{index + 1}: para deudas en USDT debes seleccionar una cuenta en USDT.")
         valid = false
         next
       end
 
-      entry[:loan_amount] = conversion[:amount].to_d
+      if debt_currency.to_s.upcase != 'USDT' && account.currency.to_s.upcase == 'USDT'
+        @debt.errors.add(:base,
+                         "Deuda #{index + 1}: para deudas no USDT no puedes usar cuentas en USDT.")
+        valid = false
+        next
+      end
+
+      input_amount = entry[:input_amount].to_d
+      input_currency = entry[:amount_input_currency].to_s.upcase
+
+      loan_amount = if input_amount.positive? && input_currency == account.currency.to_s.upcase
+                      input_amount
+                    else
+                      conversion = CurrencyConverter.convert(
+                        amount: debt_amount,
+                        from_currency: debt_currency,
+                        to_currency: account.currency
+                      )
+
+                      if conversion.blank? || conversion[:amount].to_d <= 0
+                        @debt.errors.add(:base,
+                                         "Deuda #{index + 1}: no se pudo convertir el monto de la deuda a la moneda de la cuenta seleccionada.")
+                        valid = false
+                        next
+                      end
+
+                      conversion[:amount].to_d
+                    end
+
+      if loan_amount > account.balance.to_d
+        @debt.errors.add(:base,
+                         "Deuda #{index + 1}: #{account.insufficient_balance_message(loan_amount)}")
+        valid = false
+        next
+      end
+
+      entry[:loan_amount] = loan_amount
     end
 
     valid
@@ -833,7 +1113,30 @@ class DebtsController < ApplicationController
   def build_loan_movement_description(debt)
     debt_description = debt.description.to_s.strip.presence || 'Deuda sin descripcion'
     cliente_name = debt.counterparty_display_name
-    "Prestamo deuda: #{debt_description} - Cliente: #{cliente_name} [DEBT:#{debt.id}]"
+    actor_name = Current.user&.display_name.to_s.strip.presence || 'Usuario no identificado'
+    "Prestamo deuda: #{debt_description} - Cliente: #{cliente_name} - Registrado por: #{actor_name} [DEBT:#{debt.id}] [LOAN_DEBT]"
+  end
+
+  def current_user_can_manage_loan_debts?
+    current_user_admin? || current_user_manager?
+  end
+
+  def loan_enabled_for_current_user?(raw_value)
+    return false unless current_user_can_manage_loan_debts?
+
+    ActiveModel::Type::Boolean.new.cast(raw_value)
+  end
+
+  def resolved_issued_on_for_current_user(raw_issued_on:, debt_id:)
+    parsed_date = parse_debt_date(raw_issued_on)
+    return parsed_date if current_user_admin?
+
+    if debt_id.to_i.positive?
+      existing_debt = current_business.debts.excluding_service_cost_records.find_by(id: debt_id)
+      return existing_debt&.issued_on || Date.current
+    end
+
+    Date.current
   end
 
   def loan_movement_kind_for(debt)
@@ -859,6 +1162,9 @@ class DebtsController < ApplicationController
 
     business_account_movements_scope
       .where('description ILIKE ?', "%#{token}%")
+      .where(movement_kind: loan_movement_kind_for(debt))
+      .where("description ILIKE :explicit_tag OR description ILIKE :legacy_prefix", explicit_tag: '%[LOAN_DEBT]%', legacy_prefix: 'Prestamo deuda:%')
+      .where('description NOT ILIKE ?', '%[DP:%')
       .to_a
   end
 
@@ -873,6 +1179,10 @@ class DebtsController < ApplicationController
 
   def latest_loan_account_movement_for_debt(debt)
     sorted_loan_account_movements_for_debt(debt).first
+  end
+
+  def original_loan_account_movement_for_debt(debt)
+    sorted_loan_account_movements_for_debt(debt).last
   end
 
   def payment_account_movements_for(payment)
@@ -937,6 +1247,88 @@ class DebtsController < ApplicationController
     end
   end
 
+  def blocked_group_currency?(code)
+    normalized = code.to_s.strip.upcase
+    return true if normalized == 'VES'
+    return true if normalized == 'UVI'
+
+    normalized.include?('UNIDAD VI')
+  end
+
+  def allowed_group_currency_codes
+    Account::CURRENCIES.keys
+      .map { |code| code.to_s.upcase }
+      .uniq
+      .reject { |code| blocked_group_currency?(code) }
+      .select { |code| CurrencyConverter.rate_to_ves(code).to_d.positive? }
+  end
+
+  def eligible_loan_accounts_scope
+    current_business
+      .accounts
+      .where(active: true)
+      .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
+      .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+  end
+
+  def loan_accounts_for_group_currency(group_currency)
+    scope = eligible_loan_accounts_scope.order(:name)
+
+    if group_currency.to_s.upcase == 'USDT'
+      scope.where(currency: 'USDT')
+    else
+      scope.where.not(currency: 'USDT')
+    end
+  end
+
+  def payment_accounts_for_group_currency(group_currency)
+    scope = current_business.accounts.where(active: true)
+    scope = scope.where.not(account_type: 'cashea')
+    scope = scope.where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    if group_currency.to_s.upcase == 'USDT'
+      scope = scope.where(currency: 'USDT')
+    else
+      scope = scope.where(currency: %w[USD VES])
+    end
+
+    scope.order(:currency, :name)
+  end
+
+  def convert_entry_amounts_to_group_currency!(entries)
+    valid = true
+
+    entries.each do |entry|
+      group_currency = entry[:currency].to_s.upcase
+      input_currency = entry[:amount_input_currency].presence || group_currency
+      amount = entry[:amount].to_d
+
+      entry[:amount_input_currency] = input_currency
+      entry[:input_amount] = amount
+      next unless amount.positive?
+      next if input_currency == group_currency
+
+      conversion = CurrencyConverter.convert(
+        amount: amount,
+        from_currency: input_currency,
+        to_currency: group_currency,
+        on_date: entry[:issued_on] || Date.current
+      )
+
+      converted_amount = conversion&.dig(:amount).to_d
+      unless converted_amount.positive?
+        @debt.errors.add(:base,
+                         "No se pudo convertir el monto desde #{input_currency} hacia #{group_currency} para registrar la deuda.")
+        valid = false
+        next
+      end
+
+      entry[:amount] = converted_amount.round(2)
+    end
+
+    valid
+  end
+
   def total_usd_balance(debts)
     debts.sum do |debt|
       balance = real_balance_usd_bcv_for_debt(debt)
@@ -969,7 +1361,7 @@ class DebtsController < ApplicationController
       amount: value.abs,
       from_currency: debt.currency,
       to_currency: 'USD',
-      on_date: debt.issued_on
+      on_date: debt_reference_date_for_usd(debt)
     )
 
     converted_amount = conversion&.dig(:amount).to_d
@@ -1001,16 +1393,23 @@ class DebtsController < ApplicationController
     (amount_in_usd_bcv_for_debt(debt.amount.to_d, debt) - paid_amount_usd_bcv_for_debt(debt)).round(2)
   end
 
+  def debt_reference_date_for_usd(debt)
+    debt.issued_on || debt.venta&.created_at&.to_date || Date.current
+  end
+
   def debt_sort_key(debt)
-    due_on = debt.due_on
+    issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+    created_at = debt.created_at || Time.zone.at(0)
     normalized_name = debt.display_name.to_s.strip.downcase
     normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
 
-    if due_on.present?
-      [0, due_on, normalized_name, normalized_cliente, debt.id.to_i]
-    else
-      [1, normalized_name, normalized_cliente, debt.id.to_i]
-    end
+    [
+      -issued_on.jd,
+      -created_at.to_i,
+      -debt.id.to_i,
+      normalized_name,
+      normalized_cliente
+    ]
   end
 
   def sort_debts(debts)
@@ -1026,6 +1425,8 @@ class DebtsController < ApplicationController
   end
 
   def group_root_for(debt)
+    return debt if debt.group_token.present?
+
     root_id = debt.group_root_debt_id
     return debt if root_id.blank?
 
@@ -1033,24 +1434,191 @@ class DebtsController < ApplicationController
   end
 
   def debts_in_same_edit_group(debt)
+    if debt.group_token.present?
+      grouped = current_business
+                .debts
+                .excluding_service_cost_records
+                .where(debt_kind: debt.debt_kind, group_token: debt.group_token)
+                .includes(:debt_payments, :venta)
+
+      return grouped.to_a if grouped.exists?
+    end
+
+    effective_token = debt_group_token(debt).to_s.strip
+    if effective_token.present?
+      grouped = current_business
+                .debts
+                .excluding_service_cost_records
+                .where(debt_kind: debt.debt_kind, currency: debt.currency)
+      grouped = grouped.where(cliente_id: debt.cliente_id) if debt.cliente_id.present?
+      grouped = grouped.where(cliente_id: nil) if debt.cliente_id.blank?
+
+      matched = grouped
+                .includes(:debt_payments, :venta)
+                .to_a
+                .select { |candidate| debt_group_token(candidate).to_s.strip == effective_token }
+
+      return matched if matched.present?
+    end
+
     root_id = debt.group_root_debt_id
     return [debt] if root_id.blank?
 
     grouped = current_business
               .debts
               .where(cliente_id: debt.cliente_id, debt_kind: debt.debt_kind)
-              .includes(:debt_payments)
+              .includes(:debt_payments, :venta)
               .select { |candidate| candidate.group_root_debt_id == root_id }
 
     grouped.presence || [debt]
   end
 
+  def debts_for_show(debt)
+    token_param = params[:group_token].to_s.strip
+    if token_param.present?
+      debts = debts_with_effective_group_token(
+        debt_kind: debt.debt_kind,
+        token: token_param,
+        currency: debt.currency,
+        cliente_id: debt.cliente_id,
+      )
+      return debts if debts.present?
+    end
+
+    if debt.group_token.present?
+      debts = debts_with_effective_group_token(
+        debt_kind: debt.debt_kind,
+        token: debt.group_token,
+        currency: debt.currency,
+        cliente_id: debt.cliente_id,
+      )
+      return debts if debts.present?
+    end
+
+    # Sin token explicito no debemos abrir por cliente+moneda, porque mezcla ciclos legacy.
+    return debts_in_same_edit_group(debt) if token_param.blank?
+
+    return debts_in_same_edit_group(debt) unless params[:group_currency].present?
+
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: debt.debt_kind, currency: params[:group_currency].to_s.upcase)
+          .includes(:debt_payments, :venta)
+
+    cliente_param = params[:group_cliente_id].to_s
+    if cliente_param == 'none'
+      scope = scope.where(cliente_id: nil)
+    elsif cliente_param.present?
+      scope = scope.where(cliente_id: cliente_param.to_i)
+    elsif debt.cliente_id.present?
+      scope = scope.where(cliente_id: debt.cliente_id)
+    end
+
+    debts = scope.to_a
+
+    debts.presence || debts_in_same_edit_group(debt)
+  end
+
   def collapsed_group_key(debt)
+    token = debt.group_token.to_s.strip
+    return "token-#{token}" if token.present?
+
     if debt.grouped_record? && debt.group_root_debt_id.present?
       "group-#{debt.group_root_debt_id}"
     else
       "single-#{debt.id}"
     end
+  end
+
+  def debt_group_token(debt)
+    token = debt.group_token.to_s.strip
+    return token if token.present?
+
+    legacy_group_token_for(debt)
+  end
+
+  def debts_with_effective_group_token(debt_kind:, token:, currency: nil, cliente_id: nil)
+    effective_token = token.to_s.strip
+    return [] if effective_token.blank?
+
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: debt_kind)
+            .includes(:debt_payments, :venta)
+
+    normalized_currency = currency.to_s.strip.upcase
+    scope = scope.where(currency: normalized_currency) if normalized_currency.present?
+
+    if cliente_id.present?
+      scope = scope.where(cliente_id: cliente_id)
+    elsif !cliente_id.nil?
+      scope = scope.where(cliente_id: nil)
+    end
+
+    debts = scope.to_a.select do |candidate|
+      debt_group_token(candidate).to_s.strip == effective_token
+    end
+
+    sort_debts(debts)
+  end
+
+  def redirect_after_debt_destroy(notice:, delete_group:)
+    return redirect_to debts_path, notice: notice if delete_group
+
+    show_params = {
+      group_currency: params[:group_currency].presence,
+      group_cliente_id: params[:group_cliente_id].presence,
+      only_active: params[:only_active].presence,
+      group_token: params[:group_token].presence
+    }.compact
+
+    return redirect_to debts_path, notice: notice if show_params.empty?
+
+    next_debt = debt_for_show_redirect(show_params)
+    if next_debt.present?
+      redirect_to debt_path(next_debt, show_params), notice: notice
+    else
+      redirect_to debts_path, notice: notice
+    end
+  end
+
+  def debt_for_show_redirect(show_params)
+    token = show_params[:group_token].to_s.strip
+    if token.present?
+      return current_business
+             .debts
+             .excluding_service_cost_records
+             .where(group_token: token)
+             .order(created_at: :desc, id: :desc)
+             .first
+    end
+
+    scope = current_business.debts.excluding_service_cost_records
+
+    currency = show_params[:group_currency].to_s.strip.upcase
+    scope = scope.where(currency: currency) if currency.present?
+
+    cliente_param = show_params[:group_cliente_id].to_s
+    if cliente_param == 'none'
+      scope = scope.where(cliente_id: nil)
+    elsif cliente_param.present?
+      scope = scope.where(cliente_id: cliente_param.to_i)
+    end
+
+    scope.order(created_at: :desc, id: :desc).first
+  end
+
+  def legacy_group_token_for(debt)
+    root_id = debt.group_root_debt_id
+    return "legacy-#{root_id}" if root_id.present?
+
+    "legacy-debt-#{debt.id}"
+  end
+
+  def generate_debt_group_token
+    "grp_#{SecureRandom.hex(10)}"
   end
 
   def collapse_grouped_debts(debts)
@@ -1071,6 +1639,8 @@ class DebtsController < ApplicationController
                   representative.card_total_balance = total_usd_balance_for_card(grouped_debts)
                   representative.card_currency = 'USD'
                   representative.card_description_summary = card_description_summary_for(grouped_debts)
+                  last_activity_at = group_last_activity_at_for(grouped_debts)
+                  representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
                   representative
     end
 
@@ -1093,6 +1663,37 @@ class DebtsController < ApplicationController
     "#{descriptions.join(', ')} y #{format_missing_description_count(missing_count)}."
   end
 
+  def group_last_activity_at_for(debts)
+    timestamps = []
+
+    debts.each do |debt|
+      timestamps << debt.updated_at if debt.updated_at.present?
+      timestamps << debt.created_at if debt.created_at.present?
+
+      payments = debt.debt_payments.loaded? ? debt.debt_payments : debt.debt_payments.to_a
+      payments.each do |payment|
+        timestamps << payment.updated_at if payment.updated_at.present?
+        timestamps << payment.created_at if payment.created_at.present?
+      end
+    end
+
+    timestamps.compact.max
+  end
+
+  def cash_shift_for_payment(payment)
+    payment_date = payment.occurred_at
+    return nil if payment_date.blank?
+
+    current_business
+      .cash_shifts
+      .order(opened_at: :desc)
+      .detect do |shift|
+        start_date = shift.opened_at.in_time_zone('America/Caracas').to_date
+        end_date = (shift.closed_at || Time.current).in_time_zone('America/Caracas').to_date
+        payment_date >= start_date && payment_date <= end_date
+      end
+  end
+
   def format_missing_description_count(count)
     count.to_i == 1 ? '1 deuda sin descripcion' : "#{count.to_i} deudas sin descripcion"
   end
@@ -1103,9 +1704,67 @@ class DebtsController < ApplicationController
       .map { |cliente, debts| [cliente, sort_debts(debts)] }
       .sort_by do |cliente, debts|
         first_debt = debts.first
-        first_key = first_debt ? debt_sort_key(first_debt) : [1, '', '', 0]
+        first_key = first_debt ? debt_sort_key(first_debt) : [0, 0, 0, '', '']
         [first_key[0], first_key[1], cliente&.name.to_s.downcase]
       end
+  end
+
+  def build_group_totals(groups)
+    groups.each_with_object({}) do |(cliente, debts), totals|
+      debts.group_by { |debt| debt.currency.to_s.upcase }.each do |currency, debts_in_currency|
+        normalized_currency = currency.to_s.upcase
+        rate_reference = CurrencyConverter.reference_for_currency(normalized_currency)
+        rate_symbol = TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence
+        fallback_symbol = Account::CURRENCIES.dig(normalized_currency, :symbol) || normalized_currency
+        display_symbol = rate_symbol.presence || fallback_symbol
+
+        if normalized_currency == 'USD'
+          display_total = debts_in_currency.sum { |debt| debt.card_total_balance.to_d }.round(2)
+          ves_conversion = CurrencyConverter.convert(
+            amount: display_total,
+            from_currency: 'USD',
+            to_currency: 'VES'
+          )
+
+          totals[group_totals_key(cliente, currency)] = {
+            display_total: display_total,
+            display_unit: 'USD',
+            display_symbol: display_symbol,
+            badge_label: "USD #{display_symbol}",
+            ves_total: ves_conversion&.dig(:amount).to_d.round(2)
+          }
+          next
+        end
+
+        # Para monedas distintas de USD se muestra el saldo original y su equivalente en Bs.
+        display_total = debts_in_currency.sum { |debt| debt.balance.to_d }.round(2)
+        ves_conversion = CurrencyConverter.convert(
+          amount: display_total,
+          from_currency: normalized_currency,
+          to_currency: 'VES'
+        )
+
+        badge_name = rate_reference.presence || normalized_currency
+
+        totals[group_totals_key(cliente, currency)] = {
+          display_total: display_total,
+          display_unit: normalized_currency,
+          display_symbol: display_symbol,
+          badge_label: "#{badge_name} #{display_symbol}",
+          ves_total: ves_conversion&.dig(:amount).to_d.round(2)
+        }
+      end
+    end
+  end
+
+  def group_totals_key(cliente, currency)
+    [cliente&.id || 'none', currency.to_s.upcase]
+  end
+
+  def count_debt_groups(groups)
+    groups.sum do |_cliente, debts|
+      debts.group_by { |debt| debt.currency.to_s.upcase }.size
+    end
   end
 
   def debt_pending_for_index?(debt)
