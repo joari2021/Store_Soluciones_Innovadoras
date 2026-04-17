@@ -103,4 +103,16 @@ namespace :debt do
     puts "Pagos omitidos: #{skipped_payments.size}#{skipped_payments.any? ? " (IDs: #{skipped_payments.join(', ')})" : ''}"
     puts(dry_run ? 'DRY_RUN completado sin persistir cambios.' : 'Migracion completada y persistida.')
   end
+
+  desc 'Normaliza base USD de deudas legacy por cobrar (convierte VES->USD y recalcula pagos historicos)'
+  task normalize_legacy_usd_base: :environment do
+    Rake::Task['debt:migrate_receivable_ves_to_usd'].reenable
+    Rake::Task['debt:migrate_receivable_ves_to_usd'].invoke
+  end
+
+  desc 'Compatibilidad: ejecuta normalizacion legacy de deudas con base USD'
+  task normalize_legacy_group_tokens: :environment do
+    Rake::Task['debt:normalize_legacy_usd_base'].reenable
+    Rake::Task['debt:normalize_legacy_usd_base'].invoke
+  end
 end
