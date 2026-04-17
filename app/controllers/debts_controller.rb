@@ -711,10 +711,12 @@ class DebtsController < ApplicationController
   end
 
   def active_receivable_group_debts(cliente_id:, currency:)
+      currencies = group_scope_currencies_for(currency: currency, debt_kind: 'receivable')
+
     scope = current_business
             .debts
             .excluding_service_cost_records
-            .where(debt_kind: 'receivable', currency: currency)
+        .where(debt_kind: 'receivable', currency: currencies)
             .where(cliente_id: cliente_id)
             .includes(:debt_payments)
 
@@ -1435,10 +1437,12 @@ class DebtsController < ApplicationController
 
   def debts_in_same_edit_group(debt)
     if debt.group_token.present?
+      currencies = group_scope_currencies_for(currency: debt.currency, debt_kind: debt.debt_kind)
+
       grouped = current_business
                 .debts
                 .excluding_service_cost_records
-                .where(debt_kind: debt.debt_kind, group_token: debt.group_token)
+                .where(debt_kind: debt.debt_kind, group_token: debt.group_token, currency: currencies)
                 .includes(:debt_payments, :venta)
 
       return grouped.to_a if grouped.exists?
@@ -1446,10 +1450,12 @@ class DebtsController < ApplicationController
 
     effective_token = debt_group_token(debt).to_s.strip
     if effective_token.present?
+      currencies = group_scope_currencies_for(currency: debt.currency, debt_kind: debt.debt_kind)
+
       grouped = current_business
                 .debts
                 .excluding_service_cost_records
-                .where(debt_kind: debt.debt_kind, currency: debt.currency)
+                .where(debt_kind: debt.debt_kind, currency: currencies)
       grouped = grouped.where(cliente_id: debt.cliente_id) if debt.cliente_id.present?
       grouped = grouped.where(cliente_id: nil) if debt.cliente_id.blank?
 
@@ -1549,7 +1555,9 @@ class DebtsController < ApplicationController
             .includes(:debt_payments, :venta)
 
     normalized_currency = currency.to_s.strip.upcase
-    scope = scope.where(currency: normalized_currency) if normalized_currency.present?
+    if normalized_currency.present?
+      scope = scope.where(currency: group_scope_currencies_for(currency: normalized_currency, debt_kind: debt_kind))
+    end
 
     if cliente_id.present?
       scope = scope.where(cliente_id: cliente_id)
@@ -1598,7 +1606,9 @@ class DebtsController < ApplicationController
     scope = current_business.debts.excluding_service_cost_records
 
     currency = show_params[:group_currency].to_s.strip.upcase
-    scope = scope.where(currency: currency) if currency.present?
+    if currency.present?
+      scope = scope.where(currency: group_scope_currencies_for(currency: currency, debt_kind: @debt&.debt_kind || 'receivable'))
+    end
 
     cliente_param = show_params[:group_cliente_id].to_s
     if cliente_param == 'none'
@@ -1619,6 +1629,15 @@ class DebtsController < ApplicationController
 
   def generate_debt_group_token
     "grp_#{SecureRandom.hex(10)}"
+  end
+
+  def group_scope_currencies_for(currency:, debt_kind:)
+    normalized_currency = currency.to_s.strip.upcase
+    return [normalized_currency].reject(&:blank?) if normalized_currency.blank?
+    return [normalized_currency] unless debt_kind.to_s == 'receivable'
+    return %w[USD VES] if normalized_currency == 'USD'
+
+    [normalized_currency]
   end
 
   def collapse_grouped_debts(debts)

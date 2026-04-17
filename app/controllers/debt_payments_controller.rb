@@ -501,10 +501,12 @@ class DebtPaymentsController < ApplicationController
   end
 
   def debts_for_show_group(debt)
+      currencies = group_scope_currencies_for(currency: @show_group_currency, debt_kind: debt.debt_kind)
+
     scope = current_business
             .debts
             .excluding_service_cost_records
-            .where(debt_kind: debt.debt_kind, currency: @show_group_currency)
+        .where(debt_kind: debt.debt_kind, currency: currencies)
             .includes(:debt_payments, :venta)
 
     cliente_param = params[:group_cliente_id].to_s
@@ -609,7 +611,7 @@ class DebtPaymentsController < ApplicationController
     scope = current_business
             .debts
             .excluding_service_cost_records
-            .where(debt_kind: @debt.debt_kind, currency: @show_group_currency)
+          .where(debt_kind: @debt.debt_kind, currency: group_scope_currencies_for(currency: @show_group_currency, debt_kind: @debt.debt_kind))
             .includes(:debt_payments)
 
     cliente_param = params[:group_cliente_id].to_s
@@ -664,7 +666,9 @@ class DebtPaymentsController < ApplicationController
             .includes(:debt_payments, :venta)
 
     normalized_currency = currency.to_s.strip.upcase
-    scope = scope.where(currency: normalized_currency) if normalized_currency.present?
+    if normalized_currency.present?
+      scope = scope.where(currency: group_scope_currencies_for(currency: normalized_currency, debt_kind: debt_kind))
+    end
 
     if cliente_id.present?
       scope = scope.where(cliente_id: cliente_id)
@@ -677,5 +681,14 @@ class DebtPaymentsController < ApplicationController
     end
 
     sort_debts(debts)
+  end
+
+  def group_scope_currencies_for(currency:, debt_kind:)
+    normalized_currency = currency.to_s.strip.upcase
+    return [normalized_currency].reject(&:blank?) if normalized_currency.blank?
+    return [normalized_currency] unless debt_kind.to_s == 'receivable'
+    return %w[USD VES] if normalized_currency == 'USD'
+
+    [normalized_currency]
   end
 end
