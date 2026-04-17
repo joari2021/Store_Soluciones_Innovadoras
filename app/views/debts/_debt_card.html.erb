@@ -42,10 +42,7 @@ end %>
       <i data-lucide="credit-card" class="h-4 w-4"></i>
       <%= action_label %>
     <% end %>
-    <%= link_to debt_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
-      <i data-lucide="eye" class="h-4 w-4"></i>
-      Ver
-    <% end %>
+    <!-- Eliminar botón de ver venta en la caja agrupada, solo mostrar en deudas individuales -->
     <% if source_link.present? %>
       <%= link_to source_link[:path], class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100", data: { turbo_frame: "_top" } do %>
         <i data-lucide="arrow-up-right" class="h-4 w-4"></i>

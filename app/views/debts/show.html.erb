@@ -82,44 +82,69 @@
       <span class="text-xs font-semibold text-slate-500"><%= @show_debt_rows.size %> deudas</span>
     </div>
     <% if @show_debt_rows.any? %>
-      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
-        <table class="min-w-full text-sm text-slate-700">
-          <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-            <tr>
-              <th class="px-4 py-3 text-left">Emision</th>
-              <th class="px-4 py-3 text-left">Descripcion</th>
-              <th class="px-4 py-3 text-left">Moneda</th>
-              <th class="px-4 py-3 text-right">Monto original</th>
-              <th class="px-4 py-3 text-right">Pagado real $ (BCV)</th>
-              <th class="px-4 py-3 text-right">Saldo real $ (BCV)</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <% @show_debt_rows.each do |row| %>
-              <% debt = row[:debt] %>
-              <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
-              <% source_link = debt_source_link_data(debt) %>
-              <tr>
-                <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
-                <td class="px-4 py-3">
-                  <p><%= debt_display_description(debt.description) %></p>
-                  <% if source_link.present? %>
-                    <p class="mt-1">
-                      <%= link_to source_link[:label], source_link[:path], class: 'inline-flex cursor-pointer items-center rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800', data: { turbo_frame: '_top' } %>
-                    </p>
-                  <% end %>
-                </td>
-                <td class="px-4 py-3"><%= debt.currency %></td>
-                <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount, unit: "#{debt_symbol} ") %></td>
-                <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %></td>
-                <td class="px-4 py-3 text-right"><%= number_to_currency(row[:balance_usd_bcv], unit: "$ ") %></td>
-              </tr>
+      <% grouped_by_currency = @show_debt_rows.group_by { |row| row[:debt].currency } %>
+      <% grouped_by_currency.each do |currency, rows| %>
+        <% is_usdt = currency.to_s.upcase == 'USDT' %>
+        <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="font-bold text-slate-700">Moneda: <%= currency %></span>
+            <% if is_usdt %>
+              <span class="inline-block rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">USDT</span>
             <% end %>
-          </tbody>
-        </table>
-      </div>
+          </div>
+          <table class="min-w-full text-sm text-slate-700">
+            <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+              <tr>
+                <th class="px-4 py-3 text-left">Emision</th>
+                <th class="px-4 py-3 text-left">Descripcion</th>
+                <th class="px-4 py-3 text-right">Monto original</th>
+                <th class="px-4 py-3 text-right">Pagado real $ (BCV)</th>
+                <th class="px-4 py-3 text-right">Saldo real $ (BCV)</th>
+                <th class="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <% rows.each do |row| %>
+                <% debt = row[:debt] %>
+                <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
+                <% source_link = debt_source_link_data(debt) %>
+                <tr>
+                  <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
+                  <td class="px-4 py-3">
+                    <p><%= debt_display_description(debt.description) %></p>
+                    <% if source_link.present? %>
+                      <p class="mt-1">
+                        <%= link_to source_link[:label], source_link[:path], class: 'inline-flex cursor-pointer items-center rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800', data: { turbo_frame: '_top' } %>
+                      </p>
+                    <% end %>
+                  </td>
+                  <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount, unit: "#{debt_symbol} ") %></td>
+                  <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %></td>
+                  <td class="px-4 py-3 text-right"><%= number_to_currency(row[:balance_usd_bcv], unit: "$ ") %></td>
+                  <td class="px-4 py-3 text-right">
+                    <%= link_to edit_debt_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50", data: { turbo_frame: "_top" } do %>
+                      <i data-lucide="pencil" class="h-4 w-4"></i>
+                      Editar
+                    <% end %>
+                    <%= link_to new_debt_debt_payment_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
+                      <i data-lucide="credit-card" class="h-4 w-4"></i>
+                      Registrar cobro
+                    <% end %>
+                    <% if can_manage_action?(:destroy_debt) %>
+                      <%= link_to debt_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100", data: { turbo_method: :delete, swal_delete: "debt" } do %>
+                        <i data-lucide="trash" class="h-4 w-4"></i>
+                        Eliminar
+                      <% end %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      <% end %>
     <% else %>
-      <p class="mt-4 text-sm text-slate-500">No hay deudas asociadas para mostrar.</p>
+      <p class="mt-4 text-sm text-slate-500">No hay deudas asociadas.</p>
     <% end %>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

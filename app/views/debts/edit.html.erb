@@ -12,6 +12,42 @@
     </div>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-bold mb-4">Editar deudas asociadas</h2>
+    <% grouped_by_currency = @debt_entries_form.group_by { |entry| entry[:currency] } %>
+    <% grouped_by_currency.each do |currency, entries| %>
+      <% is_usdt = currency.to_s.upcase == 'USDT' %>
+      <div class="mb-6 p-4 rounded-xl border <%= is_usdt ? 'border-yellow-200 bg-yellow-50/60' : 'border-emerald-200 bg-emerald-50/60' %>">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="font-bold text-slate-700">Moneda: <%= currency %></span>
+          <% if is_usdt %>
+            <span class="inline-block rounded bg-yellow-100 px-2 py-0.5 text-xs font-semibold text-yellow-700">USDT</span>
+          <% end %>
+        </div>
+        <% entries.each_with_index do |entry, idx| %>
+          <div class="mb-4 p-3 rounded border border-slate-200 bg-white">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500">Descripción</label>
+                <input type="text" name="debt_entries_form[][description]" value="<%= entry[:description] %>" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500">Monto (<%= currency %>)</label>
+                <input type="number" step="0.01" name="debt_entries_form[][amount]" value="<%= entry[:amount] %>" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500">Emisión</label>
+                <input type="date" name="debt_entries_form[][issued_on]" value="<%= entry[:issued_on] %>" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-500">Vencimiento</label>
+                <input type="date" name="debt_entries_form[][due_on]" value="<%= entry[:due_on] %>" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <input type="hidden" name="debt_entries_form[][currency]" value="<%= currency %>" />
+          </div>
+        <% end %>
+      </div>
+    <% end %>
     <%= render "form" %>
   </div>
 </div>
