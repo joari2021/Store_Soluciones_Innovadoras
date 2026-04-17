@@ -104,15 +104,92 @@ namespace :debt do
     puts(dry_run ? 'DRY_RUN completado sin persistir cambios.' : 'Migracion completada y persistida.')
   end
 
-  desc 'Normaliza base USD de deudas legacy por cobrar (convierte VES->USD y recalcula pagos historicos)'
-  task normalize_legacy_usd_base: :environment do
-    Rake::Task['debt:migrate_receivable_ves_to_usd'].reenable
-    Rake::Task['debt:migrate_receivable_ves_to_usd'].invoke
+  desc 'Normaliza deudas legacy por base USD unificando group_token sin convertir montos ni monedas'
+  task normalize_legacy_group_tokens: :environment do
+    business_id = ENV['BUSINESS_ID'].presence
+    dry_run = ActiveModel::Type::Boolean.new.cast(ENV.fetch('DRY_RUN', 'true'))
+
+    scope = Debt
+            .excluding_service_cost_records
+            .where(debt_kind: 'receivable')
+            .order(:business_id, :cliente_id, :issued_on, :created_at, :id)
+
+    scope = scope.where(business_id: business_id.to_i) if business_id.present?
+
+    puts "Iniciando normalizacion legacy por base USD (solo group_token). BUSINESS_ID=#{business_id || 'ALL'} DRY_RUN=#{dry_run}"
+
+    debts = scope.to_a
+    grouped = debts.group_by do |debt|
+      [
+        debt.business_id,
+        debt.cliente_id,
+        debt.debt_kind,
+        legacy_base_currency_for_grouping(debt.currency)
+      ]
+    end
+
+    updated_count = 0
+    affected_groups = 0
+
+    runner = lambda do
+      grouped.each do |(group_business_id, group_cliente_id, group_kind, group_base_currency), group_debts|
+        next if group_debts.size <= 1
+
+        canonical_token = canonical_group_token_for(group_debts)
+        changed_in_group = 0
+
+        group_debts.each do |debt|
+          current_token = debt.group_token.to_s.strip
+          next if current_token == canonical_token
+
+          changed_in_group += 1
+          updated_count += 1
+
+          next if dry_run
+
+          debt.update_columns(group_token: canonical_token, updated_at: Time.current)
+        end
+
+        next if changed_in_group.zero?
+
+        affected_groups += 1
+        puts "[GROUP] business=#{group_business_id} cliente=#{group_cliente_id || 'NONE'} kind=#{group_kind} base=#{group_base_currency} size=#{group_debts.size} updates=#{changed_in_group} token=#{canonical_token}"
+      end
+    end
+
+    if dry_run
+      runner.call
+    else
+      Debt.transaction { runner.call }
+    end
+
+    puts '--- RESUMEN ---'
+    puts "Grupos afectados: #{affected_groups}"
+    puts "Deudas actualizadas: #{updated_count}"
+    puts(dry_run ? 'DRY_RUN completado sin persistir cambios.' : 'Normalizacion completada y persistida.')
   end
 
-  desc 'Compatibilidad: ejecuta normalizacion legacy de deudas con base USD'
-  task normalize_legacy_group_tokens: :environment do
-    Rake::Task['debt:normalize_legacy_usd_base'].reenable
-    Rake::Task['debt:normalize_legacy_usd_base'].invoke
+  desc 'Alias: normaliza base USD legacy unificando group_token (sin conversion de montos)'
+  task normalize_legacy_usd_base: :environment do
+    Rake::Task['debt:normalize_legacy_group_tokens'].reenable
+    Rake::Task['debt:normalize_legacy_group_tokens'].invoke
+  end
+
+  def legacy_base_currency_for_grouping(currency)
+    normalized = currency.to_s.strip.upcase
+    return 'USD' if %w[USD VES].include?(normalized)
+
+    normalized
+  end
+
+  def canonical_group_token_for(group_debts)
+    token_source = group_debts
+                   .select { |debt| debt.group_token.to_s.strip.present? }
+                   .max_by do |debt|
+                     [debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1), debt.created_at || Time.zone.at(0),
+                      debt.id.to_i]
+                   end
+
+    token_source&.group_token.to_s.strip.presence || "grp_legacy_#{SecureRandom.hex(8)}"
   end
 end
