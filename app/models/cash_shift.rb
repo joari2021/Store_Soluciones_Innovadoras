@@ -53,7 +53,8 @@ class CashShift < ApplicationRecord
   end
 
   def close!(user:, declared_closing_ves: nil, declared_closing_usd: nil, notes: nil)
-    unless opened_by_id.present? && user.present? && opened_by_id == user.id
+    is_admin = user&.admin?
+    unless is_admin || (opened_by_id.present? && user.present? && opened_by_id == user.id)
       errors.add(:base, 'El turno solo puede ser cerrado por el mismo usuario que lo abrio.')
       raise ActiveRecord::RecordInvalid, self
     end
