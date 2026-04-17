@@ -666,18 +666,17 @@ class CashShiftsController < ApplicationController
   end
 
   def build_payments_summary(cash_shift)
-    grouped_rows = cash_shift.venta_payments.includes(:account).group_by do |payment|
-      [payment.account_id, payment.currency]
-    end
+    grouped_rows = shift_movements_scope(cash_shift)
+      .includes(:account)
+      .group_by(&:account_id)
 
-    grouped_rows.map do |(account_id, currency), payments|
-      account = payments.first&.account
-      incoming = payments.select do |payment|
-        payment.payment_kind == 'in'
-      end.sum { |payment| payment.amount_original.to_d }
-      outgoing = payments.select do |payment|
-        payment.payment_kind == 'out'
-      end.sum { |payment| payment.amount_original.to_d }
+    grouped_rows.map do |(account_id, movements)|
+      account = movements.first&.account || current_business.accounts.find_by(id: account_id)
+      currency = account&.currency.to_s.upcase
+      incoming = movements.select { |movement| movement.movement_kind == 'income' }
+                        .sum { |movement| movement.amount.to_d }
+      outgoing = movements.select { |movement| movement.movement_kind == 'expense' }
+                        .sum { |movement| movement.amount.to_d }
 
       {
         account_id: account_id,
@@ -897,16 +896,10 @@ class CashShiftsController < ApplicationController
   end
 
   def process_turn_settlements_for_shift!(verification_rows:)
-    sale_ids = @cash_shift.ventas.pluck(:id)
-    cash_exchange_ids = current_business.cambio_efectivos.where(cash_shift_id: @cash_shift.id).pluck(:id)
-    return [] if sale_ids.empty? && cash_exchange_ids.empty?
-
     settlement_rows = []
 
     current_business.accounts.where(account_type: AUTO_SETTLEMENT_ACCOUNT_TYPES).find_each do |account|
-      pending_scope = pending_shift_movements_scope(account: account,
-                                                    sale_ids: sale_ids,
-                                                    cash_exchange_ids: cash_exchange_ids)
+      pending_scope = pending_shift_movements_scope(account: account, cash_shift: @cash_shift)
       pending_total = pending_scope.sum(
         Arel.sql("CASE WHEN movement_kind = 'expense' THEN -amount ELSE amount END")
       ).to_d
@@ -945,31 +938,25 @@ class CashShiftsController < ApplicationController
     settlement_rows
   end
 
-  def pending_shift_movements_scope(account:, sale_ids:, cash_exchange_ids: [])
-    normalized_sale_ids = Array(sale_ids).map(&:to_i).select(&:positive?).uniq
-    normalized_cash_exchange_ids = Array(cash_exchange_ids).map(&:to_i).select(&:positive?).uniq
-
-    return account.account_movements.none if normalized_sale_ids.empty? && normalized_cash_exchange_ids.empty?
-
-    conditions = []
-    values = []
-
-    if normalized_sale_ids.any?
-      sale_ids_pattern = normalized_sale_ids.join('|')
-      conditions << 'account_movements.description ~ ?'
-      values << "\\[VENTA:(#{sale_ids_pattern})\\]"
-    end
-
-    if normalized_cash_exchange_ids.any?
-      cash_exchange_ids_pattern = normalized_cash_exchange_ids.join('|')
-      conditions << 'account_movements.description ~ ?'
-      values << "\\[CAMBIO_EFECTIVO:(#{cash_exchange_ids_pattern})\\]"
-    end
-
+  def pending_shift_movements_scope(account:, cash_shift:)
     account
       .account_movements
       .where(account_settlement_id: nil)
-      .where(conditions.join(' OR '), *values)
+      .where(movement_kind: 'income')
+      .where(occurred_at: shift_time_range_for(cash_shift))
+  end
+
+  def shift_movements_scope(cash_shift)
+    AccountMovement
+      .joins(:account)
+      .where(accounts: { business_id: current_business.id })
+      .where(occurred_at: shift_time_range_for(cash_shift))
+  end
+
+  def shift_time_range_for(cash_shift)
+    start_at = cash_shift.opened_at
+    end_at = cash_shift.closed_at || Time.current
+    start_at..end_at
   end
 
   def build_shift_closing_notes_payload(raw_notes:, verification_rows:, settlement_rows:)
