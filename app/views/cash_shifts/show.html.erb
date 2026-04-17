@@ -2,6 +2,7 @@
 <% shift_exchange_rate_rows = @shift_exchange_rate_rows || [] %>
 <% close_verification_rows = @close_verification_rows || [] %>
 <% closing_notes_text = @closing_notes_text.to_s.strip.presence %>
+<% can_close_shift = @cash_shift.open? && (current_user_admin? || @cash_shift.opened_by_id == Current.user&.id) %>
 <% inherited_cash_carryovers = close_verification_rows.select do |row|
      row[:account_type].to_s == 'cash_box' && row[:carryover_from_previous].to_d.positive?
    end %>
@@ -14,7 +15,7 @@
         <p class="mt-2 text-sm text-slate-500">Abierto por <strong><%= @cash_shift.opened_by&.display_name || 'Sin usuario' %></strong> el <%= l(@cash_shift.opened_at, format: :short) rescue @cash_shift.opened_at.strftime('%d/%m/%Y %H:%M') %>.</p>
       </div>
       <div class="flex items-center gap-2">
-        <% if @cash_shift.open? && @cash_shift.opened_by_id == Current.user&.id %>
+        <% if can_close_shift %>
           <button
             id="cash-shift-close-trigger"
             type="button"
@@ -174,7 +175,7 @@
       <% end %>
     </section>
   </div>
-  <% if @cash_shift.open? && @cash_shift.opened_by_id != Current.user&.id %>
+  <% if @cash_shift.open? && !can_close_shift %>
     <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
       <h2 class="text-sm font-bold uppercase tracking-widest text-slate-600">Cierre restringido</h2>
       <p class="mt-1 text-sm text-slate-600">
@@ -312,7 +313,7 @@
     <% end %>
   </section>
 </div>
-<% if @cash_shift.open? && @cash_shift.opened_by_id == Current.user&.id %>
+<% if can_close_shift %>
   <script type="application/json" id="cash-shift-close-rows-data">
     <%= raw ERB::Util.json_escape(close_verification_rows.to_json) %>
   </script>
