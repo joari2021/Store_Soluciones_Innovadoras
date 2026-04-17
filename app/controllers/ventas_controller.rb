@@ -505,16 +505,35 @@ class VentasController < ApplicationController
           discount_percent = 0.to_d
         end
 
+        service_discount_rules = active_discount_rules_by_target(:services)[service.id]
+
+        base_unit_price_base_amount_for_schedule = unit_price_base_amount.to_d
+        if !base_unit_price_base_amount_for_schedule.positive? && service_uses_ves_reference_pricing?(service)
+          base_unit_price_base_amount_for_schedule = service.unit_price_bs(
+            tasa_dolar: tasa_dolar,
+            unidad_vi: parse_decimal(@unidad_VI, default: 0),
+          ).to_d
+        end
+
         unit_price_usd = apply_discount_schedule_to_unit_price_usd(
           base_unit_price_usd: unit_price_usd,
           quantity: quantity,
-          rules: active_discount_rules_by_target(:services)[service.id],
+          rules: service_discount_rules,
           fixed_currency: service_discount_currency(service),
           tasa_dolar: tasa_dolar,
         )
 
         unit_price_base_amount = 0.to_d
-        if base_currency == "VES" && tasa_dolar.to_d.positive?
+        if base_currency == "VES" && service_uses_ves_reference_pricing?(service)
+          unit_price_base_amount = apply_discount_schedule_to_unit_price_amount(
+            base_unit_price_amount: base_unit_price_base_amount_for_schedule,
+            quantity: quantity,
+            rules: service_discount_rules,
+            fixed_currency: service_discount_currency(service),
+            target_currency: "VES",
+            tasa_dolar: tasa_dolar,
+          )
+        elsif base_currency == "VES" && tasa_dolar.to_d.positive?
           unit_price_base_amount = (unit_price_usd.to_d * tasa_dolar.to_d).round(2)
         elsif base_currency == "USD"
           unit_price_base_amount = unit_price_usd.to_d.round(2)
@@ -2439,6 +2458,31 @@ class VentasController < ApplicationController
     fixed_amount_usd.positive? ? fixed_amount_usd.round(6) : 0.to_d
   end
 
+  def apply_discount_schedule_to_unit_price_amount(base_unit_price_amount:, quantity:, rules:, fixed_currency:,
+                                                   target_currency:, tasa_dolar:)
+    unit_price_amount = base_unit_price_amount.to_d
+    return unit_price_amount.round(2) unless unit_price_amount.positive?
+
+    applicable_rule = pick_discount_rule_for_quantity(rules, quantity)
+    return unit_price_amount.round(2) if applicable_rule.blank?
+
+    if applicable_rule.discount_mode.to_s == 'percent'
+      percent = [applicable_rule.discount_value.to_d, 100.to_d].min
+      discounted = unit_price_amount * (1 - (percent / 100))
+      return discounted.positive? ? discounted.round(2) : 0.to_d
+    end
+
+    fixed_amount = applicable_rule.discount_value.to_d
+    converted_amount = convert_discount_amount_to_currency(
+      amount: fixed_amount,
+      from_currency: fixed_currency,
+      to_currency: target_currency,
+      tasa_dolar: tasa_dolar,
+    )
+
+    converted_amount.to_d.positive? ? converted_amount.to_d.round(2) : 0.to_d
+  end
+
   def pick_discount_rule_for_quantity(rules, quantity)
     qty = quantity.to_d
     return nil unless qty.positive?
@@ -2463,7 +2507,20 @@ class VentasController < ApplicationController
     return 'USD' if service.blank?
 
     reference = service.currency_base_price.to_s.strip
-    reference == Service::BOLIVAR_REFERENCE ? 'VES' : 'USD'
+    %W[#{Service::BOLIVAR_REFERENCE} Unidad\ VI].include?(reference) ? 'VES' : 'USD'
+  end
+
+  def service_uses_ves_reference_pricing?(service)
+    return false if service.blank?
+
+    reference = service.currency_base_price.to_s.strip
+    %W[#{Service::BOLIVAR_REFERENCE} Unidad\ VI].include?(reference)
+  end
+
+  def convert_discount_amount_to_currency(amount:, from_currency:, to_currency:, tasa_dolar:)
+    return amount.to_d if from_currency.to_s == to_currency.to_s
+
+    convert_payment_to_currency(amount, from_currency, to_currency, tasa_dolar)
   end
 
   def serialize_discount_rules_for_front(rules, default_fixed_currency:, default_fixed_symbol:)

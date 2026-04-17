@@ -946,6 +946,31 @@
         return roundTo(Math.max(0, fixedUnitPriceUsd), 6);
       };
 
+      const applyScheduledDiscountRuleToUnitPriceBase = (unitPriceBase, quantity, rules, targetCurrency = 'VES') => {
+        const baseUnit = Number(unitPriceBase || 0);
+        if (!(Number.isFinite(baseUnit) && baseUnit > 0)) return 0;
+
+        const rule = resolveScheduledDiscountRule(rules, quantity);
+        if (!rule) return roundTo(baseUnit, 2);
+
+        if (rule.discount_mode === 'percent') {
+          const percent = Math.max(0, Math.min(100, Number(rule.discount_value || 0)));
+          return roundTo(Math.max(0, baseUnit * (1 - percent / 100)), 2);
+        }
+
+        let fixedUnitPrice = Number(rule.discount_value || 0);
+        const fixedCurrency = String(rule.fixed_currency || 'USD').trim().toUpperCase();
+        const targetCode = String(targetCurrency || 'VES').trim().toUpperCase();
+
+        if (fixedCurrency !== targetCode) {
+          const converted = convertAmount(fixedUnitPrice, fixedCurrency, targetCode);
+          if (converted === null) return roundTo(baseUnit, 2);
+          fixedUnitPrice = converted;
+        }
+
+        return roundTo(Math.max(0, fixedUnitPrice), 2);
+      };
+
       const saveDraftButton = document.getElementById('ventas-save-draft-button');
       const clearPanelButton = document.getElementById('ventas-clear-panel-button');
       const draftsListEl = document.getElementById('ventas-drafts-list');
@@ -3564,6 +3589,26 @@
         };
       };
 
+      const computePricingFromBaseAmount = (baseUnitAmount, quantity, options = {}) => {
+        const vatMode = getVatMode();
+        const isExento = options?.exento === true;
+        const unitBase = roundTo(Number(baseUnitAmount) || 0, 2);
+        const safeQty = Number(quantity) || 0;
+        let unitNet = unitBase;
+
+        if (!isExento && vatMode === 'included' && vatRate > 0) {
+          unitNet = roundTo(unitBase / (1 + vatRate), 2);
+        }
+
+        const lineNet = roundTo(unitNet * safeQty, 2);
+        return {
+          unitDisplay: unitNet,
+          lineNet: lineNet,
+          lineTotal: lineNet,
+          exento: isExento,
+        };
+      };
+
       const resolveServiceUnitPriceUsd = (service, item = {}, options = {}) => {
         const preferBsReference = options?.preferBsReference === true;
         const normalizedReference = normalizeServiceReferenceName(service);
@@ -3616,6 +3661,8 @@
 
       const computeServicePricing = (service, item = {}) => {
         let unitPriceUsd = 0;
+        let unitPriceBaseVes = null;
+        const usesBolivarReference = serviceUsesBolivarReference(service);
         const clientFixedUnitPriceUsd = resolveServiceFixedUnitPriceUsdForClient(service, selectedClient);
         if (Number.isFinite(clientFixedUnitPriceUsd) && clientFixedUnitPriceUsd > 0) {
           unitPriceUsd = roundTo(clientFixedUnitPriceUsd, 6);
@@ -3628,13 +3675,37 @@
             const discountedBs = discountPercent > 0
               ? roundTo(baseUnitBs * (1 - discountPercent / 100), 2)
               : roundTo(baseUnitBs, 2);
+            unitPriceBaseVes = discountedBs;
             unitPriceUsd = roundTo(discountedBs / bcvRate, 6);
           } else {
+            if (usesBolivarReference && baseCurrency === 'ves') {
+              const itemBaseCurrency = normalizeCurrencyCode(item?.unit_price_base_currency);
+              const itemBaseAmount = Number(item?.unit_price_base_amount);
+              const fallbackBaseVes = itemBaseCurrency === 'VES' && Number.isFinite(itemBaseAmount) && itemBaseAmount > 0
+                ? itemBaseAmount
+                : Number(service?.price_bs || 0);
+
+              if (Number.isFinite(fallbackBaseVes) && fallbackBaseVes > 0) {
+                unitPriceBaseVes = roundTo(fallbackBaseVes, 2);
+              }
+            }
+
             const baseUnitUsd = resolveServiceUnitPriceUsd(service, item);
             unitPriceUsd = discountPercent > 0
               ? roundTo(baseUnitUsd * (1 - discountPercent / 100), 6)
               : roundTo(baseUnitUsd, 6);
           }
+        }
+
+        if (usesBolivarReference && baseCurrency === 'ves' && Number.isFinite(unitPriceBaseVes) && unitPriceBaseVes > 0) {
+          const discountedBaseVes = applyScheduledDiscountRuleToUnitPriceBase(
+            unitPriceBaseVes,
+            item.quantity,
+            service?.scheduled_discount_rules,
+            'VES'
+          );
+
+          return computePricingFromBaseAmount(discountedBaseVes, item.quantity, { exento: false });
         }
 
         unitPriceUsd = applyScheduledDiscountRuleToUnitPriceUsd(
