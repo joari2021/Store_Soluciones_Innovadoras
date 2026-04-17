@@ -100,11 +100,12 @@
         <% if @receivable_debts.any? %>
           <div class="grid gap-4">
             <% @receivable_groups.each do |cliente, debts| %>
-              <% grouped_by_currency = debts.group_by(&:currency) %>
+              <% grouped_by_currency = debts.group_by { |debt| debt.card_currency.to_s.upcase } %>
               <% grouped_by_currency.each do |currency, debts_in_currency| %>
                 <% is_usdt = currency.to_s.upcase == 'USDT' %>
                 <% group_key = [cliente.present? ? cliente.id : 'none', currency.to_s.upcase] %>
                 <% totals = @receivable_group_totals[group_key] || { display_total: 0.to_d, display_symbol: '$', badge_label: 'USD $', ves_total: 0.to_d } %>
+                <% grouped_debts_count = debts_in_currency.sum { |debt| debt.respond_to?(:card_debts_count) ? debt.card_debts_count.to_i : 1 } %>
                 <article class="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
@@ -114,7 +115,7 @@
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
-                      <p class="text-base font-bold text-emerald-600"><%= debts_in_currency.count %></p>
+                      <p class="text-base font-bold text-emerald-600"><%= grouped_debts_count %></p>
                       <p class="text-[11px] text-slate-500">Moneda: <%= currency %></p>
                       <p class="text-[11px] text-slate-500">Actualizado: <%= debts_in_currency.first.card_last_activity_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') || '-' %></p>
                     </div>
@@ -164,13 +165,14 @@
             <% @receivable_paid_groups.each do |cliente, debts| %>
               <% debts.each do |debt| %>
                 <% currency = debt.currency.to_s.upcase %>
+                <% currency = debt.card_currency.to_s.upcase if debt.respond_to?(:card_currency) %>
                 <% is_usdt = currency == 'USDT' %>
                 <% rate_reference = CurrencyConverter.reference_for_currency(currency) %>
                 <% rate_symbol = TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence %>
                 <% fallback_symbol = Account::CURRENCIES.dig(currency, :symbol) || currency %>
                 <% display_symbol = rate_symbol.presence || fallback_symbol %>
                 <% badge_name = rate_reference.presence || currency %>
-                <% display_total = currency == 'USD' ? debt.card_total_balance.to_d : debt.card_total_balance.to_d %>
+                <% display_total = debt.card_total_balance.to_d %>
                 <% ves_conversion = CurrencyConverter.convert(amount: display_total, from_currency: currency == 'USD' ? 'USD' : currency, to_currency: 'VES') %>
                 <% totals = { display_total: display_total, display_symbol: display_symbol, badge_label: "#{badge_name} #{display_symbol}", ves_total: ves_conversion&.dig(:amount).to_d.round(2) } %>
                 <article class="rounded-2xl border border-emerald-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">

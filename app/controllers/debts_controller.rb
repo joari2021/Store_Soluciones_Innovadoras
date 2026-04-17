@@ -1656,7 +1656,9 @@ class DebtsController < ApplicationController
 
                   representative.card_total_amount = total_usd_amount(grouped_debts)
                   representative.card_total_balance = total_usd_balance_for_card(grouped_debts)
-                  representative.card_currency = 'USD'
+                  representative.card_currency = card_currency_for_index_group(grouped_debts)
+                  grouped_count = grouped_debts.size
+                  representative.define_singleton_method(:card_debts_count) { grouped_count }
                   representative.card_description_summary = card_description_summary_for(grouped_debts)
                   last_activity_at = group_last_activity_at_for(grouped_debts)
                   representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
@@ -1730,7 +1732,7 @@ class DebtsController < ApplicationController
 
   def build_group_totals(groups)
     groups.each_with_object({}) do |(cliente, debts), totals|
-      debts.group_by { |debt| debt.currency.to_s.upcase }.each do |currency, debts_in_currency|
+      debts.group_by { |debt| debt.card_currency.to_s.upcase }.each do |currency, debts_in_currency|
         normalized_currency = currency.to_s.upcase
         rate_reference = CurrencyConverter.reference_for_currency(normalized_currency)
         rate_symbol = TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence
@@ -1782,8 +1784,21 @@ class DebtsController < ApplicationController
 
   def count_debt_groups(groups)
     groups.sum do |_cliente, debts|
-      debts.group_by { |debt| debt.currency.to_s.upcase }.size
+      debts.group_by { |debt| debt.card_currency.to_s.upcase }.size
     end
+  end
+
+  def card_currency_for_index_group(grouped_debts)
+    currencies = grouped_debts.map { |debt| debt.currency.to_s.upcase }.uniq
+    representative = grouped_debts.first
+
+    if representative&.receivable? && (currencies - %w[USD VES]).empty?
+      return 'USD'
+    end
+
+    return currencies.first if currencies.size == 1
+
+    representative&.currency.to_s.upcase.presence || 'USD'
   end
 
   def debt_pending_for_index?(debt)
