@@ -26,6 +26,11 @@
           <% end %>
         <% end %>
         <% if can_manage_products %>
+          <%= link_to export_excel_productos_path,
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-white px-5 py-3 font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 sm:w-auto' do %>
+            <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
+            Exportar inventario Excel
+          <% end %>
           <%= link_to categorias_path,
                       class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
             <i data-lucide="tag" class="h-4 w-4"></i>

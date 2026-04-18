@@ -235,50 +235,65 @@ class ProductosController < ApplicationController
 
   def export_excel
     productos = current_business.productos
-                                .includes(:categoria, :profit_margin_preset, :product_variations, :stock_lots)
+                                .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
                                 .order(Arel.sql('LOWER(productos.descripcion) ASC'))
 
     headers = [
       'Producto ID',
-      'Descripcion',
+      'Variacion ID',
+      'Nombre en ventas',
+      'Producto base',
+      'Presentacion',
+      'Variacion',
       'Categoria',
-      'Disponible',
-      'Precio venta USD',
-      'Exento',
-      '% ganancia',
-      'Preset ganancia',
-      'Costo unitario lote alto USD',
-      'Precio objetivo USD',
-      'Debajo objetivo',
-      'Existencia total',
-      'Variaciones',
-      'Creado en',
-      'Actualizado en'
+      'Stock variacion',
+      'Stock total producto'
     ]
 
     table_head = headers.map { |header| "<th>#{sanitize_excel_cell(header)}</th>" }.join
-    table_body = productos.map do |producto|
-      values = [
-        producto.id,
-        producto.descripcion,
-        producto.categoria&.nombre,
-        product_available_for_export?(producto) ? 'Si' : 'No',
-        producto.precio_venta_usd,
-        producto.respond_to?(:exento) && producto.exento? ? 'Si' : 'No',
-        producto.respond_to?(:porcentaje_ganancia) ? producto.porcentaje_ganancia : nil,
-        product_profit_margin_preset_for_export(producto),
-        producto.highest_active_lot_unit_cost_usd,
-        producto.expected_price_usd_from_target_margin,
-        producto.below_target_margin_for_highest_active_lot? ? 'Si' : 'No',
-        producto.total_quantity,
-        producto.product_variations.size,
-        producto.created_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S'),
-        producto.updated_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M:%S')
-      ]
+    table_rows = []
 
-      cells = values.map { |value| "<td>#{sanitize_excel_cell(value)}</td>" }.join
-      "<tr>#{cells}</tr>"
-    end.join
+    productos.each do |producto|
+      variation_totals = inventory_variation_totals_for_export(producto)
+      total_stock = variation_totals.values.sum.to_d
+      total_stock = producto.stock_lots.to_a.sum { |lot| lot.quantity_remaining.to_d } if total_stock.zero?
+
+      variations = producto.product_variations.sort_by(&:id)
+      variations = [nil] if variations.empty?
+
+      variations.each do |variation|
+        variation_id = variation&.id
+        variation_name = variation&.description.to_s.strip.presence || 'Unica'
+        variation_stock = if variation_id.present?
+                            variation_totals[variation_id].to_d
+                          else
+                            total_stock
+                          end
+
+        if variation_id.present? && variation_stock.zero? && variation_totals.empty? && variations.size == 1
+          variation_stock = total_stock
+        end
+
+        sales_name = "#{producto.display_name_with_presentation} #{variation_name}".squish
+
+        values = [
+          producto.id,
+          variation_id,
+          sales_name,
+          producto.display_name_with_presentation,
+          producto.presentation.to_s,
+          variation_name,
+          producto.categoria&.nombre,
+          variation_stock,
+          total_stock
+        ]
+
+        cells = values.map { |value| "<td>#{sanitize_excel_cell(value)}</td>" }.join
+        table_rows << "<tr>#{cells}</tr>"
+      end
+    end
+
+    table_body = table_rows.join
 
     html = <<~HTML
       <html>
@@ -298,7 +313,7 @@ class ProductosController < ApplicationController
       </html>
     HTML
 
-    filename = "productos_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xls"
+    filename = "inventario_productos_variaciones_#{Time.current.strftime('%Y%m%d_%H%M%S')}.xls"
     send_data html,
               filename: filename,
               type: 'application/vnd.ms-excel; charset=utf-8',
@@ -630,23 +645,24 @@ class ProductosController < ApplicationController
     lot_costs.max
   end
 
-  def product_available_for_export?(producto)
-    return producto.available? if producto.respond_to?(:available?)
-    return producto.disponible? if producto.respond_to?(:disponible?)
-    return ActiveModel::Type::Boolean.new.cast(producto[:available]) if producto.has_attribute?(:available)
-    return ActiveModel::Type::Boolean.new.cast(producto[:disponible]) if producto.has_attribute?(:disponible)
+  def inventory_variation_totals_for_export(producto)
+    variation_rows = producto.stock_lot_variations.to_a
+    variation_groups = variation_rows.group_by(&:product_variation_id)
+    variation_totals = variation_groups.transform_values do |rows|
+      rows.sum { |row| row.quantity_remaining.to_d }
+    end
 
-    true
-  end
+    if producto.product_variations.size == 1
+      unique_variation_id = producto.product_variations.first.id
+      nil_variation_total = variation_totals[nil].to_d
 
-  def product_profit_margin_preset_for_export(producto)
-    preset = producto.profit_margin_preset
-    return nil if preset.blank?
+      if nil_variation_total.positive?
+        variation_totals[unique_variation_id] = variation_totals[unique_variation_id].to_d + nil_variation_total
+        variation_totals.delete(nil)
+      end
+    end
 
-    return preset.name if preset.respond_to?(:name) && preset.name.present?
-    return "#{preset.percentage}%" if preset.respond_to?(:percentage) && preset.percentage.present?
-
-    preset.to_s
+    variation_totals
   end
 
   def sanitize_excel_cell(value)
