@@ -288,12 +288,17 @@ class ProductosController < ApplicationController
           total_stock
         ]
 
-        cells = values.map { |value| "<td>#{sanitize_excel_cell(value)}</td>" }.join
-        table_rows << "<tr>#{cells}</tr>"
+        table_rows << { sales_name: sales_name, values: values }
       end
     end
 
-    table_body = table_rows.join
+    sorted_rows = table_rows.sort_by do |row|
+      I18n.transliterate(row[:sales_name].to_s).downcase
+    end
+    table_body = sorted_rows.map do |row|
+      cells = row[:values].map { |value| "<td>#{sanitize_excel_cell(value)}</td>" }.join
+      "<tr>#{cells}</tr>"
+    end.join
 
     html = <<~HTML
       <html>
