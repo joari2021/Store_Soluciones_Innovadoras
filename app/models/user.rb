@@ -4,6 +4,10 @@ class User < ApplicationRecord
   MIN_PASSWORD_LENGTH = 10
   PASSWORD_COMPLEXITY_REGEX = /\A(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+\z/.freeze
   AUTHORIZATION_LEVELS = %w[administrator manager standard_staff].freeze
+  SEX_OPTIONS = {
+    'male' => 'Masculino',
+    'female' => 'Femenino'
+  }.freeze
 
   belongs_to :business, optional: true
   has_many :ventas, dependent: :nullify
@@ -30,11 +34,13 @@ class User < ApplicationRecord
   validates :password, length: { minimum: MIN_PASSWORD_LENGTH }, if: :password_required?
   validate :password_complexity, if: :password_required?
   validate :authorization_level_inclusion
+  validates :sex, inclusion: { in: SEX_OPTIONS.keys }, if: :supports_sex?
 
   # añadir cuando se añada la funcion de que varios otros usuarios puedan crear peliculas para asi monitorear luego
   # has_many :products, dependent: :destroy
 
   before_validation :normalize_role_flags
+  before_validation :normalize_sex_value, if: :supports_sex?
   before_save :downcase_attributes
 
   def standard_staff?
@@ -57,10 +63,23 @@ class User < ApplicationRecord
   end
 
   def role_label
-    return 'Administrador' if admin?
-    return 'Encargado' if manager?
+    return female? ? 'Administradora' : 'Administrador' if admin?
+    return female? ? 'Encargada' : 'Encargado' if manager?
 
     'Personal estandar'
+  end
+
+  def sex_key
+    return 'male' unless supports_sex?
+
+    value = self[:sex].to_s
+    return value if SEX_OPTIONS.key?(value)
+
+    'male'
+  end
+
+  def female?
+    sex_key == 'female'
   end
 
   def display_name
@@ -136,5 +155,14 @@ class User < ApplicationRecord
     self.username = username.to_s.downcase
     self.email = email.to_s.downcase
     self.full_name = full_name.to_s.strip.presence
+  end
+
+  def supports_sex?
+    has_attribute?(:sex)
+  end
+
+  def normalize_sex_value
+    value = self[:sex].to_s
+    self[:sex] = SEX_OPTIONS.key?(value) ? value : 'male'
   end
 end

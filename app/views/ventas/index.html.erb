@@ -1,7 +1,7 @@
 <% bcv_rate = (@tasa_dolar_bcv || 0).to_d %>
 <% product_categories = @product_categories || [] %>
 <% service_systems = @service_systems || [] %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>">
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -656,6 +656,11 @@
       if (window.ventasPosBoundRoots.has(root)) return;
 
       const hasOpenCashShift = root.dataset.openShift === 'true';
+      const canChargeSale = root.dataset.canChargeSale === 'true';
+      const currentUserId = Number(root.dataset.currentUserId || 0);
+      const activeCashierId = Number(root.dataset.activeCashierId || 0);
+      const activeCashierName = String(root.dataset.activeCashierName || '').trim();
+      const activeCashierRoleLabel = String(root.dataset.activeCashierRoleLabel || '').trim();
 
       const productsDataEl = document.getElementById('ventas-products-data');
       if (!productsDataEl) return;
@@ -7316,6 +7321,32 @@
       const payButton = document.getElementById('ventas-pay-button');
       if (payButton) {
         payButton.addEventListener('click', async () => {
+          if (!canChargeSale) {
+            if (window.Swal) {
+              window.Swal.fire({
+                icon: 'warning',
+                title: 'Cobro no autorizado',
+                text: 'Solo el encargado o administrador pueden cobrar ventas.',
+                heightAuto: false,
+              });
+            }
+            return;
+          }
+
+          if (activeCashierId > 0 && currentUserId > 0 && activeCashierId !== currentUserId) {
+            if (window.Swal) {
+              const cashierRole = activeCashierRoleLabel || 'Cajero activo';
+              const cashierName = activeCashierName || 'Personal asignado';
+              window.Swal.fire({
+                icon: 'warning',
+                title: 'Cobro restringido',
+                text: `Quien puede realizar el cobro es ${cashierName} (${cashierRole}).`,
+                heightAuto: false,
+              });
+            }
+            return;
+          }
+
           const checkoutBaseCurrency = getSelectedBaseCurrency();
           applyBaseCurrencySelection(checkoutBaseCurrency, { syncInputs: true, syncCart: true, render: false });
           if (!hasOpenCashShift) {

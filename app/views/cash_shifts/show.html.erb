@@ -2,7 +2,9 @@
 <% shift_exchange_rate_rows = @shift_exchange_rate_rows || [] %>
 <% close_verification_rows = @close_verification_rows || [] %>
 <% closing_notes_text = @closing_notes_text.to_s.strip.presence %>
-<% can_close_shift = @cash_shift.open? && (current_user_admin? || @cash_shift.opened_by_id == Current.user&.id) %>
+<% can_close_shift = @cash_shift.open? && (current_user_admin? || @cash_shift.active_cashier_id == Current.user&.id) %>
+<% active_cashier_name = @cash_shift.active_cashier&.display_name.presence || 'Sin asignar' %>
+<% active_cashier_role = @cash_shift.active_cashier&.role_label.to_s.strip.presence %>
 <% inherited_cash_carryovers = close_verification_rows.select do |row|
      row[:account_type].to_s == 'cash_box' && row[:carryover_from_previous].to_d.positive?
    end %>
@@ -43,6 +45,14 @@
         <% end %>
       </div>
     </div>
+    <% if @cash_shift.open? %>
+      <div class="mt-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700">
+        <i data-lucide="user-check" class="h-4 w-4"></i>
+        <span>
+          Cajero activo: <strong><%= active_cashier_name %></strong><%= active_cashier_role.present? ? " (#{active_cashier_role})" : '' %>
+        </span>
+      </div>
+    <% end %>
     <% if @cash_shift.open? && inherited_cash_carryovers.any? %>
       <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-3 shadow-sm">
         <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -180,7 +190,7 @@
       <h2 class="text-sm font-bold uppercase tracking-widest text-slate-600">Cierre restringido</h2>
       <p class="mt-1 text-sm text-slate-600">
         Este turno solo puede ser cerrado por
-        <strong><%= @cash_shift.opened_by&.display_name || 'el usuario que lo abrio' %></strong>.
+        <strong><%= active_cashier_name %></strong><%= active_cashier_role.present? ? " (#{active_cashier_role})" : '' %>.
       </p>
     </section>
   <% end %>

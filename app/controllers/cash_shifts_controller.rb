@@ -6,10 +6,11 @@ class CashShiftsController < ApplicationController
   before_action -> { require_module_access!(:cash_shifts) }
   before_action :ensure_can_manage_cash_shifts!, only: %i[create]
   before_action :set_open_cash_shift, only: %i[create]
-  before_action :set_cash_shift, only: %i[show close destroy]
+  before_action :set_cash_shift, only: %i[show close destroy toggle_cashier]
   before_action :ensure_can_view_cash_shift!, only: %i[show]
   before_action :ensure_can_close_shift!, only: %i[close]
   before_action :ensure_can_destroy_shift!, only: %i[destroy]
+  before_action :ensure_admin_for_cashier_toggle!, only: %i[toggle_cashier]
 
   def index
     @open_cash_shift = current_business.current_open_cash_shift
@@ -95,6 +96,7 @@ class CashShiftsController < ApplicationController
       opening_balance_ves: cash_box_balance_for('VES'),
       opening_balance_usd: cash_box_balance_for('USD'),
       opened_by: Current.user,
+      active_cashier: Current.user,
       status: 'open',
       opened_at: Time.current
     )
@@ -230,6 +232,43 @@ class CashShiftsController < ApplicationController
                 alert: e.message.presence || 'No se pudo eliminar el turno y revertir los movimientos.'
   end
 
+  def toggle_cashier
+    unless @cash_shift.open?
+      message = 'Solo puedes asignar cajero en un turno abierto.'
+      return respond_to do |format|
+        format.html { redirect_back fallback_location: ventas_path, alert: message }
+        format.json { render json: { error: message }, status: :unprocessable_entity }
+      end
+    end
+
+    is_current_user_active_cashier = @cash_shift.active_cashier_id == Current.user&.id
+    @cash_shift.update!(active_cashier: (is_current_user_active_cashier ? nil : Current.user))
+
+    notice_message = if is_current_user_active_cashier
+                       'Marcaste salida de caja. El encargado o administrador puede tomar el cobro.'
+                     else
+                       'Marcaste entrada de caja. Quedaste como cajero activo del turno.'
+                     end
+
+    respond_to do |format|
+      format.html { redirect_back fallback_location: ventas_path, notice: notice_message }
+      format.json do
+        render json: {
+          success: true,
+          message: notice_message,
+          active_cashier: active_cashier_payload(@cash_shift)
+        }, status: :ok
+      end
+    end
+  rescue ActiveRecord::RecordInvalid
+    error_message = @cash_shift.errors.full_messages.to_sentence.presence || 'No se pudo actualizar el cajero activo.'
+
+    respond_to do |format|
+      format.html { redirect_back fallback_location: ventas_path, alert: error_message }
+      format.json { render json: { error: error_message }, status: :unprocessable_entity }
+    end
+  end
+
   private
 
   def set_open_cash_shift
@@ -237,7 +276,18 @@ class CashShiftsController < ApplicationController
   end
 
   def set_cash_shift
-    @cash_shift = current_business.cash_shifts.includes(:opened_by, :closed_by).find(params[:id])
+    @cash_shift = current_business.cash_shifts.includes(:opened_by, :closed_by, :active_cashier).find(params[:id])
+  end
+
+  def active_cashier_payload(cash_shift)
+    cashier = cash_shift&.active_cashier
+    return nil if cashier.blank?
+
+    {
+      id: cashier.id,
+      name: cashier.display_name,
+      role_label: cashier.role_label,
+    }
   end
 
   def ensure_can_view_cash_shift!
@@ -329,11 +379,14 @@ class CashShiftsController < ApplicationController
   def ensure_can_close_shift!
     return unless @cash_shift.open?
     return if current_user_admin?
-    return if @cash_shift.opened_by_id.present? && @cash_shift.opened_by_id == Current.user&.id
+    return if @cash_shift.active_cashier_id.present? && @cash_shift.active_cashier_id == Current.user&.id
 
-    opened_by_name = @cash_shift.opened_by&.display_name.presence || 'el usuario que abrio este turno'
+    active_cashier = @cash_shift.active_cashier
+    cashier_name = active_cashier&.display_name.presence || 'el cajero activo del turno'
+    cashier_role = active_cashier&.role_label.to_s.strip.presence
+    role_suffix = cashier_role.present? ? " (#{cashier_role})" : ''
 
-    redirect_to cash_shift_path(@cash_shift), alert: "Este turno solo puede ser cerrado por #{opened_by_name}."
+    redirect_to cash_shift_path(@cash_shift), alert: "Este turno solo puede ser cerrado por #{cashier_name}#{role_suffix}."
   end
 
   def ensure_can_manage_cash_shifts!
@@ -346,6 +399,12 @@ class CashShiftsController < ApplicationController
     return if current_user_admin?
 
     deny_access('Solo el administrador puede eliminar turnos.')
+  end
+
+  def ensure_admin_for_cashier_toggle!
+    return if current_user_admin?
+
+    deny_access('Solo el administrador puede asignar entrada o salida de cajero.')
   end
 
   def rollback_cash_shift_data!(cash_shift)

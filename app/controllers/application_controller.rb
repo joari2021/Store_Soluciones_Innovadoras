@@ -5,6 +5,7 @@ class ApplicationController < ActionController::Base
 
   before_action :set_tasas
   before_action :set_business_context
+  before_action :set_active_cashier_context
   before_action :set_header_notifications
   before_action :set_header_recarga_summary
 
@@ -157,6 +158,16 @@ class ApplicationController < ActionController::Base
     end
 
     @header_notifications_count = @header_notifications.size
+  end
+
+  def set_active_cashier_context
+    @header_open_cash_shift = nil
+    @header_active_cashier = nil
+    return unless request.format.html? || request.format.turbo_stream?
+    return if current_business.blank?
+
+    @header_open_cash_shift = current_business.cash_shifts.open.includes(:active_cashier).first
+    @header_active_cashier = @header_open_cash_shift&.active_cashier
   end
 
   def set_header_recarga_summary

@@ -7,6 +7,7 @@ class CashShift < ApplicationRecord
   belongs_to :business
   belongs_to :opened_by, class_name: 'User', inverse_of: :opened_cash_shifts
   belongs_to :closed_by, class_name: 'User', inverse_of: :closed_cash_shifts, optional: true
+  belongs_to :active_cashier, class_name: 'User', optional: true
 
   has_many :ventas, dependent: :nullify
   has_many :venta_payments, through: :ventas
@@ -21,6 +22,7 @@ class CashShift < ApplicationRecord
   validates :declared_closing_ves, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validates :declared_closing_usd, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
   validate :single_open_shift_per_business, if: :open?
+  validate :active_cashier_is_eligible
 
   before_validation :set_defaults
 
@@ -63,6 +65,7 @@ class CashShift < ApplicationRecord
       status: 'closed',
       closed_at: Time.current,
       closed_by: user,
+      active_cashier: nil,
       declared_closing_ves: declared_closing_ves,
       declared_closing_usd: declared_closing_usd,
       closing_notes: notes
@@ -86,5 +89,23 @@ class CashShift < ApplicationRecord
     return unless conflict.exists?
 
     errors.add(:base, 'Ya existe un turno abierto para este negocio.')
+  end
+
+  def active_cashier_is_eligible
+    return if active_cashier.blank?
+
+    if active_cashier.business_id != business_id
+      errors.add(:active_cashier, 'debe pertenecer al mismo negocio del turno.')
+      return
+    end
+
+    unless active_cashier.admin? || active_cashier.manager?
+      errors.add(:active_cashier, 'debe ser administrador o encargado.')
+      return
+    end
+
+    return if active_cashier.active?
+
+    errors.add(:active_cashier, 'debe estar activo para cobrar.')
   end
 end

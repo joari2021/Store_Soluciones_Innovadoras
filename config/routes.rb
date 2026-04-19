@@ -104,6 +104,7 @@ Rails.application.routes.draw do
   resources :cash_shifts, path: 'cierres-turno', only: %i[index create show destroy] do
     member do
       patch :close
+      patch :toggle_cashier
     end
   end
   resources :discount_schedules, path: 'descuentos-programados', only: %i[index create edit update destroy]

@@ -28,9 +28,11 @@ class VentasController < ApplicationController
                                 .where(active: true)
                                 .where.not(account_type: "cash_box", cash_role: "cash_deposit")
                                 .order(:name)
-    @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
+    @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by, :active_cashier).first
     @last_closed_cash_shift = current_business.cash_shifts.closed.first
     @open_shift_balance_checks_payload = open_shift_balance_checks_payload
+    @can_charge_sale = current_user_admin? || current_user_manager?
+    @active_cashier = @open_cash_shift&.active_cashier
 
     @products_payload = build_products_payload(@productos)
 
@@ -432,6 +434,15 @@ class VentasController < ApplicationController
     if open_cash_shift.blank?
       return render json: { error: "Debes abrir un turno antes de facturar." },
                     status: :unprocessable_entity
+    end
+
+    cashier_access = ensure_checkout_cashier_access!(open_cash_shift)
+    unless cashier_access[:allowed]
+      return render json: {
+        error: cashier_access[:error],
+        code: cashier_access[:code],
+        active_cashier: cashier_access[:active_cashier]
+      }, status: :forbidden
     end
 
     vat_mode = payload[:vat_mode].to_s
@@ -1157,6 +1168,66 @@ class VentasController < ApplicationController
       .ventas
       .includes(venta_items: %i[producto product_variation])
       .find(params[:id])
+  end
+
+  def ensure_checkout_cashier_access!(cash_shift)
+    unless current_user_admin? || current_user_manager?
+      return {
+        allowed: false,
+        code: 'checkout_role_denied',
+        error: 'Solo el encargado o administrador pueden cobrar ventas.',
+        active_cashier: active_cashier_payload(cash_shift&.active_cashier)
+      }
+    end
+
+    shift_active_cashier = nil
+
+    cash_shift.with_lock do
+      shift_active_cashier = cash_shift.active_cashier
+
+      if shift_active_cashier.present? && !shift_active_cashier.active?
+        cash_shift.update!(active_cashier: nil)
+        shift_active_cashier = nil
+      end
+
+      if shift_active_cashier.blank?
+        cash_shift.update!(active_cashier: Current.user)
+        shift_active_cashier = Current.user
+      end
+    end
+
+    if shift_active_cashier.present? && shift_active_cashier.id != Current.user&.id
+      return {
+        allowed: false,
+        code: 'active_cashier_mismatch',
+        error: "Quien puede realizar el cobro es #{shift_active_cashier.display_name} (#{shift_active_cashier.role_label}).",
+        active_cashier: active_cashier_payload(shift_active_cashier)
+      }
+    end
+
+    {
+      allowed: true,
+      code: nil,
+      error: nil,
+      active_cashier: active_cashier_payload(shift_active_cashier)
+    }
+  rescue ActiveRecord::RecordInvalid
+    {
+      allowed: false,
+      code: 'cashier_assignment_error',
+      error: cash_shift.errors.full_messages.to_sentence.presence || 'No se pudo validar el cajero activo para cobrar.',
+      active_cashier: active_cashier_payload(cash_shift&.active_cashier)
+    }
+  end
+
+  def active_cashier_payload(cashier)
+    return nil if cashier.blank?
+
+    {
+      id: cashier.id,
+      name: cashier.display_name,
+      role_label: cashier.role_label,
+    }
   end
 
   def set_draft_venta

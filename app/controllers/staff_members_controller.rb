@@ -75,6 +75,7 @@ class StaffMembersController < ApplicationController
       :full_name,
       :email,
       :username,
+      :sex,
       :password,
       :password_confirmation,
       :active,

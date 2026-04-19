@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_19_170000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_19_190000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -192,6 +192,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_170000) do
     t.text "closing_notes"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "active_cashier_id"
+    t.index ["active_cashier_id"], name: "index_cash_shifts_on_active_cashier_id"
     t.index ["business_id", "status"], name: "index_cash_shifts_on_business_id_and_status"
     t.index ["business_id"], name: "index_cash_shifts_on_business_id"
     t.index ["closed_by_id"], name: "index_cash_shifts_on_closed_by_id"
@@ -878,9 +880,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_170000) do
     t.string "full_name"
     t.boolean "active", default: true, null: false
     t.string "authorization_level", default: "standard_staff", null: false
+    t.string "sex", default: "male", null: false
     t.index ["authorization_level"], name: "index_users_on_authorization_level"
     t.index ["business_id"], name: "index_users_on_business_id"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["sex"], name: "index_users_on_sex"
     t.index ["username"], name: "index_users_on_username", unique: true
   end
 
@@ -978,6 +982,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_170000) do
   add_foreign_key "cambio_efectivos", "cash_shifts"
   add_foreign_key "cambio_efectivos", "users"
   add_foreign_key "cash_shifts", "businesses"
+  add_foreign_key "cash_shifts", "users", column: "active_cashier_id"
   add_foreign_key "cash_shifts", "users", column: "closed_by_id"
   add_foreign_key "cash_shifts", "users", column: "opened_by_id"
   add_foreign_key "categorias", "businesses"
