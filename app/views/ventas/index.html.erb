@@ -7379,7 +7379,7 @@
 
           let selectedCasheaContext = null;
           if (canOfferCashea) {
-            const casheaImageUrl = "<%= asset_path('cashea.png') %>";
+            const casheaImageUrl = String(casheaAccount?.payment_method_image_url || '').trim() || "<%= asset_path('cashea.png') %>";
             const now = new Date();
             const formatDateLabel = (date) => `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
             const addDays = (baseDate, days) => {
@@ -7429,12 +7429,21 @@
             const casheaQuestion = await window.Swal.fire({
               title: 'Compra elegible para Cashea',
               html: `
-                <div class="overflow-hidden rounded-2xl border border-slate-200">
-                  <div class="min-h-[160px] bg-cover bg-center" style="background-image: linear-gradient(180deg, rgba(15,23,42,0.35), rgba(15,23,42,0.65)), url('${casheaImageUrl}');"></div>
-                  <div class="space-y-1 px-4 py-3 text-left">
-                    <p class="text-sm text-slate-600">La venta alcanza la compra minima de Cashea.</p>
-                    <p class="text-sm text-slate-600">Minimo: <strong>$ ${formatNumber(casheaMinPurchaseUsd, 2)}</strong></p>
-                    <p class="text-sm text-slate-600">Total venta: <strong>$ ${formatNumber(totalUsd, 2)}</strong></p>
+                <div class="overflow-hidden rounded-2xl border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 shadow-md">
+                  <img src="${casheaImageUrl}" alt="Banner Cashea" class="block w-full h-auto" />
+                  <div class="space-y-2 px-4 py-4 text-left">
+                    <p class="text-base font-extrabold text-slate-800">Esta compra califica para pagar con Cashea.</p>
+                    <p class="text-sm text-slate-600">Puede proponerselo al cliente en caso de no haberlo hecho.</p>
+                    <div class="grid gap-2 sm:grid-cols-2 pt-1">
+                      <div class="rounded-xl border border-sky-200 bg-white px-3 py-2">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Compra minima Cashea</p>
+                        <p class="text-sm font-extrabold text-sky-700">$ ${formatNumber(casheaMinPurchaseUsd, 2)}</p>
+                      </div>
+                      <div class="rounded-xl border border-emerald-200 bg-white px-3 py-2">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total de esta venta</p>
+                        <p class="text-sm font-extrabold text-emerald-700">$ ${formatNumber(totalUsd, 2)}</p>
+                      </div>
+                    </div>
                     <p class="pt-1 text-sm font-semibold text-slate-700">¿Deseas procesar esta venta con Cashea?</p>
                   </div>
                 </div>
@@ -7443,6 +7452,14 @@
               confirmButtonText: 'Si, usar Cashea',
               cancelButtonText: 'No',
               reverseButtons: true,
+              buttonsStyling: false,
+              customClass: {
+                popup: 'rounded-3xl border border-sky-200 shadow-xl',
+                title: 'text-2xl font-extrabold text-slate-800',
+                actions: 'w-full flex flex-wrap items-center justify-end gap-2 mt-5 px-4 pb-4',
+                confirmButton: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-500',
+                cancelButton: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
+              },
               heightAuto: false,
             });
 
