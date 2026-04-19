@@ -120,8 +120,9 @@
               <% rows.each do |row| %>
                 <% debt = row[:debt] %>
                 <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
-                <% amount_usd = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'USD', on_date: Date.current)&.dig(:amount).to_d %>
-                <% amount_ves = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'VES', on_date: Date.current)&.dig(:amount).to_d %>
+                <% conversion_date = debt.issued_on || debt.created_at&.to_date || Date.current %>
+                <% amount_usd = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'USD', on_date: conversion_date)&.dig(:amount).to_d %>
+                <% amount_ves = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'VES', on_date: conversion_date)&.dig(:amount).to_d %>
                 <% source_link = debt_source_link_data(debt) %>
                 <% sale_id = debt_source_sale_id(debt) %>
                 <tr>
