@@ -1067,21 +1067,37 @@
 
                 if (registerPaymentForm) {
                   registerPaymentForm.addEventListener("submit", async (event) => {
+                    event.preventDefault();
+
+                    if (registerPaymentForm.dataset.submitting === "1") return;
+                    if (typeof registerPaymentForm.reportValidity === "function" && !registerPaymentForm.reportValidity()) return;
+
                     updateRegisterPaymentAmount();
 
-                    if (!registerPaymentAllowOverpayment) return;
-                    if (registerPaymentAllowOverpayment.value === "1") return;
+                    if (registerPaymentAllowOverpayment) {
+                      registerPaymentAllowOverpayment.value = "0";
+                    }
 
                     const enteredAmount = parseRegisterPaymentMaskedValue(registerPaymentAmountMasked);
-                    if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return;
+                    if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) {
+                      registerPaymentForm.dataset.submitting = "1";
+                      registerPaymentForm.submit();
+                      return;
+                    }
 
                     const pendingAmount = await pendingAmountInSelectedCurrency();
-                    if (!Number.isFinite(pendingAmount)) return;
+                    if (!Number.isFinite(pendingAmount)) {
+                      registerPaymentForm.dataset.submitting = "1";
+                      registerPaymentForm.submit();
+                      return;
+                    }
 
                     const overpaymentAmount = enteredAmount - pendingAmount;
-                    if (overpaymentAmount <= 0.01) return;
-
-                    event.preventDefault();
+                    if (overpaymentAmount <= 0.01) {
+                      registerPaymentForm.dataset.submitting = "1";
+                      registerPaymentForm.submit();
+                      return;
+                    }
 
                     const selectedOption = registerPaymentAccount?.options?.[registerPaymentAccount.selectedIndex];
                     const symbol = selectedOption?.dataset?.accountSymbol || "";
@@ -1107,7 +1123,10 @@
 
                     if (!accepted) return;
 
-                    registerPaymentAllowOverpayment.value = "1";
+                    if (registerPaymentAllowOverpayment) {
+                      registerPaymentAllowOverpayment.value = "1";
+                    }
+                    registerPaymentForm.dataset.submitting = "1";
                     registerPaymentForm.submit();
                   });
                 }
