@@ -7381,7 +7381,12 @@
           if (canOfferCashea) {
             const casheaImageUrl = "<%= asset_path('cashea.png') %>";
             const now = new Date();
-            const todayDateLabel = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+            const formatDateLabel = (date) => `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`;
+            const addDays = (baseDate, days) => {
+              const date = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+              date.setDate(date.getDate() + days);
+              return date;
+            };
             const normalizeCasheaDueDate = (rawValue) => {
               const normalized = String(rawValue || '').trim();
               if (!normalized) return null;
@@ -7442,7 +7447,10 @@
             });
 
             if (casheaQuestion.isConfirmed) {
-              const installmentsRowsHtml = Array.from({ length: casheaInstallmentsCount }).map((_, index) => `
+              const installmentsRowsHtml = Array.from({ length: casheaInstallmentsCount }).map((_, index) => {
+                const suggestedDueDate = addDays(now, 14 * (index + 1));
+                const suggestedDueDateLabel = formatDateLabel(suggestedDueDate);
+                return `
                 <div class="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 sm:grid-cols-2" data-cashea-installment-row="${index + 1}">
                   <div>
                     <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cuota ${index + 1} monto (USD)</label>
@@ -7450,10 +7458,11 @@
                   </div>
                   <div>
                     <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vencimiento cuota ${index + 1}</label>
-                    <input type="text" autocomplete="off" data-cashea-installment-due="${index + 1}" class="js-materialize-datepicker materialize-datepicker-input w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="dd-mm-aaaa" value="${todayDateLabel}" />
+                    <input type="text" autocomplete="off" data-cashea-installment-due="${index + 1}" class="js-materialize-datepicker materialize-datepicker-input w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="dd-mm-aaaa" value="${suggestedDueDateLabel}" />
                   </div>
                 </div>
-              `).join('');
+              `;
+              }).join('');
 
               const askInitialResult = await window.Swal.fire({
                 title: 'Inicial Cashea',

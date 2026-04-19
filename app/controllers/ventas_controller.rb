@@ -3970,9 +3970,7 @@ class VentasController < ApplicationController
 
   def default_first_due_on_for_cashea(account)
     today = Time.use_zone("America/Caracas") { Time.zone.today }
-    return today + 30.days if account&.cashea_line_mode.to_s == 'principal'
-
-    today + 15.days
+    today + 14.days
   end
 
   def create_cashea_receivable_installments_for_sale!(venta:, account:, total_amount_usd:, first_due_on: nil, custom_installments: nil)
@@ -3999,7 +3997,7 @@ class VentasController < ApplicationController
         installment_amounts.each_with_index.map do |installment_amount, index|
           {
             amount: installment_amount,
-            due_on: due_on >> index,
+            due_on: due_on + (index * 14).days,
             number: index + 1,
           }
         end
@@ -4014,7 +4012,7 @@ class VentasController < ApplicationController
 
       debt_attrs = {
         name: "Cuota Cashea #{installment_number}/#{total_installments} - #{owner_label}",
-        description: "Cuota Cashea #{installment_number}/#{total_installments} cliente #{owner_label} pendiente venta ##{venta.id} [CLIENTE_DUENO:#{owner_label}] [VENTA:#{venta.id}]",
+        description: "Cuota Cashea #{installment_number}/#{total_installments} cliente #{owner_label} pendiente venta ##{venta.id}",
         debt_kind: 'receivable',
         amount: installment_amount,
         currency: 'USD',
