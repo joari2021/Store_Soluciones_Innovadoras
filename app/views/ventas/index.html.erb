@@ -7358,6 +7358,7 @@
             return;
           }
 
+          const baseCurrencyCode = baseCurrency === 'ves' ? 'VES' : 'USD';
           const allPaymentAccounts = accounts.filter((account) => !normalizeServiceName(account?.name).includes('payall'));
           const totalUsd = convertAmount(totalBase, baseCurrencyCode, 'USD');
           const casheaAccount = allPaymentAccounts.find((account) => String(account.account_type || '').toLowerCase() === 'cashea');
@@ -7475,8 +7476,6 @@
             });
             return;
           }
-
-          const baseCurrencyCode = baseCurrency === 'ves' ? 'VES' : 'USD';
 
           const padDatePart = (value) => String(value).padStart(2, '0');
 
