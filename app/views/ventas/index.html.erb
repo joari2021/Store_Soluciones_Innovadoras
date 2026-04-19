@@ -7464,6 +7464,28 @@
             });
 
             if (casheaQuestion.isConfirmed) {
+              if (!selectedClient?.id) {
+                await window.Swal.fire({
+                  icon: 'warning',
+                  title: 'Cliente requerido para Cashea',
+                  text: 'Debes seleccionar un cliente antes de procesar la venta con Cashea.',
+                  confirmButtonText: 'Entendido',
+                  heightAuto: false,
+                });
+                return;
+              }
+
+              if (String(selectedClient?.phone || '').trim().length === 0) {
+                await window.Swal.fire({
+                  icon: 'warning',
+                  title: 'Telefono requerido',
+                  text: 'El cliente debe tener telefono para registrar cuotas Cashea.',
+                  confirmButtonText: 'Entendido',
+                  heightAuto: false,
+                });
+                return;
+              }
+
               const installmentsRowsHtml = Array.from({ length: casheaInstallmentsCount }).map((_, index) => {
                 const suggestedDueDate = addDays(now, 14 * (index + 1));
                 const suggestedDueDateLabel = formatDateLabel(suggestedDueDate);
