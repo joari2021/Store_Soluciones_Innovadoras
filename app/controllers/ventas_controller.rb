@@ -28,11 +28,9 @@ class VentasController < ApplicationController
                                 .where(active: true)
                                 .where.not(account_type: "cash_box", cash_role: "cash_deposit")
                                 .order(:name)
-    @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by, :active_cashier).first
+    @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
     @last_closed_cash_shift = current_business.cash_shifts.closed.first
     @open_shift_balance_checks_payload = open_shift_balance_checks_payload
-    @can_charge_sale = current_user_admin? || current_user_manager?
-    @active_cashier = @open_cash_shift&.active_cashier
 
     @products_payload = build_products_payload(@productos)
 
@@ -67,9 +65,6 @@ class VentasController < ApplicationController
         balance: account.balance.to_d.to_f,
         is_bank: account.account_type == "bank_account",
         is_primary: account.is_primary,
-        cashea_line_mode: account.cashea_line_mode,
-        cashea_cotidiana_installments: account.cashea_cotidiana_installments,
-        cashea_min_purchase_usd: account.cashea_min_purchase_usd.to_d.to_f,
         payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
         small_logo_url: (url_for(account.small_logo) if account.small_logo.attached?),
         logo_url: (url_for(account.logo) if account.logo.attached?),
@@ -400,29 +395,12 @@ class VentasController < ApplicationController
         []
       end
     credit_sale = normalize_credit_sale_payload(payload[:credit_sale])
-    cashea_sale = normalize_cashea_sale_payload(payload[:cashea])
     checkout_discount = normalize_checkout_discount_payload(payload[:checkout_discount])
     credit_sale_due_on = parse_payment_date(credit_sale[:due_on])
     service_cost_payment_entries = Array(payload[:service_cost_payments])
     if credit_sale[:due_on].present? && credit_sale_due_on.blank?
       return render json: { error: "La fecha de vencimiento del credito es invalida." },
                     status: :unprocessable_entity
-    end
-
-    if cashea_sale[:enabled]
-      cashea_account = current_business.accounts.find_by(id: cashea_sale[:account_id])
-      if cashea_account.blank? || !cashea_account.cashea_account?
-        return render json: { error: "La cuenta Cashea seleccionada no es valida." }, status: :unprocessable_entity
-      end
-
-      cashea_sale[:account] = cashea_account
-      cashea_sale[:line_mode] = cashea_account.cashea_line_mode
-      cashea_sale[:installments] = cashea_account.cashea_installments_count
-      cashea_sale[:custom_installments] = normalize_cashea_installments_payload(payload[:cashea])
-
-      if cashea_sale[:initial_usd].to_d <= 0
-        return render json: { error: "El monto inicial de Cashea debe ser mayor a 0." }, status: :unprocessable_entity
-      end
     end
 
     if items.empty?
@@ -434,15 +412,6 @@ class VentasController < ApplicationController
     if open_cash_shift.blank?
       return render json: { error: "Debes abrir un turno antes de facturar." },
                     status: :unprocessable_entity
-    end
-
-    cashier_access = ensure_checkout_cashier_access!(open_cash_shift)
-    unless cashier_access[:allowed]
-      return render json: {
-        error: cashier_access[:error],
-        code: cashier_access[:code],
-        active_cashier: cashier_access[:active_cashier]
-      }, status: :forbidden
     end
 
     vat_mode = payload[:vat_mode].to_s
@@ -851,16 +820,7 @@ class VentasController < ApplicationController
     comparison_currency = "USD" if comparison_currency == "VES" && tasa_dolar.to_d <= 0
     total_due = total_due_in_currency(venta, comparison_currency, tasa_dolar, calculated_totals: server_totals)
 
-    if cashea_sale[:enabled] && credit_sale[:enabled]
-      return render json: { error: "Cashea no permite registrar saldo pendiente manual en el checkout." },
-                    status: :unprocessable_entity
-    end
-
     discount_amount = 0.to_d
-    if cashea_sale[:enabled] && checkout_discount[:enabled]
-      return render json: { error: "Cashea no permite aplicar descuento en el checkout." }, status: :unprocessable_entity
-    end
-
     if checkout_discount[:enabled]
       if checkout_discount[:reason].blank?
         return render json: { error: "Selecciona un motivo de descuento valido." }, status: :unprocessable_entity
@@ -898,52 +858,12 @@ class VentasController < ApplicationController
       paid_total += converted
     end
 
-    if cashea_sale[:enabled]
-      total_due_usd = convert_payment_to_currency(total_due, comparison_currency, "USD", tasa_dolar)
-      if total_due_usd.nil?
-        return render json: { error: "No se pudo convertir el total de la venta a USD para validar Cashea." },
-                      status: :unprocessable_entity
-      end
-
-      minimum_purchase_usd = cashea_sale[:account].cashea_min_purchase_usd.to_d
-      if minimum_purchase_usd.positive? && total_due_usd < minimum_purchase_usd
-        return render json: { error: "La venta no alcanza la compra minima de Cashea (#{minimum_purchase_usd.to_s('F')} USD)." },
-                      status: :unprocessable_entity
-      end
-    end
-
     tolerance = 0.01
     delta = (paid_total - total_due).round(2)
 
-    cashea_initial_amount = 0.to_d
-    cashea_financing_enabled = false
-    if cashea_sale[:enabled]
-      converted_initial = convert_payment_to_currency(cashea_sale[:initial_usd], "USD", comparison_currency, tasa_dolar)
-      if converted_initial.nil?
-        return render json: { error: "No se pudo convertir el inicial de Cashea con la tasa actual." },
-                      status: :unprocessable_entity
-      end
+    remaining_credit_amount = delta < -tolerance ? delta.abs.round(2) : 0.to_d
 
-      cashea_initial_amount = converted_initial.round(2)
-      if cashea_initial_amount > total_due
-        return render json: { error: "El inicial de Cashea no puede superar el total de la venta." },
-                      status: :unprocessable_entity
-      end
-
-      initial_delta = (paid_total - cashea_initial_amount).round(2)
-      if initial_delta < -tolerance
-        return render json: { error: "Falta por cancelar #{initial_delta.abs.round(2)} #{comparison_currency} del inicial Cashea." },
-                      status: :unprocessable_entity
-      end
-
-      remaining_credit_amount = (total_due - cashea_initial_amount).round(2)
-      remaining_credit_amount = 0.to_d if remaining_credit_amount.negative?
-      cashea_financing_enabled = remaining_credit_amount.positive?
-    else
-      remaining_credit_amount = delta < -tolerance ? delta.abs.round(2) : 0.to_d
-    end
-
-    if remaining_credit_amount.positive? && !credit_sale[:enabled] && !cashea_financing_enabled
+    if remaining_credit_amount.positive? && !credit_sale[:enabled]
       return render json: { error: "Falta por cancelar #{remaining_credit_amount} #{comparison_currency}." },
                     status: :unprocessable_entity
     end
@@ -962,11 +882,6 @@ class VentasController < ApplicationController
 
     payment_rows.each { |row| venta.venta_payments.build(row) }
     change_rows.each { |row| venta.venta_payments.build(row) }
-
-    if cashea_sale[:enabled] && payment_rows.empty?
-      return render json: { error: "Debes registrar al menos un metodo de pago para el inicial de Cashea." },
-                    status: :unprocessable_entity
-    end
 
     if payment_rows.empty? && !remaining_credit_amount.positive?
       return render json: { error: "Debes registrar al menos un metodo de pago." }, status: :unprocessable_entity
@@ -1105,47 +1020,12 @@ class VentasController < ApplicationController
             raise ActiveRecord::RecordInvalid.new(venta)
           end
 
-          if cashea_financing_enabled
-            custom_installments = Array(cashea_sale[:custom_installments])
-            if custom_installments.any?
-              expected_installments = cashea_sale[:installments].to_i
-              if expected_installments <= 0
-                venta.errors.add(:base, "La cuenta Cashea no tiene un numero valido de cuotas.")
-                raise ActiveRecord::RecordInvalid.new(venta)
-              end
-
-              if custom_installments.size != expected_installments
-                venta.errors.add(:base, "Debes configurar exactamente #{expected_installments} cuotas Cashea.")
-                raise ActiveRecord::RecordInvalid.new(venta)
-              end
-
-              if custom_installments.any? { |row| row[:amount_usd].to_d <= 0 || row[:due_on].blank? }
-                venta.errors.add(:base, "Cada cuota Cashea debe tener monto y fecha de vencimiento validos.")
-                raise ActiveRecord::RecordInvalid.new(venta)
-              end
-
-              custom_total = custom_installments.sum { |row| row[:amount_usd].to_d }.round(2)
-              if (custom_total - debt_amount_usd.to_d.round(2)).abs > 0.01.to_d
-                venta.errors.add(:base, "La suma de cuotas Cashea (#{custom_total.to_s('F')} USD) debe coincidir con el saldo financiado (#{debt_amount_usd.to_d.round(2).to_s('F')} USD).")
-                raise ActiveRecord::RecordInvalid.new(venta)
-              end
-            end
-
-            create_cashea_receivable_installments_for_sale!(
-              venta: venta,
-              account: cashea_sale[:account],
-              total_amount_usd: debt_amount_usd,
-              first_due_on: credit_sale_due_on,
-              custom_installments: custom_installments,
-            )
-          else
-            create_receivable_debt_for_sale!(
-              venta: venta,
-              amount: debt_amount_usd,
-              currency: "USD",
-              due_on: credit_sale_due_on,
-            )
-          end
+          create_receivable_debt_for_sale!(
+            venta: venta,
+            amount: debt_amount_usd,
+            currency: "USD",
+            due_on: credit_sale_due_on,
+          )
         end
       end
     rescue ActiveRecord::RecordInvalid => e
@@ -1168,66 +1048,6 @@ class VentasController < ApplicationController
       .ventas
       .includes(venta_items: %i[producto product_variation])
       .find(params[:id])
-  end
-
-  def ensure_checkout_cashier_access!(cash_shift)
-    unless current_user_admin? || current_user_manager?
-      return {
-        allowed: false,
-        code: 'checkout_role_denied',
-        error: 'Solo el encargado o administrador pueden cobrar ventas.',
-        active_cashier: active_cashier_payload(cash_shift&.active_cashier)
-      }
-    end
-
-    shift_active_cashier = nil
-
-    cash_shift.with_lock do
-      shift_active_cashier = cash_shift.active_cashier
-
-      if shift_active_cashier.present? && !shift_active_cashier.active?
-        cash_shift.update!(active_cashier: nil)
-        shift_active_cashier = nil
-      end
-
-      if shift_active_cashier.blank?
-        cash_shift.update!(active_cashier: Current.user)
-        shift_active_cashier = Current.user
-      end
-    end
-
-    if shift_active_cashier.present? && shift_active_cashier.id != Current.user&.id
-      return {
-        allowed: false,
-        code: 'active_cashier_mismatch',
-        error: "Quien puede realizar el cobro es #{shift_active_cashier.display_name} (#{shift_active_cashier.role_label}).",
-        active_cashier: active_cashier_payload(shift_active_cashier)
-      }
-    end
-
-    {
-      allowed: true,
-      code: nil,
-      error: nil,
-      active_cashier: active_cashier_payload(shift_active_cashier)
-    }
-  rescue ActiveRecord::RecordInvalid
-    {
-      allowed: false,
-      code: 'cashier_assignment_error',
-      error: cash_shift.errors.full_messages.to_sentence.presence || 'No se pudo validar el cajero activo para cobrar.',
-      active_cashier: active_cashier_payload(cash_shift&.active_cashier)
-    }
-  end
-
-  def active_cashier_payload(cashier)
-    return nil if cashier.blank?
-
-    {
-      id: cashier.id,
-      name: cashier.display_name,
-      role_label: cashier.role_label,
-    }
   end
 
   def set_draft_venta
@@ -1633,12 +1453,11 @@ class VentasController < ApplicationController
 
   def delete_account_movements_for_sale!(venta)
     pattern = "%[VENTA:#{venta.id}]%"
-    legacy_pattern = "%venta ##{venta.id}%"
 
     AccountMovement
       .joins(:account)
       .where(accounts: { business_id: current_business.id })
-      .where("account_movements.description LIKE ? OR LOWER(account_movements.description) LIKE ?", pattern, legacy_pattern)
+      .where("account_movements.description LIKE ?", pattern)
       .find_each(&:destroy!)
   end
 
@@ -1690,6 +1509,10 @@ class VentasController < ApplicationController
     draft ||= current_business.ventas.new(status: "draft")
     draft.user = Current.user if draft.new_record? && draft.user.blank?
     requested_visibility = normalize_draft_visibility(payload[:draft_visibility], default: draft_visibility(draft))
+    requested_checkout_status = normalize_draft_checkout_status(
+      payload[:draft_checkout_status],
+      default: draft_checkout_status(draft)
+    )
 
     service_item_rows = []
 
@@ -1914,6 +1737,7 @@ class VentasController < ApplicationController
           "items" => items.map { |entry| normalize_item_payload(entry) },
         }
         notes_payload["draft_visibility"] = requested_visibility
+        notes_payload["draft_checkout_status"] = requested_checkout_status
         notes_payload["reserved_product_items"] = reserved_product_items_payload_for_sale(draft)
         notes_payload["product_lot_consumptions"] = consumed_product_lots
         notes_payload["reserved_service_products"] = reserved_service_products
@@ -2217,6 +2041,7 @@ class VentasController < ApplicationController
       total_bs: venta.total_bs.to_d.to_f,
       updated_at: venta.updated_at&.iso8601,
       visibility: draft_visibility(venta),
+      checkout_status: draft_checkout_status(venta),
     }
   end
 
@@ -2744,6 +2569,7 @@ class VentasController < ApplicationController
     params.require(:venta).permit(
       :draft_id,
       :draft_visibility,
+      :draft_checkout_status,
       :vat_mode,
       :vat_rate,
       :tasa_dolar,
@@ -2785,13 +2611,6 @@ class VentasController < ApplicationController
       payments: %i[method amount account_id currency reference payment_date],
       change: %i[method amount account_id currency reference],
       credit_sale: %i[enabled due_on],
-      cashea: [
-        :enabled,
-        :account_id,
-        :initial_usd,
-        :min_purchase_usd,
-        { installments: %i[amount_usd due_on] },
-      ],
       checkout_discount: %i[enabled amount reason],
       totals: %i[taxable_subtotal_base exento_subtotal_base vat_base total_base],
       service_cost_payments: %i[
@@ -2822,6 +2641,23 @@ class VentasController < ApplicationController
     return fallback if %w[visible hidden].include?(fallback)
 
     "visible"
+  end
+
+  def draft_checkout_status(venta)
+    return "pending" unless venta
+
+    notes_payload = parse_notes_payload(venta.notes)
+    normalize_draft_checkout_status(notes_payload["draft_checkout_status"], default: "pending")
+  end
+
+  def normalize_draft_checkout_status(value, default: "pending")
+    normalized = value.to_s.strip.downcase
+    return normalized if %w[pending ready].include?(normalized)
+
+    fallback = default.to_s.strip.downcase
+    return fallback if %w[pending ready].include?(fallback)
+
+    "pending"
   end
 
   def reserved_product_items_payload_for_sale(venta)
@@ -4000,127 +3836,6 @@ class VentasController < ApplicationController
       enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
       due_on: due_on_value.to_s.strip.presence,
     }
-  end
-
-  def normalize_cashea_sale_payload(raw_payload)
-    source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
-    enabled_value = source['enabled'] || source[:enabled]
-    account_id_value = source['account_id'] || source[:account_id]
-    initial_usd_value = source['initial_usd'] || source[:initial_usd]
-    min_purchase_value = source['min_purchase_usd'] || source[:min_purchase_usd]
-
-    {
-      enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
-      account_id: account_id_value.to_i,
-      initial_usd: parse_decimal(initial_usd_value, default: 0).to_d.round(2),
-      min_purchase_usd: parse_decimal(min_purchase_value, default: 0).to_d.round(2),
-      account: nil,
-      line_mode: nil,
-      installments: 0,
-      custom_installments: [],
-    }
-  end
-
-  def normalize_cashea_installments_payload(raw_payload)
-    source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
-    rows = source['installments'] || source[:installments]
-
-    Array(rows).filter_map do |row|
-      entry = row.respond_to?(:to_h) ? row.to_h : {}
-      amount_value = entry['amount_usd'] || entry[:amount_usd]
-      due_on_value = entry['due_on'] || entry[:due_on]
-      amount_usd = parse_decimal(amount_value, default: 0).to_d.round(2)
-      due_on = parse_payment_date(due_on_value)
-      next if amount_usd <= 0 || due_on.blank?
-
-      {
-        amount_usd: amount_usd,
-        due_on: due_on,
-      }
-    end
-  end
-
-  def default_first_due_on_for_cashea(account)
-    today = Time.use_zone("America/Caracas") { Time.zone.today }
-    today + 14.days
-  end
-
-  def create_cashea_receivable_installments_for_sale!(venta:, account:, total_amount_usd:, first_due_on: nil, custom_installments: nil)
-    installments = account&.cashea_installments_count.to_i
-    installments = 1 if installments <= 0
-
-    due_on = first_due_on || default_first_due_on_for_cashea(account)
-    due_on = Time.use_zone("America/Caracas") { Time.zone.today } if due_on.blank?
-
-    cashea_debtor = find_or_create_cashea_debtor!
-    owner_label = venta.cliente&.name.to_s.strip.presence || "Cliente sin nombre"
-    group_token = sale_debt_group_token_for(cliente_id: cashea_debtor.id, currency: 'USD')
-
-    installment_plan = if Array(custom_installments).any?
-        Array(custom_installments).each_with_index.map do |row, index|
-          {
-            amount: row[:amount_usd].to_d.round(2),
-            due_on: row[:due_on],
-            number: index + 1,
-          }
-        end
-      else
-        installment_amounts = split_amount_into_installments(total_amount_usd.to_d, installments)
-        installment_amounts.each_with_index.map do |installment_amount, index|
-          {
-            amount: installment_amount,
-            due_on: due_on + (index * 14).days,
-            number: index + 1,
-          }
-        end
-      end
-
-    total_installments = installment_plan.size
-
-    installment_plan.each do |installment|
-      installment_amount = installment[:amount]
-      installment_due_on = installment[:due_on]
-      installment_number = installment[:number]
-
-      debt_attrs = {
-        name: "Cuota Cashea #{installment_number}/#{total_installments} - #{owner_label}",
-        description: "Cuota Cashea #{installment_number}/#{total_installments} cliente #{owner_label} venta ##{venta.id}",
-        debt_kind: 'receivable',
-        amount: installment_amount,
-        currency: 'USD',
-        issued_on: Time.use_zone("America/Caracas") { Time.zone.today },
-        due_on: installment_due_on,
-        cliente: cashea_debtor,
-        venta: venta,
-      }
-      debt_attrs[:group_token] = group_token if Debt.column_names.include?('group_token')
-
-      current_business.debts.create!(debt_attrs)
-    end
-  end
-
-  def find_or_create_cashea_debtor!
-    existing = current_business.clientes.where("LOWER(name) = ?", "cashea").first
-    return existing if existing.present?
-
-    current_business.clientes.create!(
-      document_type: 'J',
-      document_number: "CASHEA-#{current_business.id}",
-      name: 'Cashea',
-      phone: '0000000000',
-      address: 'Deudor interno para cuotas Cashea',
-    )
-  end
-
-  def split_amount_into_installments(total, installments)
-    normalized_total = total.to_d.round(2)
-    return [normalized_total] if installments <= 1
-
-    base_amount = (normalized_total / installments).round(2)
-    values = Array.new(installments, base_amount)
-    delta = (normalized_total - values.sum).round(2)
-    values[-1] = (values[-1] + delta).round(2)
-    values
   end
 
   def normalize_checkout_discount_payload(raw_payload)

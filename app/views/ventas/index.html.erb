@@ -504,7 +504,11 @@
           </div>
         </div>
         <div class="mt-4 space-y-3">
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <button id="ventas-show-ready-drafts-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-sky-100">
+              <i data-lucide="list-checks" class="h-4 w-4"></i>
+              Ver listos cobro
+            </button>
             <button id="ventas-save-draft-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
               <i data-lucide="save" class="h-4 w-4"></i>
               Guardar borrador
@@ -518,6 +522,16 @@
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Borradores</p>
               <span id="ventas-drafts-count" class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">0</span>
+            </div>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button id="ventas-drafts-ready-filter" type="button" class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100 transition-colors hover:bg-sky-100">
+                <i data-lucide="check-check" class="h-3.5 w-3.5"></i>
+                Listos
+              </button>
+              <button id="ventas-drafts-pending-filter" type="button" class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+                <i data-lucide="list-filter" class="h-3.5 w-3.5"></i>
+                No listos
+              </button>
             </div>
             <div id="ventas-drafts-list" class="mt-2 flex flex-wrap gap-2"></div>
             <p id="ventas-drafts-empty" class="mt-2 text-xs text-slate-500">No hay borradores guardados.</p>
@@ -635,7 +649,7 @@
           </div>
         </div>
         <button id="ventas-pay-button" type="button" class="ventas-theme-pay-button mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-700 px-4 py-4 font-bold text-white shadow-xl shadow-sky-200 transition-all hover:from-slate-800 hover:to-sky-600 active:scale-[0.98]">
-          <span>Cobrar</span>
+          <span>Lista cobro</span>
           <i data-lucide="arrow-right" class="w-4 h-4"></i>
         </button>
       </div>
@@ -847,6 +861,8 @@
       let selectedClient = null;
       let activeDraftId = null;
       let activeDraftVisibility = null;
+      let activeDraftCheckoutStatus = null;
+      let draftListFilter = 'pending';
       let draftSyncTimeout = null;
       let draftSyncedFingerprint = null;
       let draftSyncInProgress = false;
@@ -1034,10 +1050,13 @@
       };
 
       const saveDraftButton = document.getElementById('ventas-save-draft-button');
+      const showReadyDraftsButton = document.getElementById('ventas-show-ready-drafts-button');
       const clearPanelButton = document.getElementById('ventas-clear-panel-button');
       const draftsListEl = document.getElementById('ventas-drafts-list');
       const draftsEmptyEl = document.getElementById('ventas-drafts-empty');
       const draftsCountEl = document.getElementById('ventas-drafts-count');
+      const draftsReadyFilterButton = document.getElementById('ventas-drafts-ready-filter');
+      const draftsPendingFilterButton = document.getElementById('ventas-drafts-pending-filter');
       const cartToggleButton = document.getElementById('ventas-cart-toggle');
       const cartCountBadge = document.getElementById('ventas-cart-count');
       const cartModal = document.getElementById('ventas-cart-modal');
@@ -4096,8 +4115,9 @@
       };
 
       const updateDraftActionButtons = () => {
+        const canSave = cart.size > 0;
+
         if (saveDraftButton) {
-          const canSave = cart.size > 0;
           saveDraftButton.disabled = !canSave;
           saveDraftButton.classList.toggle('opacity-50', !canSave);
           saveDraftButton.classList.toggle('cursor-not-allowed', !canSave);
@@ -4111,22 +4131,68 @@
         }
       };
 
+      const normalizeDraftCheckoutStatus = (value, fallback = 'pending') => {
+        const normalized = String(value || '').trim().toLowerCase();
+        if (normalized === 'ready' || normalized === 'pending') return normalized;
+
+        const safeFallback = String(fallback || '').trim().toLowerCase();
+        return safeFallback === 'ready' ? 'ready' : 'pending';
+      };
+
+      const renderDraftFilterButtons = () => {
+        const readyActive = draftListFilter === 'ready';
+        const pendingActive = !readyActive;
+
+        if (draftsReadyFilterButton) {
+          draftsReadyFilterButton.classList.toggle('bg-sky-600', readyActive);
+          draftsReadyFilterButton.classList.toggle('text-white', readyActive);
+          draftsReadyFilterButton.classList.toggle('border-sky-600', readyActive);
+          draftsReadyFilterButton.classList.toggle('ring-sky-500', readyActive);
+          draftsReadyFilterButton.classList.toggle('bg-sky-50', !readyActive);
+          draftsReadyFilterButton.classList.toggle('text-sky-700', !readyActive);
+          draftsReadyFilterButton.classList.toggle('border-sky-200', !readyActive);
+        }
+
+        if (draftsPendingFilterButton) {
+          draftsPendingFilterButton.classList.toggle('bg-emerald-600', pendingActive);
+          draftsPendingFilterButton.classList.toggle('text-white', pendingActive);
+          draftsPendingFilterButton.classList.toggle('border-emerald-600', pendingActive);
+          draftsPendingFilterButton.classList.toggle('ring-emerald-500', pendingActive);
+          draftsPendingFilterButton.classList.toggle('bg-emerald-50', !pendingActive);
+          draftsPendingFilterButton.classList.toggle('text-emerald-700', !pendingActive);
+          draftsPendingFilterButton.classList.toggle('border-emerald-200', !pendingActive);
+        }
+      };
+
       const renderDraftTags = () => {
         if (!draftsListEl || !draftsEmptyEl || !draftsCountEl) return;
 
         const safeDrafts = Array.isArray(drafts) ? drafts : [];
-        draftsCountEl.textContent = String(safeDrafts.length);
-        draftsEmptyEl.classList.toggle('hidden', safeDrafts.length > 0);
+        const filteredDrafts = safeDrafts.filter((draft) => {
+          const status = normalizeDraftCheckoutStatus(draft.checkout_status, 'pending');
+          return draftListFilter === 'ready' ? status === 'ready' : status === 'pending';
+        });
 
-        if (safeDrafts.length === 0) {
+        renderDraftFilterButtons();
+        draftsCountEl.textContent = `${filteredDrafts.length}/${safeDrafts.length}`;
+        draftsEmptyEl.classList.toggle('hidden', filteredDrafts.length > 0);
+
+        if (filteredDrafts.length === 0) {
           draftsListEl.innerHTML = '';
+          draftsEmptyEl.textContent = draftListFilter === 'ready'
+            ? 'No hay borradores listos para cobrar.'
+            : 'No hay borradores pendientes por cobrar.';
           return;
         }
 
-        draftsListEl.innerHTML = safeDrafts
+        draftsEmptyEl.textContent = 'No hay borradores guardados.';
+
+        draftsListEl.innerHTML = filteredDrafts
           .map((draft) => {
             const draftId = String(draft.id || '');
             const isActive = activeDraftId && String(activeDraftId) === draftId;
+            const checkoutStatus = normalizeDraftCheckoutStatus(draft.checkout_status, 'pending');
+            const isReady = checkoutStatus === 'ready';
             const clientName = String(draft.client_name || 'Cliente general');
             const itemsCount = Number(draft.items_count || 0);
             const updatedAt = formatDraftUpdatedAt(draft.updated_at);
@@ -4137,6 +4203,9 @@
             const activeBadge = isActive
               ? '<span class="inline-flex rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">Activo</span>'
               : '';
+            const checkoutBadge = isReady
+              ? '<span class="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-700">Listo</span>'
+              : '<span class="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">Pendiente</span>';
             const chipClass = isActive
               ? 'border-sky-600 bg-sky-600 text-white shadow-sm ring-1 ring-sky-500'
               : 'border-cyan-200 bg-white text-cyan-700 ring-1 ring-cyan-200 hover:bg-cyan-50';
@@ -4149,6 +4218,7 @@
               <button type="button" data-draft-id="${escapeHtml(draftId)}" class="inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${chipClass}">
                 <span class="max-w-[12rem] truncate">${escapeHtml(clientName)}</span>
                 <span class="inline-flex min-w-[1.2rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-bold ${countBadgeClass}">${itemsCount}</span>
+                ${checkoutBadge}
                 ${activeBadge}
                 ${updatedAt ? `<span class="text-[10px] font-medium ${dateTextClass}">${createdLabel}</span>` : ''}
               </button>
@@ -7392,12 +7462,43 @@
             if (window.Swal) {
               const cashierRole = activeCashierRoleLabel || 'Cajero activo';
               const cashierName = activeCashierName || 'Personal asignado';
-              window.Swal.fire({
+              const result = await window.Swal.fire({
                 icon: 'warning',
                 title: 'Cobro restringido',
-                text: `Quien puede realizar el cobro es ${cashierName} (${cashierRole}).`,
+                html: `
+                  <p class="text-sm text-slate-600">Quien puede realizar el cobro es <strong>${escapeHtml(cashierName)}</strong> (${escapeHtml(cashierRole)}).</p>
+                  <p class="mt-2 text-sm text-slate-600">Indique si la venta esta lista para cobrar.</p>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Si, marcar lista',
+                cancelButtonText: 'No',
                 heightAuto: false,
               });
+
+              if (result.isConfirmed) {
+                const markedReady = await persistDraft({
+                  clearAfterSave: true,
+                  silent: true,
+                  draftVisibility: 'visible',
+                  draftCheckoutStatus: 'ready',
+                });
+
+                if (markedReady) {
+                  window.Swal.fire({
+                    icon: 'success',
+                    title: 'Venta lista para cobro',
+                    text: 'El borrador se marco como listo para cobrar para el cajero activo.',
+                    heightAuto: false,
+                  });
+                } else {
+                  window.Swal.fire({
+                    icon: 'error',
+                    title: 'No se pudo marcar',
+                    text: 'Agrega productos al panel y vuelve a intentarlo.',
+                    heightAuto: false,
+                  });
+                }
+              }
             }
             return;
           }
@@ -9660,6 +9761,7 @@
         cart.clear();
         activeDraftId = null;
         activeDraftVisibility = null;
+        activeDraftCheckoutStatus = null;
         draftSyncedFingerprint = null;
         applySyncedReservationSnapshot(new Map());
         setSelectedClient(null);
@@ -9676,6 +9778,7 @@
           base_currency: payload.base_currency || 'USD',
           vat_mode: payload.vat_mode || 'none',
           cliente_id: payload.cliente_id || null,
+          draft_checkout_status: normalizeDraftCheckoutStatus(activeDraftCheckoutStatus, 'pending'),
           items: Array.isArray(payload.items) ? payload.items : [],
         });
       };
@@ -9727,6 +9830,7 @@
           if (deletingActiveDraft) {
             activeDraftId = null;
             activeDraftVisibility = null;
+            activeDraftCheckoutStatus = null;
             applySyncedReservationSnapshot(new Map());
           }
 
@@ -9756,7 +9860,7 @@
         }
       };
 
-      const persistDraft = async ({ clearAfterSave = true, silent = false, draftVisibility = null } = {}) => {
+      const persistDraft = async ({ clearAfterSave = true, silent = false, draftVisibility = null, draftCheckoutStatus = null } = {}) => {
         if (cart.size === 0) {
           if (draftLoadInProgress && !clearAfterSave) {
             return false;
@@ -9798,7 +9902,12 @@
         const requestReservationSnapshot = buildProductReservationSnapshot();
         const payload = buildVentaPayload([], []);
         const effectiveDraftVisibility = draftVisibility || (activeDraftVisibility === 'visible' ? 'visible' : (clearAfterSave ? 'visible' : 'hidden'));
+        const effectiveDraftCheckoutStatus = normalizeDraftCheckoutStatus(
+          draftCheckoutStatus,
+          activeDraftCheckoutStatus || 'pending'
+        );
         payload.draft_visibility = effectiveDraftVisibility;
+        payload.draft_checkout_status = effectiveDraftCheckoutStatus;
         const endpoint = activeDraftId ? `/ventas/drafts/${activeDraftId}` : '/ventas/save_draft';
         const method = activeDraftId ? 'PATCH' : 'POST';
 
@@ -9835,6 +9944,10 @@
             activeDraftId = String(data.draft.id);
             const responseVisibility = String(data.draft.visibility || effectiveDraftVisibility || 'visible').toLowerCase();
             activeDraftVisibility = responseVisibility === 'hidden' ? 'hidden' : 'visible';
+            activeDraftCheckoutStatus = normalizeDraftCheckoutStatus(
+              data.draft.checkout_status,
+              effectiveDraftCheckoutStatus
+            );
             draftSyncedFingerprint = requestFingerprint;
             applySyncedReservationSnapshot(requestReservationSnapshot);
             renderDraftTags();
@@ -9915,10 +10028,12 @@
 
           draftSyncInProgress = true;
           const syncVisibility = activeDraftVisibility === 'visible' ? 'visible' : 'hidden';
+          const syncCheckoutStatus = normalizeDraftCheckoutStatus(activeDraftCheckoutStatus, 'pending');
           const synced = await persistDraft({
             clearAfterSave: false,
             silent: true,
             draftVisibility: syncVisibility,
+            draftCheckoutStatus: syncCheckoutStatus,
           });
           draftSyncInProgress = false;
 
@@ -10262,6 +10377,7 @@
 
         const previousDraftId = activeDraftId;
         const previousDraftVisibility = activeDraftVisibility;
+        const previousDraftCheckoutStatus = activeDraftCheckoutStatus;
         draftLoadInProgress = true;
         let failedStage = 'solicitud del borrador';
 
@@ -10303,6 +10419,7 @@
 
           activeDraftId = String(draft.id || safeId);
           activeDraftVisibility = String(draft.visibility || 'visible').toLowerCase() === 'hidden' ? 'hidden' : 'visible';
+          activeDraftCheckoutStatus = normalizeDraftCheckoutStatus(draft.checkout_status, 'pending');
           failedStage = 'aplicacion de configuracion';
           setBaseCurrencySelection(draftBaseCurrency);
           setVatModeSelection(draftVatMode, { render: false });
@@ -10337,6 +10454,7 @@
         } catch (error) {
           activeDraftId = previousDraftId;
           activeDraftVisibility = previousDraftVisibility;
+          activeDraftCheckoutStatus = previousDraftCheckoutStatus;
           const detailedMessage = buildDraftLoadErrorMessage({ draftId: safeId, stage: failedStage, error });
           console.error('Error cargando borrador', {
             draftId: safeId,
@@ -10358,7 +10476,28 @@
 
       if (saveDraftButton) {
         saveDraftButton.addEventListener('click', () => {
-          persistDraft({ clearAfterSave: true, draftVisibility: 'visible' });
+          persistDraft({ clearAfterSave: true, draftVisibility: 'visible', draftCheckoutStatus: 'pending' });
+        });
+      }
+
+      if (showReadyDraftsButton) {
+        showReadyDraftsButton.addEventListener('click', () => {
+          draftListFilter = 'ready';
+          renderDraftTags();
+        });
+      }
+
+      if (draftsReadyFilterButton) {
+        draftsReadyFilterButton.addEventListener('click', () => {
+          draftListFilter = 'ready';
+          renderDraftTags();
+        });
+      }
+
+      if (draftsPendingFilterButton) {
+        draftsPendingFilterButton.addEventListener('click', () => {
+          draftListFilter = 'pending';
+          renderDraftTags();
         });
       }
 
