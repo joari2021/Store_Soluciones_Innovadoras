@@ -1704,10 +1704,12 @@ class DebtsController < ApplicationController
   end
 
   def group_last_payment_at_for(debts)
-    debts.flat_map do |debt|
+    payment_dates = debts.flat_map do |debt|
       payments = debt.debt_payments.loaded? ? debt.debt_payments : debt.debt_payments.to_a
       payments.map(&:occurred_at)
-    end.compact.max
+    end.compact
+
+    payment_dates.max_by { |value| sortable_time_value(value) }
   end
 
   def cash_shift_for_payment(payment)
@@ -1745,7 +1747,9 @@ class DebtsController < ApplicationController
           [cliente, ordered]
         end
         .sort_by do |cliente, cliente_debts|
-          latest_paid_at = cliente_debts.map { |debt| debt_last_payment_at_for_index(debt) }.compact.max
+          latest_paid_at = cliente_debts.map { |debt| debt_last_payment_at_for_index(debt) }
+                                        .compact
+                                        .max_by { |value| sortable_time_value(value) }
           [latest_paid_at.present? ? 0 : 1, -sortable_time_value(latest_paid_at), cliente&.name.to_s.downcase]
         end
     else
