@@ -149,9 +149,6 @@
       <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">Sin categoria</span>
     <% end %>
   </td>
-  <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
-    <%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %>
-  </td>
   <td class="px-6 py-4 text-right">
     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= product_stock_badge_class %>"><%= format_quantity(product_total_quantity) %> disp.</span>
   </td>
@@ -159,8 +156,15 @@
     <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
       <%= initial_cost_usd.present? ? format_money(initial_cost_usd, unit: '$', precision: 2) : '—' %>
     </td>
+    <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+      <%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %>
+    </td>
     <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-800"><%= format_money(product_total_inventory_value, unit: '$') %></td>
     <td class="px-6 py-4 text-right whitespace-nowrap font-bold text-slate-800"><%= format_money(product_total_sale_value, unit: '$') %></td>
+  <% else %>
+    <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+      <%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %>
+    </td>
   <% end %>
   <% if can_manage_products %>
     <td class="px-6 py-4">
@@ -199,14 +203,16 @@
       </button>
     </td>
     <td class="px-6 py-3 font-medium text-slate-600">Total por variacion</td>
-    <td class="px-6 py-3 text-right text-slate-500"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
     <td class="px-6 py-3 text-right whitespace-nowrap">
       <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= variation_stock_badge_class %>"><%= format_quantity(total_variation_quantity) %> disp.</span>
     </td>
     <% if can_view_sensitive_inventory %>
+      <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">—</td>
+      <td class="px-6 py-3 text-right text-slate-500"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
       <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(total_variation_inventory_value, unit: '$') %></td>
       <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(total_variation_sale_value, unit: '$') %></td>
-      <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">—</td>
+    <% else %>
+      <td class="px-6 py-3 text-right text-slate-500"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
     <% end %>
     <% if can_manage_products %>
       <td class="px-6 py-3 text-right text-slate-500"><%= group[:lots].size == 1 ? '1 lote' : "#{group[:lots].size} lotes" %></td>
@@ -230,12 +236,14 @@
           </span>
         </td>
         <td class="px-6 py-3 text-slate-600 whitespace-normal break-words"><%= lot_entry[:invoice_ref] %> · <%= lot_entry[:lot_date_label] %> · <%= lot_entry[:supplier_display_name] %></td>
-        <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
         <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_quantity(lot_entry[:quantity_remaining]) %> / <%= format_quantity(lot_entry[:quantity_in]) %></td>
         <% if can_view_sensitive_inventory %>
           <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_entry[:unit_cost_usd], unit: '$', precision: 2) %></td>
+          <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
           <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_entry[:total_value_usd], unit: '$') %></td>
           <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_sale_total_value, unit: '$') %></td>
+        <% else %>
+          <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= product_sale_price_usd.positive? ? format_money(product_sale_price_usd, unit: '$', precision: 2) : '—' %></td>
         <% end %>
         <% if can_manage_products %>
           <td class="px-6 py-3 text-right">
