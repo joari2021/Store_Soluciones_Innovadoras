@@ -305,7 +305,8 @@
         <h3 class="text-lg font-bold text-slate-800">Cobro/Pago del conjunto</h3>
         <p class="mt-1 text-xs text-slate-500">Un solo registro se distribuye automaticamente en todas las deudas activas del grupo.</p>
       </div>
-      <%= form_with url: debt_debt_payments_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { register_payment_form: true, register_payment_receivable: (@debt.receivable? ? '1' : '0') } do |form| %>
+      <% if @debt.persisted? %>
+        <%= form_with url: debt_debt_payments_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { register_payment_form: true, register_payment_receivable: (@debt.receivable? ? '1' : '0') } do |form| %>
         <input type="hidden" name="debt_payment[allow_overpayment]" value="0" data-register-payment-allow-overpayment="true" />
         <input type="hidden" name="from_debt_show_modal" value="1" />
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -374,6 +375,11 @@
           <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-register-payment-close="true">
             Cancelar
           </button>
+        </div>
+        <% end %>
+      <% else %>
+        <div class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Debes guardar al menos una deuda en el conjunto antes de registrar cobros o pagos.
         </div>
       <% end %>
     </div>
