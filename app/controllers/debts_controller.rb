@@ -553,7 +553,7 @@ class DebtsController < ApplicationController
   end
 
   def load_accounts
-    @accounts = current_business.accounts.where(active: true).order(:name)
+    @accounts = current_business.accounts.where(active: true).where.not(account_type: 'cashea').order(:name)
   end
 
   def load_currency_rates
@@ -855,6 +855,11 @@ class DebtsController < ApplicationController
 
     if account.nil? || amount <= 0 || payment_currency.blank?
       @debt.errors.add(:base, 'Completa el pago inicial para registrarlo.')
+      return false
+    end
+
+    if account.account_type == 'cashea'
+      @debt.errors.add(:base, 'La cuenta Cashea no puede usarse para registrar cobros/pagos de deudas.')
       return false
     end
 

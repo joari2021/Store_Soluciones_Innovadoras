@@ -136,6 +136,11 @@ module ApplicationHelper
     raw_description = value.to_s.strip
     return 'Deuda sin descripcion' if raw_description.blank?
 
+    if raw_description.match?(/\ACuota\s+Cashea\b/i)
+      trimmed = raw_description.sub(/\s+pendiente\s+venta\s+#\d+.*\z/i, '')
+      return trimmed.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
+    end
+
     cleaned = raw_description
               .gsub(/\s*\[(?:VENTA):\d+\]/i, '')
               .gsub(/\s*\[(?:CLIENTE_DUENO):[^\]]+\]/i, '')

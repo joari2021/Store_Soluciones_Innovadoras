@@ -1562,11 +1562,12 @@ class VentasController < ApplicationController
 
   def delete_account_movements_for_sale!(venta)
     pattern = "%[VENTA:#{venta.id}]%"
+    legacy_pattern = "%venta ##{venta.id}%"
 
     AccountMovement
       .joins(:account)
       .where(accounts: { business_id: current_business.id })
-      .where("account_movements.description LIKE ?", pattern)
+      .where("account_movements.description LIKE ? OR LOWER(account_movements.description) LIKE ?", pattern, legacy_pattern)
       .find_each(&:destroy!)
   end
 
@@ -4012,7 +4013,7 @@ class VentasController < ApplicationController
 
       debt_attrs = {
         name: "Cuota Cashea #{installment_number}/#{total_installments} - #{owner_label}",
-        description: "Cuota Cashea #{installment_number}/#{total_installments} cliente #{owner_label} pendiente venta ##{venta.id}",
+        description: "Cuota Cashea #{installment_number}/#{total_installments} cliente #{owner_label} venta ##{venta.id}",
         debt_kind: 'receivable',
         amount: installment_amount,
         currency: 'USD',

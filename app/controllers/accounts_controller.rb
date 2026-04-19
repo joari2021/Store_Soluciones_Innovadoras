@@ -129,8 +129,16 @@ class AccountsController < ApplicationController
   end
 
   def transfer
+    if @account.account_type == 'cashea'
+      return redirect_to accounts_path, alert: "La cuenta Cashea no puede usarse para transferencias."
+    end
+
     target_account = current_business.accounts.find_by(id: params[:target_account_id])
     return redirect_to accounts_path, alert: "Selecciona una cuenta destino valida." if target_account.blank?
+
+    if target_account.account_type == 'cashea'
+      return redirect_to accounts_path, alert: "No puedes transferir hacia una cuenta Cashea."
+    end
 
     if target_account.id == @account.id
       return redirect_to accounts_path, alert: "La cuenta destino debe ser diferente a la cuenta origen."
@@ -177,6 +185,11 @@ class AccountsController < ApplicationController
       if commission_account.blank? || ![target_account.id, @account.id].include?(commission_account.id)
         return redirect_to accounts_path,
                            alert: "Selecciona cual cuenta asumira la comision de la transferencia."
+      end
+
+      if commission_account.account_type == 'cashea'
+        return redirect_to accounts_path,
+                           alert: "La cuenta Cashea no puede usarse para comisiones de transferencia."
       end
 
       commission_amount = parse_transfer_decimal(params[:commission_amount])
@@ -589,7 +602,7 @@ class AccountsController < ApplicationController
   def load_transfer_support_data
     return @transfer_accounts_payload = [] unless current_user_admin?
 
-    @transfer_accounts_payload = current_business.accounts.where(active: true).order(:name).map do |account|
+    @transfer_accounts_payload = current_business.accounts.where(active: true).where.not(account_type: 'cashea').order(:name).map do |account|
       {
         id: account.id,
         name: account.name,
