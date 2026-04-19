@@ -946,9 +946,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_190000) do
     t.string "base_currency", default: "USD", null: false
     t.bigint "cash_shift_id"
     t.bigint "user_id"
+    t.bigint "cashier_user_id"
     t.index ["base_currency"], name: "index_ventas_on_base_currency"
     t.index ["business_id"], name: "index_ventas_on_business_id"
     t.index ["cash_shift_id"], name: "index_ventas_on_cash_shift_id"
+    t.index ["cashier_user_id"], name: "index_ventas_on_cashier_user_id"
     t.index ["cliente_id"], name: "index_ventas_on_cliente_id"
     t.index ["status"], name: "index_ventas_on_status"
     t.index ["user_id"], name: "index_ventas_on_user_id"
@@ -1073,5 +1075,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_190000) do
   add_foreign_key "ventas", "cash_shifts"
   add_foreign_key "ventas", "clientes"
   add_foreign_key "ventas", "users"
+  add_foreign_key "ventas", "users", column: "cashier_user_id"
   add_foreign_key "video_details", "peliculas"
 end

@@ -285,6 +285,7 @@
     const setHeaderCashierState = (activeCashier, options = {}) => {
       const shouldBroadcast = options.broadcast !== false;
       const canChargeSale = options.canChargeSale;
+      const canViewAllDrafts = options.canViewAllDrafts;
       const { headerRoot, badge, badgeText, toggleButton, toggleLabel } = getHeaderContext();
       const currentUserId = Number(headerRoot?.dataset?.headerCurrentUserId || 0);
       if (badgeText) {
@@ -303,6 +304,7 @@
           detail: {
             activeCashier,
             canChargeSale,
+            canViewAllDrafts,
           }
         }));
       }
@@ -351,6 +353,7 @@
         const payload = await sendToggleRequest(form);
         setHeaderCashierState(payload.active_cashier || null, {
           canChargeSale: payload.can_charge_sale === true,
+          canViewAllDrafts: payload.can_view_all_drafts === true,
         });
       } catch (error) {
         if (window.Swal) {

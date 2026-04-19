@@ -1,29 +1,30 @@
 class Venta < ApplicationRecord
-  self.table_name = 'ventas'
+  self.table_name = "ventas"
   VAT_MODES = {
-    'none' => 'Sin IVA',
-    'add' => 'Agregar IVA',
-    'included' => 'Invertido'
+    "none" => "Sin IVA",
+    "add" => "Agregar IVA",
+    "included" => "Invertido",
   }.freeze
 
   BASE_CURRENCIES = {
-    'USD' => 'Dolares',
-    'VES' => 'Bolivares'
+    "USD" => "Dolares",
+    "VES" => "Bolivares",
   }.freeze
 
   STATUSES = {
-    'draft' => 'Borrador',
-    'paid' => 'Pagada',
-    'void' => 'Anulada'
+    "draft" => "Borrador",
+    "paid" => "Pagada",
+    "void" => "Anulada",
   }.freeze
 
   belongs_to :business
   belongs_to :user, optional: true
+  belongs_to :cashier_user, class_name: "User", optional: true
   belongs_to :cash_shift, optional: true
   belongs_to :cliente, optional: true
   has_many :venta_items, dependent: :destroy, inverse_of: :venta
   has_many :venta_payments, dependent: :destroy, inverse_of: :venta
-  has_many :service_cost_debts, class_name: 'Debt', dependent: :nullify
+  has_many :service_cost_debts, class_name: "Debt", dependent: :nullify
 
   accepts_nested_attributes_for :venta_items, allow_destroy: true
   accepts_nested_attributes_for :venta_payments, allow_destroy: true
@@ -45,15 +46,19 @@ class Venta < ApplicationRecord
   end
 
   def cliente_display_name
-    cliente&.name.presence || 'Cliente general'
+    cliente&.name.presence || "Cliente general"
   end
 
   def seller_display_name
-    user&.display_name.presence || 'Sin usuario'
+    user&.display_name.presence || "Sin usuario"
+  end
+
+  def cashier_display_name
+    cashier_user&.display_name.presence || "Sin cajero"
   end
 
   def base_currency_ves?
-    base_currency == 'VES'
+    base_currency == "VES"
   end
 
   def base_rate
@@ -76,7 +81,7 @@ class Venta < ApplicationRecord
     # For products with IVA incluido, prefer product gross USD so Bs net matches POS formula.
     return (unit_usd * rate).round(2) if item_exento_for_vat?(item)
 
-    if vat_mode == 'included' && vat_rate.to_d.positive?
+    if vat_mode == "included" && vat_rate.to_d.positive?
       if item.producto.present?
         gross_product_usd = item.producto.precio_venta_usd.to_d
         return ((gross_product_usd * rate) / (1 + vat_rate.to_d)).round(2) if gross_product_usd.positive?
@@ -134,7 +139,7 @@ class Venta < ApplicationRecord
 
   def base_vat
     return vat_usd.to_d.round(2) unless base_currency_ves?
-    return 0.to_d if vat_mode == 'none'
+    return 0.to_d if vat_mode == "none"
 
     (base_subtotal * vat_rate.to_d).round(2)
   end
@@ -148,9 +153,9 @@ class Venta < ApplicationRecord
   private
 
   def apply_vat_defaults
-    self.vat_mode = 'none' if vat_mode.blank?
+    self.vat_mode = "none" if vat_mode.blank?
     self.vat_rate = 0.16 if vat_rate.blank?
-    self.base_currency = 'USD' if base_currency.blank?
+    self.base_currency = "USD" if base_currency.blank?
   end
 
   def calculate_totals
@@ -160,7 +165,7 @@ class Venta < ApplicationRecord
     exento_subtotal = active_items.select { |item| item_exento_for_vat?(item) }
                                   .sum { |item| item.subtotal_usd.to_d }
     rate = vat_rate.to_d
-    vat_value = vat_mode == 'none' ? 0.to_d : taxable_subtotal * rate
+    vat_value = vat_mode == "none" ? 0.to_d : taxable_subtotal * rate
 
     self.subtotal_usd = taxable_subtotal.round(2)
     self.vat_usd = vat_value.round(2)
@@ -168,10 +173,10 @@ class Venta < ApplicationRecord
 
     exchange_rate = tasa_dolar.to_d
     self.total_bs = if base_currency_ves?
-                      exchange_rate.positive? ? base_total : 0
-                    else
-                      exchange_rate.positive? ? (total_usd * exchange_rate).round(2) : 0
-                    end
+        exchange_rate.positive? ? base_total : 0
+      else
+        exchange_rate.positive? ? (total_usd * exchange_rate).round(2) : 0
+      end
   end
 
   def item_exento_for_vat?(item)

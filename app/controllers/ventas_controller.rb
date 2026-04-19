@@ -31,6 +31,7 @@ class VentasController < ApplicationController
     @open_cash_shift = current_open_shift_for_sales || current_business.cash_shifts.open.includes(:opened_by, :active_cashier).first
     @active_cashier = @open_cash_shift&.active_cashier
     @can_charge_sale = current_user_can_charge_sale_realtime?
+    @can_view_all_drafts = current_user_can_view_all_drafts?
     @last_closed_cash_shift = current_business.cash_shifts.closed.first
     @open_shift_balance_checks_payload = open_shift_balance_checks_payload
 
@@ -270,7 +271,7 @@ class VentasController < ApplicationController
     @total_ves = summary_totals.sum { |row| row[:ves_total].to_d }.round(2)
 
     ventas_scope = filtered_scope
-      .includes(:cliente, :user, :venta_payments)
+      .includes(:cliente, :user, :cashier_user, :venta_payments)
       .order(created_at: :desc)
 
     @pagy, @ventas = pagy_countless(ventas_scope, items: 24)
@@ -282,7 +283,7 @@ class VentasController < ApplicationController
   def show
     @venta = current_business
       .ventas
-      .includes(:cliente, :user, venta_items: %i[producto product_variation], venta_payments: :account)
+      .includes(:cliente, :user, :cashier_user, venta_items: %i[producto product_variation], venta_payments: :account)
       .find(params[:id])
 
     @sale_reference = SaleCurrencyReferenceService.new([@venta]).totals_by_sale_id[@venta.id] || {}
@@ -295,7 +296,7 @@ class VentasController < ApplicationController
   def delivery_note
     @venta = current_business
       .ventas
-      .includes(:cliente, :user, venta_items: %i[producto product_variation])
+      .includes(:cliente, :user, :cashier_user, venta_items: %i[producto product_variation])
       .find(params[:id])
 
     if @venta.vat_mode != "none"
@@ -430,6 +431,7 @@ class VentasController < ApplicationController
     base_currency = "USD" unless Venta::BASE_CURRENCIES.key?(base_currency)
 
     seller_user = source_draft&.user || Current.user
+    cashier_user = Current.user
 
     venta = current_business.ventas.new(
       status: "draft",
@@ -439,6 +441,7 @@ class VentasController < ApplicationController
       base_currency: base_currency,
       cash_shift: open_cash_shift,
       user: seller_user,
+      cashier_user: cashier_user,
     )
 
     if payload[:cliente_id].present?
@@ -2085,6 +2088,7 @@ class VentasController < ApplicationController
   def draft_summary_payload(venta)
     {
       id: venta.id,
+      created_by_id: venta.user_id,
       client_name: venta.cliente_display_name,
       created_by_name: venta.user&.display_name,
       items_count: venta.venta_items.size,

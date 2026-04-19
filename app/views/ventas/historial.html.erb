@@ -245,6 +245,7 @@
                   <h3 class="truncate text-lg font-bold text-slate-800">Venta #<%= venta.id %></h3>
                   <p class="mt-1 text-sm text-slate-600"><span class="font-semibold text-slate-700">Cliente:</span> <%= venta.cliente_display_name %></p>
                   <p class="mt-1 text-xs text-slate-500"><span class="font-semibold">Facturo:</span> <%= venta.seller_display_name %></p>
+                  <p class="mt-1 text-xs text-slate-500"><span class="font-semibold">Cobro:</span> <%= venta.cashier_display_name %></p>
                 </div>
                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= invoice_status[:badge_class] %>"><%= invoice_status[:label] %></span>
               </div>
@@ -312,11 +313,11 @@
         </div>
         <span class="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100"><%= total_sales %> resultados</span>
       </div>
-      <div class="grid grid-cols-[minmax(0,0.45fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.65fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_minmax(0,0.7fr)] gap-3 border-b border-sky-100 bg-sky-50/70 px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+      <div class="grid grid-cols-[minmax(0,0.45fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_minmax(0,0.7fr)] gap-3 border-b border-sky-100 bg-sky-50/70 px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
         <div class="text-left">Venta</div>
         <div class="text-left">Fecha</div>
         <div class="text-left">Cliente</div>
-        <div class="text-left">Facturo</div>
+        <div class="text-left">Facturo / Cobro</div>
         <div class="text-center">Estado</div>
         <div class="text-center">Base</div>
         <div class="text-center">Total</div>
@@ -334,7 +335,7 @@
             <% has_vat = venta.vat_mode.present? && venta.vat_mode != 'none' && venta.vat_rate.to_d.positive? %>
             <% invoice_status = invoice_statuses_by_sale_id[venta.id] || default_invoice_status %>
             <% checkout_discount = checkout_discount_payload_for_sale(venta) %>
-            <div class="grid grid-cols-[minmax(0,0.45fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.65fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_minmax(0,0.7fr)] items-center gap-3 px-6 py-4 transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/70">
+            <div class="grid grid-cols-[minmax(0,0.45fr)_minmax(0,0.65fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.65fr)_minmax(0,0.55fr)_minmax(0,0.85fr)_minmax(0,0.7fr)] items-center gap-3 px-6 py-4 transition-all duration-150 <%= index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/70">
               <div class="font-semibold text-slate-800">#<%= venta.id %></div>
               <div>
                 <p class="font-medium text-slate-700"><%= venta.created_at.strftime('%d/%m/%Y') %></p>
@@ -354,6 +355,7 @@
               </div>
               <div>
                 <p class="font-medium text-slate-700"><%= venta.seller_display_name %></p>
+                <p class="text-xs text-slate-500">Cobro: <%= venta.cashier_display_name %></p>
               </div>
               <div class="text-center">
                 <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold <%= invoice_status[:badge_class] %>"><%= invoice_status[:label] %></span>
