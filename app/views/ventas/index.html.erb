@@ -7441,19 +7441,10 @@
         payButton.addEventListener('click', async () => {
           await fetchActiveCashierStatus().catch(() => null);
 
-          if (!canChargeSale) {
-            if (window.Swal) {
-              window.Swal.fire({
-                icon: 'warning',
-                title: 'Cobro no autorizado',
-                text: 'Solo el encargado o administrador pueden cobrar ventas.',
-                heightAuto: false,
-              });
-            }
-            return;
-          }
+          const isActiveCashierUser = activeCashierId > 0 && currentUserId > 0 && activeCashierId === currentUserId;
+          const hasDifferentActiveCashier = activeCashierId > 0 && currentUserId > 0 && activeCashierId !== currentUserId;
 
-          if (activeCashierId > 0 && currentUserId > 0 && activeCashierId !== currentUserId) {
+          if (hasDifferentActiveCashier) {
             if (window.Swal) {
               const cashierRole = activeCashierRoleLabel || 'Cajero activo';
               const cashierName = activeCashierName || 'Personal asignado';
@@ -7494,6 +7485,18 @@
                   });
                 }
               }
+            }
+            return;
+          }
+
+          if (!isActiveCashierUser && !canChargeSale) {
+            if (window.Swal) {
+              window.Swal.fire({
+                icon: 'warning',
+                title: 'Cobro no autorizado',
+                text: 'Solo el encargado o administrador pueden cobrar ventas.',
+                heightAuto: false,
+              });
             }
             return;
           }
