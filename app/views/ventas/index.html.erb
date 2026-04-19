@@ -7057,15 +7057,21 @@
           renderCart();
 
           if (window.Swal) {
-            const successTotal = baseCurrency === 'ves'
-              ? formatMoney(data.total_bs, 'Bs ')
-              : formatMoney(data.total_usd, '$');
-            window.Swal.fire({
+            const saleShowUrl = `/ventas/${encodeURIComponent(String(data.id || ''))}`;
+            const result = await window.Swal.fire({
               icon: 'success',
               title: 'Venta registrada',
-              text: `Total ${successTotal}`,
+              text: 'La venta fue registrada correctamente.',
+              showCancelButton: true,
+              confirmButtonText: 'Ver venta',
+              cancelButtonText: 'Cerrar',
+              reverseButtons: true,
               heightAuto: false,
             });
+
+            if (result.isConfirmed && data.id) {
+              window.location.href = saleShowUrl;
+            }
           }
         } catch (error) {
           const duplicatePayment = error?.payload?.duplicate_payment;
