@@ -6991,6 +6991,7 @@
             account_id: casheaSale.account_id,
             initial_usd: casheaSale.initial_usd,
             min_purchase_usd: casheaSale.min_purchase_usd,
+            installments: Array.isArray(casheaSale.installments) ? casheaSale.installments : [],
           };
         }
 
@@ -7363,6 +7364,13 @@
           const totalUsd = convertAmount(totalBase, baseCurrencyCode, 'USD');
           const casheaAccount = allPaymentAccounts.find((account) => String(account.account_type || '').toLowerCase() === 'cashea');
           const casheaMinPurchaseUsd = Number(casheaAccount?.cashea_min_purchase_usd || 0);
+          const casheaInstallmentsCount = (() => {
+            if (!casheaAccount) return 0;
+            const lineMode = String(casheaAccount.cashea_line_mode || '').toLowerCase();
+            if (lineMode === 'principal') return 3;
+            const rawCount = Number(casheaAccount.cashea_cotidiana_installments || 1);
+            return Number.isFinite(rawCount) && rawCount > 0 ? Math.round(rawCount) : 1;
+          })();
           const canOfferCashea = casheaAccount
             && Number.isFinite(totalUsd)
             && totalUsd > 0
@@ -7371,14 +7379,60 @@
 
           let selectedCasheaContext = null;
           if (canOfferCashea) {
+            const casheaImageUrl = "<%= asset_path('cashea.png') %>";
+            const now = new Date();
+            const todayDateLabel = `${String(now.getDate()).padStart(2, '0')}-${String(now.getMonth() + 1).padStart(2, '0')}-${now.getFullYear()}`;
+            const normalizeCasheaDueDate = (rawValue) => {
+              const normalized = String(rawValue || '').trim();
+              if (!normalized) return null;
+
+              const isoMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+              if (isoMatch) {
+                const year = Number(isoMatch[1]);
+                const month = Number(isoMatch[2]);
+                const day = Number(isoMatch[3]);
+                const parsedDate = new Date(year, month - 1, day);
+                if (
+                  parsedDate.getFullYear() !== year
+                  || parsedDate.getMonth() !== month - 1
+                  || parsedDate.getDate() !== day
+                ) {
+                  return null;
+                }
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              }
+
+              const displayMatch = normalized.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+              if (displayMatch) {
+                const day = Number(displayMatch[1]);
+                const month = Number(displayMatch[2]);
+                const year = Number(displayMatch[3]);
+                const parsedDate = new Date(year, month - 1, day);
+                if (
+                  parsedDate.getFullYear() !== year
+                  || parsedDate.getMonth() !== month - 1
+                  || parsedDate.getDate() !== day
+                ) {
+                  return null;
+                }
+                return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              }
+
+              return null;
+            };
+
             const casheaQuestion = await window.Swal.fire({
-              icon: 'question',
               title: 'Compra elegible para Cashea',
               html: `
-                <p class="text-sm text-slate-600">La venta alcanza la compra minima de Cashea.</p>
-                <p class="mt-1 text-sm text-slate-600">Minimo: <strong>$ ${formatNumber(casheaMinPurchaseUsd, 2)}</strong></p>
-                <p class="mt-1 text-sm text-slate-600">Total venta: <strong>$ ${formatNumber(totalUsd, 2)}</strong></p>
-                <p class="mt-2 text-sm text-slate-600">¿Deseas procesar esta venta con Cashea?</p>
+                <div class="overflow-hidden rounded-2xl border border-slate-200">
+                  <div class="min-h-[160px] bg-cover bg-center" style="background-image: linear-gradient(180deg, rgba(15,23,42,0.35), rgba(15,23,42,0.65)), url('${casheaImageUrl}');"></div>
+                  <div class="space-y-1 px-4 py-3 text-left">
+                    <p class="text-sm text-slate-600">La venta alcanza la compra minima de Cashea.</p>
+                    <p class="text-sm text-slate-600">Minimo: <strong>$ ${formatNumber(casheaMinPurchaseUsd, 2)}</strong></p>
+                    <p class="text-sm text-slate-600">Total venta: <strong>$ ${formatNumber(totalUsd, 2)}</strong></p>
+                    <p class="pt-1 text-sm font-semibold text-slate-700">¿Deseas procesar esta venta con Cashea?</p>
+                  </div>
+                </div>
               `,
               showCancelButton: true,
               confirmButtonText: 'Si, usar Cashea',
@@ -7388,13 +7442,33 @@
             });
 
             if (casheaQuestion.isConfirmed) {
+              const installmentsRowsHtml = Array.from({ length: casheaInstallmentsCount }).map((_, index) => `
+                <div class="grid gap-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2 sm:grid-cols-2" data-cashea-installment-row="${index + 1}">
+                  <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cuota ${index + 1} monto (USD)</label>
+                    <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" data-cashea-installment-amount="${index + 1}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Vencimiento cuota ${index + 1}</label>
+                    <input type="text" autocomplete="off" data-cashea-installment-due="${index + 1}" class="js-materialize-datepicker materialize-datepicker-input w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="dd-mm-aaaa" value="${todayDateLabel}" />
+                  </div>
+                </div>
+              `).join('');
+
               const askInitialResult = await window.Swal.fire({
                 title: 'Inicial Cashea',
                 html: `
-                  <div class="space-y-2 text-left">
-                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto inicial (USD)</label>
-                    <input id="cashea-initial-usd" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" />
-                    <p id="cashea-initial-bs" class="text-xs font-semibold text-slate-500">Equivalente Bs: ${formatMoney(0, 'Bs')}</p>
+                  <div class="space-y-3 text-left">
+                    <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                      <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto inicial (USD)</label>
+                      <input id="cashea-initial-usd" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" />
+                      <p id="cashea-initial-bs" class="mt-1 text-xs font-semibold text-slate-500">Equivalente Bs: ${formatMoney(0, 'Bs')}</p>
+                      <p id="cashea-financed-usd" class="mt-1 text-xs font-semibold text-slate-500">Saldo financiado estimado: $ ${formatNumber(totalUsd, 2)}</p>
+                    </div>
+                    <div class="space-y-2">
+                      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Configurar cuotas Cashea (${casheaInstallmentsCount})</p>
+                      ${installmentsRowsHtml}
+                    </div>
                   </div>
                 `,
                 showCancelButton: true,
@@ -7407,13 +7481,41 @@
                   if (!dialog) return;
 
                   initMoneyMasks(dialog);
+                  if (typeof window.initializeMaterializeDatepickers === 'function') {
+                    window.initializeMaterializeDatepickers(dialog);
+                  }
 
                   const usdInput = dialog.querySelector('#cashea-initial-usd');
                   const bsLabel = dialog.querySelector('#cashea-initial-bs');
+                  const financedLabel = dialog.querySelector('#cashea-financed-usd');
+                  const installmentAmountInputs = Array.from(dialog.querySelectorAll('[data-cashea-installment-amount]'));
+
+                  const updateInstallmentSuggestion = () => {
+                    const initialUsd = roundTo(parseMoneyInput(usdInput), 2);
+                    const financedUsd = roundTo(Math.max(totalUsd - initialUsd, 0), 2);
+                    const count = installmentAmountInputs.length;
+                    if (count <= 0) return;
+
+                    if (financedLabel) {
+                      financedLabel.textContent = `Saldo financiado estimado: $ ${formatNumber(financedUsd, 2)}`;
+                    }
+
+                    const baseAmount = roundTo(financedUsd / count, 2);
+                    let running = 0;
+                    installmentAmountInputs.forEach((input, index) => {
+                      const amount = index === count - 1
+                        ? roundTo(financedUsd - running, 2)
+                        : baseAmount;
+                      running = roundTo(running + amount, 2);
+                      setMoneyInputValue(input, amount, '$');
+                    });
+                  };
+
                   const updateBs = () => {
                     const usdValue = parseMoneyInput(usdInput);
                     const bsValue = bcvRate > 0 ? roundTo(usdValue * bcvRate, 2) : 0;
                     bsLabel.textContent = `Equivalente Bs: ${formatMoney(bsValue, 'Bs')}`;
+                    updateInstallmentSuggestion();
                   };
 
                   usdInput?.addEventListener('input', updateBs);
@@ -7440,7 +7542,44 @@
                     return null;
                   }
 
-                  return { initialUsd };
+                  const financedUsd = roundTo(Math.max(totalUsd - initialUsd, 0), 2);
+                  const installments = [];
+                  const rows = Array.from(dialog.querySelectorAll('[data-cashea-installment-row]'));
+
+                  if (financedUsd > 0 && rows.length === 0) {
+                    window.Swal.showValidationMessage('Debes configurar las cuotas Cashea antes de continuar.');
+                    return null;
+                  }
+
+                  let installmentsTotal = 0;
+                  for (const row of rows) {
+                    const amountInput = row.querySelector('[data-cashea-installment-amount]');
+                    const dueInput = row.querySelector('[data-cashea-installment-due]');
+                    const installmentAmount = roundTo(parseMoneyInput(amountInput), 2);
+                    const dueOnIso = normalizeCasheaDueDate(dueInput?.value);
+
+                    if (financedUsd > 0 && installmentAmount <= 0) {
+                      window.Swal.showValidationMessage('Cada cuota Cashea debe tener un monto mayor a 0.');
+                      return null;
+                    }
+
+                    if (financedUsd > 0 && !dueOnIso) {
+                      window.Swal.showValidationMessage('Cada cuota Cashea debe tener una fecha de vencimiento valida.');
+                      return null;
+                    }
+
+                    if (financedUsd > 0) {
+                      installments.push({ amount_usd: installmentAmount, due_on: dueOnIso });
+                      installmentsTotal = roundTo(installmentsTotal + installmentAmount, 2);
+                    }
+                  }
+
+                  if (financedUsd > 0 && Math.abs(installmentsTotal - financedUsd) > 0.01) {
+                    window.Swal.showValidationMessage(`La suma de cuotas ($ ${formatNumber(installmentsTotal, 2)}) debe ser igual al saldo financiado ($ ${formatNumber(financedUsd, 2)}).`);
+                    return null;
+                  }
+
+                  return { initialUsd, installments };
                 },
               });
 
@@ -7451,6 +7590,7 @@
                 account_id: casheaAccount.id,
                 initial_usd: askInitialResult.value.initialUsd,
                 min_purchase_usd: casheaMinPurchaseUsd,
+                installments: askInitialResult.value.installments || [],
               };
             }
           }
@@ -9026,6 +9166,7 @@
                     account_id: casheaEnabled ? selectedCasheaContext.account_id : null,
                     initial_usd: casheaEnabled ? selectedCasheaContext.initial_usd : 0,
                     min_purchase_usd: casheaEnabled ? selectedCasheaContext.min_purchase_usd : 0,
+                    installments: casheaEnabled ? (selectedCasheaContext.installments || []) : [],
                   },
                   checkout_discount: {
                     enabled: discountEnabled && sanitizedDiscountBase > 0,

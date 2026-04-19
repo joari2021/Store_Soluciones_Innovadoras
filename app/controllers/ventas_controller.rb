@@ -416,6 +416,7 @@ class VentasController < ApplicationController
       cashea_sale[:account] = cashea_account
       cashea_sale[:line_mode] = cashea_account.cashea_line_mode
       cashea_sale[:installments] = cashea_account.cashea_installments_count
+      cashea_sale[:custom_installments] = normalize_cashea_installments_payload(payload[:cashea])
 
       if cashea_sale[:initial_usd].to_d <= 0
         return render json: { error: "El monto inicial de Cashea debe ser mayor a 0." }, status: :unprocessable_entity
@@ -1094,11 +1095,37 @@ class VentasController < ApplicationController
           end
 
           if cashea_financing_enabled
+            custom_installments = Array(cashea_sale[:custom_installments])
+            if custom_installments.any?
+              expected_installments = cashea_sale[:installments].to_i
+              if expected_installments <= 0
+                venta.errors.add(:base, "La cuenta Cashea no tiene un numero valido de cuotas.")
+                raise ActiveRecord::RecordInvalid.new(venta)
+              end
+
+              if custom_installments.size != expected_installments
+                venta.errors.add(:base, "Debes configurar exactamente #{expected_installments} cuotas Cashea.")
+                raise ActiveRecord::RecordInvalid.new(venta)
+              end
+
+              if custom_installments.any? { |row| row[:amount_usd].to_d <= 0 || row[:due_on].blank? }
+                venta.errors.add(:base, "Cada cuota Cashea debe tener monto y fecha de vencimiento validos.")
+                raise ActiveRecord::RecordInvalid.new(venta)
+              end
+
+              custom_total = custom_installments.sum { |row| row[:amount_usd].to_d }.round(2)
+              if (custom_total - debt_amount_usd.to_d.round(2)).abs > 0.01.to_d
+                venta.errors.add(:base, "La suma de cuotas Cashea (#{custom_total.to_s('F')} USD) debe coincidir con el saldo financiado (#{debt_amount_usd.to_d.round(2).to_s('F')} USD).")
+                raise ActiveRecord::RecordInvalid.new(venta)
+              end
+            end
+
             create_cashea_receivable_installments_for_sale!(
               venta: venta,
               account: cashea_sale[:account],
               total_amount_usd: debt_amount_usd,
               first_due_on: credit_sale_due_on,
+              custom_installments: custom_installments,
             )
           else
             create_receivable_debt_for_sale!(
@@ -2686,7 +2713,13 @@ class VentasController < ApplicationController
       payments: %i[method amount account_id currency reference payment_date],
       change: %i[method amount account_id currency reference],
       credit_sale: %i[enabled due_on],
-      cashea: %i[enabled account_id initial_usd min_purchase_usd],
+      cashea: [
+        :enabled,
+        :account_id,
+        :initial_usd,
+        :min_purchase_usd,
+        { installments: %i[amount_usd due_on] },
+      ],
       checkout_discount: %i[enabled amount reason],
       totals: %i[taxable_subtotal_base exento_subtotal_base vat_base total_base],
       service_cost_payments: %i[
@@ -3912,7 +3945,27 @@ class VentasController < ApplicationController
       account: nil,
       line_mode: nil,
       installments: 0,
+      custom_installments: [],
     }
+  end
+
+  def normalize_cashea_installments_payload(raw_payload)
+    source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
+    rows = source['installments'] || source[:installments]
+
+    Array(rows).filter_map do |row|
+      entry = row.respond_to?(:to_h) ? row.to_h : {}
+      amount_value = entry['amount_usd'] || entry[:amount_usd]
+      due_on_value = entry['due_on'] || entry[:due_on]
+      amount_usd = parse_decimal(amount_value, default: 0).to_d.round(2)
+      due_on = parse_payment_date(due_on_value)
+      next if amount_usd <= 0 || due_on.blank?
+
+      {
+        amount_usd: amount_usd,
+        due_on: due_on,
+      }
+    end
   end
 
   def default_first_due_on_for_cashea(account)
@@ -3922,35 +3975,71 @@ class VentasController < ApplicationController
     today + 15.days
   end
 
-  def create_cashea_receivable_installments_for_sale!(venta:, account:, total_amount_usd:, first_due_on: nil)
+  def create_cashea_receivable_installments_for_sale!(venta:, account:, total_amount_usd:, first_due_on: nil, custom_installments: nil)
     installments = account&.cashea_installments_count.to_i
     installments = 1 if installments <= 0
 
     due_on = first_due_on || default_first_due_on_for_cashea(account)
     due_on = Time.use_zone("America/Caracas") { Time.zone.today } if due_on.blank?
 
-    group_token = sale_debt_group_token_for(cliente_id: venta.cliente_id, currency: 'USD')
-    installment_amounts = split_amount_into_installments(total_amount_usd.to_d, installments)
+    cashea_debtor = find_or_create_cashea_debtor!
+    owner_label = venta.cliente&.name.to_s.strip.presence || "Cliente sin nombre"
+    group_token = sale_debt_group_token_for(cliente_id: cashea_debtor.id, currency: 'USD')
 
-    installment_amounts.each_with_index do |installment_amount, index|
-      installment_number = index + 1
-      installment_due_on = due_on >> index
+    installment_plan = if Array(custom_installments).any?
+        Array(custom_installments).each_with_index.map do |row, index|
+          {
+            amount: row[:amount_usd].to_d.round(2),
+            due_on: row[:due_on],
+            number: index + 1,
+          }
+        end
+      else
+        installment_amounts = split_amount_into_installments(total_amount_usd.to_d, installments)
+        installment_amounts.each_with_index.map do |installment_amount, index|
+          {
+            amount: installment_amount,
+            due_on: due_on >> index,
+            number: index + 1,
+          }
+        end
+      end
+
+    total_installments = installment_plan.size
+
+    installment_plan.each do |installment|
+      installment_amount = installment[:amount]
+      installment_due_on = installment[:due_on]
+      installment_number = installment[:number]
 
       debt_attrs = {
-        name: "Cuota Cashea #{installment_number}/#{installments} venta ##{venta.id}",
-        description: "Cuota Cashea #{installment_number}/#{installments} pendiente venta ##{venta.id} [VENTA:#{venta.id}]",
+        name: "Cuota Cashea #{installment_number}/#{total_installments} - #{owner_label}",
+        description: "Cuota Cashea #{installment_number}/#{total_installments} cliente #{owner_label} pendiente venta ##{venta.id} [CLIENTE_DUENO:#{owner_label}] [VENTA:#{venta.id}]",
         debt_kind: 'receivable',
         amount: installment_amount,
         currency: 'USD',
         issued_on: Time.use_zone("America/Caracas") { Time.zone.today },
         due_on: installment_due_on,
-        cliente: venta.cliente,
+        cliente: cashea_debtor,
         venta: venta,
       }
       debt_attrs[:group_token] = group_token if Debt.column_names.include?('group_token')
 
       current_business.debts.create!(debt_attrs)
     end
+  end
+
+  def find_or_create_cashea_debtor!
+    existing = current_business.clientes.where("LOWER(name) = ?", "cashea").first
+    return existing if existing.present?
+
+    current_business.clientes.create!(
+      document_type: 'J',
+      document_number: "CASHEA-#{current_business.id}",
+      name: 'Cashea',
+      phone: '0000000000',
+      address: 'Deudor interno para cuotas Cashea',
+    )
   end
 
   def split_amount_into_installments(total, installments)

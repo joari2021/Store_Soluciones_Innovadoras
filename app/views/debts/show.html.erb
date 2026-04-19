@@ -110,6 +110,7 @@
             <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
               <tr>
                 <th class="px-4 py-3 text-left">Emision</th>
+                <th class="px-4 py-3 text-left">Vencimiento</th>
                 <th class="px-4 py-3 text-left">Descripcion</th>
                 <th class="px-4 py-3 text-right">Monto USD</th>
                 <th class="px-4 py-3 text-right">Monto VES / Bs</th>
@@ -127,6 +128,7 @@
                 <% sale_id = debt_source_sale_id(debt) %>
                 <tr>
                   <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
+                  <td class="px-4 py-3"><%= debt.due_on ? debt.due_on.strftime("%d/%m/%Y") : "-" %></td>
                   <td class="px-4 py-3">
                     <p><%= debt_display_description(debt.description) %></p>
                     <% if row[:loan_enabled] && row[:loan_account_name].present? && row[:loan_amount].to_d.positive? %>
