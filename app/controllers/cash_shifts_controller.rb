@@ -242,10 +242,19 @@ class CashShiftsController < ApplicationController
     end
 
     is_current_user_active_cashier = @cash_shift.active_cashier_id == Current.user&.id
-    @cash_shift.update!(active_cashier: (is_current_user_active_cashier ? nil : Current.user))
+    next_cashier = if is_current_user_active_cashier
+                     fallback_manager_cashier_for_shift
+                   else
+                     Current.user
+                   end
+    @cash_shift.update!(active_cashier: next_cashier)
 
     notice_message = if is_current_user_active_cashier
-                       'Marcaste salida de caja. El encargado o administrador puede tomar el cobro.'
+                       if next_cashier.present?
+                         "Marcaste salida de caja. Ahora el cajero activo es #{next_cashier.display_name} (#{next_cashier.role_label})."
+                       else
+                         'Marcaste salida de caja. No hay encargado activo para asignar como cajero.'
+                       end
                      else
                        'Marcaste entrada de caja. Quedaste como cajero activo del turno.'
                      end
@@ -405,6 +414,14 @@ class CashShiftsController < ApplicationController
     return if current_user_admin?
 
     deny_access('Solo el administrador puede asignar entrada o salida de cajero.')
+  end
+
+  def fallback_manager_cashier_for_shift
+    current_business
+      .users
+      .where(active: true, authorization_level: 'manager')
+      .order(Arel.sql("LOWER(COALESCE(full_name, username)) ASC"))
+      .first
   end
 
   def rollback_cash_shift_data!(cash_shift)

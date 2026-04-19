@@ -79,8 +79,26 @@
   <div class="flex items-center gap-3 md:gap-5">
     <% header_shift = @open_cash_shift || @header_open_cash_shift %>
     <% header_active_cashier = @active_cashier || @header_active_cashier || header_shift&.active_cashier %>
+    <% admin_can_toggle_cashier = current_user_admin? && header_shift&.open? %>
+    <% admin_is_active_cashier = header_active_cashier&.id == Current.user&.id %>
+    <% active_female_manager_cashier = header_active_cashier&.manager? && header_active_cashier&.female? %>
+    <% toggle_cashier_button_class = if active_female_manager_cashier
+                                       'border-rose-300 bg-rose-100 text-rose-700 hover:bg-rose-200'
+                                     elsif admin_is_active_cashier
+                                       'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                                     else
+                                       'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'
+                                     end %>
     <% if controller_name == 'ventas' && action_name == 'index' %>
       <% can_manage_cash_shifts = can_manage_action?(:manage_cash_shifts) %>
+      <% if admin_can_toggle_cashier %>
+        <%= button_to toggle_cashier_cash_shift_path(header_shift),
+                      method: :patch,
+                      class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5 #{toggle_cashier_button_class}" do %>
+          <i data-lucide="badge-check" class="h-4 w-4"></i>
+          <%= admin_is_active_cashier ? 'Marcar salida de cajero' : 'Marcar entrada de cajero' %>
+        <% end %>
+      <% end %>
       <% if @open_cash_shift.present? %>
         <%= link_to cash_shift_path(@open_cash_shift), class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100' do %>
           <i data-lucide="clock-3" class="h-4 w-4"></i>
@@ -111,15 +129,6 @@
             Cajero activo: Sin asignar
           <% end %>
         </span>
-      <% end %>
-    <% end %>
-    <% if current_user_admin? && header_shift&.open? %>
-      <% admin_is_active_cashier = header_active_cashier&.id == Current.user&.id %>
-      <%= button_to toggle_cashier_cash_shift_path(header_shift),
-                    method: :patch,
-                    class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5 #{admin_is_active_cashier ? 'border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100' : 'border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100'}" do %>
-        <i data-lucide="badge-check" class="h-4 w-4"></i>
-        <%= admin_is_active_cashier ? 'Marcar salida de cajero' : 'Marcar entrada de cajero' %>
       <% end %>
     <% end %>
     <% if Rails.env.development? && current_user_admin? %>
