@@ -85,6 +85,15 @@
         <%= link_to ventas_path, class: "inline-flex cursor-pointer items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-colors hover:bg-slate-800" do %>
           Ir al POS
         <% end %>
+        <% if sale_deletable_by_current_user?(@venta) %>
+          <%= link_to venta_path(@venta),
+                      class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 shadow-sm ring-1 ring-rose-100 transition-colors hover:bg-rose-100',
+                      title: 'Eliminar venta',
+                      'aria-label': 'Eliminar venta',
+                      data: { turbo_method: :delete, swal_delete: 'venta', turbo_frame: '_top' } do %>
+            Eliminar venta
+          <% end %>
+        <% end %>
       </div>
     </div>
     <div class="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
