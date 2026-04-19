@@ -47,9 +47,9 @@ class DebtsController < ApplicationController
     @payable_paid_debts = @payable_paid_debts.reject do |debt|
       hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
     end
-    @receivable_groups = build_cliente_groups(@receivable_debts)
+    @receivable_groups = build_cliente_groups(@receivable_debts, sort: :cliente_name_asc)
     @payable_groups = build_cliente_groups(@payable_debts)
-    @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts)
+    @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts, sort: :paid_recent_desc)
     @payable_paid_groups = build_cliente_groups(@payable_paid_debts)
     @receivable_group_totals = build_group_totals(@receivable_groups)
     @payable_group_totals = build_group_totals(@payable_groups)
@@ -1661,7 +1661,9 @@ class DebtsController < ApplicationController
                   representative.define_singleton_method(:card_debts_count) { grouped_count }
                   representative.card_description_summary = card_description_summary_for(grouped_debts)
                   last_activity_at = group_last_activity_at_for(grouped_debts)
+                  last_payment_at = group_last_payment_at_for(grouped_debts)
                   representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
+                  representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
                   representative
     end
 
@@ -1701,6 +1703,13 @@ class DebtsController < ApplicationController
     timestamps.compact.max
   end
 
+  def group_last_payment_at_for(debts)
+    debts.flat_map do |debt|
+      payments = debt.debt_payments.loaded? ? debt.debt_payments : debt.debt_payments.to_a
+      payments.map(&:occurred_at)
+    end.compact.max
+  end
+
   def cash_shift_for_payment(payment)
     payment_date = payment.occurred_at
     return nil if payment_date.blank?
@@ -1719,15 +1728,45 @@ class DebtsController < ApplicationController
     count.to_i == 1 ? '1 deuda sin descripcion' : "#{count.to_i} deudas sin descripcion"
   end
 
-  def build_cliente_groups(debts)
-    debts
-      .group_by(&:cliente)
-      .map { |cliente, debts| [cliente, sort_debts(debts)] }
-      .sort_by do |cliente, debts|
-        first_debt = debts.first
+  def build_cliente_groups(debts, sort: :default)
+    grouped = debts
+              .group_by(&:cliente)
+              .map { |cliente, cliente_debts| [cliente, sort_debts(cliente_debts)] }
+
+    case sort
+    when :cliente_name_asc
+      grouped.sort_by do |cliente, _cliente_debts|
+        [cliente&.name.to_s.downcase, cliente.present? ? 0 : 1]
+      end
+    when :paid_recent_desc
+      grouped
+        .map do |cliente, cliente_debts|
+          ordered = cliente_debts.sort_by { |debt| paid_recency_sort_key(debt) }
+          [cliente, ordered]
+        end
+        .sort_by do |cliente, cliente_debts|
+          latest_paid_at = cliente_debts.map { |debt| debt_last_payment_at_for_index(debt) }.compact.max
+          [latest_paid_at.present? ? 0 : 1, -(latest_paid_at&.to_i || 0), cliente&.name.to_s.downcase]
+        end
+    else
+      grouped.sort_by do |cliente, cliente_debts|
+        first_debt = cliente_debts.first
         first_key = first_debt ? debt_sort_key(first_debt) : [0, 0, 0, '', '']
         [first_key[0], first_key[1], cliente&.name.to_s.downcase]
       end
+    end
+  end
+
+  def debt_last_payment_at_for_index(debt)
+    return debt.card_last_payment_at if debt.respond_to?(:card_last_payment_at) && debt.card_last_payment_at.present?
+
+    payments = debt.debt_payments.loaded? ? debt.debt_payments : debt.debt_payments.to_a
+    payments.map(&:occurred_at).compact.max
+  end
+
+  def paid_recency_sort_key(debt)
+    paid_at = debt_last_payment_at_for_index(debt)
+    [paid_at.present? ? 0 : 1, -(paid_at&.to_i || 0), -(debt.id.to_i)]
   end
 
   def build_group_totals(groups)
