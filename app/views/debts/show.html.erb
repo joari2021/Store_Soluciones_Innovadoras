@@ -275,7 +275,8 @@
                       <i data-lucide="trash" class="h-4 w-4"></i>
                     <% end %>
                   <% else %>
-                    <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-100 p-2 text-slate-500" title="No permitido" aria-label="No permitido" data-payment-delete-blocked="true" data-payment-delete-blocked-message="<%= row[:delete_block_reason] %>">
+                    <% blocked_reason = row[:delete_block_reason].presence || "Este pago no puede eliminarse con tu perfil." %>
+                    <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-100 p-2 text-slate-500" title="<%= blocked_reason %>" aria-label="<%= blocked_reason %>" data-payment-delete-blocked="true" data-payment-delete-blocked-message="<%= blocked_reason %>">
                       <i data-lucide="trash" class="h-4 w-4"></i>
                     </button>
                   <% end %>
