@@ -716,7 +716,8 @@
 
       const PAYMENT_SPECIAL_ORDER = ['biopago', 'pos', 'cashea'];
 
-      const applyActiveCashierState = (activeCashier) => {
+      const applyActiveCashierState = (activeCashier, options = {}) => {
+        const syncHeader = options.syncHeader !== false;
         activeCashierId = Number(activeCashier?.id || 0);
         activeCashierName = String(activeCashier?.name || '').trim();
         activeCashierRoleLabel = String(activeCashier?.role_label || '').trim();
@@ -725,7 +726,7 @@
         root.dataset.activeCashierName = activeCashierName;
         root.dataset.activeCashierRoleLabel = activeCashierRoleLabel;
 
-        if (typeof window.updateHeaderCashierState === 'function') {
+        if (syncHeader && typeof window.updateHeaderCashierState === 'function') {
           window.updateHeaderCashierState(activeCashier || null);
         }
       };
@@ -743,18 +744,29 @@
         return payload;
       };
 
-      window.addEventListener('cashier:updated', (event) => {
+      const onCashierUpdated = (event) => {
         const payload = event?.detail || {};
         if (!Object.prototype.hasOwnProperty.call(payload, 'activeCashier')) return;
-        applyActiveCashierState(payload.activeCashier || null);
-      });
+        applyActiveCashierState(payload.activeCashier || null, { syncHeader: false });
+      };
+      window.addEventListener('cashier:updated', onCashierUpdated);
+
+      let cashierPollIntervalId = null;
 
       if (hasOpenCashShift && openCashShiftId > 0) {
         fetchActiveCashierStatus().catch(() => null);
-        window.setInterval(() => {
+        cashierPollIntervalId = window.setInterval(() => {
           fetchActiveCashierStatus().catch(() => null);
         }, 15000);
       }
+
+      document.addEventListener('turbo:before-cache', () => {
+        window.removeEventListener('cashier:updated', onCashierUpdated);
+        if (cashierPollIntervalId) {
+          window.clearInterval(cashierPollIntervalId);
+          cashierPollIntervalId = null;
+        }
+      }, { once: true });
 
       const accountTypeKey = (account) => String(account?.account_type || '').toLowerCase();
 

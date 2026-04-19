@@ -282,7 +282,8 @@
       }
     };
 
-    const setHeaderCashierState = (activeCashier) => {
+    const setHeaderCashierState = (activeCashier, options = {}) => {
+      const shouldBroadcast = options.broadcast !== false;
       const { headerRoot, badge, badgeText, toggleButton, toggleLabel } = getHeaderContext();
       const currentUserId = Number(headerRoot?.dataset?.headerCurrentUserId || 0);
       if (badgeText) {
@@ -296,7 +297,9 @@
       updateBadgeVisual(badge, activeCashier);
       updateToggleVisual(toggleButton, toggleLabel, activeCashier, currentUserId);
 
-      window.dispatchEvent(new CustomEvent('cashier:updated', { detail: { activeCashier } }));
+      if (shouldBroadcast) {
+        window.dispatchEvent(new CustomEvent('cashier:updated', { detail: { activeCashier } }));
+      }
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons();
       }
