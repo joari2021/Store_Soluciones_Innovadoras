@@ -778,7 +778,6 @@ class VentasController < ApplicationController
 
       payment_rows << {
         account_id: account&.id,
-        account_type: account.account_type,
         payment_method: method,
         amount_usd: amount_usd,
         amount_original: raw_amount,
