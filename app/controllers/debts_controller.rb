@@ -318,7 +318,7 @@ class DebtsController < ApplicationController
     @show_payment_rows = @payments.map do |payment|
       shift = cash_shift_for_payment(payment)
       closed_shift = shift&.closed?
-      delete_allowed = shift&.open? || (closed_shift && current_user_admin?)
+      delete_allowed = current_user_admin? || shift&.open?
       delete_block_reason = if closed_shift && !current_user_admin?
                               'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
                             elsif shift.nil? && !current_user_admin?
