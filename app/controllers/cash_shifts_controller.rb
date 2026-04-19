@@ -6,8 +6,8 @@ class CashShiftsController < ApplicationController
   before_action -> { require_module_access!(:cash_shifts) }
   before_action :ensure_can_manage_cash_shifts!, only: %i[create]
   before_action :set_open_cash_shift, only: %i[create]
-  before_action :set_cash_shift, only: %i[show close destroy toggle_cashier]
-  before_action :ensure_can_view_cash_shift!, only: %i[show]
+  before_action :set_cash_shift, only: %i[show close destroy toggle_cashier active_cashier_status]
+  before_action :ensure_can_view_cash_shift!, only: %i[show active_cashier_status]
   before_action :ensure_can_close_shift!, only: %i[close]
   before_action :ensure_can_destroy_shift!, only: %i[destroy]
   before_action :ensure_admin_for_cashier_toggle!, only: %i[toggle_cashier]
@@ -265,6 +265,8 @@ class CashShiftsController < ApplicationController
         render json: {
           success: true,
           message: notice_message,
+          cash_shift_id: @cash_shift.id,
+          open: @cash_shift.open?,
           active_cashier: active_cashier_payload(@cash_shift)
         }, status: :ok
       end
@@ -276,6 +278,16 @@ class CashShiftsController < ApplicationController
       format.html { redirect_back fallback_location: ventas_path, alert: error_message }
       format.json { render json: { error: error_message }, status: :unprocessable_entity }
     end
+  end
+
+  def active_cashier_status
+    render json: {
+      success: true,
+      cash_shift_id: @cash_shift.id,
+      open: @cash_shift.open?,
+      active_cashier: active_cashier_payload(@cash_shift),
+      updated_at: @cash_shift.updated_at&.to_i
+    }, status: :ok
   end
 
   private
@@ -296,6 +308,8 @@ class CashShiftsController < ApplicationController
       id: cashier.id,
       name: cashier.display_name,
       role_label: cashier.role_label,
+      role_key: cashier.role_key,
+      female: cashier.female?,
     }
   end
 

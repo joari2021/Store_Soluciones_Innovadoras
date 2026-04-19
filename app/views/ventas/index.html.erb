@@ -656,11 +656,12 @@
       if (window.ventasPosBoundRoots.has(root)) return;
 
       const hasOpenCashShift = root.dataset.openShift === 'true';
+      const openCashShiftId = Number(root.dataset.openShiftId || 0);
       const canChargeSale = root.dataset.canChargeSale === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
-      const activeCashierId = Number(root.dataset.activeCashierId || 0);
-      const activeCashierName = String(root.dataset.activeCashierName || '').trim();
-      const activeCashierRoleLabel = String(root.dataset.activeCashierRoleLabel || '').trim();
+      let activeCashierId = Number(root.dataset.activeCashierId || 0);
+      let activeCashierName = String(root.dataset.activeCashierName || '').trim();
+      let activeCashierRoleLabel = String(root.dataset.activeCashierRoleLabel || '').trim();
 
       const productsDataEl = document.getElementById('ventas-products-data');
       if (!productsDataEl) return;
@@ -714,6 +715,46 @@
       }
 
       const PAYMENT_SPECIAL_ORDER = ['biopago', 'pos', 'cashea'];
+
+      const applyActiveCashierState = (activeCashier) => {
+        activeCashierId = Number(activeCashier?.id || 0);
+        activeCashierName = String(activeCashier?.name || '').trim();
+        activeCashierRoleLabel = String(activeCashier?.role_label || '').trim();
+
+        root.dataset.activeCashierId = activeCashierId > 0 ? String(activeCashierId) : '';
+        root.dataset.activeCashierName = activeCashierName;
+        root.dataset.activeCashierRoleLabel = activeCashierRoleLabel;
+
+        if (typeof window.updateHeaderCashierState === 'function') {
+          window.updateHeaderCashierState(activeCashier || null);
+        }
+      };
+
+      const fetchActiveCashierStatus = async () => {
+        if (!hasOpenCashShift || !openCashShiftId || openCashShiftId <= 0) return null;
+        const response = await fetch(`/cierres-turno/${openCashShiftId}/active_cashier_status`, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) return null;
+
+        const payload = await response.json();
+        applyActiveCashierState(payload.active_cashier || null);
+        return payload;
+      };
+
+      window.addEventListener('cashier:updated', (event) => {
+        const payload = event?.detail || {};
+        if (!Object.prototype.hasOwnProperty.call(payload, 'activeCashier')) return;
+        applyActiveCashierState(payload.activeCashier || null);
+      });
+
+      if (hasOpenCashShift && openCashShiftId > 0) {
+        fetchActiveCashierStatus().catch(() => null);
+        window.setInterval(() => {
+          fetchActiveCashierStatus().catch(() => null);
+        }, 15000);
+      }
 
       const accountTypeKey = (account) => String(account?.account_type || '').toLowerCase();
 
@@ -7321,6 +7362,8 @@
       const payButton = document.getElementById('ventas-pay-button');
       if (payButton) {
         payButton.addEventListener('click', async () => {
+          await fetchActiveCashierStatus().catch(() => null);
+
           if (!canChargeSale) {
             if (window.Swal) {
               window.Swal.fire({

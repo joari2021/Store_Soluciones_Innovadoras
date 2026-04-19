@@ -105,6 +105,7 @@ Rails.application.routes.draw do
     member do
       patch :close
       patch :toggle_cashier
+      get :active_cashier_status
     end
   end
   resources :discount_schedules, path: 'descuentos-programados', only: %i[index create edit update destroy]
