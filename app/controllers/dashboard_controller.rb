@@ -23,7 +23,11 @@ class DashboardController < ApplicationController
   def parse_date(value)
     return nil if value.blank?
 
-    Date.parse(value.to_s)
+    normalized = value.to_s.strip
+    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+
+    Date.parse(normalized)
   rescue ArgumentError
     nil
   end
