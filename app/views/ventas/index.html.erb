@@ -7406,6 +7406,8 @@
                   const dialog = window.Swal.getHtmlContainer();
                   if (!dialog) return;
 
+                  initMoneyMasks(dialog);
+
                   const usdInput = dialog.querySelector('#cashea-initial-usd');
                   const bsLabel = dialog.querySelector('#cashea-initial-bs');
                   const updateBs = () => {
