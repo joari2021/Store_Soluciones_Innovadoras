@@ -305,7 +305,7 @@
         <p class="mt-1 text-xs text-slate-500">Un solo registro se distribuye automaticamente en todas las deudas activas del grupo.</p>
       </div>
       <%= form_with url: debt_debt_payments_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { register_payment_form: true, register_payment_receivable: (@debt.receivable? ? '1' : '0') } do |form| %>
-        <input type="hidden" name="debt_payment[allow_overpayment]" value="0" />
+        <input type="hidden" name="debt_payment[allow_overpayment]" value="0" data-register-payment-allow-overpayment="true" />
         <input type="hidden" name="from_debt_show_modal" value="1" />
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
@@ -502,6 +502,7 @@
                 const registerPaymentReference = root.querySelector("[data-register-payment-reference='true']");
                 const registerPaymentAmountMasked = root.querySelector("[data-register-payment-amount-masked='true']");
                 const registerPaymentAmountHidden = root.querySelector("[data-register-payment-amount-hidden='true']");
+                const registerPaymentAllowOverpayment = root.querySelector("[data-register-payment-allow-overpayment='true']");
                 const registerPaymentDateInput = root.querySelector("[data-register-payment-date='true']");
                 const registerPaymentNotes = root.querySelector("textarea[name='debt_payment[notes]']");
                 const registerPaymentSummary = root.querySelector("[data-register-payment-summary='true']");
@@ -743,6 +744,7 @@
                   }
                   if (registerPaymentAmountMasked) registerPaymentAmountMasked.value = "";
                   if (registerPaymentAmountHidden) registerPaymentAmountHidden.value = "0";
+                  if (registerPaymentAllowOverpayment) registerPaymentAllowOverpayment.value = "0";
                   if (registerPaymentNotes) registerPaymentNotes.value = "";
 
                   if (window.MoneyInputMask?.init && registerPaymentModal) {
@@ -847,6 +849,33 @@
                       window.MoneyInputMask.init(registerPaymentAmountMasked.closest("form") || root);
                     }
                   }
+                };
+
+                const pendingAmountInSelectedCurrency = async () => {
+                  const selectedOption = registerPaymentAccount?.options?.[registerPaymentAccount.selectedIndex];
+                  const accountCurrency = normalizeCurrency(selectedOption?.dataset?.accountCurrency || "");
+                  if (!Number.isFinite(registerPaymentBaseUsd) || registerPaymentBaseUsd <= 0) return null;
+
+                  if (accountCurrency === "USD" || accountCurrency === "USDT") {
+                    return registerPaymentBaseUsd;
+                  }
+
+                  if (accountCurrency === "VES") {
+                    const selectedDate = parseDmyDate(registerPaymentDateInput?.value);
+                    const isoDate = formatIsoDate(selectedDate || new Date());
+                    if (!isoDate) return null;
+
+                    const response = await fetch(`/tasa_cambios/bcv_por_fecha?fecha=${encodeURIComponent(isoDate)}`);
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) return null;
+
+                    const rate = Number.parseFloat(data.valor);
+                    if (!Number.isFinite(rate) || rate <= 0) return null;
+
+                    return registerPaymentBaseUsd * rate;
+                  }
+
+                  return null;
                 };
 
                 const openRegisterPaymentModal = () => {
@@ -1037,8 +1066,49 @@
                 }
 
                 if (registerPaymentForm) {
-                  registerPaymentForm.addEventListener("submit", () => {
+                  registerPaymentForm.addEventListener("submit", async (event) => {
                     updateRegisterPaymentAmount();
+
+                    if (!registerPaymentAllowOverpayment) return;
+                    if (registerPaymentAllowOverpayment.value === "1") return;
+
+                    const enteredAmount = parseRegisterPaymentMaskedValue(registerPaymentAmountMasked);
+                    if (!Number.isFinite(enteredAmount) || enteredAmount <= 0) return;
+
+                    const pendingAmount = await pendingAmountInSelectedCurrency();
+                    if (!Number.isFinite(pendingAmount)) return;
+
+                    const overpaymentAmount = enteredAmount - pendingAmount;
+                    if (overpaymentAmount <= 0.01) return;
+
+                    event.preventDefault();
+
+                    const selectedOption = registerPaymentAccount?.options?.[registerPaymentAccount.selectedIndex];
+                    const symbol = selectedOption?.dataset?.accountSymbol || "";
+                    const overpaymentLabel = `${symbol} ${overpaymentAmount.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`.trim();
+
+                    let accepted = false;
+                    if (window.Swal) {
+                      const result = await window.Swal.fire({
+                        icon: "warning",
+                        title: "Monto excede el saldo del grupo",
+                        text: `Este cobro generará un sobregiro de ${overpaymentLabel}. ¿Deseas registrarlo?`,
+                        showCancelButton: true,
+                        confirmButtonText: "Sí, registrar con sobregiro",
+                        cancelButtonText: "Cancelar",
+                        reverseButtons: true,
+                        heightAuto: false,
+                        scrollbarPadding: false,
+                      });
+                      accepted = !!result.isConfirmed;
+                    } else {
+                      accepted = window.confirm("El monto excede el saldo del grupo. ¿Deseas registrar el cobro con sobregiro?");
+                    }
+
+                    if (!accepted) return;
+
+                    registerPaymentAllowOverpayment.value = "1";
+                    registerPaymentForm.submit();
                   });
                 }
 
