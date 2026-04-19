@@ -1746,7 +1746,7 @@ class DebtsController < ApplicationController
         end
         .sort_by do |cliente, cliente_debts|
           latest_paid_at = cliente_debts.map { |debt| debt_last_payment_at_for_index(debt) }.compact.max
-          [latest_paid_at.present? ? 0 : 1, -(latest_paid_at&.to_i || 0), cliente&.name.to_s.downcase]
+          [latest_paid_at.present? ? 0 : 1, -sortable_time_value(latest_paid_at), cliente&.name.to_s.downcase]
         end
     else
       grouped.sort_by do |cliente, cliente_debts|
@@ -1766,7 +1766,16 @@ class DebtsController < ApplicationController
 
   def paid_recency_sort_key(debt)
     paid_at = debt_last_payment_at_for_index(debt)
-    [paid_at.present? ? 0 : 1, -(paid_at&.to_i || 0), -(debt.id.to_i)]
+    [paid_at.present? ? 0 : 1, -sortable_time_value(paid_at), -(debt.id.to_i)]
+  end
+
+  def sortable_time_value(value)
+    return 0 if value.blank?
+
+    return value.jd if value.is_a?(Date)
+    return value.to_i if value.respond_to?(:to_i)
+
+    value.to_time.to_i
   end
 
   def build_group_totals(groups)
