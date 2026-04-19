@@ -103,10 +103,12 @@
               <% grouped_by_currency = debts.group_by { |debt| debt.card_currency.to_s.upcase } %>
               <% grouped_by_currency.each do |currency, debts_in_currency| %>
                 <% is_usdt = currency.to_s.upcase == 'USDT' %>
+                <% is_cashea_cliente = current_user_admin? && cliente&.name.to_s.strip.casecmp('cashea').zero? %>
+                <% cashea_bg_style = is_cashea_cliente && @cashea_banner_url.present? ? "background-image: url('#{h(@cashea_banner_url)}'); background-size: cover; background-position: center;" : nil %>
                 <% group_key = [cliente.present? ? cliente.id : 'none', currency.to_s.upcase] %>
                 <% totals = @receivable_group_totals[group_key] || { display_total: 0.to_d, display_symbol: '$', badge_label: 'USD $', ves_total: 0.to_d } %>
                 <% grouped_debts_count = debts_in_currency.sum { |debt| debt.respond_to?(:card_debts_count) ? debt.card_debts_count.to_i : 1 } %>
-                <article class="rounded-2xl border border-cyan-200 bg-cyan-50/50 p-4 shadow-sm" data-debt-reveal="true">
+                <article class="rounded-2xl border <%= is_cashea_cliente ? 'border-cyan-300 bg-white/90' : 'border-cyan-200 bg-cyan-50/50' %> p-4 shadow-sm" data-debt-reveal="true" style="<%= cashea_bg_style %>">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <p class="text-xs font-semibold uppercase tracking-wider text-cyan-700">Cliente</p>

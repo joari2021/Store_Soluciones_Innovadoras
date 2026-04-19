@@ -48,6 +48,7 @@ class DebtsController < ApplicationController
       hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
     end
     @receivable_groups = build_cliente_groups(@receivable_debts, sort: :cliente_name_asc)
+    @receivable_groups = prioritize_cashea_group_first(@receivable_groups)
     @payable_groups = build_cliente_groups(@payable_debts)
     @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts, sort: :paid_recent_desc)
     @payable_paid_groups = build_cliente_groups(@payable_paid_debts)
@@ -76,6 +77,7 @@ class DebtsController < ApplicationController
     @search_paid_count = @receivable_paid_count + @payable_paid_count
     @group_setup_clientes = current_business.clientes.order(:name)
     @group_setup_currency_options = allowed_group_currency_codes
+    @cashea_banner_url = cashea_banner_url_for_admin
   end
 
   def hide_paid_group
@@ -1833,6 +1835,32 @@ class DebtsController < ApplicationController
         }
       end
     end
+  end
+
+  def prioritize_cashea_group_first(groups)
+    return groups unless current_user_admin?
+
+    cashea_groups, other_groups = Array(groups).partition do |cliente, _debts|
+      cliente&.name.to_s.strip.casecmp('cashea').zero?
+    end
+
+    sorted_others = other_groups.sort_by do |cliente, _debts|
+      [cliente.present? ? 0 : 1, cliente&.name.to_s.downcase]
+    end
+
+    cashea_groups + sorted_others
+  end
+
+  def cashea_banner_url_for_admin
+    return nil unless current_user_admin?
+
+    cashea_account = current_business.accounts.where(account_type: 'cashea').order(id: :desc).first
+    return nil if cashea_account.blank?
+    return nil unless cashea_account.payment_method_image.attached?
+
+    helpers.url_for(cashea_account.payment_method_image)
+  rescue StandardError
+    nil
   end
 
   def group_totals_key(cliente, currency)
