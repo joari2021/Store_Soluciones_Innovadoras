@@ -6857,7 +6857,7 @@
         });
       };
 
-      const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null) => {
+      const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null, casheaSale = null) => {
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
         applyBaseCurrencySelection(selectedBaseCurrency, { syncInputs: true, syncCart: true, render: false });
         const currentTotals = calculateCartTotals();
@@ -6985,10 +6985,19 @@
           };
         }
 
+        if (casheaSale && casheaSale.enabled) {
+          payload.cashea = {
+            enabled: true,
+            account_id: casheaSale.account_id,
+            initial_usd: casheaSale.initial_usd,
+            min_purchase_usd: casheaSale.min_purchase_usd,
+          };
+        }
+
         return payload;
       };
 
-      const submitVenta = async (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null) => {
+      const submitVenta = async (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null, casheaSale = null) => {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         if (!csrfToken) {
           if (window.Swal) {
@@ -7002,7 +7011,7 @@
           return;
         }
 
-        const payload = buildVentaPayload(payments, change, creditSale, forcedBaseCurrency, checkoutDiscount);
+        const payload = buildVentaPayload(payments, change, creditSale, forcedBaseCurrency, checkoutDiscount, casheaSale);
 
         if (window.Swal) {
           window.Swal.fire({
@@ -7349,7 +7358,101 @@
             return;
           }
 
-          const paymentAccounts = accounts.filter((account) => !normalizeServiceName(account?.name).includes('payall'));
+          const allPaymentAccounts = accounts.filter((account) => !normalizeServiceName(account?.name).includes('payall'));
+          const totalUsd = convertAmount(totalBase, baseCurrencyCode, 'USD');
+          const casheaAccount = allPaymentAccounts.find((account) => String(account.account_type || '').toLowerCase() === 'cashea');
+          const casheaMinPurchaseUsd = Number(casheaAccount?.cashea_min_purchase_usd || 0);
+          const canOfferCashea = casheaAccount
+            && Number.isFinite(totalUsd)
+            && totalUsd > 0
+            && totalUsd >= casheaMinPurchaseUsd
+            && casheaMinPurchaseUsd > 0;
+
+          let selectedCasheaContext = null;
+          if (canOfferCashea) {
+            const casheaQuestion = await window.Swal.fire({
+              icon: 'question',
+              title: 'Compra elegible para Cashea',
+              html: `
+                <p class="text-sm text-slate-600">La venta alcanza la compra minima de Cashea.</p>
+                <p class="mt-1 text-sm text-slate-600">Minimo: <strong>$ ${formatNumber(casheaMinPurchaseUsd, 2)}</strong></p>
+                <p class="mt-1 text-sm text-slate-600">Total venta: <strong>$ ${formatNumber(totalUsd, 2)}</strong></p>
+                <p class="mt-2 text-sm text-slate-600">¿Deseas procesar esta venta con Cashea?</p>
+              `,
+              showCancelButton: true,
+              confirmButtonText: 'Si, usar Cashea',
+              cancelButtonText: 'No',
+              reverseButtons: true,
+              heightAuto: false,
+            });
+
+            if (casheaQuestion.isConfirmed) {
+              const askInitialResult = await window.Swal.fire({
+                title: 'Inicial Cashea',
+                html: `
+                  <div class="space-y-2 text-left">
+                    <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto inicial (USD)</label>
+                    <input id="cashea-initial-usd" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" />
+                    <p id="cashea-initial-bs" class="text-xs font-semibold text-slate-500">Equivalente Bs: ${formatMoney(0, 'Bs')}</p>
+                  </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Continuar al cobro',
+                cancelButtonText: 'Cancelar',
+                focusConfirm: false,
+                heightAuto: false,
+                didOpen: () => {
+                  const dialog = window.Swal.getHtmlContainer();
+                  if (!dialog) return;
+
+                  const usdInput = dialog.querySelector('#cashea-initial-usd');
+                  const bsLabel = dialog.querySelector('#cashea-initial-bs');
+                  const updateBs = () => {
+                    const usdValue = parseMoneyInput(usdInput);
+                    const bsValue = bcvRate > 0 ? roundTo(usdValue * bcvRate, 2) : 0;
+                    bsLabel.textContent = `Equivalente Bs: ${formatMoney(bsValue, 'Bs')}`;
+                  };
+
+                  usdInput?.addEventListener('input', updateBs);
+                  usdInput?.addEventListener('blur', updateBs);
+                  updateBs();
+                },
+                preConfirm: () => {
+                  const dialog = window.Swal.getHtmlContainer();
+                  const usdInput = dialog?.querySelector('#cashea-initial-usd');
+                  const initialUsd = roundTo(parseMoneyInput(usdInput), 2);
+
+                  if (!initialUsd || initialUsd <= 0) {
+                    window.Swal.showValidationMessage('Debes indicar un monto inicial mayor a 0.');
+                    return null;
+                  }
+
+                  if (!Number.isFinite(totalUsd) || totalUsd <= 0) {
+                    window.Swal.showValidationMessage('No se pudo calcular el total en USD para Cashea.');
+                    return null;
+                  }
+
+                  if (initialUsd > totalUsd) {
+                    window.Swal.showValidationMessage(`El inicial no puede superar el total de la venta ($ ${formatNumber(totalUsd, 2)}).`);
+                    return null;
+                  }
+
+                  return { initialUsd };
+                },
+              });
+
+              if (!askInitialResult.isConfirmed) return;
+
+              selectedCasheaContext = {
+                enabled: true,
+                account_id: casheaAccount.id,
+                initial_usd: askInitialResult.value.initialUsd,
+                min_purchase_usd: casheaMinPurchaseUsd,
+              };
+            }
+          }
+
+          const paymentAccounts = allPaymentAccounts.filter((account) => String(account.account_type || '').toLowerCase() !== 'cashea');
           const orderedAccounts = orderAccountsForPaymentModal(paymentAccounts);
           const specialAccounts = orderedAccounts.filter((account) => isSpecialAccount(account));
           const bankAccounts = orderedAccounts.filter((account) => account.is_bank);
@@ -7686,15 +7789,27 @@
 
           const changeRowsHtml = orderedAccountsForChange.map((account) => buildChangeRow(account)).join('');
           const vatLabel = vatMode === 'none' ? 'Sin IVA' : (vatMode === 'add' ? 'IVA agregado' : 'IVA invertido');
+          const casheaInitialBase = selectedCasheaContext
+            ? convertAmount(selectedCasheaContext.initial_usd, 'USD', baseCurrencyCode)
+            : null;
+          const modalTotalBase = selectedCasheaContext && Number.isFinite(casheaInitialBase)
+            ? roundTo(casheaInitialBase, 2)
+            : totalBase;
+          const casheaInfoHtml = selectedCasheaContext
+            ? `<div class="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
+                Cobro Cashea activo. Este modal registra solo el inicial: <strong>${formatBaseMoney(modalTotalBase)}</strong>.
+                <br/>Las cuotas pendientes se generaran automaticamente al registrar la venta.
+              </div>`
+            : '';
 
           const paymentHtml = `
             <div class="space-y-4 text-left">
               <div class="rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-4 shadow-sm">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total a cobrar</p>
-                    <p class="mt-1 text-2xl font-extrabold text-slate-800">${formatBaseMoney(totalBase)}</p>
-                    <p class="text-xs font-semibold text-slate-500">${formatAltFromBase(totalBase)}</p>
+                    <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">${selectedCasheaContext ? 'Inicial a cobrar' : 'Total a cobrar'}</p>
+                    <p class="mt-1 text-2xl font-extrabold text-slate-800">${formatBaseMoney(modalTotalBase)}</p>
+                    <p class="text-xs font-semibold text-slate-500">${formatAltFromBase(modalTotalBase)}</p>
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
                     <span class="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100">Base ${escapeHtml(baseCurrencyCode)}</span>
@@ -7706,6 +7821,7 @@
                   <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Exento: <span class="font-semibold text-slate-700">${formatBaseMoney(exentoBase)}</span></div>
                   <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">IVA: <span class="font-semibold text-slate-700">${formatBaseMoney(vatBase)}</span></div>
                 </div>
+                ${casheaInfoHtml}
               </div>
               <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
                 <div class="flex items-center justify-between gap-2">
@@ -7713,7 +7829,7 @@
                   <span class="text-[11px] font-semibold text-slate-500">Selecciona cuenta y monto</span>
                 </div>
                 <div class="mt-3 space-y-2">${paymentRowsHtml}</div>
-                <div class="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3" data-discount-panel>
+                ${selectedCasheaContext ? '' : `<div class="mt-3 rounded-xl border border-rose-200 bg-rose-50/70 p-3" data-discount-panel>
                   <div class="flex items-center justify-between gap-2">
                     <p class="text-xs font-semibold uppercase tracking-wide text-rose-700">Descuento en cobro</p>
                     <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-rose-700">
@@ -7729,9 +7845,9 @@
                       <option value="oferta_por_compra">Oferta por compra</option>
                     </select>
                   </div>
-                </div>
+                </div>`}
               </div>
-              <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 space-y-3">
+              ${selectedCasheaContext ? '' : `<div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 space-y-3">
                 <div class="flex items-center justify-between gap-2">
                   <span class="text-sm font-semibold text-emerald-700">Saldo a credito (opcional)</span>
                   <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold text-emerald-700">
@@ -7744,7 +7860,7 @@
                   <label class="block text-xs font-semibold uppercase tracking-wide text-emerald-700">Vence (opcional)</label>
                   <input type="text" class="ventas-payment-modal-field js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-transparent bg-white px-3 py-2 text-sm text-slate-700" placeholder="dd-mm-aaaa" data-credit-due-on disabled>
                 </div>
-              </div>
+              </div>`}
               <div id="ventas-change-section" class="hidden rounded-2xl border border-amber-200 bg-amber-50/70 p-3.5 space-y-3">
                 <div class="flex items-center justify-between">
                   <span class="text-sm font-semibold text-amber-700">Vuelto (opcional)</span>
@@ -8620,16 +8736,17 @@
                 const modalState = capturePaymentModalState(dialog);
                 const creditToggle = dialog.querySelector('[data-credit-toggle]');
                 const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
-                const creditEnabled = Boolean(creditToggle?.checked);
+                const casheaEnabled = Boolean(selectedCasheaContext?.enabled);
+                const creditEnabled = casheaEnabled ? false : Boolean(creditToggle?.checked);
                 const creditDueOn = String(creditDueOnInput?.value || '').trim();
                 const normalizedCreditDueOn = creditDueOn ? normalizePaymentDateInput(creditDueOn) : null;
                 const discountToggle = dialog.querySelector('[data-discount-toggle]');
                 const discountAmountInput = dialog.querySelector('[data-discount-amount]');
                 const discountReasonSelect = dialog.querySelector('[data-discount-reason]');
-                const discountEnabled = Boolean(discountToggle?.checked);
+                const discountEnabled = casheaEnabled ? false : Boolean(discountToggle?.checked);
                 const rawDiscountAmount = parseMoneyInput(discountAmountInput);
                 const sanitizedDiscountBase = discountEnabled
-                  ? roundTo(Math.min(Math.max(rawDiscountAmount, 0), totalBase), 2)
+                  ? roundTo(Math.min(Math.max(rawDiscountAmount, 0), modalTotalBase), 2)
                   : 0;
                 const discountReason = String(discountReasonSelect?.value || '').trim();
                 let paidBase = 0;
@@ -8768,6 +8885,16 @@
                   return null;
                 }
 
+                if (casheaEnabled && !selectedClient?.id) {
+                  window.Swal.showValidationMessage('Debes seleccionar un cliente para procesar una venta con Cashea.');
+                  return null;
+                }
+
+                if (casheaEnabled && String(selectedClient?.phone || '').trim().length === 0) {
+                  window.Swal.showValidationMessage('El cliente debe tener telefono para registrar cuotas Cashea.');
+                  return null;
+                }
+
                 if (creditEnabled && creditDueOn && !normalizedCreditDueOn) {
                   window.Swal.showValidationMessage('La fecha de vencimiento del credito es invalida.');
                   return null;
@@ -8778,7 +8905,7 @@
                   return null;
                 }
 
-                if (discountEnabled && sanitizedDiscountBase > totalBase) {
+                if (discountEnabled && sanitizedDiscountBase > modalTotalBase) {
                   window.Swal.showValidationMessage('El descuento no puede superar el total de la venta.');
                   return null;
                 }
@@ -8788,7 +8915,7 @@
                   return null;
                 }
 
-                const effectiveTotalBase = roundTo(Math.max(totalBase - sanitizedDiscountBase, 0), 2);
+                const effectiveTotalBase = roundTo(Math.max(modalTotalBase - sanitizedDiscountBase, 0), 2);
                 let remaining = roundTo(effectiveTotalBase - paidBase, 2);
                 if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
                 const creditCoversPendingBalance = creditEnabled && remaining > paymentTolerance;
@@ -8893,12 +9020,18 @@
                     enabled: creditCoversPendingBalance,
                     due_on: creditCoversPendingBalance ? (normalizedCreditDueOn?.iso || '') : '',
                   },
+                  cashea: {
+                    enabled: casheaEnabled,
+                    account_id: casheaEnabled ? selectedCasheaContext.account_id : null,
+                    initial_usd: casheaEnabled ? selectedCasheaContext.initial_usd : 0,
+                    min_purchase_usd: casheaEnabled ? selectedCasheaContext.min_purchase_usd : 0,
+                  },
                   checkout_discount: {
                     enabled: discountEnabled && sanitizedDiscountBase > 0,
                     amount: sanitizedDiscountBase,
                     reason: discountReason,
                   },
-                  totalBase,
+                  totalBase: effectiveTotalBase,
                   suggestedChangeBase,
                   hasPendingSuggestedChange: suggestedChangeBase > paymentTolerance && changeEntries.length === 0,
                   modalState,
@@ -8983,7 +9116,8 @@
                 payload.change || [],
                 payload.credit_sale || null,
                 checkoutBaseCurrency,
-                payload.checkout_discount || null
+                payload.checkout_discount || null,
+                payload.cashea || null
               );
             });
           };

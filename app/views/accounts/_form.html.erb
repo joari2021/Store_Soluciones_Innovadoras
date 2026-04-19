@@ -95,6 +95,22 @@
                                data: { cashea_cotidiana_installments: true } %>
             <p class="mt-1 text-xs text-slate-500">Para linea principal se usa fijo inicial + 3 cuotas.</p>
           </div>
+          <div>
+            <%= f.label :cashea_min_purchase_usd, 'Compra minima USD', class: 'block text-sm font-medium text-slate-700' %>
+            <%= f.hidden_field :cashea_min_purchase_usd, data: { cashea_min_purchase_hidden: true } %>
+            <input
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              data-money-mask="true"
+              data-money-symbol="$"
+              data-cashea-min-purchase-masked="true"
+              value="<%= number_with_precision(account.cashea_min_purchase_usd.to_d, precision: 2, delimiter: '.', separator: ',') %>"
+              placeholder="$ 0,00"
+              class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">Si la venta en USD alcanza este monto, se preguntara por Cashea al cobrar.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -206,6 +222,8 @@
       const casheaConfigField = document.getElementById('cashea-config-field');
       const casheaLineModeSelect = form.querySelector('[data-cashea-line-mode="true"]');
       const casheaCoutasInput = form.querySelector('[data-cashea-cotidiana-installments="true"]');
+      const casheaMinPurchaseHidden = form.querySelector('[data-cashea-min-purchase-hidden="true"]');
+      const casheaMinPurchaseMasked = form.querySelector('[data-cashea-min-purchase-masked="true"]');
       const typeBadge = document.getElementById('account-preview-type-badge');
       const currencyBadge = document.getElementById('account-preview-currency-badge');
       const typeIconEl = document.getElementById('account-preview-type-icon');
@@ -250,6 +268,18 @@
         if (isPrincipal) casheaCoutasInput.value = '3';
       };
 
+      const parseMoney = (value) => {
+        const sanitized = String(value || '').replace(/[^\d,.-]/g, '').replace(',', '.');
+        const parsed = Number.parseFloat(sanitized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const syncCasheaMinPurchase = () => {
+        if (!casheaMinPurchaseHidden || !casheaMinPurchaseMasked) return;
+        const parsed = parseMoney(casheaMinPurchaseMasked.value);
+        casheaMinPurchaseHidden.value = parsed > 0 ? parsed.toFixed(2) : '0';
+      };
+
       const refreshPreview = () => {
         const selectedType = typeSelect.value;
         const selectedCurrency = currencySelect.value;
@@ -277,11 +307,17 @@
       if (casheaLineModeSelect) {
         casheaLineModeSelect.addEventListener('change', refreshCasheaConfig);
       }
+      if (casheaMinPurchaseMasked) {
+        casheaMinPurchaseMasked.addEventListener('input', syncCasheaMinPurchase);
+        casheaMinPurchaseMasked.addEventListener('blur', syncCasheaMinPurchase);
+      }
+      form.addEventListener('submit', syncCasheaMinPurchase);
       currencySelect.addEventListener('change', refreshPreview);
       colorSelect.addEventListener('change', refreshPreview);
       refreshPreview();
       refreshCashRole();
       refreshCasheaConfig();
+      syncCasheaMinPurchase();
     };
 
     if (!window.__accountFormPreviewListenersBound) {

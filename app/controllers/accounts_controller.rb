@@ -634,6 +634,7 @@ class AccountsController < ApplicationController
       :cash_role,
       :cashea_line_mode,
       :cashea_cotidiana_installments,
+      :cashea_min_purchase_usd,
       :theme_color,
       :active,
       :settlement_account_id,
