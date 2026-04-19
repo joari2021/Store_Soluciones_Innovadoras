@@ -72,6 +72,32 @@
                    class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
       <p class="mt-1 text-xs text-slate-500">Solo aplica para cuentas tipo Caja.</p>
     </div>
+    <% cashea_visible = account.account_type == 'cashea' %>
+    <div id="cashea-config-field" class="col-span-2" style="<%= 'display: none;' unless cashea_visible %>">
+      <div class="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+        <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Configuracion Cashea</p>
+        <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <%= f.label :cashea_line_mode, 'Linea asignada', class: 'block text-sm font-medium text-slate-700' %>
+            <%= f.select :cashea_line_mode,
+                         options_for_select(Account::CASHEA_LINE_MODES.map { |key, label| [label, key] }, account.cashea_line_mode),
+                         {},
+                         class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                         data: { cashea_line_mode: true } %>
+          </div>
+          <div>
+            <%= f.label :cashea_cotidiana_installments, 'Cuotas (linea cotidiana)', class: 'block text-sm font-medium text-slate-700' %>
+            <%= f.number_field :cashea_cotidiana_installments,
+                               min: 1,
+                               max: 24,
+                               step: 1,
+                               class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                               data: { cashea_cotidiana_installments: true } %>
+            <p class="mt-1 text-xs text-slate-500">Para linea principal se usa fijo inicial + 3 cuotas.</p>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="col-span-2 md:col-span-1">
       <%= f.label :currency, 'Moneda', class: 'block text-sm font-medium text-slate-700' %>
       <% if account.settlement_enabled? %>
@@ -177,6 +203,9 @@
       const previewCard = document.getElementById('account-preview-card');
       const cashRoleField = document.getElementById('cash-role-field');
       const cashRoleSelect = form.querySelector('#account_cash_role');
+      const casheaConfigField = document.getElementById('cashea-config-field');
+      const casheaLineModeSelect = form.querySelector('[data-cashea-line-mode="true"]');
+      const casheaCoutasInput = form.querySelector('[data-cashea-cotidiana-installments="true"]');
       const typeBadge = document.getElementById('account-preview-type-badge');
       const currencyBadge = document.getElementById('account-preview-currency-badge');
       const typeIconEl = document.getElementById('account-preview-type-icon');
@@ -207,6 +236,20 @@
         }
       };
 
+      const refreshCasheaConfig = () => {
+        if (!casheaConfigField || !typeSelect) return;
+
+        const isCashea = typeSelect.value === 'cashea';
+        casheaConfigField.style.display = isCashea ? '' : 'none';
+
+        if (!isCashea) return;
+        if (!casheaLineModeSelect || !casheaCoutasInput) return;
+
+        const isPrincipal = casheaLineModeSelect.value === 'principal';
+        casheaCoutasInput.readOnly = isPrincipal;
+        if (isPrincipal) casheaCoutasInput.value = '3';
+      };
+
       const refreshPreview = () => {
         const selectedType = typeSelect.value;
         const selectedCurrency = currencySelect.value;
@@ -230,10 +273,15 @@
 
       typeSelect.addEventListener('change', refreshPreview);
       typeSelect.addEventListener('change', refreshCashRole);
+      typeSelect.addEventListener('change', refreshCasheaConfig);
+      if (casheaLineModeSelect) {
+        casheaLineModeSelect.addEventListener('change', refreshCasheaConfig);
+      }
       currencySelect.addEventListener('change', refreshPreview);
       colorSelect.addEventListener('change', refreshPreview);
       refreshPreview();
       refreshCashRole();
+      refreshCasheaConfig();
     };
 
     if (!window.__accountFormPreviewListenersBound) {

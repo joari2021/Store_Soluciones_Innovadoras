@@ -65,6 +65,8 @@ class VentasController < ApplicationController
         balance: account.balance.to_d.to_f,
         is_bank: account.account_type == "bank_account",
         is_primary: account.is_primary,
+        cashea_line_mode: account.cashea_line_mode,
+        cashea_cotidiana_installments: account.cashea_cotidiana_installments,
         payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
         small_logo_url: (url_for(account.small_logo) if account.small_logo.attached?),
         logo_url: (url_for(account.logo) if account.logo.attached?),
@@ -677,6 +679,7 @@ class VentasController < ApplicationController
     return render json: { error: service_cost_error }, status: :unprocessable_entity if service_cost_error.present?
 
     payment_rows = []
+    cashea_accounts_selected = []
     bank_payment_keys_in_request = {}
     payments.each do |payment|
       raw_amount = parse_decimal(payment[:amount], default: 0)
@@ -759,6 +762,7 @@ class VentasController < ApplicationController
 
       payment_rows << {
         account_id: account&.id,
+        account_type: account.account_type,
         payment_method: method,
         amount_usd: amount_usd,
         amount_original: raw_amount,
@@ -767,6 +771,7 @@ class VentasController < ApplicationController
         payment_date: payment_date,
         payment_kind: "in",
       }
+      cashea_accounts_selected << account if account.cashea_account?
     end
 
     change_rows = []
@@ -863,7 +868,10 @@ class VentasController < ApplicationController
 
     remaining_credit_amount = delta < -tolerance ? delta.abs.round(2) : 0.to_d
 
-    if remaining_credit_amount.positive? && !credit_sale[:enabled]
+    selected_cashea_account = cashea_accounts_selected.first
+    cashea_financing_enabled = remaining_credit_amount.positive? && selected_cashea_account.present?
+
+    if remaining_credit_amount.positive? && !credit_sale[:enabled] && !cashea_financing_enabled
       return render json: { error: "Falta por cancelar #{remaining_credit_amount} #{comparison_currency}." },
                     status: :unprocessable_entity
     end
@@ -1020,12 +1028,21 @@ class VentasController < ApplicationController
             raise ActiveRecord::RecordInvalid.new(venta)
           end
 
-          create_receivable_debt_for_sale!(
-            venta: venta,
-            amount: debt_amount_usd,
-            currency: "USD",
-            due_on: credit_sale_due_on,
-          )
+          if cashea_financing_enabled
+            create_cashea_receivable_installments_for_sale!(
+              venta: venta,
+              account: selected_cashea_account,
+              total_amount_usd: debt_amount_usd,
+              first_due_on: credit_sale_due_on,
+            )
+          else
+            create_receivable_debt_for_sale!(
+              venta: venta,
+              amount: debt_amount_usd,
+              currency: "USD",
+              due_on: credit_sale_due_on,
+            )
+          end
         end
       end
     rescue ActiveRecord::RecordInvalid => e
@@ -3812,6 +3829,55 @@ class VentasController < ApplicationController
       enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
       due_on: due_on_value.to_s.strip.presence,
     }
+  end
+
+  def default_first_due_on_for_cashea(account)
+    today = Time.use_zone("America/Caracas") { Time.zone.today }
+    return today + 30.days if account&.cashea_line_mode.to_s == 'principal'
+
+    today + 15.days
+  end
+
+  def create_cashea_receivable_installments_for_sale!(venta:, account:, total_amount_usd:, first_due_on: nil)
+    installments = account&.cashea_installments_count.to_i
+    installments = 1 if installments <= 0
+
+    due_on = first_due_on || default_first_due_on_for_cashea(account)
+    due_on = Time.use_zone("America/Caracas") { Time.zone.today } if due_on.blank?
+
+    group_token = sale_debt_group_token_for(cliente_id: venta.cliente_id, currency: 'USD')
+    installment_amounts = split_amount_into_installments(total_amount_usd.to_d, installments)
+
+    installment_amounts.each_with_index do |installment_amount, index|
+      installment_number = index + 1
+      installment_due_on = due_on >> index
+
+      debt_attrs = {
+        name: "Cuota Cashea #{installment_number}/#{installments} venta ##{venta.id}",
+        description: "Cuota Cashea #{installment_number}/#{installments} pendiente venta ##{venta.id} [VENTA:#{venta.id}]",
+        debt_kind: 'receivable',
+        amount: installment_amount,
+        currency: 'USD',
+        issued_on: Time.use_zone("America/Caracas") { Time.zone.today },
+        due_on: installment_due_on,
+        cliente: venta.cliente,
+        venta: venta,
+      }
+      debt_attrs[:group_token] = group_token if Debt.column_names.include?('group_token')
+
+      current_business.debts.create!(debt_attrs)
+    end
+  end
+
+  def split_amount_into_installments(total, installments)
+    normalized_total = total.to_d.round(2)
+    return [normalized_total] if installments <= 1
+
+    base_amount = (normalized_total / installments).round(2)
+    values = Array.new(installments, base_amount)
+    delta = (normalized_total - values.sum).round(2)
+    values[-1] = (values[-1] + delta).round(2)
+    values
   end
 
   def normalize_checkout_discount_payload(raw_payload)

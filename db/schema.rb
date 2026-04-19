@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_17_195000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_19_161000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -69,6 +69,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_17_195000) do
     t.bigint "settlement_account_id"
     t.string "shared_key", null: false
     t.string "cash_role"
+    t.string "cashea_line_mode", default: "cotidiana", null: false
+    t.integer "cashea_cotidiana_installments", default: 1, null: false
     t.index ["account_type"], name: "index_accounts_on_account_type"
     t.index ["active"], name: "index_accounts_on_active"
     t.index ["business_id"], name: "index_accounts_on_business_id"

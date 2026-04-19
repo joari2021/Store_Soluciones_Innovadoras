@@ -23,6 +23,10 @@ class Account < ApplicationRecord
     'cash_deposit' => 'Deposito'
   }.freeze
   SETTLEMENT_REQUIRED_TYPES = %w[biopago pos].freeze
+  CASHEA_LINE_MODES = {
+    'cotidiana' => 'Linea cotidiana',
+    'principal' => 'Linea principal (inicial + 3 cuotas)'
+  }.freeze
   SPECIAL_ACCOUNT_DEFAULTS = {
     'biopago' => { name: 'Biopago', currency: 'VES', theme_color: 'emerald' },
     'pos' => { name: 'Punto de venta', currency: 'VES', theme_color: 'sky' },
@@ -96,11 +100,14 @@ class Account < ApplicationRecord
   validates :currency, presence: true, inclusion: { in: CURRENCIES.keys }
   validates :theme_color, presence: true, inclusion: { in: COLOR_THEMES.keys }
   validates :balance, presence: true, numericality: true
+  validates :cashea_line_mode, inclusion: { in: CASHEA_LINE_MODES.keys }
+  validates :cashea_cotidiana_installments, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 24 }
   validates :shared_key, presence: true
   validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true, if: :supports_cash_role?
   validate :primary_requires_bank_account
   validate :settlement_account_rules
   validate :settlement_currency_rules
+  validate :cashea_configuration_rules
   validate :validate_logo_attachment
   validate :validate_small_logo_attachment
   validate :validate_payment_method_image_attachment
@@ -298,6 +305,21 @@ class Account < ApplicationRecord
     SPECIAL_ACCOUNT_TYPES.include?(account_type)
   end
 
+  def cashea_account?
+    account_type == 'cashea'
+  end
+
+  def cashea_line_mode_label
+    CASHEA_LINE_MODES[cashea_line_mode.to_s] || cashea_line_mode.to_s.humanize
+  end
+
+  def cashea_installments_count
+    return 3 if cashea_line_mode.to_s == 'principal'
+
+    count = cashea_cotidiana_installments.to_i
+    count.positive? ? count : 1
+  end
+
   def cash_box_account?
     account_type == 'cash_box'
   end
@@ -363,6 +385,11 @@ class Account < ApplicationRecord
     defaults = SPECIAL_ACCOUNT_DEFAULTS[account_type]
     self.name = defaults[:name] if name.blank? && defaults
     self.theme_color = defaults[:theme_color] if theme_color.blank? && defaults
+
+    return unless cashea_account?
+
+    self.cashea_line_mode = 'cotidiana' if cashea_line_mode.blank?
+    self.cashea_cotidiana_installments = 1 if cashea_cotidiana_installments.to_i <= 0
   end
 
   def clear_primary_for_non_bank
@@ -426,6 +453,18 @@ class Account < ApplicationRecord
     return if currency == 'VES'
 
     errors.add(:currency, 'debe ser Bs para esta cuenta')
+  end
+
+  def cashea_configuration_rules
+    return unless cashea_account?
+
+    unless CASHEA_LINE_MODES.key?(cashea_line_mode.to_s)
+      errors.add(:cashea_line_mode, 'no es valido para Cashea')
+    end
+
+    return unless cashea_line_mode.to_s == 'principal'
+
+    self.cashea_cotidiana_installments = 3 if will_save_change_to_cashea_line_mode?
   end
 
   def validate_logo_attachment
