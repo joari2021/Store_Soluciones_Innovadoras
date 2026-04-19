@@ -807,12 +807,14 @@
 
         const productRules = {};
         Object.entries(productRulesRaw).forEach(([key, rule]) => {
+          const normalizedKey = String(key || '').trim();
+          if (!normalizedKey || normalizedKey === 'null' || normalizedKey === 'undefined') return;
           if (!rule || typeof rule !== 'object') return;
           const mode = String(rule.mode || '').trim().toLowerCase();
           const value = Number(rule.value);
           if (!['fixed', 'percent'].includes(mode)) return;
           if (!(Number.isFinite(value) && value > 0)) return;
-          productRules[String(key)] = {
+          productRules[normalizedKey] = {
             mode,
             value: mode === 'percent' ? Math.max(0, Math.min(100, value)) : value,
           };
@@ -820,9 +822,11 @@
 
         const serviceFixedPrices = {};
         Object.entries(servicePricesRaw).forEach(([key, value]) => {
+          const normalizedKey = String(key || '').trim();
+          if (!normalizedKey || normalizedKey === 'null' || normalizedKey === 'undefined') return;
           const numeric = Number(value);
           if (!(Number.isFinite(numeric) && numeric > 0)) return;
-          serviceFixedPrices[String(key)] = numeric;
+          serviceFixedPrices[normalizedKey] = numeric;
         });
 
         const generalDiscount = Number(source.general_product_discount_percent);
