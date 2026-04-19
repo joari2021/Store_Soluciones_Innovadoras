@@ -115,7 +115,25 @@
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
-                      <p class="text-base font-bold text-emerald-600"><%= grouped_debts_count %></p>
+                      <div class="mt-0.5 inline-flex items-center gap-2">
+                        <p class="text-base font-bold text-emerald-600"><%= grouped_debts_count %></p>
+                        <% if current_user_admin? %>
+                          <% delete_group_params = {
+                               group_currency: currency,
+                               group_cliente_id: cliente.present? ? cliente.id : 'none',
+                               only_active: 1,
+                               group_token: debts_in_currency.first.try(:group_token),
+                               delete_scope: 'group'
+                             } %>
+                          <%= link_to debt_path(debts_in_currency.first, delete_group_params),
+                                      class: "inline-flex cursor-pointer items-center justify-center rounded-lg border border-red-200 bg-red-50 p-1.5 text-red-600 hover:bg-red-100",
+                                      title: "Eliminar grupo de deudas",
+                                      aria: { label: "Eliminar grupo de deudas" },
+                                      data: { turbo_method: :delete, swal_delete: 'debt' } do %>
+                            <i data-lucide="trash" class="h-3.5 w-3.5"></i>
+                          <% end %>
+                        <% end %>
+                      </div>
                       <p class="text-[11px] text-slate-500">Moneda: <%= currency %></p>
                       <p class="text-[11px] text-slate-500">Actualizado: <%= debts_in_currency.first.card_last_activity_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') || '-' %></p>
                     </div>
