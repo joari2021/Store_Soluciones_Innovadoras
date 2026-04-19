@@ -49,7 +49,7 @@ class BusinessesController < ApplicationController
   def select
     session[:business_id] = @business.id
     Current.business = @business if Current.is_a?(Class) && Current.respond_to?(:business=)
-    redirect_back fallback_location: root_path, notice: "Negocio seleccionado: #{@business.name}."
+    redirect_to dashboard_path, notice: "Negocio seleccionado: #{@business.name}."
   end
 
   private
