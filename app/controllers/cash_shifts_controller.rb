@@ -267,7 +267,9 @@ class CashShiftsController < ApplicationController
           message: notice_message,
           cash_shift_id: @cash_shift.id,
           open: @cash_shift.open?,
-          active_cashier: active_cashier_payload(@cash_shift)
+          active_cashier: active_cashier_payload(@cash_shift),
+          can_charge_sale: current_user_can_charge_sale_for_shift?(@cash_shift),
+          can_view_all_drafts: current_user_can_view_all_drafts_for_shift?(@cash_shift)
         }, status: :ok
       end
     end
@@ -286,6 +288,8 @@ class CashShiftsController < ApplicationController
       cash_shift_id: @cash_shift.id,
       open: @cash_shift.open?,
       active_cashier: active_cashier_payload(@cash_shift),
+      can_charge_sale: current_user_can_charge_sale_for_shift?(@cash_shift),
+      can_view_all_drafts: current_user_can_view_all_drafts_for_shift?(@cash_shift),
       updated_at: @cash_shift.updated_at&.to_i
     }, status: :ok
   end
@@ -311,6 +315,20 @@ class CashShiftsController < ApplicationController
       role_key: cashier.role_key,
       female: cashier.female?,
     }
+  end
+
+  def current_user_can_charge_sale_for_shift?(cash_shift)
+    return true if current_user_admin?
+    return false unless cash_shift&.open?
+
+    cash_shift.active_cashier_id.present? && cash_shift.active_cashier_id == Current.user&.id
+  end
+
+  def current_user_can_view_all_drafts_for_shift?(cash_shift)
+    return true if current_user_admin?
+    return false unless cash_shift&.open?
+
+    cash_shift.active_cashier_id.present? && cash_shift.active_cashier_id == Current.user&.id
   end
 
   def ensure_can_view_cash_shift!

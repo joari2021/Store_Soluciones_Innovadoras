@@ -28,7 +28,9 @@ class VentasController < ApplicationController
                                 .where(active: true)
                                 .where.not(account_type: "cash_box", cash_role: "cash_deposit")
                                 .order(:name)
-    @open_cash_shift = current_business.cash_shifts.open.includes(:opened_by).first
+    @open_cash_shift = current_open_shift_for_sales || current_business.cash_shifts.open.includes(:opened_by, :active_cashier).first
+    @active_cashier = @open_cash_shift&.active_cashier
+    @can_charge_sale = current_user_can_charge_sale_realtime?
     @last_closed_cash_shift = current_business.cash_shifts.closed.first
     @open_shift_balance_checks_payload = open_shift_balance_checks_payload
 
@@ -160,13 +162,20 @@ class VentasController < ApplicationController
   end
 
   def drafts
-    render json: { drafts: drafts_payload }
+    render json: {
+      drafts: drafts_payload,
+      can_view_all_drafts: current_user_can_view_all_drafts?,
+      can_charge_sale: current_user_can_charge_sale_realtime?,
+    }
   end
 
   def products_snapshot
     render json: {
       products: products_payload_for_business,
       drafts: drafts_payload,
+      can_view_all_drafts: current_user_can_view_all_drafts?,
+      can_charge_sale: current_user_can_charge_sale_realtime?,
+      active_cashier: active_cashier_payload_for_sales,
       generated_at: Time.current.to_i,
     }
   end
@@ -222,9 +231,7 @@ class VentasController < ApplicationController
   end
 
   def borradores
-    @drafts = current_business
-      .ventas
-      .where(status: "draft")
+    @drafts = draft_scope_for_current_user
       .includes(:cliente, :user, :venta_items)
       .order(updated_at: :desc)
   end
@@ -375,8 +382,9 @@ class VentasController < ApplicationController
     draft_id = payload[:draft_id].presence
     source_draft = nil
     if draft_id
-      source_draft = current_business.ventas.where(status: "draft").includes(:venta_items,
-                                                                             :cliente).find_by(id: draft_id)
+      source_draft = draft_scope_for_current_user
+        .includes(:venta_items, :cliente)
+        .find_by(id: draft_id)
       unless source_draft
         return render json: { error: "No se encontro el borrador seleccionado." },
                       status: :unprocessable_entity
@@ -1051,9 +1059,7 @@ class VentasController < ApplicationController
   end
 
   def set_draft_venta
-    @draft_venta = current_business
-      .ventas
-      .where(status: "draft")
+    @draft_venta = draft_scope_for_current_user
       .includes(:cliente, :venta_items)
       .find_by(id: params[:id])
 
@@ -1499,8 +1505,9 @@ class VentasController < ApplicationController
 
     draft = existing_draft
     if draft.nil? && payload[:draft_id].present?
-      draft = current_business.ventas.where(status: "draft").includes(:cliente,
-                                                                      :venta_items).find_by(id: payload[:draft_id])
+      draft = draft_scope_for_current_user
+        .includes(:cliente, :venta_items)
+        .find_by(id: payload[:draft_id])
       unless draft
         return render json: { error: "No se encontro el borrador a actualizar." },
                       status: :unprocessable_entity
@@ -2020,14 +2027,59 @@ class VentasController < ApplicationController
   end
 
   def drafts_payload
-    current_business
-      .ventas
-      .where(status: "draft")
+    draft_scope_for_current_user
       .includes(:cliente, :venta_items)
       .order(updated_at: :desc)
       .limit(120)
       .first(40)
       .map { |draft| draft_summary_payload(draft) }
+  end
+
+  def draft_scope_for_current_user
+    scope = current_business.ventas.where(status: "draft")
+    return scope if current_user_can_view_all_drafts?
+
+    scope.where(user_id: Current.user&.id)
+  end
+
+  def current_user_can_view_all_drafts?
+    return true if current_user_admin?
+
+    active_cashier_id = current_open_shift_active_cashier_id
+    active_cashier_id.present? && active_cashier_id == Current.user&.id
+  end
+
+  def current_user_can_charge_sale_realtime?
+    return true if current_user_admin?
+
+    active_cashier_id = current_open_shift_active_cashier_id
+    active_cashier_id.present? && active_cashier_id == Current.user&.id
+  end
+
+  def current_open_shift_active_cashier_id
+    return @current_open_shift_active_cashier_id if defined?(@current_open_shift_active_cashier_id)
+
+    @current_open_shift_active_cashier_id = current_business.cash_shifts.open.limit(1).pick(:active_cashier_id)
+  end
+
+  def active_cashier_payload_for_sales
+    open_shift = current_open_shift_for_sales
+    cashier = open_shift&.active_cashier
+    return nil if cashier.blank?
+
+    {
+      id: cashier.id,
+      name: cashier.display_name,
+      role_label: cashier.role_label,
+      role_key: cashier.role_key,
+      female: cashier.female?,
+    }
+  end
+
+  def current_open_shift_for_sales
+    return @current_open_shift_for_sales if defined?(@current_open_shift_for_sales)
+
+    @current_open_shift_for_sales = current_business.cash_shifts.open.includes(:active_cashier).first
   end
 
   def draft_summary_payload(venta)

@@ -667,7 +667,7 @@
 
       const hasOpenCashShift = root.dataset.openShift === 'true';
       const openCashShiftId = Number(root.dataset.openShiftId || 0);
-      const canChargeSale = root.dataset.canChargeSale === 'true';
+      let canChargeSale = root.dataset.canChargeSale === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
       let activeCashierId = Number(root.dataset.activeCashierId || 0);
       let activeCashierName = String(root.dataset.activeCashierName || '').trim();
@@ -728,9 +728,15 @@
 
       const applyActiveCashierState = (activeCashier, options = {}) => {
         const syncHeader = options.syncHeader !== false;
+        const canChargeOverride = options.canChargeSale;
         activeCashierId = Number(activeCashier?.id || 0);
         activeCashierName = String(activeCashier?.name || '').trim();
         activeCashierRoleLabel = String(activeCashier?.role_label || '').trim();
+
+        if (typeof canChargeOverride === 'boolean') {
+          canChargeSale = canChargeOverride;
+          root.dataset.canChargeSale = canChargeSale ? 'true' : 'false';
+        }
 
         root.dataset.activeCashierId = activeCashierId > 0 ? String(activeCashierId) : '';
         root.dataset.activeCashierName = activeCashierName;
@@ -743,21 +749,27 @@
 
       const fetchActiveCashierStatus = async () => {
         if (!hasOpenCashShift || !openCashShiftId || openCashShiftId <= 0) return null;
-        const response = await fetch(`/cierres-turno/${openCashShiftId}/active_cashier_status`, {
+        const response = await fetch(`/cierres-turno/${openCashShiftId}/active_cashier_status?t=${Date.now()}`, {
           headers: { Accept: 'application/json' },
+          cache: 'no-store',
         });
 
         if (!response.ok) return null;
 
         const payload = await response.json();
-        applyActiveCashierState(payload.active_cashier || null);
+        applyActiveCashierState(payload.active_cashier || null, {
+          canChargeSale: payload.can_charge_sale === true,
+        });
         return payload;
       };
 
       const onCashierUpdated = (event) => {
         const payload = event?.detail || {};
         if (!Object.prototype.hasOwnProperty.call(payload, 'activeCashier')) return;
-        applyActiveCashierState(payload.activeCashier || null, { syncHeader: false });
+        applyActiveCashierState(payload.activeCashier || null, {
+          syncHeader: false,
+          canChargeSale: payload.canChargeSale,
+        });
       };
       window.addEventListener('cashier:updated', onCashierUpdated);
 
@@ -10146,6 +10158,15 @@
           if (Array.isArray(data.drafts)) {
             drafts = data.drafts;
             renderDraftTags();
+          }
+
+          if (Object.prototype.hasOwnProperty.call(data, 'active_cashier')) {
+            applyActiveCashierState(data.active_cashier || null, {
+              canChargeSale: data.can_charge_sale === true,
+            });
+          } else if (Object.prototype.hasOwnProperty.call(data, 'can_charge_sale')) {
+            canChargeSale = data.can_charge_sale === true;
+            root.dataset.canChargeSale = canChargeSale ? 'true' : 'false';
           }
         } catch (error) {
           if (!silent && window.Swal) {

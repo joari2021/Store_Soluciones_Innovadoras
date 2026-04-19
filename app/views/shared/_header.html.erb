@@ -284,6 +284,7 @@
 
     const setHeaderCashierState = (activeCashier, options = {}) => {
       const shouldBroadcast = options.broadcast !== false;
+      const canChargeSale = options.canChargeSale;
       const { headerRoot, badge, badgeText, toggleButton, toggleLabel } = getHeaderContext();
       const currentUserId = Number(headerRoot?.dataset?.headerCurrentUserId || 0);
       if (badgeText) {
@@ -298,7 +299,12 @@
       updateToggleVisual(toggleButton, toggleLabel, activeCashier, currentUserId);
 
       if (shouldBroadcast) {
-        window.dispatchEvent(new CustomEvent('cashier:updated', { detail: { activeCashier } }));
+        window.dispatchEvent(new CustomEvent('cashier:updated', {
+          detail: {
+            activeCashier,
+            canChargeSale,
+          }
+        }));
       }
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons();
@@ -343,7 +349,9 @@
 
       try {
         const payload = await sendToggleRequest(form);
-        setHeaderCashierState(payload.active_cashier || null);
+        setHeaderCashierState(payload.active_cashier || null, {
+          canChargeSale: payload.can_charge_sale === true,
+        });
       } catch (error) {
         if (window.Swal) {
           window.Swal.fire({
