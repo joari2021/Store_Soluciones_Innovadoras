@@ -192,7 +192,7 @@ module ApplicationHelper
     debt_description = if payment&.excess_payment?
                          'Excedente'
                        else
-                         debt.description.to_s.strip.presence || 'Deuda sin descripcion'
+                         debt_display_description(debt.description)
                        end
     reference = account_movement_reference(movement)
 

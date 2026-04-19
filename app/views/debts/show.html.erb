@@ -258,7 +258,7 @@
               <% payment_symbol = Account::CURRENCIES.dig(payment.currency, :symbol) || payment.currency %>
               <tr>
                 <td class="px-4 py-3"><%= payment.occurred_at.strftime("%d/%m/%Y") %></td>
-                <td class="px-4 py-3"><%= row[:debt_label] %></td>
+                <td class="px-4 py-3"><%= debt_display_description(row[:debt_label]) %></td>
                 <td class="px-4 py-3"><%= payment.account.name %></td>
                 <td class="px-4 py-3"><%= payment.currency %></td>
                 <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>

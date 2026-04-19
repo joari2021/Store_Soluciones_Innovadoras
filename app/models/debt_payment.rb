@@ -171,9 +171,24 @@ class DebtPayment < ApplicationRecord
     end
 
     action = debt.receivable? ? "Cobro de deuda" : "Pago de deuda"
-    debt_description = excess_payment? ? "Excedente" : (debt.description.to_s.strip.presence || "Deuda sin descripcion")
+    debt_description = excess_payment? ? "Excedente" : cleaned_debt_description_for_movement
     cliente_name = debt.counterparty_display_name
     "#{action}: #{cliente_name} (#{debt_description}) [DEBT:#{debt.id}] [DP:#{id}]"
+  end
+
+  def cleaned_debt_description_for_movement
+    raw_description = debt.description.to_s.strip
+    return "Deuda sin descripcion" if raw_description.blank?
+
+    cleaned = raw_description
+              .gsub(/\s*\[(?:VENTA):\d+\]/i, '')
+              .gsub(/\s*\[(?:CLIENTE_DUENO):[^\]]+\]/i, '')
+
+    if cleaned.match?(/\ACuota\s+Cashea\b/i)
+      cleaned = cleaned.sub(/\s+pendiente\s+venta\s+#\d+.*\z/i, '')
+    end
+
+    cleaned.gsub(/\s{2,}/, ' ').strip.presence || "Deuda sin descripcion"
   end
 
   def build_service_cost_movement_description
