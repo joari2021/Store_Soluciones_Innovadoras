@@ -7503,10 +7503,15 @@
 
           if (!isActiveCashierUser && !canChargeSale) {
             if (window.Swal) {
+              const cashierRole = activeCashierRoleLabel || 'Sin cargo asignado';
+              const cashierName = activeCashierName || 'Sin cajero activo';
               window.Swal.fire({
                 icon: 'warning',
                 title: 'Cobro no autorizado',
-                text: 'Solo el encargado o administrador pueden cobrar ventas.',
+                html: `
+                  <p class="text-sm text-slate-600">El cajero autorizado para realizar el cobro es <strong>${escapeHtml(cashierRole)} - ${escapeHtml(cashierName)}</strong>.</p>
+                  <p class="mt-2 text-sm text-slate-600">Solo el encargado o administrador pueden cobrar ventas.</p>
+                `,
                 heightAuto: false,
               });
             }
