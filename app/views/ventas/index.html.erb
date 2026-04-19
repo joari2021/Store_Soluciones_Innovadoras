@@ -9999,6 +9999,34 @@
         }
       };
 
+      const closeActiveDraftPreservingState = async () => {
+        if (!activeDraftId) return true;
+
+        const syncVisibility = activeDraftVisibility === 'hidden' ? 'hidden' : 'visible';
+        const syncCheckoutStatus = normalizeDraftCheckoutStatus(activeDraftCheckoutStatus, 'pending');
+        const synced = await persistDraft({
+          clearAfterSave: false,
+          silent: true,
+          draftVisibility: syncVisibility,
+          draftCheckoutStatus: syncCheckoutStatus,
+        });
+
+        if (!synced) {
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'No se pudo cerrar el borrador',
+              text: 'Intenta nuevamente para conservar los cambios del borrador activo.',
+              heightAuto: false,
+            });
+          }
+          return false;
+        }
+
+        resetWorkingSale();
+        return true;
+      };
+
       const queueActiveDraftSync = () => {
         const hasItems = cart.size > 0;
         const hasActiveDraft = Boolean(activeDraftId);
@@ -10500,19 +10528,29 @@
 
       if (saveDraftButton) {
         saveDraftButton.addEventListener('click', () => {
-          persistDraft({ clearAfterSave: true, draftVisibility: 'visible', draftCheckoutStatus: 'pending' });
+          persistDraft({ clearAfterSave: true, draftVisibility: 'visible' });
         });
       }
 
       if (draftsReadyFilterButton) {
-        draftsReadyFilterButton.addEventListener('click', () => {
+        draftsReadyFilterButton.addEventListener('click', async () => {
+          const activeStatus = normalizeDraftCheckoutStatus(activeDraftCheckoutStatus, 'pending');
+          if (activeDraftId && activeStatus !== 'ready') {
+            const closed = await closeActiveDraftPreservingState();
+            if (!closed) return;
+          }
           draftListFilter = 'ready';
           renderDraftTags();
         });
       }
 
       if (draftsPendingFilterButton) {
-        draftsPendingFilterButton.addEventListener('click', () => {
+        draftsPendingFilterButton.addEventListener('click', async () => {
+          const activeStatus = normalizeDraftCheckoutStatus(activeDraftCheckoutStatus, 'pending');
+          if (activeDraftId && activeStatus !== 'pending') {
+            const closed = await closeActiveDraftPreservingState();
+            if (!closed) return;
+          }
           draftListFilter = 'pending';
           renderDraftTags();
         });
