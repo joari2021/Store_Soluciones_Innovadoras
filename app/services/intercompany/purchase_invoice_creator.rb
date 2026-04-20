@@ -410,16 +410,22 @@ module Intercompany
       pending_amount_bs = @payment_context[:pending_amount_bs].to_d.round(2)
       return unless pending_amount_bs.positive?
 
+      pending_amount_usd = pending_amount_usd_from_bs(pending_amount_bs)
+      return unless pending_amount_usd.positive?
+
       invoice_reference = @purchase_invoice.numero.to_s.strip.presence || "##{@purchase_invoice.id}"
       issued_on = @purchase_invoice.fecha_emision&.to_date || Date.current
       due_on = @payment_context[:pending_due_on]
+      buyer_counterparty_client = buyer_counterparty_client!
+      source_counterparty_client = source_counterparty_client!
 
       payable = @current_business.debts.create!(
         debt_kind: "payable",
+        cliente: buyer_counterparty_client,
         name: @source_business.name,
         description: "Saldo pendiente factura inter-empresa #{invoice_reference} [FACTURA_COMPRA:#{@purchase_invoice.id}] [IC_MIRROR]",
-        amount: pending_amount_bs,
-        currency: "VES",
+        amount: pending_amount_usd,
+        currency: "USD",
         issued_on: issued_on,
         due_on: due_on,
         mirror_sync_enabled: true,
@@ -427,15 +433,14 @@ module Intercompany
       )
 
       source_destination_account = buyer_default_account_for_mirror
-      source_counterparty_client = source_counterparty_client!
 
       receivable = @source_business.debts.create!(
         debt_kind: "receivable",
         cliente: source_counterparty_client,
         name: @current_business.name,
         description: "Cuenta por cobrar factura inter-empresa #{invoice_reference} [FACTURA_COMPRA_MIRROR:#{@purchase_invoice.id}] [IC_MIRROR]",
-        amount: pending_amount_bs,
-        currency: "VES",
+        amount: pending_amount_usd,
+        currency: "USD",
         issued_on: issued_on,
         due_on: due_on,
         mirror_sync_enabled: true,
@@ -447,16 +452,44 @@ module Intercompany
     end
 
     def source_counterparty_client!
-      normalized_name = @current_business.name.to_s.strip.downcase
-      existing = @source_business.clientes
+      find_or_create_counterparty_client!(
+        owner_business: @source_business,
+        counterparty_business: @current_business,
+      )
+    end
+
+    def buyer_counterparty_client!
+      find_or_create_counterparty_client!(
+        owner_business: @current_business,
+        counterparty_business: @source_business,
+      )
+    end
+
+    def find_or_create_counterparty_client!(owner_business:, counterparty_business:)
+      normalized_name = counterparty_business.name.to_s.strip.downcase
+      existing = owner_business.clientes
         .where("LOWER(TRIM(name)) = ?", normalized_name)
         .first
       return existing if existing.present?
 
-      @source_business.clientes.create!(
-        name: @current_business.name,
+      owner_business.clientes.create!(
+        name: counterparty_business.name,
         document_type: "J",
+        document_number: normalize_rif_document_number(counterparty_business.rif),
       )
+    end
+
+    def normalize_rif_document_number(raw_rif)
+      raw_rif.to_s.upcase.gsub(/[^A-Z0-9]/, "").sub(/\A[JVEG]/, "")
+    end
+
+    def pending_amount_usd_from_bs(pending_amount_bs)
+      rate = @purchase_invoice.tasa_dolar.to_d
+      return 0.to_d unless pending_amount_bs.to_d.positive?
+      return pending_amount_bs.to_d.round(2) unless rate.positive?
+
+      converted = (pending_amount_bs.to_d / rate).round(2)
+      converted.positive? ? converted : 0.01.to_d
     end
 
     def buyer_default_account_for_mirror
