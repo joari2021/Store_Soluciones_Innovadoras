@@ -1258,30 +1258,22 @@ class PurchaseInvoicesController < ApplicationController
 
   def sync_intercompany_pending_debts!(invoice, source_business:)
     total_invoice_bs = invoice.total_bs.to_d.round(2)
-    total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
-    pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
-    pending_amount_bs = 0.to_d if pending_amount_bs <= 0
-
     rate = invoice.tasa_dolar.to_d
-    pending_amount_usd = if pending_amount_bs.positive?
-                           rate.positive? ? (pending_amount_bs / rate).round(2) : pending_amount_bs.round(2)
-                         else
-                           0.to_d
-                         end
+    total_invoice_usd = if rate.positive?
+                          (total_invoice_bs / rate).round(2)
+                        else
+                          invoice.monto_total.to_d.round(2)
+                        end
 
     payable_debt = find_invoice_pending_debt(invoice)
     receivable_debt = payable_debt&.mirror_debt || find_source_mirror_pending_debt(invoice)
 
-    mark_pending_payment = ActiveModel::Type::Boolean.new.cast(params[:mark_pending_payment])
     due_on = parse_filter_date(params[:pending_due_on].to_s.strip)
 
-    if pending_amount_usd <= 0
+    if total_invoice_usd <= 0
       destroy_linked_debt_pair!(payable_debt, receivable_debt)
       return
     end
-
-    should_persist_pending = mark_pending_payment || payable_debt.present? || receivable_debt.present?
-    return unless should_persist_pending
 
     payable_debt ||= build_intercompany_payable_debt!(invoice, source_business: source_business, due_on: due_on)
     receivable_debt ||= build_intercompany_receivable_debt!(invoice, source_business: source_business, due_on: due_on)
@@ -1292,7 +1284,7 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     payable_debt.update!(
-      amount: pending_amount_usd,
+      amount: total_invoice_usd,
       currency: 'USD',
       due_on: due_on.presence || payable_debt.due_on,
       mirror_sync_enabled: true,
@@ -1300,7 +1292,7 @@ class PurchaseInvoicesController < ApplicationController
     )
 
     receivable_debt.update!(
-      amount: pending_amount_usd,
+      amount: total_invoice_usd,
       currency: 'USD',
       due_on: due_on.presence || receivable_debt.due_on,
       mirror_sync_enabled: true,
