@@ -410,8 +410,10 @@ class PurchaseInvoicesController < ApplicationController
 
   def update_intercompany_invoice
     source_business = @purchase_invoice.source_business
+    payment_context = nil
     if source_business.blank?
       @purchase_invoice.errors.add(:base, 'La factura interempresa no tiene negocio origen válido.')
+      apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit
       return
@@ -423,6 +425,7 @@ class PurchaseInvoicesController < ApplicationController
     )
 
     if @purchase_invoice.errors.any?
+      apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit
       return
@@ -436,6 +439,9 @@ class PurchaseInvoicesController < ApplicationController
       normalize_intercompany_items_for_destination!(@purchase_invoice, source_business: source_business)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
+      payment_context = build_invoice_payment_context(@purchase_invoice, source_business: source_business)
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+
       @purchase_invoice.save!
 
       current_rows = aggregate_source_stock_rows_for_invoice_items(
@@ -447,11 +453,19 @@ class PurchaseInvoicesController < ApplicationController
       consume_source_stock_rows!(rows: current_rows)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
+      sync_intercompany_payment_movements!(
+        @purchase_invoice,
+        payments: payment_context[:payments],
+        source_business: source_business,
+      )
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+
       sync_intercompany_pending_debts!(@purchase_invoice, source_business: source_business)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
     end
 
     if @purchase_invoice.errors.any?
+      apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit
       return
@@ -471,6 +485,7 @@ class PurchaseInvoicesController < ApplicationController
       @purchase_invoice.errors.add(:base, e.message)
     end
 
+    apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
     load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
     render :edit
   end
@@ -1103,6 +1118,16 @@ class PurchaseInvoicesController < ApplicationController
                    .order(occurred_at: :desc, created_at: :desc)
   end
 
+  def source_invoice_payment_movements_scope(invoice)
+    return AccountMovement.none if invoice.source_business_id.blank?
+
+    AccountMovement.joins(:account)
+                   .includes(:account)
+                   .where(accounts: { business_id: invoice.source_business_id })
+                   .where('account_movements.description LIKE ?', "%[FACTURA_COMPRA_MIRROR:#{invoice.id}]%")
+                   .order(occurred_at: :desc, created_at: :desc)
+  end
+
   def business_account_movements_scope
     AccountMovement.joins(:account).where(accounts: { business_id: current_business.id })
   end
@@ -1237,6 +1262,49 @@ class PurchaseInvoicesController < ApplicationController
       mirror_sync_enabled: true,
       mirror_debt: payable_debt,
     )
+  end
+
+  def sync_intercompany_payment_movements!(invoice, payments:, source_business:)
+    movements_to_remove = invoice_payment_movements_scope(invoice).to_a + source_invoice_payment_movements_scope(invoice).to_a
+    movements_to_remove.uniq!(&:id)
+    movements_to_remove.each(&:destroy!)
+
+    occurred_at = invoice.fecha_emision.presence || Time.current
+    outgoing_description = "Pago factura inter-empresa ##{invoice.id} a #{source_business.name} [FACTURA_COMPRA:#{invoice.id}]"
+
+    Array(payments).each do |entry|
+      account = entry[:account]
+      amount = entry[:amount].to_d
+      next if account.blank? || amount <= 0
+
+      attrs = {
+        movement_kind: 'expense',
+        amount: amount,
+        description: outgoing_description,
+        occurred_at: occurred_at,
+      }
+      attrs[:payment_method] = 'transfer' if account.account_type == 'bank_account'
+      account.account_movements.create!(attrs)
+    end
+
+    grouped_by_source = Array(payments).group_by { |entry| entry[:source_account]&.id }
+    grouped_by_source.each_value do |rows|
+      source_account = rows.first[:source_account]
+      next if source_account.blank?
+
+      total_amount = rows.sum { |entry| entry[:amount].to_d }.round(2)
+      next unless total_amount.positive?
+
+      source_account.account_movements.create!(
+        movement_kind: 'income',
+        amount: total_amount,
+        description: "Cobro factura inter-empresa ##{invoice.id} desde #{current_business.name} [FACTURA_COMPRA_MIRROR:#{invoice.id}]",
+        occurred_at: occurred_at,
+        payment_method: (source_account.account_type == 'bank_account' ? 'transfer' : nil),
+      )
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
   end
 
   def find_source_mirror_pending_debt(invoice)
