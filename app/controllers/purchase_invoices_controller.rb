@@ -392,6 +392,8 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def update
+    return update_intercompany_invoice if @purchase_invoice.intercompany?
+
     if @purchase_invoice.update(purchase_invoice_params)
       success_message = if @purchase_invoice.initial_inventory?
                           'Inventario inicial actualizado'
@@ -404,6 +406,67 @@ class PurchaseInvoicesController < ApplicationController
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit
     end
+  end
+
+  def update_intercompany_invoice
+    source_business = @purchase_invoice.source_business
+    if source_business.blank?
+      @purchase_invoice.errors.add(:base, 'La factura interempresa no tiene negocio origen válido.')
+      load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+      render :edit
+      return
+    end
+
+    prior_rows = aggregate_source_stock_rows_for_invoice_items(
+      @purchase_invoice.purchase_invoice_items.includes(producto: :product_variations),
+      source_business: source_business,
+    )
+
+    if @purchase_invoice.errors.any?
+      load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+      render :edit
+      return
+    end
+
+    PurchaseInvoice.transaction do
+      restore_source_stock_rows!(rows: prior_rows)
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+
+      @purchase_invoice.assign_attributes(purchase_invoice_params)
+      @purchase_invoice.save!
+
+      current_rows = aggregate_source_stock_rows_for_invoice_items(
+        @purchase_invoice.purchase_invoice_items.includes(producto: :product_variations),
+        source_business: source_business,
+      )
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+
+      consume_source_stock_rows!(rows: current_rows)
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+    end
+
+    if @purchase_invoice.errors.any?
+      load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+      render :edit
+      return
+    end
+
+    success_message = if @purchase_invoice.initial_inventory?
+                        'Inventario inicial actualizado'
+                      else
+                        'Factura actualizada'
+                      end
+
+    redirect_to purchase_invoices_path, notice: success_message
+  rescue ActiveRecord::RecordInvalid => e
+    if e.record&.respond_to?(:errors) && e.record.errors.any?
+      e.record.errors.full_messages.each { |message| @purchase_invoice.errors.add(:base, message) }
+    else
+      @purchase_invoice.errors.add(:base, e.message)
+    end
+
+    load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+    render :edit
   end
 
   def destroy
@@ -1079,5 +1142,224 @@ class PurchaseInvoicesController < ApplicationController
 
   def find_invoice_pending_debt(invoice)
     invoice_pending_debts_scope(invoice).order(created_at: :desc).first
+  end
+
+  def aggregate_source_stock_rows_for_invoice_items(items, source_business:)
+    aggregated = Hash.new(0.to_d)
+
+    items.each do |item|
+      source_product = resolve_intercompany_source_product_for_item(item, source_business: source_business)
+      next if source_product.blank?
+
+      source_rows_for_item(item: item, source_product: source_product).each do |row|
+        key = [row[:source_product_id], row[:source_variation_id]]
+        aggregated[key] += row[:quantity].to_d
+      end
+    end
+
+    aggregated.map do |(source_product_id, source_variation_id), quantity|
+      {
+        source_product_id: source_product_id,
+        source_variation_id: source_variation_id,
+        quantity: quantity,
+      }
+    end
+  end
+
+  def resolve_intercompany_source_product_for_item(item, source_business:)
+    destination_product = item.producto
+
+    if destination_product.present?
+      return destination_product if destination_product.business_id == source_business.id
+
+      mapped_source_id = destination_product.source_product_id.to_i
+      if destination_product.source_business_id == source_business.id && mapped_source_id.positive?
+        mapped = source_business.productos.find_by(id: mapped_source_id)
+        return mapped if mapped.present?
+      end
+    end
+
+    lookup_name = destination_product&.descripcion.to_s.presence || item.product_name.to_s
+    normalized_name = lookup_name.to_s.strip.downcase
+    if normalized_name.blank?
+      @purchase_invoice.errors.add(:base, 'No se pudo resolver el producto origen para sincronizar stock interempresa.')
+      return nil
+    end
+
+    product = source_business.productos.find_by('LOWER(TRIM(productos.descripcion)) = ?', normalized_name)
+    return product if product.present?
+
+    @purchase_invoice.errors.add(:base,
+                                 "No se encontró en negocio origen el producto '#{lookup_name}' para sincronizar stock interempresa.")
+    nil
+  end
+
+  def source_rows_for_item(item:, source_product:)
+    destination_product = item.producto
+    source_variations = source_product.product_variations.order(:id).to_a
+    raw_rows = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+
+    rows = raw_rows.filter_map do |raw_row|
+      next unless raw_row.is_a?(Hash)
+
+      quantity = (raw_row['quantity'] || raw_row[:quantity]).to_d
+      next unless quantity.positive?
+
+      source_variation = resolve_source_variation_for_item_row(
+        source_product: source_product,
+        source_variations: source_variations,
+        destination_product: destination_product,
+        row: raw_row,
+      )
+      next if source_variation.blank?
+
+      {
+        source_product_id: source_product.id,
+        source_variation_id: source_variation.id,
+        quantity: quantity,
+      }
+    end
+
+    if rows.empty? && source_variations.one?
+      quantity = item.cantidad.to_d
+      if quantity.positive?
+        rows = [{
+          source_product_id: source_product.id,
+          source_variation_id: source_variations.first.id,
+          quantity: quantity,
+        }]
+      end
+    end
+
+    rows
+  end
+
+  def resolve_source_variation_for_item_row(source_product:, source_variations:, destination_product:, row:)
+    variation_id_raw = row['variation_id'] || row[:variation_id]
+    if variation_id_raw.present?
+      variation_id = variation_id_raw.to_i
+      variation = source_variations.find { |entry| entry.id == variation_id }
+      return variation if variation.present?
+
+      destination_variation = destination_product&.product_variations&.find_by(id: variation_id)
+      if destination_variation.present?
+        mapped = source_variations.find do |entry|
+          entry.description.to_s.strip.casecmp(destination_variation.description.to_s.strip).zero?
+        end
+        return mapped if mapped.present?
+      end
+    end
+
+    description = (row['description'] || row[:description]).to_s.strip
+    if description.present?
+      variation = source_variations.find do |entry|
+        entry.description.to_s.strip.casecmp(description).zero?
+      end
+      return variation if variation.present?
+    end
+
+    return source_variations.first if source_variations.one?
+
+    @purchase_invoice.errors.add(:base,
+                                 "No se pudo resolver variación origen para producto '#{source_product.descripcion}'.")
+    nil
+  end
+
+  def consume_source_stock_rows!(rows:)
+    rows.each do |row|
+      consume_source_variation_units!(
+        source_product_id: row[:source_product_id],
+        source_variation_id: row[:source_variation_id],
+        quantity: row[:quantity],
+      )
+      break if @purchase_invoice.errors.any?
+    end
+  end
+
+  def restore_source_stock_rows!(rows:)
+    rows.each do |row|
+      restore_source_variation_units!(
+        source_product_id: row[:source_product_id],
+        source_variation_id: row[:source_variation_id],
+        quantity: row[:quantity],
+      )
+      break if @purchase_invoice.errors.any?
+    end
+  end
+
+  def consume_source_variation_units!(source_product_id:, source_variation_id:, quantity:)
+    remaining = quantity.to_d
+    return unless remaining.positive?
+
+    rows_scope = source_variation_stock_rows_scope(
+      source_product_id: source_product_id,
+      source_variation_id: source_variation_id,
+    )
+
+    available = rows_scope.sum(:quantity_remaining).to_d
+    if available < remaining
+      @purchase_invoice.errors.add(
+        :base,
+        "Stock insuficiente en origen para sincronizar edición interempresa. Disponible: #{available.to_f.round(4)}; requerido: #{remaining.to_f.round(4)}."
+      )
+      return
+    end
+
+    rows_scope.each do |variation_row|
+      break if remaining <= 0
+
+      variation_row.lock!
+      lot = variation_row.stock_lot
+      available_in_row = variation_row.quantity_remaining.to_d
+      next unless available_in_row.positive?
+
+      consumed = [available_in_row, remaining].min
+      variation_row.update!(quantity_remaining: available_in_row - consumed)
+      lot.sync_quantity_remaining_from_variations!
+      remaining -= consumed
+    end
+  end
+
+  def restore_source_variation_units!(source_product_id:, source_variation_id:, quantity:)
+    remaining = quantity.to_d
+    return unless remaining.positive?
+
+    rows_scope = source_variation_stock_rows_scope(
+      source_product_id: source_product_id,
+      source_variation_id: source_variation_id,
+    )
+
+    recoverable = rows_scope.sum(Arel.sql('GREATEST(stock_lot_variations.quantity_in - stock_lot_variations.quantity_remaining, 0)')).to_d
+    if recoverable < remaining
+      @purchase_invoice.errors.add(
+        :base,
+        "No se pudo restablecer todo el stock en origen para la edición interempresa. Recuperable: #{recoverable.to_f.round(4)}; a restaurar: #{remaining.to_f.round(4)}."
+      )
+      return
+    end
+
+    rows_scope.each do |variation_row|
+      break if remaining <= 0
+
+      variation_row.lock!
+      lot = variation_row.stock_lot
+      quantity_in = variation_row.quantity_in.to_d
+      quantity_remaining = variation_row.quantity_remaining.to_d
+      consumed_in_row = [quantity_in - quantity_remaining, 0.to_d].max
+      next unless consumed_in_row.positive?
+
+      restored = [consumed_in_row, remaining].min
+      variation_row.update!(quantity_remaining: quantity_remaining + restored)
+      lot.sync_quantity_remaining_from_variations!
+      remaining -= restored
+    end
+  end
+
+  def source_variation_stock_rows_scope(source_product_id:, source_variation_id:)
+    StockLotVariation
+      .joins(:stock_lot)
+      .where(stock_lot_variations: { product_variation_id: source_variation_id })
+      .where(stock_lots: { producto_id: source_product_id })
+      .order(Arel.sql('stock_lots.unit_cost_usd DESC, stock_lots.purchased_at ASC, stock_lots.created_at ASC'))
   end
 end
