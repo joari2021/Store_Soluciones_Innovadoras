@@ -354,12 +354,24 @@ class ServicesController < ApplicationController
                            ActiveModel::Type::Boolean.new.cast(params[:update_source_cost])
                          end
 
-    amount_applied_to_line = force_total_settlement ? pending_line_usd : amount_in_debt_currency
+    amount_applied_to_line = if force_total_settlement
+                               if update_source_cost
+                                 [pending_line_usd, amount_in_debt_currency].max
+                               else
+                                 pending_line_usd
+                               end
+                             else
+                               amount_in_debt_currency
+                             end
 
     Debt.transaction do
       line['paid_usd'] = (line['paid_usd'].to_d + amount_applied_to_line).round(2).to_f
+      if force_total_settlement && update_source_cost
+        line['amount_usd'] = [line['amount_usd'].to_d, line['paid_usd'].to_d].max.round(2).to_f
+      end
+
       line['pending_usd'] = (line['amount_usd'].to_d - line['paid_usd'].to_d).round(2).to_f
-      line['pending_usd'] = 0.0 if line['pending_usd'].to_d.abs <= 0.01.to_d
+      line['pending_usd'] = 0.0 if line['pending_usd'].to_d <= 0.01.to_d
       line['status'] = if line['pending_usd'].to_d <= 0
                          'paid'
                        elsif line['paid_usd'].to_d.positive?

@@ -640,6 +640,68 @@ class ServicesControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("3.75"), line["source_amount_reference_total"].to_d
   end
 
+  test "pay_pending_cost_line total with source update uses higher paid amount when cost increased" do
+    account = create_account_for(@business, name: "Caja Bs", account_type: "cash_box", currency: "VES")
+    TasaCambio.create!(description: "Dolar BCV", valor: 40, fecha_referencia: Date.current)
+    structure = @service.service_expense_structures.create!(description: "Estructura subida")
+    variable_expense = structure.service_variable_expenses.create!(
+      description: "Variable subida",
+      currency_reference: "Dolar BCV",
+      amount_reference: 1,
+    )
+
+    debt = create_pending_cost_debt_with_lines!([
+                                                  {
+                                                    "line_id" => "line-up",
+                                                    "structure_description" => "Estructura subida",
+                                                    "classification" => "variable_expense",
+                                                    "classification_label" => "Gasto variable",
+                                                    "source_name" => "Variable subida",
+                                                    "quantity" => 1.0,
+                                                    "amount_usd" => 4.0,
+                                                    "paid_usd" => 0.0,
+                                                    "pending_usd" => 4.0,
+                                                    "status" => "pending",
+                                                    "source_updatable" => true,
+                                                    "source_type" => "ServiceVariableExpense",
+                                                    "source_id" => variable_expense.id,
+                                                    "source_currency_reference" => "Dolar BCV",
+                                                    "source_amount_reference_unit" => 1.0,
+                                                    "source_amount_reference_total" => 1.0,
+                                                  },
+                                                ])
+
+    assert_difference("DebtPayment.count", 1) do
+      post pay_pending_cost_line_services_path, params: {
+                                                  debt_id: debt.id,
+                                                  line_id: "line-up",
+                                                  account_id: account.id,
+                                                  payment_date: Date.current.strftime("%d-%m-%Y"),
+                                                  amount: "170.00",
+                                                  payment_scope: "total",
+                                                  force_total_settlement: "1",
+                                                  update_source_cost_override: "1",
+                                                }
+    end
+
+    debt.reload
+    line = debt.service_cost_lines.find { |row| row["line_id"] == "line-up" }
+
+    assert_equal BigDecimal("4.25"), line["amount_usd"].to_d
+    assert_equal BigDecimal("4.25"), line["paid_usd"].to_d
+    assert_equal BigDecimal("0.0"), line["pending_usd"].to_d
+    assert_equal "paid", line["status"]
+    refute debt.service_cost_pending?
+
+    payment = debt.debt_payments.order(:id).last
+    assert_equal BigDecimal("4.25"), payment.amount_in_debt_currency.to_d
+
+    variable_expense.reload
+    assert_equal BigDecimal("4.25"), variable_expense.amount_reference.to_d
+    assert_equal BigDecimal("4.25"), line["source_amount_reference_unit"].to_d
+    assert_equal BigDecimal("4.25"), line["source_amount_reference_total"].to_d
+  end
+
   test "paid sold service keeps historical structure snapshot after source deletion" do
     account = create_account_for(@business, name: "Caja Bs", account_type: "cash_box", currency: "VES")
     TasaCambio.create!(description: "Dolar BCV", valor: 40, fecha_referencia: Date.current)
