@@ -203,18 +203,46 @@
           <% cantidad_packs = fi.object.cantidad.to_d %>
           <% costo_mayor = fi.object.costo_mayor.to_d %>
           <% unid_x_pack = fi.object.unid_x_pack.to_d %>
-          <% costo_menor = unid_x_pack.positive? ? (costo_mayor / unid_x_pack) : fi.object.costo_menor.to_d %>
+          <% costo_menor = if intercompany_mode
+                             costo_mayor
+                           else
+                             unid_x_pack.positive? ? (costo_mayor / unid_x_pack) : fi.object.costo_menor.to_d
+                           end %>
           <% tasa = (factura.tasa_dolar || 0).to_d %>
           <% costo_mayor_bs = fi.object.costo_mayor_bs.to_d.positive? ? fi.object.costo_mayor_bs.to_d : (costo_mayor * tasa) %>
           <% costo_menor_rounded = costo_menor.round(2) %>
-          <% costo_menor_bs = initial_inventory_mode ? (costo_menor_rounded * tasa) : (unid_x_pack.positive? ? (costo_mayor_bs / unid_x_pack) : costo_mayor_bs) %>
-          <% total_usd = initial_inventory_mode ? (costo_menor_rounded * cantidad_packs) : (costo_mayor * cantidad_packs) %>
-          <% total_bs = initial_inventory_mode ? (costo_menor_bs * cantidad_packs) : (costo_mayor_bs * cantidad_packs) %>
+          <% costo_menor_bs = if initial_inventory_mode
+                                costo_menor_rounded * tasa
+                              elsif intercompany_mode
+                                costo_mayor_bs
+                              else
+                                unid_x_pack.positive? ? (costo_mayor_bs / unid_x_pack) : costo_mayor_bs
+                              end %>
+          <% total_usd = if initial_inventory_mode
+                           costo_menor_rounded * cantidad_packs
+                         elsif intercompany_mode
+                           costo_mayor * unid_x_pack
+                         else
+                           costo_mayor * cantidad_packs
+                         end %>
+          <% total_bs = if initial_inventory_mode
+                          costo_menor_bs * cantidad_packs
+                        elsif intercompany_mode
+                          costo_mayor_bs * unid_x_pack
+                        else
+                          costo_mayor_bs * cantidad_packs
+                        end %>
           <% exento_activo = intercompany_mode ? true : fi.object.exento? %>
           <% product_variations = fi.object.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || [] %>
           <% variation_breakdown_rows = fi.object.variation_breakdown.is_a?(Array) ? fi.object.variation_breakdown : [] %>
           <% single_variation = product_variations.one? ? product_variations.first : nil %>
-          <% single_variation_quantity = initial_inventory_mode ? cantidad_packs : (cantidad_packs * (unid_x_pack.positive? ? unid_x_pack : 1)) %>
+          <% single_variation_quantity = if initial_inventory_mode
+                                           cantidad_packs
+                                         elsif intercompany_mode
+                                           unid_x_pack.positive? ? unid_x_pack : cantidad_packs
+                                         else
+                                           cantidad_packs * (unid_x_pack.positive? ? unid_x_pack : 1)
+                                         end %>
           <% effective_variation_rows = if variation_breakdown_rows.any?
               variation_breakdown_rows
             elsif single_variation.present?
@@ -360,7 +388,8 @@
             <% else %>
               <%= fi.hidden_field :exento, value: 1, class: 'row-exento' %>
               <% if intercompany_mode %>
-                <%= fi.hidden_field :cantidad, value: format_decimal_input.call(fi.object.cantidad, 2), class: 'row-cantidad-packs' %>
+                <% intercompany_safe_quantity = fi.object.cantidad.to_d.positive? ? fi.object.cantidad : 1 %>
+                <%= fi.hidden_field :cantidad, value: format_decimal_input.call(intercompany_safe_quantity, 2), class: 'row-cantidad-packs' %>
               <% end %>
             <% end %>
             <td class="px-4 py-3">
@@ -795,7 +824,7 @@
       <% if initial_inventory_mode || intercompany_mode %>
         <input class="row-exento" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" type="hidden" value="1">
         <% if intercompany_mode %>
-          <input class="row-cantidad-packs" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="hidden" value="0">
+          <input class="row-cantidad-packs" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="hidden" value="1">
         <% end %>
       <% else %>
         <td class="px-4 py-3">
@@ -1062,9 +1091,10 @@
 
       const expectedVariationQuantity = (editRow) => {
         const quantityPacks = clampNonNegative(editRow?.querySelector('.row-cantidad-packs')?.value);
-        if (initialInventoryMode) return quantityPacks;
-
         const unitsPerPack = clampNonNegative(editRow?.querySelector('.row-unidades')?.value);
+        if (initialInventoryMode) return quantityPacks;
+        if (intercompanyModeActive()) return unitsPerPack > 0 ? unitsPerPack : quantityPacks;
+
         return quantityPacks * unitsPerPack;
       };
 
@@ -1237,7 +1267,7 @@
           }
 
           if (rows.length === 0 && variations.length > 0) {
-            rows = setVariationRows(editRow, [{ variation_id: variations[0].id, description: variations[0].description, quantity: quantityPacks }], { keepZero: true });
+            rows = setVariationRows(editRow, [{ variation_id: variations[0].id, description: variations[0].description, quantity: expectedVariationQty }], { keepZero: true });
           }
 
           const rowHtml = rows.map((row, index) => {
@@ -1330,6 +1360,8 @@
               title: 'Variaciones no cuadran',
               text: initialInventoryMode
                 ? `${productName}: existencia inicial ${formatQty(quantityPacks)} y variaciones suma ${formatQty(variationTotal)}.`
+                : intercompanyModeActive()
+                  ? `${productName}: unidades ${formatQty(unitsPerPack)} y variaciones suma ${formatQty(variationTotal)}.`
                 : `${productName}: (${formatQty(quantityPacks)} packs × ${formatQty(unitsPerPack)} unid) = ${formatQty(expectedTotal)} y variaciones suma ${formatQty(variationTotal)}.`,
               confirmButtonText: 'Entendido',
               confirmButtonColor: '#0284c7',
@@ -1636,8 +1668,13 @@
           costoMayorBs = costoMayor * tasa;
         }
 
-        const cantidadPacks = parseNumber(cantidadPacksInput?.value);
+        let cantidadPacks = parseNumber(cantidadPacksInput?.value);
         const unidades = parseNumber(unidadesInput?.value);
+
+        if (intercompanyModeActive()) {
+          cantidadPacks = cantidadPacks > 0 ? cantidadPacks : 1;
+          if (cantidadPacksInput) cantidadPacksInput.value = formatDecimalInput(cantidadPacks, 2);
+        }
 
           const variations = rowVariations(editRow);
           if (variations.length === 1) {
@@ -1647,13 +1684,16 @@
             if (rowKeyForVariation) syncVariationSummary(rowKeyForVariation);
           }
 
-        const costoMenor = unidades > 0 ? (costoMayor / unidades) : 0;
+        const costoMenor = intercompanyModeActive() ? costoMayor : (unidades > 0 ? (costoMayor / unidades) : 0);
         const costoMenorRounded = roundValue(costoMenor, 2);
+        const effectiveQuantity = intercompanyModeActive() ? unidades : cantidadPacks;
         const costoMenorBs = initialInventoryMode
           ? (costoMenorRounded * tasa)
+          : intercompanyModeActive()
+            ? costoMayorBs
           : (unidades > 0 ? (costoMayorBs / unidades) : costoMayorBs);
-        const totalUsd = initialInventoryMode ? (costoMenorRounded * cantidadPacks) : (costoMayor * cantidadPacks);
-        const totalBs = initialInventoryMode ? (costoMenorBs * cantidadPacks) : (costoMayorBs * cantidadPacks);
+        const totalUsd = initialInventoryMode ? (costoMenorRounded * cantidadPacks) : (costoMayor * effectiveQuantity);
+        const totalBs = initialInventoryMode ? (costoMenorBs * cantidadPacks) : (costoMayorBs * effectiveQuantity);
 
         if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
         if (costoMayorBsNativeInput) costoMayorBsNativeInput.value = costoMayorBs.toFixed(8);
@@ -1687,13 +1727,16 @@
         const costoMayor = parseNumber(editRow.querySelector('.row-costo-mayor-native')?.value || editRow.querySelector('.row-costo-mayor')?.value);
         const costoMayorBs = parseNumber(editRow.querySelector('.row-costo-mayor-bs-native')?.value || editRow.querySelector('.row-costo-mayor-bs')?.value);
         const unidades = parseNumber(editRow.querySelector('.row-unidades')?.value);
-        const costoMenor = unidades > 0 ? (costoMayor / unidades) : 0;
+        const effectiveQuantity = intercompanyModeActive() ? unidades : cantidadPacks;
+        const costoMenor = intercompanyModeActive() ? costoMayor : (unidades > 0 ? (costoMayor / unidades) : 0);
         const costoMenorRounded = roundValue(costoMenor, 2);
         const costoMenorBs = initialInventoryMode
           ? (costoMenorRounded * currentRate())
+          : intercompanyModeActive()
+            ? costoMayorBs
           : (unidades > 0 ? (costoMayorBs / unidades) : costoMayorBs);
-        const totalUsd = initialInventoryMode ? (costoMenorRounded * cantidadPacks) : (costoMayor * cantidadPacks);
-        const totalBs = initialInventoryMode ? (costoMenorBs * cantidadPacks) : (costoMayorBs * cantidadPacks);
+        const totalUsd = initialInventoryMode ? (costoMenorRounded * cantidadPacks) : (costoMayor * effectiveQuantity);
+        const totalBs = initialInventoryMode ? (costoMenorBs * cantidadPacks) : (costoMayorBs * effectiveQuantity);
         const exentoActivo = Boolean(editRow.querySelector('.row-exento')?.checked);
 
         const setText = (selector, value) => {
@@ -1916,7 +1959,7 @@
           const normalizedVariations = Array.isArray(defaults.variations) ? defaults.variations : [];
           const singleVariation = normalizedVariations.length === 1 ? normalizedVariations[0] : null;
 
-          if (cantidadInput && !cantidadInput.value) cantidadInput.value = '';
+          if (cantidadInput && !cantidadInput.value) cantidadInput.value = intercompanyModeActive() ? '1' : '';
           if (unidadesInput && !unidadesInput.value) unidadesInput.value = unidXPack > 0 ? formatDecimalInput(unidXPack, 2) : '';
           if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
           if (costoMayorBsNativeInput) costoMayorBsNativeInput.value = (costoMayor * currentRate()).toFixed(8);
