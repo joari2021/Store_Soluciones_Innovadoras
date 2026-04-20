@@ -1,7 +1,7 @@
 <% currency_symbol = Account::CURRENCIES.dig(debt.card_currency, :symbol) || debt.card_currency %>
 <% card_monetary_label = debt.card_currency == 'USD' ? 'USD BCV' : debt.card_currency %>
 <% status_label = debt.status_label %>
-<% action_label = debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
+<% action_label = debt.receivable? ? "Registrar cobro" : "Ver deudas" %>
 <% source_link = debt_source_link_data(debt) %>
 <% badge_class = case status_label
    when "Pagada" then "bg-emerald-100 text-emerald-700"
@@ -38,8 +38,8 @@ end %>
     </div>
   </div>
   <div class="mt-4 flex flex-wrap items-center gap-2">
-    <%= link_to new_debt_debt_payment_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" } do %>
-      <i data-lucide="credit-card" class="h-4 w-4"></i>
+    <%= link_to(debt.receivable? ? new_debt_debt_payment_path(debt) : debt_path(debt), class: "inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800", data: { turbo_frame: "_top" }) do %>
+      <i data-lucide="<%= debt.receivable? ? 'credit-card' : 'list' %>" class="h-4 w-4"></i>
       <%= action_label %>
     <% end %>
     <!-- Eliminar botón de ver venta en la caja agrupada, solo mostrar en deudas individuales -->
