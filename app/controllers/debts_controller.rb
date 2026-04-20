@@ -865,7 +865,7 @@ class DebtsController < ApplicationController
     else
       acreedor_value = debt.acreedor.to_s.strip
       if acreedor_value.present?
-        scope = scope.where('LOWER(COALESCE(acreedor, \''\')) = ?', acreedor_value.downcase)
+        scope = scope.where("LOWER(COALESCE(acreedor, '')) = ?", acreedor_value.downcase)
       elsif debt.cliente_id.present?
         scope = scope.where(cliente_id: debt.cliente_id)
       else
