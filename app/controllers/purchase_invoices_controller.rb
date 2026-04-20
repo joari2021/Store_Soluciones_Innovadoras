@@ -1685,6 +1685,13 @@ class PurchaseInvoicesController < ApplicationController
       )
     end
 
+    source_variation_attributes = source_product.product_variations.order(:id).map do |variation|
+      {
+        description: variation.description,
+        safety_stock: variation.safety_stock,
+      }
+    end
+
     destination_product = current_business.productos.create!(
       descripcion: source_product.descripcion,
       presentation: source_product.presentation,
@@ -1697,14 +1704,8 @@ class PurchaseInvoicesController < ApplicationController
       exento: source_product.respond_to?(:exento) ? source_product.exento : false,
       source_business_id: source_business.id,
       source_product_id: source_product.id,
+      product_variations_attributes: source_variation_attributes,
     )
-
-    source_product.product_variations.order(:id).find_each do |variation|
-      destination_product.product_variations.create!(
-        description: variation.description,
-        safety_stock: variation.safety_stock,
-      )
-    end
 
     if source_product.foto.attached? && !destination_product.foto.attached?
       destination_product.foto.attach(source_product.foto.blob)
