@@ -1392,6 +1392,13 @@ class PurchaseInvoicesController < ApplicationController
       return
     end
 
+    ensure_intercompany_group_tokens!(
+      payable_debt: payable_debt,
+      receivable_debt: receivable_debt,
+      source_business: source_business,
+    )
+    return if @purchase_invoice.errors.any?
+
     payable_debt.update!(
       amount: total_invoice_usd,
       currency: 'USD',
@@ -1472,6 +1479,7 @@ class PurchaseInvoicesController < ApplicationController
       debt_kind: 'payable',
       cliente: client,
       name: source_business.name,
+      acreedor: source_business.name,
       description: "Saldo pendiente factura inter-empresa #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}] [IC_MIRROR]",
       amount: 0.01.to_d,
       currency: 'USD',
@@ -1535,6 +1543,83 @@ class PurchaseInvoicesController < ApplicationController
 
   def normalize_intercompany_rif_document_number(raw_rif)
     raw_rif.to_s.upcase.gsub(/[^A-Z0-9]/, '').sub(/\A[JVEG]/, '')
+  end
+
+  def ensure_intercompany_group_tokens!(payable_debt:, receivable_debt:, source_business:)
+    assign_intercompany_group_token!(
+      debt: payable_debt,
+      owner_business: current_business,
+      debt_kind: 'payable',
+      cliente_id: payable_debt.cliente_id,
+      acreedor_name: source_business.name,
+      currency: 'USD',
+      exclude_debt_id: payable_debt.id,
+    )
+
+    assign_intercompany_group_token!(
+      debt: receivable_debt,
+      owner_business: source_business,
+      debt_kind: 'receivable',
+      cliente_id: receivable_debt.cliente_id,
+      currency: 'USD',
+      exclude_debt_id: receivable_debt.id,
+    )
+  end
+
+  def assign_intercompany_group_token!(debt:, owner_business:, debt_kind:, cliente_id:, currency:, exclude_debt_id:, acreedor_name: nil)
+    return if debt.blank?
+
+    active_group_token = find_active_group_token_for_intercompany_debt(
+      owner_business: owner_business,
+      debt_kind: debt_kind,
+      cliente_id: cliente_id,
+      acreedor_name: acreedor_name,
+      currency: currency,
+      exclude_debt_id: exclude_debt_id,
+    )
+
+    fallback_token = intercompany_effective_group_token_for(debt)
+    target_token = active_group_token.presence || fallback_token.presence || "grp_#{SecureRandom.hex(10)}"
+    return if debt.group_token.to_s.strip == target_token
+
+    debt.update!(group_token: target_token)
+  rescue ActiveRecord::RecordInvalid => e
+    @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
+  end
+
+  def find_active_group_token_for_intercompany_debt(owner_business:, debt_kind:, cliente_id:, currency:, exclude_debt_id:, acreedor_name: nil)
+    scope = Debt.where(business_id: owner_business.id, debt_kind: debt_kind, currency: currency)
+    scope = scope.where.not(id: exclude_debt_id) if exclude_debt_id.present?
+
+    if debt_kind == 'payable'
+      normalized_acreedor = acreedor_name.to_s.strip.downcase
+      if normalized_acreedor.present?
+        scope = scope.where("LOWER(TRIM(COALESCE(acreedor, ''))) = ?", normalized_acreedor)
+      elsif cliente_id.present?
+        scope = scope.where(cliente_id: cliente_id)
+      end
+    elsif cliente_id.present?
+      scope = scope.where(cliente_id: cliente_id)
+    end
+
+    candidates = scope.includes(:debt_payments).order(created_at: :desc).to_a
+    active = candidates.select { |candidate| candidate.balance.to_d > 0.01.to_d }
+    active.each do |candidate|
+      token = intercompany_effective_group_token_for(candidate)
+      return token if token.present?
+    end
+
+    nil
+  end
+
+  def intercompany_effective_group_token_for(debt)
+    token = debt.group_token.to_s.strip
+    return token if token.present?
+
+    match = debt.name.to_s.match(/\A\[GRP:(\d+)\]\s*/)
+    return nil if match.blank?
+
+    "legacy-#{match[1]}"
   end
 
   def aggregate_source_stock_rows_for_invoice_items(items, source_business:)
