@@ -9934,9 +9934,13 @@
         const requestFingerprint = buildDraftFingerprint();
         const requestReservationSnapshot = buildProductReservationSnapshot();
         const payload = buildVentaPayload([], []);
+        const creatingDraftFromAutoSync = !activeDraftId && !clearAfterSave;
         const effectiveDraftVisibility = draftVisibility || (activeDraftVisibility === 'visible' ? 'visible' : (clearAfterSave ? 'visible' : 'hidden'));
+        const requestedCheckoutStatus = creatingDraftFromAutoSync
+          ? 'pending'
+          : draftCheckoutStatus;
         const effectiveDraftCheckoutStatus = normalizeDraftCheckoutStatus(
-          draftCheckoutStatus,
+          requestedCheckoutStatus,
           activeDraftCheckoutStatus || 'pending'
         );
         payload.draft_visibility = effectiveDraftVisibility;
@@ -9983,6 +9987,11 @@
               data.draft.checkout_status,
               effectiveDraftCheckoutStatus
             );
+
+            if (creatingDraftFromAutoSync) {
+              draftListFilter = 'pending';
+            }
+
             draftSyncedFingerprint = requestFingerprint;
             applySyncedReservationSnapshot(requestReservationSnapshot);
             renderDraftTags();
