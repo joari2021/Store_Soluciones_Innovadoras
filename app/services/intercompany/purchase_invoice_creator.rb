@@ -108,13 +108,51 @@ module Intercompany
       return direct_source_product if direct_source_product.present?
 
       destination_product = @current_business.productos.find_by(id: requested_id)
-      return nil if destination_product.blank?
-      return nil unless destination_product.source_business_id == @source_business.id
+      if destination_product.present?
+        mapped_source_id = destination_product.source_product_id.to_i
+        if destination_product.source_business_id == @source_business.id && mapped_source_id.positive?
+          mapped = source_scope.find_by(id: mapped_source_id)
+          return mapped if mapped.present?
+        end
 
-      mapped_source_id = destination_product.source_product_id.to_i
-      return nil if mapped_source_id <= 0
+        inferred = find_source_product_by_definition(source_scope: source_scope,
+                                                     description: destination_product.descripcion,
+                                                     presentation: destination_product.presentation,
+                                                     cant_presentation: destination_product.cant_presentation)
+        if inferred.present? && (destination_product.source_business_id.blank? || destination_product.source_product_id.blank?)
+          destination_product.update_columns(
+            source_business_id: @source_business.id,
+            source_product_id: inferred.id,
+            updated_at: Time.current,
+          )
+        end
+        return inferred if inferred.present?
+      end
 
-      source_scope.find_by(id: mapped_source_id)
+      find_source_product_by_definition(source_scope: source_scope,
+                                        description: item.product_name,
+                                        presentation: nil,
+                                        cant_presentation: nil)
+    end
+
+    def find_source_product_by_definition(source_scope:, description:, presentation:, cant_presentation:)
+      normalized = normalize_product_description(description)
+      return nil if normalized.blank?
+
+      scope = source_scope.where("LOWER(TRIM(productos.descripcion)) = ?", normalized)
+      scope = scope.where(presentation: presentation) if presentation.present?
+      scope = scope.where(cant_presentation: cant_presentation) if cant_presentation.present?
+
+      product = scope.first
+      return product if product.present?
+
+      # Fallback for labels like "Producto (unidad)" in product_name.
+      simplified = normalized.gsub(/\s*\([^)]*\)\s*\z/, "").strip
+      return nil if simplified.blank? || simplified == normalized
+
+      fallback_scope = source_scope.where("LOWER(TRIM(productos.descripcion)) = ?", simplified)
+      fallback_scope = fallback_scope.where(presentation: presentation) if presentation.present?
+      fallback_scope.first
     end
 
     def clone_or_find_destination_product!(source_product)
