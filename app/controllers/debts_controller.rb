@@ -1966,8 +1966,15 @@ class DebtsController < ApplicationController
     nil
   end
 
-  def group_totals_key(cliente, currency)
-    [cliente&.id || 'none', currency.to_s.upcase]
+  def group_totals_key(counterparty, currency)
+    key = if counterparty.respond_to?(:id)
+            counterparty&.id || 'none'
+          else
+            normalized = counterparty.to_s.strip
+            normalized.present? ? "name:#{normalized.downcase}" : 'none'
+          end
+
+    [key, currency.to_s.upcase]
   end
 
   def count_debt_groups(groups)
