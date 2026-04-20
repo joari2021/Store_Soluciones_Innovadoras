@@ -433,6 +433,9 @@ class PurchaseInvoicesController < ApplicationController
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
       @purchase_invoice.assign_attributes(purchase_invoice_params)
+      normalize_intercompany_items_for_destination!(@purchase_invoice, source_business: source_business)
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+
       @purchase_invoice.save!
 
       current_rows = aggregate_source_stock_rows_for_invoice_items(
@@ -1164,6 +1167,128 @@ class PurchaseInvoicesController < ApplicationController
         quantity: quantity,
       }
     end
+  end
+
+  def normalize_intercompany_items_for_destination!(invoice, source_business:)
+    items = invoice.purchase_invoice_items.reject(&:marked_for_destruction?)
+    return if items.empty?
+
+    items.each do |item|
+      source_product = resolve_intercompany_source_product_for_item(item, source_business: source_business)
+      next if source_product.blank?
+
+      destination_product = destination_product_for_source(source_product: source_product, source_business: source_business)
+      next if destination_product.blank?
+
+      item.producto = destination_product
+      item.product_name = destination_product.descripcion
+      normalize_intercompany_item_variation_breakdown!(
+        item: item,
+        source_product: source_product,
+        destination_product: destination_product,
+      )
+    end
+  end
+
+  def destination_product_for_source(source_product:, source_business:)
+    destination_product = current_business.productos.find_by(
+      source_business_id: source_business.id,
+      source_product_id: source_product.id,
+    )
+    return destination_product if destination_product.present?
+
+    destination_category = current_business.categorias.find_or_create_by!(
+      nombre: source_product.categoria&.nombre.presence || 'General',
+    )
+
+    preset = nil
+    if source_product.profit_margin_preset.present?
+      preset = current_business.profit_margin_presets.find_or_create_by!(
+        percentage: source_product.profit_margin_preset.percentage,
+      )
+    end
+
+    destination_product = current_business.productos.create!(
+      descripcion: source_product.descripcion,
+      presentation: source_product.presentation,
+      cant_presentation: source_product.cant_presentation,
+      allow_unpack: source_product.allow_unpack,
+      precio_venta_usd: source_product.precio_venta_usd,
+      porcentaje_ganancia: source_product.porcentaje_ganancia,
+      categoria: destination_category,
+      profit_margin_preset: preset,
+      exento: source_product.respond_to?(:exento) ? source_product.exento : false,
+      source_business_id: source_business.id,
+      source_product_id: source_product.id,
+    )
+
+    source_product.product_variations.order(:id).find_each do |variation|
+      destination_product.product_variations.create!(
+        description: variation.description,
+        safety_stock: variation.safety_stock,
+      )
+    end
+
+    if source_product.foto.attached? && !destination_product.foto.attached?
+      destination_product.foto.attach(source_product.foto.blob)
+    end
+
+    destination_product
+  rescue ActiveRecord::RecordInvalid => e
+    @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
+    nil
+  end
+
+  def normalize_intercompany_item_variation_breakdown!(item:, source_product:, destination_product:)
+    source_variations = source_product.product_variations.order(:id).to_a
+    destination_by_desc = destination_product.product_variations.order(:id).index_by do |variation|
+      variation.description.to_s.strip.downcase
+    end
+
+    rows = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+    normalized_rows = rows.filter_map do |raw_row|
+      next unless raw_row.is_a?(Hash)
+
+      quantity = (raw_row['quantity'] || raw_row[:quantity]).to_d
+      next unless quantity.positive?
+
+      source_variation = resolve_source_variation_for_item_row(
+        source_product: source_product,
+        source_variations: source_variations,
+        destination_product: destination_product,
+        row: raw_row,
+      )
+      next if source_variation.blank?
+
+      destination_variation = destination_by_desc[source_variation.description.to_s.strip.downcase]
+      if destination_variation.blank?
+        destination_variation = destination_product.product_variations.create!(
+          description: source_variation.description,
+          safety_stock: source_variation.safety_stock,
+        )
+        destination_by_desc[source_variation.description.to_s.strip.downcase] = destination_variation
+      end
+
+      {
+        'variation_id' => destination_variation.id,
+        'description' => destination_variation.description,
+        'quantity' => quantity.to_f,
+      }
+    end
+
+    if normalized_rows.empty? && source_variations.one?
+      source_variation = source_variations.first
+      destination_variation = destination_by_desc[source_variation.description.to_s.strip.downcase]
+      if destination_variation.present? && item.cantidad.to_d.positive?
+        normalized_rows = [{
+          'variation_id' => destination_variation.id,
+          'description' => destination_variation.description,
+          'quantity' => item.cantidad.to_d.to_f,
+        }]
+      end
+    end
+
+    item.variation_breakdown = normalized_rows
   end
 
   def resolve_intercompany_source_product_for_item(item, source_business:)
