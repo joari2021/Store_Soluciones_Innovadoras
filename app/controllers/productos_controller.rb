@@ -335,11 +335,14 @@ class ProductosController < ApplicationController
 
   def update
     update_attrs = producto_params.to_h
+    propagate_photo_to_same_name_products = image_update_requested?
     if params[:producto].is_a?(ActionController::Parameters) && params[:producto].key?(:allow_unpack)
       update_attrs['allow_unpack'] = extract_allow_unpack_param
     end
 
     if @producto.update(update_attrs)
+      sync_product_image_to_other_businesses!(@producto) if propagate_photo_to_same_name_products
+
       if request.headers['Turbo-Frame'].present?
         row_payload = view_context.turbo_stream.append(
           'products-live-updates',
@@ -802,6 +805,25 @@ class ProductosController < ApplicationController
     raw_value = params.dig(:producto, :allow_unpack)
     raw_value = raw_value.last if raw_value.is_a?(Array)
     ActiveModel::Type::Boolean.new.cast(raw_value)
+  end
+
+  def image_update_requested?
+    image_param = params.dig(:producto, :foto)
+    image_param.respond_to?(:content_type)
+  end
+
+  def sync_product_image_to_other_businesses!(source_product)
+    return unless source_product.foto.attached?
+
+    Producto
+      .where(descripcion: source_product.descripcion)
+      .where.not(id: source_product.id)
+      .where.not(business_id: source_product.business_id)
+      .find_each do |target_product|
+      target_product.foto.attach(source_product.foto.blob)
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PRODUCT_IMAGE_SYNC] No se pudo sincronizar imagen del producto ##{source_product.id}: #{e.class}: #{e.message}")
   end
 
   def producto_params
