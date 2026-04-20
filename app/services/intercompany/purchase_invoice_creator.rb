@@ -421,7 +421,7 @@ module Intercompany
     end
 
     def create_mirror_pending_debts!
-      pending_amount_bs = @payment_context[:pending_amount_bs].to_d.round(2)
+      pending_amount_bs = intercompany_pending_amount_bs.round(2)
       return unless pending_amount_bs.positive?
 
       pending_amount_usd = pending_amount_usd_from_bs(pending_amount_bs)
@@ -504,6 +504,13 @@ module Intercompany
 
       converted = (pending_amount_bs.to_d / rate).round(2)
       converted.positive? ? converted : 0.01.to_d
+    end
+
+    def intercompany_pending_amount_bs
+      total_invoice_bs = @purchase_invoice.total_bs.to_d.round(2)
+      total_paid_bs = Array(@payment_context[:payments]).sum { |entry| entry[:amount].to_d }.round(2)
+      pending = (total_invoice_bs - total_paid_bs).round(2)
+      pending.positive? ? pending : 0.to_d
     end
 
     def buyer_default_account_for_mirror
