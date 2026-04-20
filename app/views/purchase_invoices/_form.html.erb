@@ -1921,7 +1921,7 @@
         }
         resultsBox.innerHTML = items.map((item) => {
           const productName = item.display_name || item.descripcion || '';
-          return (`<button type="button" class="select-product-result w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(productName)}" data-costo-mayor="${item.costo_mayor || ''}" data-costo-menor="${item.costo_menor || ''}" data-unid-x-pack="${item.unid_x_pack || ''}" data-variations="${encodeURIComponent(JSON.stringify(item.variations || []))}">
+          return (`<button type="button" class="select-product-result w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(productName)}" data-costo-mayor="${item.costo_mayor || ''}" data-costo-menor="${item.costo_menor || ''}" data-unid-x-pack="${item.unid_x_pack || ''}" data-exento="${item.exento === true || String(item.exento) === 'true' || String(item.exento) === '1' ? '1' : '0'}" data-variations="${encodeURIComponent(JSON.stringify(item.variations || []))}">
              <div class="text-sm font-medium text-slate-700">${escapeHtml(productName)}</div>
            </button>`);
         }).join('');
@@ -1952,7 +1952,7 @@
           const exentoInput = editRow.querySelector('.row-exento');
           const variationBreakdownInput = editRow.querySelector('.row-variation-breakdown');
 
-          const costoMayor = parseNumber(defaults.costo_mayor);
+          let costoMayor = parseNumber(defaults.costo_mayor);
           const costoMenor = parseNumber(defaults.costo_menor);
           const unidXPack = parseNumber(defaults.unid_x_pack);
           const supplierId = String(supplierSelect?.value || '').trim();
@@ -1963,14 +1963,21 @@
           if (unidadesInput && !unidadesInput.value) unidadesInput.value = unidXPack > 0 ? formatDecimalInput(unidXPack, 2) : '';
           if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
           if (costoMayorBsNativeInput) costoMayorBsNativeInput.value = (costoMayor * currentRate()).toFixed(8);
-          if (exentoInput) {
-            const hasProvidedExento = Object.prototype.hasOwnProperty.call(defaults, 'exento');
-            const providedExentoValue = defaults.exento;
-            const isExento = hasProvidedExento
-              ? (String(providedExentoValue || '') === '1' || String(providedExentoValue || '') === 'true' || providedExentoValue === true)
-              : currentSupplierDefaultExento();
-            exentoInput.checked = isExento;
+          const hasProvidedExento = Object.prototype.hasOwnProperty.call(defaults, 'exento');
+          const providedExentoValue = defaults.exento;
+          const isExento = hasProvidedExento
+            ? (String(providedExentoValue || '') === '1' || String(providedExentoValue || '') === 'true' || providedExentoValue === true)
+            : currentSupplierDefaultExento();
+
+          if (exentoInput) exentoInput.checked = isExento;
+
+          const applyProductSearchIvaAdjustment = !initialInventoryMode && !intercompanyModeActive() && !isExento && costoMayor > 0;
+          if (applyProductSearchIvaAdjustment) {
+            costoMayor *= 0.84;
           }
+
+          const initialCostoMenor = unidXPack > 0 ? (costoMayor / unidXPack) : costoMenor;
+
           setMaskedMoney(costoMayorInput, costoMayor, '$');
 
           editRow.dataset.productId = String(productId || '');
@@ -1981,7 +1988,7 @@
           editRow.dataset.hasReference = supplierId ? 'true' : 'false';
           editRow.dataset.refCostoMayor = String(costoMayor || 0);
           editRow.dataset.refUnidXPack = String(unidXPack || 0);
-          editRow.dataset.refCostoMenor = String(costoMenor || 0);
+          editRow.dataset.refCostoMenor = String(initialCostoMenor || 0);
 
           if (displayRow) {
             displayRow.dataset.productId = String(productId || '');
@@ -2231,6 +2238,7 @@
             costo_mayor: resultBtn.getAttribute('data-costo-mayor'),
             costo_menor: resultBtn.getAttribute('data-costo-menor'),
               unid_x_pack: resultBtn.getAttribute('data-unid-x-pack'),
+              exento: resultBtn.getAttribute('data-exento'),
               variations
           });
           if (searchInput) searchInput.value = '';

@@ -149,6 +149,7 @@ class ProductosController < ApplicationController
           costo_mayor: row.attributes['supplier_costo_mayor'],
           costo_menor: row.attributes['supplier_costo_menor'],
           unid_x_pack: row.attributes['supplier_unid_x_pack'],
+          exento: row.respond_to?(:exento?) ? row.exento? : false,
           variations: row.product_variations.order(:id).map do |variation|
             { id: variation.id, description: variation.description }
           end
