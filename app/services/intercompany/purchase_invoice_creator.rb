@@ -63,7 +63,7 @@ module Intercompany
       end
 
       items.each do |item|
-        source_product = @source_business.productos.includes(:product_variations, :stock_lots).find_by(id: item.producto_id)
+        source_product = resolve_source_product_for_item(item)
         unless source_product
           @purchase_invoice.errors.add(:base, "Producto origen ##{item.producto_id} no existe en el negocio que surte.")
           next
@@ -95,6 +95,26 @@ module Intercompany
           }
         end
       end
+    end
+
+    # During edit/update, item.producto_id can point to the cloned destination product.
+    # Resolve back to source product using source_product_id mapping when needed.
+    def resolve_source_product_for_item(item)
+      source_scope = @source_business.productos.includes(:product_variations, :stock_lots)
+      requested_id = item.producto_id.to_i
+      return nil if requested_id <= 0
+
+      direct_source_product = source_scope.find_by(id: requested_id)
+      return direct_source_product if direct_source_product.present?
+
+      destination_product = @current_business.productos.find_by(id: requested_id)
+      return nil if destination_product.blank?
+      return nil unless destination_product.source_business_id == @source_business.id
+
+      mapped_source_id = destination_product.source_product_id.to_i
+      return nil if mapped_source_id <= 0
+
+      source_scope.find_by(id: mapped_source_id)
     end
 
     def clone_or_find_destination_product!(source_product)
