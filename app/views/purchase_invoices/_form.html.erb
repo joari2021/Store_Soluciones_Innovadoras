@@ -175,7 +175,7 @@
           <% end %>
           <th class="px-4 py-3 text-right">Costo Mayor $</th>
           <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
-          <th class="px-4 py-3 text-center">Unid x Pack</th>
+          <th class="px-4 py-3 text-center"><%= intercompany_mode ? 'Cantidad unidades' : 'Unid x Pack' %></th>
           <% if initial_inventory_mode %>
             <th class="px-4 py-3 text-right text-cyan-800 bg-cyan-50/80">Precio unit $</th>
             <th class="px-4 py-3 text-right text-cyan-800 bg-cyan-50/80">Precio unit Bs</th>
