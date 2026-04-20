@@ -2453,6 +2453,21 @@
                 input.addEventListener('input', updateRemaining);
               });
 
+              dialog.querySelectorAll('[data-change-check]').forEach((checkbox) => {
+                checkbox.addEventListener('change', () => {
+                  const accountId = checkbox.dataset.changeCheck;
+                  const row = dialog.querySelector(`[data-change-row="${accountId}"]`);
+                  const input = dialog.querySelector(`[data-change-input="${accountId}"]`);
+                  const bankFields = dialog.querySelector(`[data-change-bank-fields="${accountId}"]`);
+                  if (!input) return;
+
+                  setFieldEnabledState(input, checkbox.checked, 'amber');
+                  setBankFieldsEnabled(bankFields, checkbox.checked, 'amber');
+                  setRowVisualState(row, checkbox.checked, 'amber');
+                  updateRemaining();
+                });
+              });
+
               dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
                 checkbox.addEventListener('change', () => {
                   const accountId = checkbox.dataset.payCheck;
@@ -10359,6 +10374,9 @@
             const selectedPrintPriceBs = Number(entry.selected_print_price_bs);
             const selectedPrintSurchargePercent = Number(entry.selected_print_surcharge_percent);
             const selectedPrintUnitPriceBs = Number(entry.selected_print_unit_price_bs);
+            const recargaBaseAmount = Number(entry.recarga_base_amount);
+            const recargaTotalAmount = Number(entry.recarga_total_amount);
+            const recargaProfitPercent = Number(entry.recarga_profit_percent);
             let signature = String(entry.price_signature || '').trim();
             const baseAmount = Number(entry.unit_price_base_amount);
             const baseCurrencyCode = normalizeCurrencyCode(entry.unit_price_base_currency);
@@ -10401,6 +10419,9 @@
               agreed_reference_name: entry.agreed_reference_name || null,
               agreed_reference_amount: Number(entry.agreed_reference_amount) || null,
               agreed_reference_symbol: entry.agreed_reference_symbol || null,
+              recarga_base_amount: Number.isFinite(recargaBaseAmount) ? roundTo(recargaBaseAmount, 2) : null,
+              recarga_total_amount: Number.isFinite(recargaTotalAmount) ? roundTo(recargaTotalAmount, 2) : null,
+              recarga_profit_percent: Number.isFinite(recargaProfitPercent) ? roundTo(recargaProfitPercent, 4) : null,
               price_signature: signature || null,
               consumable_decisions: consumableDecisions,
             };
@@ -10433,6 +10454,15 @@
             existing.agreed_reference_name = entry.agreed_reference_name || existing.agreed_reference_name;
             existing.agreed_reference_amount = Number(entry.agreed_reference_amount) || existing.agreed_reference_amount;
             existing.agreed_reference_symbol = entry.agreed_reference_symbol || existing.agreed_reference_symbol;
+            existing.recarga_base_amount = Number.isFinite(recargaBaseAmount)
+              ? roundTo(recargaBaseAmount, 2)
+              : existing.recarga_base_amount;
+            existing.recarga_total_amount = Number.isFinite(recargaTotalAmount)
+              ? roundTo(recargaTotalAmount, 2)
+              : existing.recarga_total_amount;
+            existing.recarga_profit_percent = Number.isFinite(recargaProfitPercent)
+              ? roundTo(recargaProfitPercent, 4)
+              : existing.recarga_profit_percent;
             existing.price_signature = signature || existing.price_signature;
             existing.consumable_decisions = consumableDecisions.length > 0 ? consumableDecisions : (existing.consumable_decisions || []);
 
