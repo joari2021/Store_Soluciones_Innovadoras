@@ -1123,7 +1123,11 @@ class PurchaseInvoicesController < ApplicationController
     @invoice_payment_movements = invoice_payment_movements_scope(@purchase_invoice)
     @invoice_pending_debt = find_invoice_pending_debt(@purchase_invoice)
     @invoice_bcv_rate = invoice_bcv_rate_for_today
-    @invoice_pending_balance_bs = [@invoice_pending_debt&.balance.to_d.round(2), 0.to_d].max
+    pending_balance = @invoice_pending_debt&.balance.to_d.round(2)
+    if @invoice_pending_debt.present? && @invoice_pending_debt.currency.to_s.upcase == 'USD'
+      pending_balance = (pending_balance * @invoice_bcv_rate.to_d).round(2)
+    end
+    @invoice_pending_balance_bs = [pending_balance, 0.to_d].max
     @invoice_debt_assigned_bs = @invoice_pending_debt&.amount.to_d.round(2)
     @invoice_total_paid_bs = [@purchase_invoice.total_bs.to_d - @invoice_pending_balance_bs, 0.to_d].max.round(2)
   end
@@ -1173,6 +1177,8 @@ class PurchaseInvoicesController < ApplicationController
 
     mirror_debts = linked_debts.filter_map(&:mirror_debt)
     linked_debts = (linked_debts + mirror_debts).uniq(&:id)
+    linked_debt_payments = linked_debts.flat_map { |debt| debt.debt_payments.to_a }.uniq(&:id)
+    linked_payment_ids = linked_debt_payments.map(&:id)
 
     linked_debt_ids = linked_debts.map(&:id)
 
@@ -1205,6 +1211,14 @@ class PurchaseInvoicesController < ApplicationController
       end
     end
 
+    if linked_payment_ids.any?
+      movements_to_destroy.concat(
+        AccountMovement
+          .where('account_movements.description ILIKE ANY ( ARRAY[?] )', linked_payment_ids.map { |payment_id| "%[MIRROR_FROM_DP:#{payment_id}]%" })
+          .to_a
+      )
+    end
+
     movements_to_destroy.uniq!(&:id)
     movements_to_destroy.each(&:destroy!)
 
@@ -1219,6 +1233,7 @@ class PurchaseInvoicesController < ApplicationController
       end
     end
 
+    linked_debt_payments.each(&:destroy!)
     linked_debts.each(&:destroy!)
   end
 
@@ -1275,7 +1290,7 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     payable_debt.update!(
-      amount: pending_amount_usd,
+      amount: updated_intercompany_debt_amount(payable_debt, pending_amount_usd),
       currency: 'USD',
       due_on: due_on.presence || payable_debt.due_on,
       mirror_sync_enabled: true,
@@ -1283,12 +1298,18 @@ class PurchaseInvoicesController < ApplicationController
     )
 
     receivable_debt.update!(
-      amount: pending_amount_usd,
+      amount: updated_intercompany_debt_amount(receivable_debt, pending_amount_usd),
       currency: 'USD',
       due_on: due_on.presence || receivable_debt.due_on,
       mirror_sync_enabled: true,
       mirror_debt: payable_debt,
     )
+  end
+
+  def updated_intercompany_debt_amount(debt, pending_amount_usd)
+    paid_amount = debt.debt_payments.sum(:amount_in_debt_currency).to_d.round(2)
+    total_amount = (paid_amount + pending_amount_usd.to_d).round(2)
+    total_amount.positive? ? total_amount : 0.01.to_d
   end
 
   def sync_intercompany_payment_movements!(invoice, payments:, source_business:)

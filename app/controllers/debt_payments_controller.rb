@@ -626,23 +626,34 @@ class DebtPaymentsController < ApplicationController
   end
 
   def linked_account_movements_for_payment(payment)
-    business_account_movements_scope
+    account_movements_scope_for_business(payment.debt.business_id)
       .where(account_id: payment.account_id)
       .where('description ILIKE ?', "%[DP:#{payment.id}]%")
       .to_a
   end
 
   def mirror_synced_payments_for(payment)
-    current_business
-      .debt_payments
-      .joins(:debt)
-      .where(debts: { business_id: current_business.id })
-      .where('notes ILIKE ?', "%[MIRROR_FROM_DP:#{payment.id}]%")
-      .to_a
+    business_ids = [payment.debt.business_id, payment.debt.mirror_debt&.business_id].compact.uniq
+    return [] if business_ids.empty?
+
+    scope = DebtPayment.joins(:debt).where(debts: { business_id: business_ids })
+
+    referenced_id = payment.notes.to_s[/\[MIRROR_FROM_DP:(\d+)\]/, 1].to_i
+    referenced_payments = referenced_id.positive? ? scope.where(id: referenced_id).to_a : []
+
+    mirrored_from_current = scope
+                            .where('debt_payments.notes ILIKE ?', "%[MIRROR_FROM_DP:#{payment.id}]%")
+                            .to_a
+
+    (referenced_payments + mirrored_from_current).uniq(&:id)
   end
 
   def business_account_movements_scope
     AccountMovement.joins(:account).where(accounts: { business_id: current_business.id })
+  end
+
+  def account_movements_scope_for_business(business_id)
+    AccountMovement.joins(:account).where(accounts: { business_id: business_id })
   end
 
   def cash_shift_for_payment(payment)

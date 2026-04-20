@@ -38,7 +38,8 @@ module ApplicationHelper
     return formatted_debt_description if formatted_debt_description.present?
 
     cleaned = description
-          .gsub(/\s*\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i, '')
+        .gsub(/\s*\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|FACTURA_COMPRA_MIRROR|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i, '')
+          .gsub(/\s*\[IC_MIRROR\]/i, '')
               .gsub(/\s*\[LINE:[^\]]+\]/i, '')
               .gsub(/\s*\[COMMISSION\]/i, '')
               .gsub(/\s*-\s*Ref\s+[^\s\]]+/i, '')
@@ -144,6 +145,8 @@ module ApplicationHelper
     cleaned = raw_description
               .gsub(/\s*\[(?:VENTA):\d+\]/i, '')
               .gsub(/\s*\[(?:CLIENTE_DUENO):[^\]]+\]/i, '')
+              .gsub(/\s*\[(?:FACTURA_COMPRA|FACTURA_COMPRA_MIRROR):\d+\]/i, '')
+              .gsub(/\s*\[IC_MIRROR\]/i, '')
     cleaned.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
   end
 
