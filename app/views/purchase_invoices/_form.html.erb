@@ -2187,6 +2187,15 @@
         updateGrandTotals();
       });
 
+      // Prevent accidental wheel changes on variation quantity inputs.
+      form.addEventListener('wheel', (ev) => {
+        const target = ev.target;
+        if (!(target instanceof HTMLElement)) return;
+        if (!target.classList.contains('row-variation-qty')) return;
+
+        ev.preventDefault();
+      }, { passive: false });
+
       form.addEventListener('blur', (ev) => {
         if (!ev.target || !ev.target.classList || !ev.target.classList.contains('row-costo-mayor-bs')) return;
         const row = ev.target.closest('.factura-row-edit');
