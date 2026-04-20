@@ -1961,8 +1961,6 @@
 
           if (cantidadInput && !cantidadInput.value) cantidadInput.value = intercompanyModeActive() ? '1' : '';
           if (unidadesInput && !unidadesInput.value) unidadesInput.value = unidXPack > 0 ? formatDecimalInput(unidXPack, 2) : '';
-          if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
-          if (costoMayorBsNativeInput) costoMayorBsNativeInput.value = (costoMayor * currentRate()).toFixed(8);
           const hasProvidedExento = Object.prototype.hasOwnProperty.call(defaults, 'exento');
           const providedExentoValue = defaults.exento;
           const isExento = hasProvidedExento
@@ -1975,6 +1973,9 @@
           if (applyProductSearchIvaAdjustment) {
             costoMayor *= 0.84;
           }
+
+          if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
+          if (costoMayorBsNativeInput) costoMayorBsNativeInput.value = (costoMayor * currentRate()).toFixed(8);
 
           const initialCostoMenor = unidXPack > 0 ? (costoMayor / unidXPack) : costoMenor;
 
