@@ -355,6 +355,9 @@ class DebtsController < ApplicationController
     end
 
     @payment_accounts = payment_accounts_for_group_currency(@show_group_currency)
+    @intercompany_group_payment_mode = intercompany_group_payment_mode?(@grouped_debts)
+    @intercompany_mirror_business = intercompany_mirror_business_for(@grouped_debts)
+    @intercompany_mirror_accounts = intercompany_mirror_accounts_for(@intercompany_mirror_business)
     @currency_rates_to_ves = @payment_accounts.map(&:currency).uniq.each_with_object({}) do |currency, hash|
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: Date.current).to_d.to_f
     end
@@ -1302,6 +1305,37 @@ class DebtsController < ApplicationController
     end
 
     scope.order(:currency, :name)
+  end
+
+  def intercompany_group_payment_mode?(debts)
+    debts.present? && debts.all? { |debt| intercompany_invoice_debt?(debt) }
+  end
+
+  def intercompany_invoice_debt?(debt)
+    description = debt.description.to_s
+    return false unless description.include?('[IC_MIRROR]')
+
+    description.include?('[FACTURA_COMPRA:') || description.include?('[FACTURA_COMPRA_MIRROR:')
+  end
+
+  def intercompany_mirror_business_for(debts)
+    return nil unless intercompany_group_payment_mode?(debts)
+
+    mirror_businesses = debts.filter_map { |debt| debt.mirror_debt&.business }.uniq { |business| business.id }
+    return nil unless mirror_businesses.size == 1
+
+    mirror_businesses.first
+  end
+
+  def intercompany_mirror_accounts_for(business)
+    return [] if business.blank?
+
+    business.accounts
+            .where(active: true)
+            .where.not(account_type: 'cashea')
+            .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+            .order(:currency, :name)
+            .to_a
   end
 
   def convert_entry_amounts_to_group_currency!(entries)

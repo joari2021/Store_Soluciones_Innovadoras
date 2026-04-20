@@ -4,6 +4,7 @@ class DebtPaymentsController < ApplicationController
   before_action :ensure_can_register_debt_payment!, only: %i[new create]
   before_action :set_debt
   before_action :load_accounts, only: %i[new create]
+  before_action :load_intercompany_mirror_accounts, only: %i[new create]
   before_action :load_currency_rates, only: %i[new create]
   before_action :set_debt_payment, only: %i[destroy]
 
@@ -60,6 +61,8 @@ class DebtPaymentsController < ApplicationController
       notes: debt_payment_params[:notes],
     )
 
+    selected_mirror_account = selected_intercompany_mirror_account
+
     unless payment_date_allowed_for_current_user?(submitted_occurred_on)
       @debt_payment.errors.add(:occurred_at, 'el encargado solo puede registrar cobros/pagos con la fecha actual')
       return handle_payment_form_error
@@ -74,6 +77,17 @@ class DebtPaymentsController < ApplicationController
 
     if payment_currency.blank?
       @debt_payment.errors.add(:account, "debe tener una moneda configurada")
+      return handle_payment_form_error
+    end
+
+    if @intercompany_group_payment_mode && selected_mirror_account.blank?
+      @debt_payment.errors.add(:base, 'Debes seleccionar la cuenta destino en el negocio contraparte para registrar el espejo.')
+      return handle_payment_form_error
+    end
+
+    if @intercompany_group_payment_mode && @intercompany_mirror_business.present? &&
+       selected_mirror_account.present? && selected_mirror_account.business_id != @intercompany_mirror_business.id
+      @debt_payment.errors.add(:base, 'La cuenta destino seleccionada no pertenece al negocio contraparte de la factura interempresa.')
       return handle_payment_form_error
     end
 
@@ -125,6 +139,7 @@ class DebtPaymentsController < ApplicationController
     return handle_payment_form_error if payments_to_persist.blank?
 
     DebtPayment.transaction do
+      apply_intercompany_mirror_account_to_debts!(payments_to_persist, selected_mirror_account)
       payments_to_persist.each(&:save!)
     end
 
@@ -202,6 +217,28 @@ class DebtPaymentsController < ApplicationController
     @accounts = scope.order(:currency, :name).to_a
   end
 
+  def load_intercompany_mirror_accounts
+    @intercompany_group_payment_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
+    @intercompany_mirror_business = nil
+    @mirror_accounts = []
+
+    return unless @intercompany_group_payment_mode
+
+    mirror_businesses = @grouped_debts.filter_map { |debt| debt.mirror_debt&.business }.uniq { |business| business.id }
+    if mirror_businesses.size != 1
+      @intercompany_group_payment_mode = false
+      return
+    end
+
+    @intercompany_mirror_business = mirror_businesses.first
+    @mirror_accounts = @intercompany_mirror_business.accounts
+                              .where(active: true)
+                              .where.not(account_type: 'cashea')
+                              .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+                              .order(:currency, :name)
+                              .to_a
+  end
+
   def load_currency_rates
     @currency_rates_to_ves = Account::CURRENCIES.keys.each_with_object({}) do |currency, hash|
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: Date.current).to_d.to_f
@@ -211,7 +248,33 @@ class DebtPaymentsController < ApplicationController
 
   def debt_payment_params
     params.require(:debt_payment).permit(:account_id, :amount, :payment_method, :reference, :occurred_at,
-                                         :notes, :allow_overpayment)
+                                         :notes, :allow_overpayment, :mirror_account_id)
+  end
+
+  def selected_intercompany_mirror_account
+    mirror_account_id = debt_payment_params[:mirror_account_id].to_i
+    return nil unless mirror_account_id.positive?
+
+    @mirror_accounts.find { |account| account.id == mirror_account_id }
+  end
+
+  def intercompany_invoice_debt?(debt)
+    description = debt.description.to_s
+    return false unless description.include?('[IC_MIRROR]')
+
+    description.include?('[FACTURA_COMPRA:') || description.include?('[FACTURA_COMPRA_MIRROR:')
+  end
+
+  def apply_intercompany_mirror_account_to_debts!(payments, mirror_account)
+    return unless @intercompany_group_payment_mode
+    return if mirror_account.blank?
+
+    payments.map(&:debt).uniq.each do |debt|
+      next unless intercompany_invoice_debt?(debt)
+
+      debt.update!(mirror_account: mirror_account, mirror_sync_enabled: true)
+      debt.mirror_debt&.update!(mirror_sync_enabled: true)
+    end
   end
 
   def overpayment_allowed?

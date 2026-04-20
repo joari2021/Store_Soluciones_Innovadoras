@@ -330,6 +330,17 @@
               <% end %>
             </select>
           </div>
+          <% if @intercompany_group_payment_mode && @intercompany_mirror_business.present? %>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500">Cuenta destino (negocio receptor espejo)</label>
+              <select name="debt_payment[mirror_account_id]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+                <option value="">Selecciona una cuenta de <%= @intercompany_mirror_business.name %></option>
+                <% @intercompany_mirror_accounts.each do |account| %>
+                  <option value="<%= account.id %>"><%= account.name %> (<%= account.currency %>)</option>
+                <% end %>
+              </select>
+            </div>
+          <% end %>
           <div class="hidden" data-register-payment-method-wrapper="true">
             <label class="block text-xs font-semibold text-slate-500">Metodo (solo banco)</label>
             <select name="debt_payment[payment_method]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-method="true">
