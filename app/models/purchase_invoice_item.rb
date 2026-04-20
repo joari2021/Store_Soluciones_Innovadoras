@@ -63,6 +63,11 @@ class PurchaseInvoiceItem < ApplicationRecord
       self.costo_mayor = bs_value / rate
     end
 
+    if purchase_invoice&.intercompany?
+      self.costo_menor = costo_mayor.to_d
+      return
+    end
+
     unidades = unid_x_pack.to_d
     return unless unidades.positive?
 
@@ -272,6 +277,7 @@ class PurchaseInvoiceItem < ApplicationRecord
       unit_cost_source = (unit_cost_source * 1.16.to_d).round(8)
     end
 
+    return unit_cost_source if purchase_invoice&.intercompany?
     return unit_cost_source if units_per_pack <= 0
 
     unit_cost_source / units_per_pack

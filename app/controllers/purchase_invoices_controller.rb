@@ -775,9 +775,32 @@ class PurchaseInvoicesController < ApplicationController
   def build_invoice_payment_context(invoice, source_business: nil)
     rows_for_form = invoice_payment_rows_for_form
     normalized_rows = normalize_invoice_payment_rows(rows_for_form)
+    payment_input_submitted = invoice_payment_input_submitted?
     mark_pending_payment = ActiveModel::Type::Boolean.new.cast(params[:mark_pending_payment])
     pending_due_on_raw = params[:pending_due_on].to_s.strip
     pending_due_on = parse_filter_date(pending_due_on_raw)
+
+    if invoice.persisted? && !payment_input_submitted
+      total_invoice_bs = invoice.total_bs.to_d.round(2)
+      total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
+      pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
+      pending_amount_bs = 0.to_d if pending_amount_bs.abs < 0.01.to_d
+
+      existing_pending_debt = find_invoice_pending_debt(invoice)
+      effective_mark_pending = existing_pending_debt.present? || pending_amount_bs.positive?
+      effective_pending_due_on = existing_pending_debt&.due_on
+
+      return {
+        rows: rows_for_form,
+        mark_pending_payment: effective_mark_pending,
+        pending_due_on: effective_pending_due_on,
+        pending_due_on_value: normalized_filter_date_value('', effective_pending_due_on),
+        payments: [],
+        total_invoice_bs: total_invoice_bs,
+        total_paid_bs: total_paid_bs,
+        pending_amount_bs: [pending_amount_bs, 0.to_d].max
+      }
+    end
 
     payments = build_invoice_payment_records(invoice, normalized_rows, source_business: source_business)
 
@@ -818,6 +841,10 @@ class PurchaseInvoicesController < ApplicationController
       total_paid_bs: total_paid_bs,
       pending_amount_bs: [pending_amount_bs, 0.to_d].max
     }
+  end
+
+  def invoice_payment_input_submitted?
+    params.key?(:invoice_payments) || params.key?(:mark_pending_payment) || params.key?(:pending_due_on)
   end
 
   def build_invoice_payment_records(invoice, normalized_rows, source_business: nil)
