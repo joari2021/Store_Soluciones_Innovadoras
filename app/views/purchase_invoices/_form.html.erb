@@ -359,6 +359,9 @@
               <td class="px-4 py-3"><%= fi.number_field :cantidad, step: 0.01, value: format_decimal_input.call(fi.object.cantidad, 2), class: 'row-cantidad-packs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500' %></td>
             <% else %>
               <%= fi.hidden_field :exento, value: 1, class: 'row-exento' %>
+              <% if intercompany_mode %>
+                <%= fi.hidden_field :cantidad, value: format_decimal_input.call(fi.object.cantidad, 2), class: 'row-cantidad-packs' %>
+              <% end %>
             <% end %>
             <td class="px-4 py-3">
               <%= fi.hidden_field :costo_mayor, class: 'row-costo-mayor-native' %>
@@ -787,6 +790,9 @@
       </td>
       <% if initial_inventory_mode || intercompany_mode %>
         <input class="row-exento" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" type="hidden" value="1">
+        <% if intercompany_mode %>
+          <input class="row-cantidad-packs" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="hidden" value="0">
+        <% end %>
       <% else %>
         <td class="px-4 py-3">
           <input type="hidden" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][exento]" value="0">
@@ -799,7 +805,7 @@
           </label>
         </td>
       <% end %>
-      <% unless initial_inventory_mode %>
+      <% unless initial_inventory_mode || intercompany_mode %>
         <td class="px-4 py-3">
           <input class="row-cantidad-packs block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center shadow-sm focus:border-sky-500 focus:ring-sky-500" step="0.01" name="purchase_invoice[purchase_invoice_items_attributes][NEW_RECORD][cantidad]" type="number">
         </td>
