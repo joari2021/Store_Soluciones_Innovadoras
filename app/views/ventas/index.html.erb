@@ -8797,6 +8797,60 @@
                 const changeDueAlt = remainingAlt !== null && remainingAlt < -altTolerance ? remainingAltAbs : 0;
                 const shouldShowChange = changeDueBase > 0 || changeDueAlt > 0;
 
+                let assignedChangeBase = 0;
+                let assignedChangeAlt = 0;
+                if (changeToggle?.checked) {
+                  dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                    const accountId = row.dataset.changeRow;
+                    const account = accountsById.get(String(accountId));
+                    if (!account) return;
+
+                    const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                    const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                    const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
+                    const amount = parseMoneyInput(input);
+
+                    if (!checkbox?.checked || amount <= 0) {
+                      if (equivalentEl) equivalentEl.textContent = '';
+                      return;
+                    }
+
+                    const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                    if (baseAmount === null) {
+                      if (equivalentEl) {
+                        equivalentEl.textContent = 'Sin tasa de conversion';
+                        equivalentEl.classList.add('text-red-500');
+                      }
+                      return;
+                    }
+
+                    assignedChangeBase += baseAmount;
+                    if (altAvailable) {
+                      const altAmount = convertAmount(amount, account.currency, altCurrencyCode);
+                      if (altAmount !== null) assignedChangeAlt += altAmount;
+                    }
+
+                    if (equivalentEl) {
+                      equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
+                      equivalentEl.classList.remove('text-red-500');
+                    }
+                  });
+                }
+
+                let remainingDisplay = roundTo(remaining + assignedChangeBase, 2);
+                if (Math.abs(remainingDisplay) <= paymentTolerance) remainingDisplay = 0;
+
+                let remainingAltDisplay = null;
+                if (remainingAlt !== null) {
+                  remainingAltDisplay = roundTo(remainingAlt + assignedChangeAlt, 2);
+                  if (Math.abs(remainingAltDisplay) <= altTolerance) remainingAltDisplay = 0;
+                }
+
+                const remainingDisplayAbs = Math.abs(remainingDisplay);
+                const remainingAltDisplayAbs = remainingAltDisplay !== null ? Math.abs(remainingAltDisplay) : 0;
+                const changePendingBase = remainingDisplay < -paymentTolerance ? remainingDisplayAbs : 0;
+                const changePendingAlt = remainingAltDisplay !== null && remainingAltDisplay < -altTolerance ? remainingAltDisplayAbs : 0;
+
                 if (changeSection) {
                   toggleChangeSection(shouldShowChange);
                   if (!shouldShowChange) {
