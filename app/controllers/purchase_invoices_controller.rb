@@ -395,6 +395,11 @@ class PurchaseInvoicesController < ApplicationController
     return update_intercompany_invoice if @purchase_invoice.intercompany?
 
     if @purchase_invoice.update(purchase_invoice_params)
+      unless @purchase_invoice.initial_inventory?
+        payment_context = build_invoice_payment_context(@purchase_invoice)
+        sync_pending_supplier_debt!(@purchase_invoice, payment_context)
+      end
+
       success_message = if @purchase_invoice.initial_inventory?
                           'Inventario inicial actualizado'
                         else
@@ -787,6 +792,10 @@ class PurchaseInvoicesController < ApplicationController
       total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
       pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
       pending_amount_bs = 0.to_d if pending_amount_bs.abs < 0.01.to_d
+      effective_rate = invoice_effective_usd_rate(invoice)
+      total_invoice_usd = effective_rate.positive? ? (total_invoice_bs / effective_rate).round(2) : invoice.monto_total.to_d.round(2)
+      total_paid_usd = effective_rate.positive? ? (total_paid_bs / effective_rate).round(2) : 0.to_d
+      pending_amount_usd = effective_rate.positive? ? (pending_amount_bs / effective_rate).round(2) : [total_invoice_usd - total_paid_usd, 0.to_d].max
 
       existing_pending_debt = find_invoice_pending_debt(invoice)
       effective_mark_pending = existing_pending_debt.present? || pending_amount_bs.positive?
@@ -800,7 +809,10 @@ class PurchaseInvoicesController < ApplicationController
         payments: [],
         total_invoice_bs: total_invoice_bs,
         total_paid_bs: total_paid_bs,
-        pending_amount_bs: [pending_amount_bs, 0.to_d].max
+        pending_amount_bs: [pending_amount_bs, 0.to_d].max,
+        total_invoice_usd: [total_invoice_usd, 0.to_d].max,
+        total_paid_usd: [total_paid_usd, 0.to_d].max,
+        pending_amount_usd: [pending_amount_usd, 0.to_d].max
       }
     end
 
@@ -810,6 +822,10 @@ class PurchaseInvoicesController < ApplicationController
     total_paid_bs = payments.sum { |entry| entry[:amount].to_d }.round(2)
     pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
     pending_amount_bs = 0.to_d if pending_amount_bs.abs < 0.01.to_d
+    effective_rate = invoice_effective_usd_rate(invoice)
+    total_invoice_usd = effective_rate.positive? ? (total_invoice_bs / effective_rate).round(2) : invoice.monto_total.to_d.round(2)
+    total_paid_usd = effective_rate.positive? ? (total_paid_bs / effective_rate).round(2) : 0.to_d
+    pending_amount_usd = effective_rate.positive? ? (pending_amount_bs / effective_rate).round(2) : [total_invoice_usd - total_paid_usd, 0.to_d].max
 
     if !mark_pending_payment && payments.empty?
       invoice.errors.add(:base, 'Debes registrar al menos un pago en Bs o marcar la factura como pendiente por pagar.')
@@ -841,7 +857,10 @@ class PurchaseInvoicesController < ApplicationController
       payments: payments,
       total_invoice_bs: total_invoice_bs,
       total_paid_bs: total_paid_bs,
-      pending_amount_bs: [pending_amount_bs, 0.to_d].max
+      pending_amount_bs: [pending_amount_bs, 0.to_d].max,
+      total_invoice_usd: [total_invoice_usd, 0.to_d].max,
+      total_paid_usd: [total_paid_usd, 0.to_d].max,
+      pending_amount_usd: [pending_amount_usd, 0.to_d].max
     }
   end
 
@@ -939,8 +958,8 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def create_pending_supplier_debt!(invoice, payment_context)
-    pending_amount_bs = payment_context[:pending_amount_bs].to_d.round(2)
-    return unless pending_amount_bs.positive?
+    pending_amount_usd = payment_context[:pending_amount_usd].to_d.round(2)
+    return unless pending_amount_usd.positive?
 
     invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
     supplier_name = invoice.supplier_display_name
@@ -949,11 +968,48 @@ class PurchaseInvoicesController < ApplicationController
       debt_kind: 'payable',
       name: supplier_name,
       description: "Saldo pendiente factura #{invoice_reference} - Proveedor: #{supplier_name} [FACTURA_COMPRA:#{invoice.id}]",
-      amount: pending_amount_bs,
-      currency: 'VES',
+      amount: pending_amount_usd,
+      currency: 'USD',
       issued_on: invoice.fecha_emision&.to_date || Date.current,
       due_on: payment_context[:pending_due_on]
     )
+  end
+
+  def sync_pending_supplier_debt!(invoice, payment_context)
+    pending_amount_usd = payment_context[:pending_amount_usd].to_d.round(2)
+    existing_pending_debt = find_invoice_pending_debt(invoice)
+    invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
+    supplier_name = invoice.supplier_display_name
+    due_on = payment_context[:pending_due_on].presence || existing_pending_debt&.due_on
+
+    if pending_amount_usd <= 0
+      return if existing_pending_debt.blank?
+
+      if existing_pending_debt.debt_payments.exists?
+        existing_pending_debt.update!(
+          amount: existing_pending_debt.paid_amount.to_d.round(2),
+          currency: 'USD',
+          due_on: due_on
+        )
+      else
+        existing_pending_debt.destroy!
+      end
+      return
+    end
+
+    if existing_pending_debt.present?
+      existing_pending_debt.update!(
+        name: supplier_name,
+        description: "Saldo pendiente factura #{invoice_reference} - Proveedor: #{supplier_name} [FACTURA_COMPRA:#{invoice.id}]",
+        amount: pending_amount_usd,
+        currency: 'USD',
+        issued_on: invoice.fecha_emision&.to_date || Date.current,
+        due_on: due_on
+      )
+      return
+    end
+
+    create_pending_supplier_debt!(invoice, payment_context)
   end
 
   def build_invoice_payment_movement_description(invoice)
@@ -1076,7 +1132,7 @@ class PurchaseInvoicesController < ApplicationController
 
       total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
       pending_debt = find_invoice_pending_debt(invoice)
-      pending_balance_bs = pending_debt&.balance.to_d.round(2)
+      pending_balance_bs = pending_debt_balance_in_bs(invoice: invoice, debt: pending_debt)
 
       map[invoice.id] = if pending_balance_bs.positive?
                           total_paid_bs.positive? ? 'partial' : 'due'
@@ -1125,13 +1181,62 @@ class PurchaseInvoicesController < ApplicationController
     @invoice_payment_movements = invoice_payment_movements_scope(@purchase_invoice)
     @invoice_pending_debt = find_invoice_pending_debt(@purchase_invoice)
     @invoice_bcv_rate = invoice_bcv_rate_for_today
-    pending_balance = @invoice_pending_debt&.balance.to_d.round(2)
-    if @invoice_pending_debt.present? && @invoice_pending_debt.currency.to_s.upcase == 'USD'
-      pending_balance = (pending_balance * @invoice_bcv_rate.to_d).round(2)
-    end
+    pending_balance = pending_debt_balance_in_bs(invoice: @purchase_invoice, debt: @invoice_pending_debt)
     @invoice_pending_balance_bs = [pending_balance, 0.to_d].max
-    @invoice_debt_assigned_bs = @invoice_pending_debt&.amount.to_d.round(2)
+    @invoice_debt_assigned_bs = pending_debt_amount_in_bs(invoice: @purchase_invoice, debt: @invoice_pending_debt)
     @invoice_total_paid_bs = [@purchase_invoice.total_bs.to_d - @invoice_pending_balance_bs, 0.to_d].max.round(2)
+  end
+
+  def pending_debt_balance_in_bs(invoice:, debt:)
+    return 0.to_d if debt.blank?
+
+    amount_in_bs_for_invoice(
+      invoice: invoice,
+      amount: debt.balance.to_d.round(2),
+      currency: debt.currency
+    )
+  end
+
+  def pending_debt_amount_in_bs(invoice:, debt:)
+    return 0.to_d if debt.blank?
+
+    amount_in_bs_for_invoice(
+      invoice: invoice,
+      amount: debt.amount.to_d.round(2),
+      currency: debt.currency
+    )
+  end
+
+  def amount_in_bs_for_invoice(invoice:, amount:, currency:)
+    source_currency = currency.to_s.upcase
+    source_amount = amount.to_d.round(2)
+    return source_amount if source_currency == 'VES' || source_currency.blank?
+
+    if source_currency == 'USD'
+      rate = invoice_effective_usd_rate(invoice)
+      return (source_amount * rate).round(2) if rate.positive?
+    end
+
+    converted = CurrencyConverter.convert(
+      amount: source_amount,
+      from_currency: source_currency,
+      to_currency: 'VES',
+      on_date: invoice&.fecha_emision&.to_date || Date.current
+    )
+    converted&.dig(:amount).to_d.round(2)
+  end
+
+  def invoice_effective_usd_rate(invoice)
+    explicit_rate = invoice&.tasa_dolar.to_d
+    return explicit_rate.round(8) if explicit_rate.positive?
+
+    total_bs = invoice&.total_bs.to_d
+    total_usd = invoice&.monto_total.to_d
+    if total_bs.positive? && total_usd.positive?
+      return (total_bs / total_usd).round(8)
+    end
+
+    CurrencyConverter.rate_to_ves('USD', on_date: invoice&.fecha_emision&.to_date || Date.current).to_d.round(8)
   end
 
   def invoice_bcv_rate_for_today

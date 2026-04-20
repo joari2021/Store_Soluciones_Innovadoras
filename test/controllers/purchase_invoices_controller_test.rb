@@ -70,11 +70,58 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     debt = Debt.order(:id).last
     assert_equal @business.id, debt.business_id
     assert_equal 'payable', debt.debt_kind
-    assert_equal 'VES', debt.currency
+    assert_equal 'USD', debt.currency
     assert_equal due_date, debt.due_on
-    assert_equal BigDecimal('66.00'), debt.amount
+    assert_equal BigDecimal('6.60'), debt.amount
     assert_includes debt.description, 'Saldo pendiente factura'
     assert_includes debt.description, '[FACTURA_COMPRA:'
+  end
+
+  test 'updates pending debt in usd when editing normal purchase invoice totals' do
+    due_date = Date.current + 5.days
+
+    post purchase_invoices_path, params: purchase_invoice_payload(
+      payment_amount: '50.00',
+      mark_pending_payment: '1',
+      pending_due_on: due_date.strftime('%d-%m-%Y')
+    )
+
+    invoice = PurchaseInvoice.order(:id).last
+    item = invoice.purchase_invoice_items.first
+    debt = @business.debts.where('description LIKE ?', "%[FACTURA_COMPRA:#{invoice.id}]%").order(created_at: :desc).first
+
+    assert_not_nil debt
+    assert_equal BigDecimal('6.60'), debt.amount.to_d
+    assert_equal 'USD', debt.currency
+
+    patch purchase_invoice_path(invoice), params: {
+      purchase_invoice: {
+        supplier_id: @supplier.id,
+        fecha_emision: invoice.fecha_emision,
+        tasa_dolar: '10',
+        numero: invoice.numero,
+        purchase_invoice_items_attributes: {
+          '0' => {
+            id: item.id,
+            _destroy: '0',
+            producto_id: @producto.id,
+            product_name: item.product_name,
+            cantidad: '1',
+            unid_x_pack: '1',
+            costo_mayor: '20',
+            costo_mayor_bs: '200',
+            costo_menor: '20',
+            exento: '0'
+          }
+        }
+      }
+    }
+
+    assert_redirected_to purchase_invoices_path
+
+    debt.reload
+    assert_equal 'USD', debt.currency
+    assert_equal BigDecimal('18.20'), debt.amount.to_d
   end
 
   test 'shows payment summary in edit invoice view' do
@@ -257,6 +304,10 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert linked_debt.present?
     assert StockLot.where(factura_item_id: item_ids).exists?
     assert_operator @producto.reload.total_quantity.to_d, :>, 0.to_d
+
+    TasaCambio.find_or_create_by!(description: 'Dolar BCV', fecha_referencia: Date.current) do |rate|
+      rate.valor = 10
+    end
 
     DebtPayment.create!(
       debt: linked_debt,
