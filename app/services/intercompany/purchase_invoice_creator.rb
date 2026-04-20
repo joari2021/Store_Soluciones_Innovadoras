@@ -72,7 +72,13 @@ module Intercompany
         destination_product = clone_or_find_destination_product!(source_product)
         normalized_rows = normalize_variation_rows!(item: item, source_product: source_product,
                                                     destination_product: destination_product)
-        next if normalized_rows.blank?
+        if normalized_rows.blank?
+          @purchase_invoice.errors.add(
+            :base,
+            "Debes indicar una cantidad válida por variación para #{source_product.descripcion}."
+          )
+          next
+        end
 
         weighted_unit_cost = weighted_unit_cost_from_source!(source_product: source_product, rows: normalized_rows)
         next if weighted_unit_cost.nil?
@@ -82,7 +88,7 @@ module Intercompany
         item.producto = destination_product
         item.product_name = destination_product.descripcion
         item.cantidad = total_units
-        item.unid_x_pack = 1
+        item.unid_x_pack = total_units
         item.costo_mayor = weighted_unit_cost
         item.costo_menor = weighted_unit_cost
         item.costo_mayor_bs = weighted_unit_cost * @purchase_invoice.tasa_dolar.to_d
@@ -289,7 +295,8 @@ module Intercompany
       if rows.empty? && source_variations.one?
         source_variation = source_variations.first
         destination_variation = destination_by_desc[source_variation.description.to_s.strip.downcase]
-        quantity = item.cantidad.to_d
+        requested_units = requested_intercompany_units(item)
+        quantity = requested_units
         rows = [{
           source_variation_id: source_variation.id,
           destination_variation_id: destination_variation.id,
@@ -299,6 +306,13 @@ module Intercompany
       end
 
       rows
+    end
+
+    def requested_intercompany_units(item)
+      units_from_input = item.unid_x_pack.to_d
+      return units_from_input if units_from_input.positive?
+
+      item.cantidad.to_d
     end
 
     def weighted_unit_cost_from_source!(source_product:, rows:)

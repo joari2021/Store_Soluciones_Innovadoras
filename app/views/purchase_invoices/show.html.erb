@@ -14,6 +14,7 @@
        end
      end %>
   <% tasa = @purchase_invoice.tasa_dolar.to_d %>
+  <% intercompany_invoice = @purchase_invoice.intercompany? %>
   <% row_data = @purchase_invoice.purchase_invoice_items.map do |item|
        raw_product_name = item.product_name.to_s.strip
        product_name = if raw_product_name.present?
@@ -30,8 +31,6 @@
        costo_mayor = item.costo_mayor.to_d
        unid_x_pack = item.unid_x_pack.to_d
        costo_mayor_bs = item.costo_mayor_bs.to_d.positive? ? item.costo_mayor_bs.to_d : (costo_mayor * tasa)
-       total_usd = costo_mayor * cantidad_packs
-       total_bs = costo_mayor_bs * cantidad_packs
        product_variations = item.producto&.product_variations&.order(:id)&.map { |variation| { id: variation.id, description: variation.description } } || []
        product_variation_lookup_by_id = product_variations.index_by { |variation| variation[:id].to_s }
        single_variation_description = if product_variations.one?
@@ -61,12 +60,27 @@
                          else
                            0
                          end
+       variation_units_total = variation_breakdown_rows.sum { |entry| (entry['quantity'] || entry[:quantity]).to_d }
+       quantity_units = if intercompany_invoice
+                          if variation_units_total.positive?
+                            variation_units_total
+                          elsif unid_x_pack.positive?
+                            unid_x_pack
+                          else
+                            cantidad_packs
+                          end
+                        else
+                          cantidad_packs
+                        end
+       total_usd = costo_mayor * quantity_units
+       total_bs = costo_mayor_bs * quantity_units
 
        {
          item: item,
          product_name: product_name,
          exento_activo: item.exento?,
          cantidad_packs: cantidad_packs,
+         quantity_units: quantity_units,
          costo_mayor: costo_mayor,
          costo_mayor_bs: costo_mayor_bs,
          unid_x_pack: unid_x_pack,
@@ -155,10 +169,10 @@
             <th class="px-4 py-3 text-left">Acciones</th>
             <th class="px-4 py-3 text-left">Producto</th>
             <th class="px-4 py-3 text-left">E</th>
-            <th class="px-4 py-3 text-center">Cantidad Packs</th>
+            <th class="px-4 py-3 text-center"><%= intercompany_invoice ? 'Cantidad unidades' : 'Cantidad Packs' %></th>
             <th class="px-4 py-3 text-right">Costo Mayor $</th>
             <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
-            <th class="px-4 py-3 text-center">Unid x Pack</th>
+            <th class="px-4 py-3 text-center"><%= intercompany_invoice ? 'Factor unidad' : 'Unid x Pack' %></th>
             <th class="px-4 py-3 text-left">Variaciones</th>
             <th class="px-4 py-3 text-right">Total $</th>
             <th class="px-4 py-3 text-right">Total Bs</th>
@@ -189,7 +203,7 @@
                     </span>
                   </span>
                 </td>
-                <td class="px-4 py-3 text-center <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_quantity(row[:cantidad_packs]) %></td>
+                <td class="px-4 py-3 text-center <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_quantity(row[:quantity_units]) %></td>
                 <td class="px-4 py-3 table-number <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_money(row[:costo_mayor], unit: '$') %></td>
                 <td class="px-4 py-3 table-number <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_money(row[:costo_mayor_bs], unit: 'Bs') %></td>
                 <td class="px-4 py-3 text-center <%= highlighted_row ? 'border-y border-sky-300' : '' %>"><%= format_quantity(row[:unid_x_pack]) %></td>
