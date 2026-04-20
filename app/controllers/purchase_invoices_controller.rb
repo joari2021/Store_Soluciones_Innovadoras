@@ -1104,28 +1104,65 @@ class PurchaseInvoicesController < ApplicationController
     AccountMovement.joins(:account).where(accounts: { business_id: current_business.id })
   end
 
+  def account_movements_scope_for_business(business_id)
+    AccountMovement.joins(:account).where(accounts: { business_id: business_id })
+  end
+
   def remove_invoice_related_records!(invoice)
-    linked_debts = invoice_pending_debts_scope(invoice).includes(:debt_payments).to_a
+    linked_debts = invoice_pending_debts_scope(invoice).includes(:debt_payments, :mirror_debt).to_a
+    if invoice.intercompany? && invoice.source_business_id.present?
+      linked_debts += Debt.where(business_id: invoice.source_business_id)
+                          .where('description LIKE ?', "%[FACTURA_COMPRA_MIRROR:#{invoice.id}]%")
+                          .to_a
+    end
+
+    mirror_debts = linked_debts.filter_map(&:mirror_debt)
+    linked_debts = (linked_debts + mirror_debts).uniq(&:id)
+
     linked_debt_ids = linked_debts.map(&:id)
-    linked_debt_payment_ids = linked_debts.flat_map { |debt| debt.debt_payments.map(&:id) }
 
     movements_to_destroy = []
     movements_to_destroy.concat(invoice_payment_movements_scope(invoice).to_a)
 
-    linked_debt_ids.each do |debt_id|
+    if invoice.intercompany? && invoice.source_business_id.present?
       movements_to_destroy.concat(
-        business_account_movements_scope.where('account_movements.description ILIKE ?', "%[DEBT:#{debt_id}]%").to_a
+        account_movements_scope_for_business(invoice.source_business_id)
+          .where('account_movements.description LIKE ?', "%[FACTURA_COMPRA_MIRROR:#{invoice.id}]%")
+          .to_a
       )
     end
 
-    linked_debt_payment_ids.each do |payment_id|
-      movements_to_destroy.concat(
-        business_account_movements_scope.where('account_movements.description ILIKE ?', "%[DP:#{payment_id}]%").to_a
-      )
+    linked_debts.group_by(&:business_id).each do |business_id, debts|
+      debt_ids_for_business = debts.map(&:id)
+      debt_payment_ids_for_business = debts.flat_map { |debt| debt.debt_payments.map(&:id) }
+      movement_scope = account_movements_scope_for_business(business_id)
+
+      debt_ids_for_business.each do |debt_id|
+        movements_to_destroy.concat(
+          movement_scope.where('account_movements.description ILIKE ?', "%[DEBT:#{debt_id}]%").to_a
+        )
+      end
+
+      debt_payment_ids_for_business.each do |payment_id|
+        movements_to_destroy.concat(
+          movement_scope.where('account_movements.description ILIKE ?', "%[DP:#{payment_id}]%").to_a
+        )
+      end
     end
 
     movements_to_destroy.uniq!(&:id)
     movements_to_destroy.each(&:destroy!)
+
+    if linked_debt_ids.any?
+      Debt.where(mirror_debt_id: linked_debt_ids).update_all(
+        mirror_debt_id: nil,
+        mirror_sync_enabled: false,
+        updated_at: Time.current,
+      )
+      linked_debts.each do |debt|
+        debt.update_columns(mirror_debt_id: nil, mirror_sync_enabled: false, updated_at: Time.current)
+      end
+    end
 
     linked_debts.each(&:destroy!)
   end
