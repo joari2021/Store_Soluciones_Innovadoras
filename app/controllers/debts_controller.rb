@@ -19,7 +19,7 @@ class DebtsController < ApplicationController
 
     if @search_query.present?
       query = "%#{ActiveRecord::Base.sanitize_sql_like(@search_query)}%"
-      scope = scope.left_outer_joins(:cliente).where('clientes.name ILIKE ?', query)
+      scope = scope.left_outer_joins(:cliente).where('clientes.name ILIKE :q OR debts.acreedor ILIKE :q', q: query)
     end
 
     all_debts = sort_debts(scope.to_a)
@@ -49,9 +49,9 @@ class DebtsController < ApplicationController
     end
     @receivable_groups = build_cliente_groups(@receivable_debts, sort: :cliente_name_asc)
     @receivable_groups = prioritize_cashea_group_first(@receivable_groups)
-    @payable_groups = build_cliente_groups(@payable_debts)
+    @payable_groups = build_payable_groups(@payable_debts)
     @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts, sort: :paid_recent_desc)
-    @payable_paid_groups = build_cliente_groups(@payable_paid_debts)
+    @payable_paid_groups = build_payable_groups(@payable_paid_debts)
     @receivable_group_totals = build_group_totals(@receivable_groups)
     @payable_group_totals = build_group_totals(@payable_groups)
     @receivable_paid_group_totals = build_group_totals(@receivable_paid_groups)
@@ -95,6 +95,13 @@ class DebtsController < ApplicationController
   end
 
   def prepare_group
+    debt_kind = params[:debt_kind].to_s
+
+    if debt_kind == 'payable'
+      redirect_to new_debt_path(debt_kind: 'payable')
+      return
+    end
+
     cliente_id = params[:cliente_id].presence
     currency = params[:currency].to_s.upcase.presence || 'USD'
 
@@ -147,6 +154,17 @@ class DebtsController < ApplicationController
   end
 
   def new
+    if params[:debt_kind].to_s == 'payable'
+      @debt = current_business.debts.new(
+        debt_kind: 'payable',
+        issued_on: Date.current,
+        currency: 'USD',
+        acreedor: params[:acreedor].to_s.strip.presence
+      )
+      @debt_entries_form = [default_debt_entry]
+      return
+    end
+
     # Lógica de agrupación automática
     cliente_id = params[:cliente_id]
     moneda = params[:currency] || 'USD'
@@ -191,9 +209,16 @@ class DebtsController < ApplicationController
     shared_attrs = shared_debt_params
     @debt = current_business.debts.new(shared_attrs)
 
-    if shared_attrs[:cliente_id].blank?
+    if shared_attrs[:debt_kind] == 'receivable' && shared_attrs[:cliente_id].blank?
       @debt = current_business.debts.new(shared_attrs)
       @debt.errors.add(:base, 'Debes seleccionar un cliente para registrar la deuda.')
+      render :new, status: :unprocessable_entity
+      return
+    end
+
+    if shared_attrs[:debt_kind] == 'payable' && shared_attrs[:acreedor].to_s.strip.blank?
+      @debt = current_business.debts.new(shared_attrs)
+      @debt.errors.add(:base, 'Debes indicar el acreedor para registrar la deuda por pagar.')
       render :new, status: :unprocessable_entity
       return
     end
@@ -233,7 +258,11 @@ class DebtsController < ApplicationController
     # Buscar grupo activo (no saldado) para el cliente y moneda.
     cliente_id = shared_attrs[:cliente_id]
     moneda = normalized_entries.first&.dig(:currency).presence || 'USD'
-    active_group_debts = active_receivable_group_debts(cliente_id: cliente_id, currency: moneda)
+    active_group_debts = if shared_attrs[:debt_kind] == 'receivable'
+                           active_receivable_group_debts(cliente_id: cliente_id, currency: moneda)
+                         else
+                           []
+                         end
     group_token = active_group_debts.any? ? debt_group_token(active_group_debts.first) : generate_debt_group_token
 
     debts_to_create = normalized_entries.each_with_index.map do |entry, index|
@@ -580,14 +609,16 @@ class DebtsController < ApplicationController
       :currency,
       :issued_on,
       :due_on,
-      :cliente_id
+      :cliente_id,
+      :acreedor
     )
   end
 
   def shared_debt_params
     params.require(:debt).permit(
       :debt_kind,
-      :cliente_id
+      :cliente_id,
+      :acreedor
     )
   end
 
@@ -829,7 +860,18 @@ class DebtsController < ApplicationController
 
   def editable_active_debts_for(debt)
     scope = current_business.debts.where(debt_kind: debt.debt_kind)
-    scope = scope.where(cliente_id: debt.cliente_id) if debt.cliente_id.present?
+    if debt.receivable?
+      scope = scope.where(cliente_id: debt.cliente_id) if debt.cliente_id.present?
+    else
+      acreedor_value = debt.acreedor.to_s.strip
+      if acreedor_value.present?
+        scope = scope.where('LOWER(COALESCE(acreedor, \''\')) = ?', acreedor_value.downcase)
+      elsif debt.cliente_id.present?
+        scope = scope.where(cliente_id: debt.cliente_id)
+      else
+        scope = scope.where(id: debt.id)
+      end
+    end
     scope = scope.where(currency: debt.currency)
     scope = scope.excluding_service_cost_records.includes(:debt_payments)
 
@@ -1127,9 +1169,10 @@ class DebtsController < ApplicationController
 
   def build_loan_movement_description(debt)
     debt_description = debt.description.to_s.strip.presence || 'Deuda sin descripcion'
-    cliente_name = debt.counterparty_display_name
+    counterparty_name = debt.counterparty_display_name
+    counterparty_label = debt.counterparty_label
     actor_name = Current.user&.display_name.to_s.strip.presence || 'Usuario no identificado'
-    "Prestamo deuda: #{debt_description} - Cliente: #{cliente_name} - Registrado por: #{actor_name} [DEBT:#{debt.id}] [LOAN_DEBT]"
+    "Prestamo deuda: #{debt_description} - #{counterparty_label}: #{counterparty_name} - Registrado por: #{actor_name} [DEBT:#{debt.id}] [LOAN_DEBT]"
   end
 
   def current_user_can_manage_loan_debts?
@@ -1815,6 +1858,17 @@ class DebtsController < ApplicationController
         [first_key[0], first_key[1], cliente&.name.to_s.downcase]
       end
     end
+  end
+
+  def build_payable_groups(debts)
+    debts
+      .group_by { |debt| debt.counterparty_display_name.to_s.strip.presence || 'Sin acreedor' }
+      .map { |counterparty_name, grouped_debts| [counterparty_name, sort_debts(grouped_debts)] }
+      .sort_by do |counterparty_name, grouped_debts|
+        first_debt = grouped_debts.first
+        first_key = first_debt ? debt_sort_key(first_debt) : [0, 0, 0, '', '']
+        [first_key[0], first_key[1], counterparty_name.to_s.downcase]
+      end
   end
 
   def debt_last_payment_at_for_index(debt)

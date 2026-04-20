@@ -64,14 +64,20 @@ class Debt < ApplicationRecord
   end
 
   def counterparty_display_name
-    cliente&.name.presence || (payable? ? display_name.presence : nil) || "Sin cliente"
+    if payable?
+      acreedor.to_s.strip.presence || cliente&.name.presence || display_name.presence || "Sin acreedor"
+    else
+      cliente&.name.presence || "Sin cliente"
+    end
   end
 
   def counterparty_label
-    if cliente.present?
+    if payable?
+      "Acreedor"
+    elsif cliente.present?
       "Cliente"
     else
-      (payable? ? "Proveedor" : "Cliente")
+      "Cliente"
     end
   end
 
@@ -213,13 +219,23 @@ class Debt < ApplicationRecord
     self.currency = "USD" if currency.blank?
     self.issued_on = Date.current if issued_on.blank?
     self.name = "Deuda #{Date.current.strftime("%d-%m-%Y")}" if name.blank?
+    if payable?
+      self.acreedor = acreedor.to_s.strip.presence || name.to_s.strip.presence
+    end
   end
 
   def counterparty_presence
-    return if cliente.present?
-    return if payable?
+    if receivable?
+      return if cliente.present?
 
-    errors.add(:base, "Selecciona un cliente.")
+      errors.add(:base, "Selecciona un cliente.")
+      return
+    end
+
+    return if payable? && acreedor.to_s.strip.present?
+    return if payable? && cliente.present?
+
+    errors.add(:base, "Ingresa un acreedor para registrar la deuda por pagar.")
   end
 
   def due_after_issued

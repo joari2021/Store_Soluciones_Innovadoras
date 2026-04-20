@@ -415,6 +415,7 @@
       <%= form_with url: debts_path, method: :post, local: true, class: "space-y-4", data: { add_debt_form: true } do %>
         <%= hidden_field_tag "debt[debt_kind]", @debt.debt_kind %>
         <%= hidden_field_tag "debt[cliente_id]", @debt.cliente_id %>
+        <%= hidden_field_tag "debt[acreedor]", @debt.acreedor.to_s.strip.presence || @debt.counterparty_display_name %>
         <%= hidden_field_tag :return_to_debt_id, @debt.id %>
         <%= hidden_field_tag :return_group_currency, params[:group_currency].presence || @debt.currency %>
         <%= hidden_field_tag :return_group_cliente_id, params[:group_cliente_id].presence || (@debt.cliente_id.present? ? @debt.cliente_id : 'none') %>

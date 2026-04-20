@@ -967,6 +967,7 @@ class PurchaseInvoicesController < ApplicationController
     current_business.debts.create!(
       debt_kind: 'payable',
       name: supplier_name,
+      acreedor: supplier_name,
       description: "Saldo pendiente factura #{invoice_reference} - Proveedor: #{supplier_name} [FACTURA_COMPRA:#{invoice.id}]",
       amount: pending_amount_usd,
       currency: 'USD',
@@ -987,6 +988,8 @@ class PurchaseInvoicesController < ApplicationController
 
       if existing_pending_debt.debt_payments.exists?
         existing_pending_debt.update!(
+          name: supplier_name,
+          acreedor: supplier_name,
           amount: existing_pending_debt.paid_amount.to_d.round(2),
           currency: 'USD',
           due_on: due_on
@@ -1000,6 +1003,7 @@ class PurchaseInvoicesController < ApplicationController
     if existing_pending_debt.present?
       existing_pending_debt.update!(
         name: supplier_name,
+        acreedor: supplier_name,
         description: "Saldo pendiente factura #{invoice_reference} - Proveedor: #{supplier_name} [FACTURA_COMPRA:#{invoice.id}]",
         amount: pending_amount_usd,
         currency: 'USD',

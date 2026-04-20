@@ -21,10 +21,11 @@
     </div>
   <% end %>
   <% initial_cliente = @clientes.find { |cliente| cliente.id == form.object.cliente_id } %>
+  <% initial_acreedor = form.object.acreedor.to_s.strip.presence || (form.object.payable? ? form.object.counterparty_display_name.to_s.strip : '') %>
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle de la deuda</p>
     <div class="mt-4 grid gap-4 md:grid-cols-2">
-      <div>
+      <div data-debt-receivable-fields="true" class="<%= form.object.payable? ? 'hidden' : '' %>">
         <%= form.label :cliente_id, "Cliente", class: "block text-sm font-medium text-slate-700" %>
         <%= form.hidden_field :cliente_id,
                               data: {
@@ -55,6 +56,16 @@
           <button type="button" class="cursor-pointer text-slate-400 hover:text-red-500" data-debt-client-clear="true">x</button>
         </div>
         <p class="mt-2 text-xs text-slate-500 <%= initial_cliente.present? ? 'hidden' : '' %>" data-debt-client-empty="true">Selecciona un cliente para esta deuda.</p>
+      </div>
+      <div data-debt-payable-fields="true" class="<%= form.object.payable? ? '' : 'hidden' %>">
+        <%= form.label :acreedor, "Acreedor", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.text_field :acreedor,
+                            value: initial_acreedor,
+                            autocomplete: "off",
+                            placeholder: "Nombre del acreedor",
+                            class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
+                            data: { debt_creditor_input: true } %>
+        <p class="mt-2 text-xs text-slate-500">Escribe el nombre de la persona o entidad a la que se le debe pagar.</p>
       </div>
       <div>
         <%= form.label :debt_kind, "Tipo", class: "block text-sm font-medium text-slate-700" %>
@@ -532,6 +543,9 @@
       const registerPaymentCheckbox = form.querySelector("[data-debt-register-payment='true']");
 
       const clienteHiddenInput = form.querySelector("[data-debt-cliente-id='true']");
+      const creditorInput = form.querySelector("[data-debt-creditor-input='true']");
+      const receivableFields = form.querySelector("[data-debt-receivable-fields='true']");
+      const payableFields = form.querySelector("[data-debt-payable-fields='true']");
       const clientSearchInput = form.querySelector("[data-debt-client-search='true']");
       const clientResults = form.querySelector("[data-debt-client-results='true']");
       const clientList = form.querySelector("[data-debt-client-list='true']");
@@ -639,6 +653,44 @@
             clientSelected.classList.add("hidden");
             clientSelected.classList.remove("flex");
             clientEmpty.classList.remove("hidden");
+          }
+        }
+      };
+
+      const updateCounterpartyInputsByDebtKind = () => {
+        const receivable = isReceivableDebt();
+        const payable = isPayableDebt();
+
+        if (receivableFields) {
+          receivableFields.classList.toggle("hidden", !receivable);
+        }
+
+        if (payableFields) {
+          payableFields.classList.toggle("hidden", !payable);
+        }
+
+        const disableClientInputs = !receivable;
+        [clientSearchInput, clientAddButton, clientClearButton].forEach((element) => {
+          if (!element) return;
+          element.disabled = disableClientInputs;
+        });
+
+        if (clienteHiddenInput) {
+          if (receivable) {
+            clienteHiddenInput.disabled = false;
+          } else {
+            clienteHiddenInput.value = "";
+            clienteHiddenInput.disabled = true;
+            setSelectedCliente(null);
+            hideClientResults();
+          }
+        }
+
+        if (creditorInput) {
+          creditorInput.disabled = !payable;
+          creditorInput.required = payable;
+          if (!payable) {
+            creditorInput.value = "";
           }
         }
       };
@@ -837,6 +889,9 @@
         const debtKind = String(debtKindSelect?.value || "").trim();
         return debtKind === "receivable" || debtKind === "payable";
       };
+
+      const isReceivableDebt = () => String(debtKindSelect?.value || "").trim() === "receivable";
+      const isPayableDebt = () => String(debtKindSelect?.value || "").trim() === "payable";
 
       const paymentAccountIsBank = () => {
         if (!paymentAccountSelect) return false;
@@ -1600,6 +1655,7 @@
 
       if (debtKindSelect) {
         debtKindSelect.addEventListener("change", () => {
+          updateCounterpartyInputsByDebtKind();
           debtEntryRows().forEach((row) => {
             updateDebtEntryLoanVisibility(row);
           });
@@ -1648,15 +1704,28 @@
 
         event.preventDefault();
 
-        const selectedClientId = String(clienteHiddenInput?.value || "").trim();
+        if (isReceivableDebt()) {
+          const selectedClientId = String(clienteHiddenInput?.value || "").trim();
 
-        if (selectedClientId.length === 0) {
-          if (window.AppToast?.error) {
-            window.AppToast.error("Selecciona un cliente o registra uno no registrado.");
+          if (selectedClientId.length === 0) {
+            if (window.AppToast?.error) {
+              window.AppToast.error("Selecciona un cliente o registra uno no registrado.");
+            }
+
+            if (clientSearchInput) clientSearchInput.focus();
+            return;
           }
+        }
 
-          if (clientSearchInput) clientSearchInput.focus();
-          return;
+        if (isPayableDebt()) {
+          const creditorName = String(creditorInput?.value || "").trim();
+          if (creditorName.length === 0) {
+            if (window.AppToast?.error) {
+              window.AppToast.error("Indica el acreedor de la deuda por pagar.");
+            }
+            creditorInput?.focus();
+            return;
+          }
         }
 
         if (!validateDebtEntries()) {
@@ -1719,6 +1788,7 @@
       syncPaymentCurrencyFromDebt();
       updatePaymentAccountsByCurrency();
       updatePaymentMethodVisibility();
+      updateCounterpartyInputsByDebtKind();
       syncDebtAmountMaskCurrency();
       syncPaymentAmountMaskCurrency();
       updateDebtPaymentReferenceRules();
