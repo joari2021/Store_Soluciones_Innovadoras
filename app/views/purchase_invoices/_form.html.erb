@@ -1089,6 +1089,34 @@
         return Math.round(clampNonNegative(value) * factor) / factor;
       };
 
+      const rowProductName = (displayRow) => {
+        if (!displayRow) return '';
+        const productNameNode = displayRow.querySelector('.js-product-name');
+        return String(productNameNode?.textContent || '').trim();
+      };
+
+      const sortInitialInventoryRowsAlphabetically = () => {
+        if (!initialInventoryMode) return;
+
+        const displayRows = Array.from(tbody.querySelectorAll('.factura-row-display[data-row-key]'));
+        const sortedPairs = displayRows
+          .map((displayRow) => {
+            const rowKey = String(displayRow.dataset.rowKey || '').trim();
+            const editRow = rowKey ? tbody.querySelector(`.factura-row-edit[data-row-key="${rowKey}"]`) : null;
+            return {
+              displayRow,
+              editRow,
+              productName: rowProductName(displayRow)
+            };
+          })
+          .sort((left, right) => left.productName.localeCompare(right.productName, 'es', { sensitivity: 'base' }));
+
+        sortedPairs.forEach(({ displayRow, editRow }) => {
+          tbody.appendChild(displayRow);
+          if (editRow) tbody.appendChild(editRow);
+        });
+      };
+
       const expectedVariationQuantity = (editRow) => {
         const quantityPacks = clampNonNegative(editRow?.querySelector('.row-cantidad-packs')?.value);
         const unitsPerPack = clampNonNegative(editRow?.querySelector('.row-unidades')?.value);
@@ -2019,6 +2047,7 @@
           commitVariationEditor(editRow);
         }
         setEditMode(rowKey, true);
+        sortInitialInventoryRowsAlphabetically();
       };
 
 
@@ -2129,6 +2158,7 @@
         const rowKey = row.dataset.rowKey;
         if (rowKey) setEditMode(rowKey, false);
       });
+      sortInitialInventoryRowsAlphabetically();
       updateAllOverwriteButtons();
       updateGrandTotals();
 
@@ -2314,8 +2344,12 @@
               if (wasNewRecord) {
                 const displayRow = tbody.querySelector(`.factura-row-display[data-row-key="${rowKey}"]`);
                 if (displayRow) {
-                  tbody.appendChild(displayRow);
-                  tbody.appendChild(editRow);
+                  if (initialInventoryMode) {
+                    sortInitialInventoryRowsAlphabetically();
+                  } else {
+                    tbody.appendChild(displayRow);
+                    tbody.appendChild(editRow);
+                  }
                 }
                 editRow.dataset.newRecord = 'false';
               }
