@@ -415,6 +415,17 @@
   <% unless initial_inventory_mode %>
     <% if factura.new_record? %>
       <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '' }] %>
+      <% if intercompany_mode && payment_rows.size > 1 %>
+        <% filtered_payment_rows = payment_rows.reject do |row| %>
+          <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
+          <% row_source_account_id = row[:source_account_id].presence || row['source_account_id'].presence %>
+          <% row_amount_raw = row[:amount].presence || row['amount'].presence || '' %>
+          <% amount_digits = row_amount_raw.to_s.gsub(/\D/, '') %>
+          <% amount_blank_or_zero = amount_digits.blank? || amount_digits.to_i.zero? %>
+          <% row_account_id.blank? && row_source_account_id.blank? && amount_blank_or_zero %>
+        <% end %>
+        <% payment_rows = filtered_payment_rows.presence || payment_rows %>
+      <% end %>
       <% payment_account_options = Array(@bs_accounts).map do |account| %>
         <% ["#{account.name_with_cash_role} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
       <% end %>
