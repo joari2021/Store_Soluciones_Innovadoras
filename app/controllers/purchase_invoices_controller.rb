@@ -1290,7 +1290,7 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     payable_debt.update!(
-      amount: updated_intercompany_debt_amount(payable_debt, pending_amount_usd),
+      amount: pending_amount_usd,
       currency: 'USD',
       due_on: due_on.presence || payable_debt.due_on,
       mirror_sync_enabled: true,
@@ -1298,18 +1298,12 @@ class PurchaseInvoicesController < ApplicationController
     )
 
     receivable_debt.update!(
-      amount: updated_intercompany_debt_amount(receivable_debt, pending_amount_usd),
+      amount: pending_amount_usd,
       currency: 'USD',
       due_on: due_on.presence || receivable_debt.due_on,
       mirror_sync_enabled: true,
       mirror_debt: payable_debt,
     )
-  end
-
-  def updated_intercompany_debt_amount(debt, pending_amount_usd)
-    paid_amount = debt.debt_payments.sum(:amount_in_debt_currency).to_d.round(2)
-    total_amount = (paid_amount + pending_amount_usd.to_d).round(2)
-    total_amount.positive? ? total_amount : 0.01.to_d
   end
 
   def sync_intercompany_payment_movements!(invoice, payments:, source_business:)

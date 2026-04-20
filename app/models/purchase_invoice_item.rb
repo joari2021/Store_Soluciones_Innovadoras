@@ -21,18 +21,22 @@ class PurchaseInvoiceItem < ApplicationRecord
     if purchase_invoice&.initial_inventory?
       unit_cost_usd = resolved_unit_cost_usd
       self.subtotal = unit_cost_usd * cantidad.to_d
+    elsif purchase_invoice&.intercompany?
+      self.subtotal = (costo_mayor || 0).to_d * intercompany_units_quantity
     else
       self.subtotal = (costo_mayor || 0) * (cantidad || 0)
     end
   end
 
   def line_subtotal_usd
+    return costo_mayor.to_d * intercompany_units_quantity if purchase_invoice&.intercompany?
     return subtotal.to_d unless purchase_invoice&.initial_inventory?
 
     resolved_unit_cost_usd * cantidad.to_d
   end
 
   def line_subtotal_bs
+    return costo_mayor_bs.to_d * intercompany_units_quantity if purchase_invoice&.intercompany?
     return costo_mayor_bs.to_d * cantidad.to_d unless purchase_invoice&.initial_inventory?
 
     rate = purchase_invoice&.tasa_dolar.to_d
@@ -267,6 +271,11 @@ class PurchaseInvoiceItem < ApplicationRecord
 
     units_per_pack = unid_x_pack.to_d
     cantidad.to_d * (units_per_pack.positive? ? units_per_pack : 1)
+  end
+
+  def intercompany_units_quantity
+    units = unid_x_pack.to_d
+    units.positive? ? units : cantidad.to_d
   end
 
   def resolved_unit_cost_usd
