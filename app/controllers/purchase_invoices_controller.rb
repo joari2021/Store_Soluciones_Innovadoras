@@ -446,6 +446,9 @@ class PurchaseInvoicesController < ApplicationController
 
       consume_source_stock_rows!(rows: current_rows)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+
+      sync_intercompany_pending_debts!(@purchase_invoice, source_business: source_business)
+      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
     end
 
     if @purchase_invoice.errors.any?
@@ -1182,6 +1185,143 @@ class PurchaseInvoicesController < ApplicationController
 
   def find_invoice_pending_debt(invoice)
     invoice_pending_debts_scope(invoice).order(created_at: :desc).first
+  end
+
+  def sync_intercompany_pending_debts!(invoice, source_business:)
+    total_invoice_bs = invoice.total_bs.to_d.round(2)
+    total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
+    pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
+    pending_amount_bs = 0.to_d if pending_amount_bs <= 0
+
+    rate = invoice.tasa_dolar.to_d
+    pending_amount_usd = if pending_amount_bs.positive?
+                           rate.positive? ? (pending_amount_bs / rate).round(2) : pending_amount_bs.round(2)
+                         else
+                           0.to_d
+                         end
+
+    payable_debt = find_invoice_pending_debt(invoice)
+    receivable_debt = payable_debt&.mirror_debt || find_source_mirror_pending_debt(invoice)
+
+    mark_pending_payment = ActiveModel::Type::Boolean.new.cast(params[:mark_pending_payment])
+    due_on = parse_filter_date(params[:pending_due_on].to_s.strip)
+
+    if pending_amount_usd <= 0
+      destroy_linked_debt_pair!(payable_debt, receivable_debt)
+      return
+    end
+
+    should_persist_pending = mark_pending_payment || payable_debt.present? || receivable_debt.present?
+    return unless should_persist_pending
+
+    payable_debt ||= build_intercompany_payable_debt!(invoice, source_business: source_business, due_on: due_on)
+    receivable_debt ||= build_intercompany_receivable_debt!(invoice, source_business: source_business, due_on: due_on)
+
+    if payable_debt.blank? || receivable_debt.blank?
+      @purchase_invoice.errors.add(:base, 'No se pudo crear la deuda espejo interempresa al actualizar la factura.')
+      return
+    end
+
+    payable_debt.update!(
+      amount: pending_amount_usd,
+      currency: 'USD',
+      due_on: due_on.presence || payable_debt.due_on,
+      mirror_sync_enabled: true,
+      mirror_debt: receivable_debt,
+    )
+
+    receivable_debt.update!(
+      amount: pending_amount_usd,
+      currency: 'USD',
+      due_on: due_on.presence || receivable_debt.due_on,
+      mirror_sync_enabled: true,
+      mirror_debt: payable_debt,
+    )
+  end
+
+  def find_source_mirror_pending_debt(invoice)
+    return nil if invoice.source_business_id.blank?
+
+    Debt.where(business_id: invoice.source_business_id, debt_kind: 'receivable')
+        .where('description LIKE ?', "%[FACTURA_COMPRA_MIRROR:#{invoice.id}]%")
+        .order(created_at: :desc)
+        .first
+  end
+
+  def build_intercompany_payable_debt!(invoice, source_business:, due_on:)
+    client = find_or_create_intercompany_counterparty_client!(
+      owner_business: current_business,
+      counterparty_business: source_business,
+    )
+
+    invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
+    current_business.debts.create!(
+      debt_kind: 'payable',
+      cliente: client,
+      name: source_business.name,
+      description: "Saldo pendiente factura inter-empresa #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}] [IC_MIRROR]",
+      amount: 0.01.to_d,
+      currency: 'USD',
+      issued_on: invoice.fecha_emision&.to_date || Date.current,
+      due_on: due_on,
+      mirror_sync_enabled: true,
+    )
+  rescue ActiveRecord::RecordInvalid => e
+    @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
+    nil
+  end
+
+  def build_intercompany_receivable_debt!(invoice, source_business:, due_on:)
+    client = find_or_create_intercompany_counterparty_client!(
+      owner_business: source_business,
+      counterparty_business: current_business,
+    )
+
+    invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
+    source_business.debts.create!(
+      debt_kind: 'receivable',
+      cliente: client,
+      name: current_business.name,
+      description: "Cuenta por cobrar factura inter-empresa #{invoice_reference} [FACTURA_COMPRA_MIRROR:#{invoice.id}] [IC_MIRROR]",
+      amount: 0.01.to_d,
+      currency: 'USD',
+      issued_on: invoice.fecha_emision&.to_date || Date.current,
+      due_on: due_on,
+      mirror_sync_enabled: true,
+    )
+  rescue ActiveRecord::RecordInvalid => e
+    @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
+    nil
+  end
+
+  def destroy_linked_debt_pair!(payable_debt, receivable_debt)
+    linked = [payable_debt, receivable_debt].compact.uniq(&:id)
+    return if linked.empty?
+
+    linked_ids = linked.map(&:id)
+    Debt.where(mirror_debt_id: linked_ids).update_all(
+      mirror_debt_id: nil,
+      mirror_sync_enabled: false,
+      updated_at: Time.current,
+    )
+    linked.each { |debt| debt.update_columns(mirror_debt_id: nil, mirror_sync_enabled: false, updated_at: Time.current) }
+    linked.each(&:destroy!)
+  end
+
+  def find_or_create_intercompany_counterparty_client!(owner_business:, counterparty_business:)
+    normalized_name = counterparty_business.name.to_s.strip.downcase
+    existing = owner_business.clientes.where('LOWER(TRIM(name)) = ?', normalized_name).first
+    return existing if existing.present?
+
+    owner_business.clientes.create!(
+      name: counterparty_business.name,
+      document_type: 'J',
+      document_number: normalize_intercompany_rif_document_number(counterparty_business.rif),
+    )
+  end
+
+  def normalize_intercompany_rif_document_number(raw_rif)
+    raw_rif.to_s.upcase.gsub(/[^A-Z0-9]/, '').sub(/\A[JVEG]/, '')
   end
 
   def aggregate_source_stock_rows_for_invoice_items(items, source_business:)
