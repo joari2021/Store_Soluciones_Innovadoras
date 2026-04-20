@@ -404,7 +404,7 @@ class PurchaseInvoicesController < ApplicationController
       redirect_to purchase_invoices_path, notice: success_message
     else
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
-      render :edit
+      render :edit, status: :unprocessable_entity
     end
   end
 
@@ -415,7 +415,7 @@ class PurchaseInvoicesController < ApplicationController
       @purchase_invoice.errors.add(:base, 'La factura interempresa no tiene negocio origen válido.')
       apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
-      render :edit
+      render :edit, status: :unprocessable_entity
       return
     end
 
@@ -427,7 +427,7 @@ class PurchaseInvoicesController < ApplicationController
     if @purchase_invoice.errors.any?
       apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
-      render :edit
+      render :edit, status: :unprocessable_entity
       return
     end
 
@@ -467,7 +467,7 @@ class PurchaseInvoicesController < ApplicationController
     if @purchase_invoice.errors.any?
       apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
-      render :edit
+      render :edit, status: :unprocessable_entity
       return
     end
 
@@ -487,7 +487,7 @@ class PurchaseInvoicesController < ApplicationController
 
     apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
     load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
-    render :edit
+    render :edit, status: :unprocessable_entity
   end
 
   def destroy
