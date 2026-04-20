@@ -1710,7 +1710,7 @@
             <div class="${rowClasses}" data-change-row="${account.id}">
               <input type="checkbox" class="ventas-pay-checkbox" data-change-check="${account.id}">
               <div class="flex items-center gap-2">
-                <div class="flex-1 ventas-pay-accordion-toggle">
+                <button type="button" class="ventas-pay-accordion-toggle flex-1" data-change-toggle="${account.id}">
                   <span class="ventas-pay-avatar" aria-hidden="true">
                     ${hasLogo
                       ? `<img src="${escapeHtml(logoUrl)}" alt="Logo de la cuenta" loading="lazy">`
@@ -1721,9 +1721,14 @@
                         </svg>`}
                   </span>
                   <span class="ventas-pay-title">${escapeHtml(account.display_name || account.name)}</span>
-                </div>
+                  <span class="ventas-pay-chevron" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M6 9l6 6 6-6"></path>
+                    </svg>
+                  </span>
+                </button>
               </div>
-              <div class="mt-3">
+              <div class="ventas-pay-accordion-content" data-change-content>
                 <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
                   <div class="ventas-pay-amount">
                     <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="${inputClass}" data-change-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
@@ -2028,6 +2033,18 @@
                 }
               };
 
+              const setChangeAccordionState = (row, open) => {
+                if (!row) return;
+                row.classList.toggle('is-open', open);
+                const content = row.querySelector('[data-change-content]');
+                if (!content) return;
+                if (open) {
+                  content.style.maxHeight = `${content.scrollHeight}px`;
+                } else {
+                  content.style.maxHeight = '0px';
+                }
+              };
+
               const setRowVisualState = (row, enabled, tone = 'sky') => {
                 if (!row) return;
 
@@ -2113,6 +2130,7 @@
                 setFieldEnabledState(input, false, 'amber');
                 setBankFieldsEnabled(bankFields, false, 'amber');
                 setRowVisualState(row, false, 'amber');
+                setChangeAccordionState(row, false);
                 if (equivalentEl) equivalentEl.textContent = '';
               };
 
@@ -2369,6 +2387,33 @@
                 });
               };
 
+              const rowHasChangeData = (row) => {
+                if (!row) return false;
+                const accountId = row.dataset.changeRow;
+                if (!accountId) return false;
+
+                const amountInput = row.querySelector(`[data-change-input="${accountId}"]`);
+                return parseMoneyInput(amountInput) > 0;
+              };
+
+              const closeOtherChangeRows = (currentRow) => {
+                dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                  if (row === currentRow) return;
+                  if (rowHasChangeData(row)) return;
+
+                  const accountId = row.dataset.changeRow;
+                  const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                  if (checkbox?.checked) {
+                    checkbox.checked = false;
+                    checkbox.dispatchEvent(new Event('change'));
+                    return;
+                  }
+
+                  setChangeAccordionState(row, false);
+                  setRowVisualState(row, false, 'amber');
+                });
+              };
+
               dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
                 checkbox.addEventListener('change', () => {
                   const accountId = checkbox.dataset.payCheck;
@@ -2454,7 +2499,38 @@
                   setFieldEnabledState(input, checkbox.checked, 'amber');
                   setBankFieldsEnabled(bankFields, checkbox.checked, 'amber');
                   setRowVisualState(row, checkbox.checked, 'amber');
+                  setChangeAccordionState(row, checkbox.checked);
                   updateRemaining();
+                });
+              });
+
+              dialog.querySelectorAll('[data-change-toggle]').forEach((button) => {
+                button.addEventListener('click', () => {
+                  const accountId = button.dataset.changeToggle;
+                  const row = dialog.querySelector(`[data-change-row="${accountId}"]`);
+                  const checkbox = row?.querySelector(`[data-change-check="${accountId}"]`);
+                  if (!row || !checkbox) return;
+
+                  const isOpen = row.classList.contains('is-open');
+                  if (isOpen) {
+                    if (rowHasChangeData(row)) return;
+                    if (checkbox.checked) {
+                      checkbox.checked = false;
+                      checkbox.dispatchEvent(new Event('change'));
+                    } else {
+                      setChangeAccordionState(row, false);
+                      setRowVisualState(row, false, 'amber');
+                    }
+                    return;
+                  }
+
+                  closeOtherChangeRows(row);
+                  if (!checkbox.checked) {
+                    checkbox.checked = true;
+                    checkbox.dispatchEvent(new Event('change'));
+                  } else {
+                    setChangeAccordionState(row, true);
+                  }
                 });
               });
 
@@ -2557,6 +2633,7 @@
                 setFieldEnabledState(input, Boolean(checkbox?.checked), 'amber');
                 setBankFieldsEnabled(bankFields, Boolean(checkbox?.checked), 'amber');
                 setRowVisualState(row, Boolean(checkbox?.checked), 'amber');
+                setChangeAccordionState(row, Boolean(checkbox?.checked));
               });
 
               if (allowCredit) {
@@ -8129,7 +8206,7 @@
               <div class="${rowClasses}" data-change-row="${account.id}">
                 <input type="checkbox" class="ventas-pay-checkbox" data-change-check="${account.id}">
                 <div class="flex items-center gap-2">
-                  <div class="flex-1 ventas-pay-accordion-toggle">
+                  <button type="button" class="ventas-pay-accordion-toggle flex-1" data-change-toggle="${account.id}">
                     <span class="ventas-pay-avatar" aria-hidden="true">
                       ${hasLogo
                         ? `<img src="${escapeHtml(logoUrl)}" alt="Logo de la cuenta" loading="lazy">`
@@ -8140,9 +8217,14 @@
                           </svg>`}
                     </span>
                     <span class="ventas-pay-title">${escapeHtml(account.display_name || account.name)}</span>
-                  </div>
+                    <span class="ventas-pay-chevron" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 9l6 6 6-6"></path>
+                      </svg>
+                    </span>
+                  </button>
                 </div>
-                <div class="mt-3">
+                <div class="ventas-pay-accordion-content" data-change-content>
                   <div class="ventas-pay-fields${isBank ? ' ventas-pay-fields--bank' : ''}">
                     <div class="ventas-pay-amount">
                       <input type="text" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(symbol)} 0,00" class="${inputClass}" data-change-input="${account.id}" data-money-mask="true" data-money-symbol="${escapeHtml(symbol)}" disabled>
@@ -8470,6 +8552,18 @@
                   }
                 };
 
+                const setChangeAccordionState = (row, open) => {
+                  if (!row) return;
+                  row.classList.toggle('is-open', open);
+                  const content = row.querySelector('[data-change-content]');
+                  if (!content) return;
+                  if (open) {
+                    content.style.maxHeight = `${content.scrollHeight}px`;
+                  } else {
+                    content.style.maxHeight = '0px';
+                  }
+                };
+
                 const setRowVisualState = (row, enabled, tone = 'sky') => {
                   if (!row) return;
 
@@ -8555,6 +8649,7 @@
                   setFieldEnabledState(input, false, 'amber');
                   setBankFieldsEnabled(bankFields, false, 'amber');
                   setRowVisualState(row, false, 'amber');
+                  setChangeAccordionState(row, false);
                   if (equivalentEl) equivalentEl.textContent = '';
                 };
 
@@ -8845,6 +8940,33 @@
                   });
                 };
 
+                const rowHasChangeData = (row) => {
+                  if (!row) return false;
+                  const accountId = row.dataset.changeRow;
+                  if (!accountId) return false;
+
+                  const amountInput = row.querySelector(`[data-change-input="${accountId}"]`);
+                  return parseMoneyInput(amountInput) > 0;
+                };
+
+                const closeOtherChangeRows = (currentRow) => {
+                  dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                    if (row === currentRow) return;
+                    if (rowHasChangeData(row)) return;
+
+                    const accountId = row.dataset.changeRow;
+                    const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                    if (checkbox?.checked) {
+                      checkbox.checked = false;
+                      checkbox.dispatchEvent(new Event('change'));
+                      return;
+                    }
+
+                    setChangeAccordionState(row, false);
+                    setRowVisualState(row, false, 'amber');
+                  });
+                };
+
                 dialog.querySelectorAll('[data-pay-check]').forEach((checkbox) => {
                   checkbox.addEventListener('change', () => {
                     const accountId = checkbox.dataset.payCheck;
@@ -8927,7 +9049,38 @@
                     setFieldEnabledState(input, checkbox.checked, 'amber');
                     setBankFieldsEnabled(bankFields, checkbox.checked, 'amber');
                     setRowVisualState(row, checkbox.checked, 'amber');
+                    setChangeAccordionState(row, checkbox.checked);
                     updateRemaining();
+                  });
+                });
+
+                dialog.querySelectorAll('[data-change-toggle]').forEach((button) => {
+                  button.addEventListener('click', () => {
+                    const accountId = button.dataset.changeToggle;
+                    const row = dialog.querySelector(`[data-change-row="${accountId}"]`);
+                    const checkbox = row?.querySelector(`[data-change-check="${accountId}"]`);
+                    if (!row || !checkbox) return;
+
+                    const isOpen = row.classList.contains('is-open');
+                    if (isOpen) {
+                      if (rowHasChangeData(row)) return;
+                      if (checkbox.checked) {
+                        checkbox.checked = false;
+                        checkbox.dispatchEvent(new Event('change'));
+                      } else {
+                        setChangeAccordionState(row, false);
+                        setRowVisualState(row, false, 'amber');
+                      }
+                      return;
+                    }
+
+                    closeOtherChangeRows(row);
+                    if (!checkbox.checked) {
+                      checkbox.checked = true;
+                      checkbox.dispatchEvent(new Event('change'));
+                    } else {
+                      setChangeAccordionState(row, true);
+                    }
                   });
                 });
 
@@ -9028,6 +9181,7 @@
                   setFieldEnabledState(input, Boolean(checkbox?.checked), 'amber');
                   setBankFieldsEnabled(bankFields, Boolean(checkbox?.checked), 'amber');
                   setRowVisualState(row, Boolean(checkbox?.checked), 'amber');
+                  setChangeAccordionState(row, Boolean(checkbox?.checked));
                 });
 
                 setCreditFieldsEnabled(Boolean(creditToggle?.checked));
