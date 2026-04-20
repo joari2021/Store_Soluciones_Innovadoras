@@ -204,17 +204,19 @@ class DebtPaymentsController < ApplicationController
   end
 
   def load_accounts
-    scope = current_business.accounts.where(active: true)
-    scope = scope.where.not(account_type: 'cashea')
-    scope = scope.where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+    intercompany_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
 
-    if @show_group_currency == 'USDT'
-      scope = scope.where(currency: 'USDT')
-    else
-      scope = scope.where(currency: %w[USD VES])
+    base_scope = current_business.accounts
+                                 .where.not(account_type: 'cashea')
+                                 .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    active_scope = apply_payment_currency_filter(base_scope.where(active: true))
+    @accounts = active_scope.order(:currency, :name).to_a
+
+    if @accounts.empty? && intercompany_mode
+      @using_inactive_accounts_for_intercompany = true
+      @accounts = apply_payment_currency_filter(base_scope).order(:currency, :name).to_a
     end
-
-    @accounts = scope.order(:currency, :name).to_a
   end
 
   def load_intercompany_mirror_accounts
@@ -231,12 +233,23 @@ class DebtPaymentsController < ApplicationController
     end
 
     @intercompany_mirror_business = mirror_businesses.first
-    @mirror_accounts = @intercompany_mirror_business.accounts
-                              .where(active: true)
-                              .where.not(account_type: 'cashea')
-                              .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
-                              .order(:currency, :name)
-                              .to_a
+    base_scope = @intercompany_mirror_business.accounts
+                                              .where.not(account_type: 'cashea')
+                                              .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    @mirror_accounts = base_scope.where(active: true).order(:currency, :name).to_a
+    if @mirror_accounts.empty?
+      @using_inactive_mirror_accounts_for_intercompany = true
+      @mirror_accounts = base_scope.order(:currency, :name).to_a
+    end
+  end
+
+  def apply_payment_currency_filter(scope)
+    if @show_group_currency == 'USDT'
+      scope.where(currency: 'USDT')
+    else
+      scope.where(currency: %w[USD VES])
+    end
   end
 
   def load_currency_rates

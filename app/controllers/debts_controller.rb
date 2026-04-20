@@ -354,9 +354,12 @@ class DebtsController < ApplicationController
       }
     end
 
-    @payment_accounts = payment_accounts_for_group_currency(@show_group_currency)
     @intercompany_group_payment_mode = intercompany_group_payment_mode?(@grouped_debts)
     @intercompany_mirror_business = intercompany_mirror_business_for(@grouped_debts)
+    @payment_accounts = payment_accounts_for_group_currency(
+      @show_group_currency,
+      include_inactive_fallback: @intercompany_group_payment_mode
+    )
     @intercompany_mirror_accounts = intercompany_mirror_accounts_for(@intercompany_mirror_business)
     @currency_rates_to_ves = @payment_accounts.map(&:currency).uniq.each_with_object({}) do |currency, hash|
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: Date.current).to_d.to_f
@@ -1293,18 +1296,27 @@ class DebtsController < ApplicationController
     end
   end
 
-  def payment_accounts_for_group_currency(group_currency)
-    scope = current_business.accounts.where(active: true)
-    scope = scope.where.not(account_type: 'cashea')
-    scope = scope.where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+  def payment_accounts_for_group_currency(group_currency, include_inactive_fallback: false)
+    base_scope = current_business.accounts
+                                 .where.not(account_type: 'cashea')
+                                 .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
 
+    active_scope = apply_payment_currency_filter(base_scope.where(active: true), group_currency)
+    active_accounts = active_scope.order(:currency, :name).to_a
+    return active_accounts if active_accounts.any?
+
+    return active_accounts unless include_inactive_fallback
+
+    @using_inactive_payment_accounts = true
+    apply_payment_currency_filter(base_scope, group_currency).order(:currency, :name).to_a
+  end
+
+  def apply_payment_currency_filter(scope, group_currency)
     if group_currency.to_s.upcase == 'USDT'
-      scope = scope.where(currency: 'USDT')
+      scope.where(currency: 'USDT')
     else
-      scope = scope.where(currency: %w[USD VES])
+      scope.where(currency: %w[USD VES])
     end
-
-    scope.order(:currency, :name)
   end
 
   def intercompany_group_payment_mode?(debts)
@@ -1330,12 +1342,15 @@ class DebtsController < ApplicationController
   def intercompany_mirror_accounts_for(business)
     return [] if business.blank?
 
-    business.accounts
-            .where(active: true)
-            .where.not(account_type: 'cashea')
-            .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
-            .order(:currency, :name)
-            .to_a
+    base_scope = business.accounts
+                         .where.not(account_type: 'cashea')
+                         .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    active_accounts = base_scope.where(active: true).order(:currency, :name).to_a
+    return active_accounts if active_accounts.any?
+
+    @using_inactive_intercompany_mirror_accounts = true
+    base_scope.order(:currency, :name).to_a
   end
 
   def convert_entry_amounts_to_group_currency!(entries)

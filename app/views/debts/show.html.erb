@@ -317,18 +317,22 @@
             <input type="text" name="debt_payment[occurred_at]" value="<%= Date.current.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="<%= current_user_admin? ? 'js-materialize-datepicker materialize-datepicker-input' : '' %> mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-date="true" <%= 'readonly' unless current_user_admin? %> required />
           </div>
           <div>
-            <label class="block text-xs font-semibold text-slate-500">Cuenta</label>
+            <label class="block text-xs font-semibold text-slate-500"><%= @intercompany_group_payment_mode ? 'Cuenta del negocio que paga (destino)' : 'Cuenta' %></label>
             <select name="debt_payment[account_id]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-account="true" required>
               <option value="">Selecciona una cuenta</option>
               <% @payment_accounts.each do |account| %>
+                <% status_label = account.active? ? 'Activa' : 'Inactiva' %>
                 <option
                   value="<%= account.id %>"
                   data-account-currency="<%= account.currency.to_s.upcase %>"
                   data-account-symbol="<%= payment_currency_symbols[account.currency] || account.currency %>"
                   data-account-type="<%= account.account_type %>"
-                ><%= account.name %> (<%= account.currency %>)</option>
+                ><%= account.name %> (<%= account.currency %> · <%= status_label %>)</option>
               <% end %>
             </select>
+            <% if @using_inactive_payment_accounts %>
+              <p class="mt-1 text-[11px] font-semibold text-amber-700">No hay cuentas activas disponibles. Se listan cuentas inactivas para completar el pago interempresa.</p>
+            <% end %>
           </div>
           <% if @intercompany_group_payment_mode && @intercompany_mirror_business.present? %>
             <div>
@@ -336,9 +340,13 @@
               <select name="debt_payment[mirror_account_id]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
                 <option value="">Selecciona una cuenta de <%= @intercompany_mirror_business.name %></option>
                 <% @intercompany_mirror_accounts.each do |account| %>
-                  <option value="<%= account.id %>"><%= account.name %> (<%= account.currency %>)</option>
+                  <% status_label = account.active? ? 'Activa' : 'Inactiva' %>
+                  <option value="<%= account.id %>"><%= account.name %> (<%= account.currency %> · <%= status_label %>)</option>
                 <% end %>
               </select>
+              <% if @using_inactive_intercompany_mirror_accounts %>
+                <p class="mt-1 text-[11px] font-semibold text-amber-700">No hay cuentas activas en el negocio contraparte. Se listan cuentas inactivas para el registro espejo.</p>
+              <% end %>
             </div>
           <% end %>
           <div class="hidden" data-register-payment-method-wrapper="true">
