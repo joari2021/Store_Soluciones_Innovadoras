@@ -413,9 +413,11 @@ module Intercompany
       )
 
       source_destination_account = buyer_default_account_for_mirror
+      source_counterparty_client = source_counterparty_client!
 
       receivable = @source_business.debts.create!(
         debt_kind: "receivable",
+        cliente: source_counterparty_client,
         name: @current_business.name,
         description: "Cuenta por cobrar factura inter-empresa #{invoice_reference} [FACTURA_COMPRA_MIRROR:#{@purchase_invoice.id}] [IC_MIRROR]",
         amount: pending_amount_bs,
@@ -428,6 +430,19 @@ module Intercompany
 
       payable.update!(mirror_debt: receivable)
       receivable.update!(mirror_debt: payable)
+    end
+
+    def source_counterparty_client!
+      normalized_name = @current_business.name.to_s.strip.downcase
+      existing = @source_business.clientes
+        .where("LOWER(TRIM(name)) = ?", normalized_name)
+        .first
+      return existing if existing.present?
+
+      @source_business.clientes.create!(
+        name: @current_business.name,
+        document_type: "J",
+      )
     end
 
     def buyer_default_account_for_mirror
