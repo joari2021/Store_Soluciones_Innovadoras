@@ -1616,10 +1616,12 @@ class PurchaseInvoicesController < ApplicationController
     token = debt.group_token.to_s.strip
     return token if token.present?
 
-    match = debt.name.to_s.match(/\A\[GRP:(\d+)\]\s*/)
-    return nil if match.blank?
+    root_id = debt.group_root_debt_id
+    return "legacy-#{root_id}" if root_id.present?
 
-    "legacy-#{match[1]}"
+    return nil if debt.id.blank?
+
+    "legacy-debt-#{debt.id}"
   end
 
   def aggregate_source_stock_rows_for_invoice_items(items, source_business:)
