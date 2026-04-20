@@ -209,6 +209,11 @@ module Intercompany
         end
       end
 
+      sync_destination_product_photo_from_source(
+        source_product: source_product,
+        destination_product: destination_product,
+      )
+
       @cloned_products_cache[cache_key] = destination_product
     end
 
@@ -236,6 +241,15 @@ module Intercompany
 
     def normalize_product_description(raw_value)
       raw_value.to_s.strip.downcase
+    end
+
+    def sync_destination_product_photo_from_source(source_product:, destination_product:)
+      return unless source_product.foto.attached?
+      return if destination_product.foto.attached?
+
+      destination_product.foto.attach(source_product.foto.blob)
+    rescue StandardError => e
+      Rails.logger.warn("[INTERCOMPANY_IMAGE_CLONE] No se pudo copiar imagen del producto origen ##{source_product.id} al destino ##{destination_product.id}: #{e.class}: #{e.message}")
     end
 
     def normalize_variation_rows!(item:, source_product:, destination_product:)
