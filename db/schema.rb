@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_19_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_20_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -264,6 +264,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_19_190000) do
     t.bigint "mirror_account_id"
     t.boolean "mirror_sync_enabled", default: false, null: false
     t.string "group_token"
+    t.string "acreedor"
+    t.index ["business_id", "debt_kind", "acreedor"], name: "index_debts_on_business_kind_acreedor"
     t.index ["business_id", "debt_kind", "group_token"], name: "idx_debts_group_token"
     t.index ["business_id"], name: "index_debts_on_business_id"
     t.index ["cliente_id"], name: "index_debts_on_cliente_id"

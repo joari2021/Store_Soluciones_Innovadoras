@@ -968,7 +968,7 @@ class PurchaseInvoicesController < ApplicationController
       debt_kind: 'payable',
       name: supplier_name,
       acreedor: supplier_name,
-      description: "Saldo pendiente factura #{invoice_reference} - Proveedor: #{supplier_name} [FACTURA_COMPRA:#{invoice.id}]",
+      description: "Saldo pendiente factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}]",
       amount: pending_amount_usd,
       currency: 'USD',
       issued_on: invoice.fecha_emision&.to_date || Date.current,
@@ -1004,7 +1004,7 @@ class PurchaseInvoicesController < ApplicationController
       existing_pending_debt.update!(
         name: supplier_name,
         acreedor: supplier_name,
-        description: "Saldo pendiente factura #{invoice_reference} - Proveedor: #{supplier_name} [FACTURA_COMPRA:#{invoice.id}]",
+        description: "Saldo pendiente factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}]",
         amount: pending_amount_usd,
         currency: 'USD',
         issued_on: invoice.fecha_emision&.to_date || Date.current,
