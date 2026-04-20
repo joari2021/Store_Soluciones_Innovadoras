@@ -2234,60 +2234,20 @@
                 const changeDueAlt = remainingAlt !== null && remainingAlt < -altTolerance ? remainingAltAbs : 0;
                 const shouldShowChange = changeDueBase > 0 || changeDueAlt > 0;
 
-                if (changeSection) {
-                  toggleChangeSection(shouldShowChange);
-                  if (!shouldShowChange) {
-                    if (changeToggle) changeToggle.checked = false;
-                    setChangeRowsEnabled(false);
-                  }
-                }
-
-                if (changeHintEl) {
-                  if (shouldShowChange) {
-                    const hints = [];
-                    if (changeDueBase > 0) hints.push(formatBaseMoney(changeDueBase));
-                    if (changeDueAlt > 0 && altAvailable) hints.push(formatCurrencyValue(changeDueAlt, altCurrencyCode));
-                    changeHintEl.textContent = hints.length ? `Sugerido: ${hints.join(' · ')}` : '';
-                  } else {
-                    changeHintEl.textContent = '';
-                  }
-                }
-
-                if (remaining > paymentTolerance) {
-                  remainingEl.textContent = `Faltan ${formatBaseMoney(remaining)}`;
-                  remainingEl.classList.remove('text-emerald-600');
-                  remainingEl.classList.add('text-amber-600');
-                } else if (remaining < -paymentTolerance) {
-                  remainingEl.textContent = `Vuelto ${formatBaseMoney(remainingAbs)}`;
-                  remainingEl.classList.remove('text-amber-600');
-                  remainingEl.classList.add('text-emerald-600');
-                } else {
-                  remainingEl.textContent = 'Completo';
-                  remainingEl.classList.remove('text-amber-600');
-                  remainingEl.classList.add('text-emerald-600');
-                }
-
-                if (remainingAltEl) {
-                  if (!altAvailable || remainingAlt === null) {
-                    remainingAltEl.textContent = '--';
-                  } else if (remainingAlt > altTolerance) {
-                    remainingAltEl.textContent = `Faltan ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
-                  } else if (remainingAlt < -altTolerance) {
-                    remainingAltEl.textContent = `Vuelto ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
-                  } else {
-                    remainingAltEl.textContent = formatCurrencyValue(0, altCurrencyCode);
-                  }
-                }
-
+                let assignedChangeBase = 0;
+                let assignedChangeAlt = 0;
                 if (changeToggle?.checked) {
                   dialog.querySelectorAll('[data-change-row]').forEach((row) => {
                     const accountId = row.dataset.changeRow;
                     const account = accountsById.get(String(accountId));
                     if (!account) return;
+
+                    const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
                     const input = row.querySelector(`[data-change-input="${accountId}"]`);
                     const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
                     const amount = parseMoneyInput(input);
-                    if (amount <= 0) {
+
+                    if (!checkbox?.checked || amount <= 0) {
                       if (equivalentEl) equivalentEl.textContent = '';
                       return;
                     }
@@ -2301,11 +2261,130 @@
                       return;
                     }
 
+                    assignedChangeBase += baseAmount;
+                    if (altAvailable) {
+                      const altAmount = convertAmount(amount, account.currency, altCurrencyCode);
+                      if (altAmount !== null) assignedChangeAlt += altAmount;
+                    }
+
                     if (equivalentEl) {
                       equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
                       equivalentEl.classList.remove('text-red-500');
                     }
                   });
+                }
+
+                let remainingDisplay = roundTo(remaining + assignedChangeBase, 2);
+                if (Math.abs(remainingDisplay) <= paymentTolerance) remainingDisplay = 0;
+
+                let remainingAltDisplay = null;
+                if (remainingAlt !== null) {
+                  remainingAltDisplay = roundTo(remainingAlt + assignedChangeAlt, 2);
+                  if (Math.abs(remainingAltDisplay) <= altTolerance) remainingAltDisplay = 0;
+                }
+
+                const remainingDisplayAbs = Math.abs(remainingDisplay);
+                const remainingAltDisplayAbs = remainingAltDisplay !== null ? Math.abs(remainingAltDisplay) : 0;
+                const changePendingBase = remainingDisplay < -paymentTolerance ? remainingDisplayAbs : 0;
+                const changePendingAlt = remainingAltDisplay !== null && remainingAltDisplay < -altTolerance ? remainingAltDisplayAbs : 0;
+
+                let assignedChangeBase = 0;
+                let assignedChangeAlt = 0;
+                if (changeToggle?.checked) {
+                  dialog.querySelectorAll('[data-change-row]').forEach((row) => {
+                    const accountId = row.dataset.changeRow;
+                    const account = accountsById.get(String(accountId));
+                    if (!account) return;
+
+                    const checkbox = row.querySelector(`[data-change-check="${accountId}"]`);
+                    const input = row.querySelector(`[data-change-input="${accountId}"]`);
+                    const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
+                    const amount = parseMoneyInput(input);
+
+                    if (!checkbox?.checked || amount <= 0) {
+                      if (equivalentEl) equivalentEl.textContent = '';
+                      return;
+                    }
+
+                    const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
+                    if (baseAmount === null) {
+                      if (equivalentEl) {
+                        equivalentEl.textContent = 'Sin tasa de conversion';
+                        equivalentEl.classList.add('text-red-500');
+                      }
+                      return;
+                    }
+
+                    assignedChangeBase += baseAmount;
+                    if (altAvailable) {
+                      const altAmount = convertAmount(amount, account.currency, altCurrencyCode);
+                      if (altAmount !== null) assignedChangeAlt += altAmount;
+                    }
+
+                    if (equivalentEl) {
+                      equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
+                      equivalentEl.classList.remove('text-red-500');
+                    }
+                  });
+                }
+
+                let remainingDisplay = roundTo(remaining + assignedChangeBase, 2);
+                if (Math.abs(remainingDisplay) <= paymentTolerance) remainingDisplay = 0;
+
+                let remainingAltDisplay = null;
+                if (remainingAlt !== null) {
+                  remainingAltDisplay = roundTo(remainingAlt + assignedChangeAlt, 2);
+                  if (Math.abs(remainingAltDisplay) <= altTolerance) remainingAltDisplay = 0;
+                }
+
+                const remainingDisplayAbs = Math.abs(remainingDisplay);
+                const remainingAltDisplayAbs = remainingAltDisplay !== null ? Math.abs(remainingAltDisplay) : 0;
+                const changePendingBase = remainingDisplay < -paymentTolerance ? remainingDisplayAbs : 0;
+                const changePendingAlt = remainingAltDisplay !== null && remainingAltDisplay < -altTolerance ? remainingAltDisplayAbs : 0;
+
+                if (changeSection) {
+                  toggleChangeSection(shouldShowChange);
+                  if (!shouldShowChange) {
+                    if (changeToggle) changeToggle.checked = false;
+                    setChangeRowsEnabled(false);
+                  }
+                }
+
+                if (changeHintEl) {
+                  if (shouldShowChange) {
+                    const hints = [];
+                    if (changePendingBase > 0) hints.push(formatBaseMoney(changePendingBase));
+                    if (changePendingAlt > 0 && altAvailable) hints.push(formatCurrencyValue(changePendingAlt, altCurrencyCode));
+                    changeHintEl.textContent = hints.length ? `Sugerido: ${hints.join(' · ')}` : '';
+                  } else {
+                    changeHintEl.textContent = '';
+                  }
+                }
+
+                if (remainingDisplay > paymentTolerance) {
+                  remainingEl.textContent = `Faltan ${formatBaseMoney(remainingDisplay)}`;
+                  remainingEl.classList.remove('text-emerald-600');
+                  remainingEl.classList.add('text-amber-600');
+                } else if (remainingDisplay < -paymentTolerance) {
+                  remainingEl.textContent = `Vuelto ${formatBaseMoney(remainingDisplayAbs)}`;
+                  remainingEl.classList.remove('text-amber-600');
+                  remainingEl.classList.add('text-emerald-600');
+                } else {
+                  remainingEl.textContent = 'Completo';
+                  remainingEl.classList.remove('text-amber-600');
+                  remainingEl.classList.add('text-emerald-600');
+                }
+
+                if (remainingAltEl) {
+                  if (!altAvailable || remainingAltDisplay === null) {
+                    remainingAltEl.textContent = '--';
+                  } else if (remainingAltDisplay > altTolerance) {
+                    remainingAltEl.textContent = `Faltan ${formatCurrencyValue(remainingAltDisplayAbs, altCurrencyCode)}`;
+                  } else if (remainingAltDisplay < -altTolerance) {
+                    remainingAltEl.textContent = `Vuelto ${formatCurrencyValue(remainingAltDisplayAbs, altCurrencyCode)}`;
+                  } else {
+                    remainingAltEl.textContent = formatCurrencyValue(0, altCurrencyCode);
+                  }
                 }
               };
 
@@ -8783,20 +8862,20 @@
                 if (changeHintEl) {
                   if (shouldShowChange) {
                     const hints = [];
-                    if (changeDueBase > 0) hints.push(formatBaseMoney(changeDueBase));
-                    if (changeDueAlt > 0 && altAvailable) hints.push(formatCurrencyValue(changeDueAlt, altCurrencyCode));
+                    if (changePendingBase > 0) hints.push(formatBaseMoney(changePendingBase));
+                    if (changePendingAlt > 0 && altAvailable) hints.push(formatCurrencyValue(changePendingAlt, altCurrencyCode));
                     changeHintEl.textContent = hints.length ? `Sugerido: ${hints.join(' · ')}` : '';
                   } else {
                     changeHintEl.textContent = '';
                   }
                 }
 
-                if (remaining > paymentTolerance) {
-                  remainingEl.textContent = `Faltan ${formatBaseMoney(remaining)}`;
+                if (remainingDisplay > paymentTolerance) {
+                  remainingEl.textContent = `Faltan ${formatBaseMoney(remainingDisplay)}`;
                   remainingEl.classList.remove('text-emerald-600');
                   remainingEl.classList.add('text-amber-600');
-                } else if (remaining < -paymentTolerance) {
-                  remainingEl.textContent = `Vuelto ${formatBaseMoney(remainingAbs)}`;
+                } else if (remainingDisplay < -paymentTolerance) {
+                  remainingEl.textContent = `Vuelto ${formatBaseMoney(remainingDisplayAbs)}`;
                   remainingEl.classList.remove('text-amber-600');
                   remainingEl.classList.add('text-emerald-600');
                 } else {
@@ -8806,44 +8885,15 @@
                 }
 
                 if (remainingAltEl) {
-                  if (!altAvailable || remainingAlt === null) {
+                  if (!altAvailable || remainingAltDisplay === null) {
                     remainingAltEl.textContent = '--';
-                  } else if (remainingAlt > altTolerance) {
-                    remainingAltEl.textContent = `Faltan ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
-                  } else if (remainingAlt < -altTolerance) {
-                    remainingAltEl.textContent = `Vuelto ${formatCurrencyValue(remainingAltAbs, altCurrencyCode)}`;
+                  } else if (remainingAltDisplay > altTolerance) {
+                    remainingAltEl.textContent = `Faltan ${formatCurrencyValue(remainingAltDisplayAbs, altCurrencyCode)}`;
+                  } else if (remainingAltDisplay < -altTolerance) {
+                    remainingAltEl.textContent = `Vuelto ${formatCurrencyValue(remainingAltDisplayAbs, altCurrencyCode)}`;
                   } else {
                     remainingAltEl.textContent = formatCurrencyValue(0, altCurrencyCode);
                   }
-                }
-
-                if (changeToggle?.checked) {
-                  dialog.querySelectorAll('[data-change-row]').forEach((row) => {
-                    const accountId = row.dataset.changeRow;
-                    const account = accountsById.get(String(accountId));
-                    if (!account) return;
-                    const input = row.querySelector(`[data-change-input="${accountId}"]`);
-                    const equivalentEl = row.querySelector(`[data-change-equivalent="${accountId}"]`);
-                    const amount = parseMoneyInput(input);
-                    if (amount <= 0) {
-                      if (equivalentEl) equivalentEl.textContent = '';
-                      return;
-                    }
-
-                    const baseAmount = convertAmount(amount, account.currency, baseCurrencyCode);
-                    if (baseAmount === null) {
-                      if (equivalentEl) {
-                        equivalentEl.textContent = 'Sin tasa de conversion';
-                        equivalentEl.classList.add('text-red-500');
-                      }
-                      return;
-                    }
-
-                    if (equivalentEl) {
-                      equivalentEl.textContent = `Equiv: ${formatBaseMoney(baseAmount)}`;
-                      equivalentEl.classList.remove('text-red-500');
-                    }
-                  });
                 }
               };
 
