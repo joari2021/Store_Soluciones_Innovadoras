@@ -453,12 +453,14 @@ class PurchaseInvoicesController < ApplicationController
       consume_source_stock_rows!(rows: current_rows)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
-      sync_intercompany_payment_movements!(
-        @purchase_invoice,
-        payments: payment_context[:payments],
-        source_business: source_business,
-      )
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if invoice_payment_input_submitted?
+        sync_intercompany_payment_movements!(
+          @purchase_invoice,
+          payments: payment_context[:payments],
+          source_business: source_business,
+        )
+        raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      end
 
       sync_intercompany_pending_debts!(@purchase_invoice, source_business: source_business)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
