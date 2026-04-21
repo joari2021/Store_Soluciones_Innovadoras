@@ -106,16 +106,22 @@
   <% product_total_quantity = producto.total_quantity.to_d %>
   <% product_sale_price_usd = producto.precio_venta_usd.to_d %>
   <% product_total_sale_value = (product_total_quantity * product_sale_price_usd).round(2) %>
+  <% product_display_safety_stock = if variations.one?
+                                     variations.first.safety_stock.to_d
+                                   else
+                                     producto.general_safety_stock.to_d
+                                   end %>
+  <% product_row_below_safety_stock = product_display_safety_stock.positive? && product_total_quantity < product_display_safety_stock %>
   <% any_variation_below_safety_stock = variations.any? do |variation| %>
     <% variation_safety_stock = variation.safety_stock.to_d %>
     <% next false unless variation_safety_stock.positive? %>
     <% variation_total_quantity = variation_groups.dig(variation, :total).to_d %>
     <% variation_total_quantity < variation_safety_stock %>
   <% end %>
-  <% product_stock_badge_class = if product_total_quantity.zero?
-                                  'bg-rose-100 text-rose-700'
-                                elsif any_variation_below_safety_stock
+  <% product_stock_badge_class = if product_row_below_safety_stock || any_variation_below_safety_stock
                                   'bg-amber-100 text-amber-700'
+                                elsif product_total_quantity.zero?
+                                  'bg-rose-100 text-rose-700'
                                 else
                                   'bg-sky-100 text-sky-700'
                                 end %>
@@ -149,14 +155,9 @@
       <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">Sin categoria</span>
     <% end %>
   </td>
-    <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
-      <% display_safety_stock = if variations.one?
-                                  variations.first.safety_stock.to_i
-                                else
-                                  producto.general_safety_stock.to_i
-                                end %>
-      <%= display_safety_stock.positive? ? format_quantity(display_safety_stock, precision: 0) : '—' %>
-    </td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+    <%= product_display_safety_stock.positive? ? format_quantity(product_display_safety_stock, precision: 0) : '—' %>
+  </td>
   <td class="px-6 py-4 text-right">
     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= product_stock_badge_class %>"><%= format_quantity(product_total_quantity) %> disp.</span>
   </td>
@@ -194,10 +195,10 @@
   <% variation_unit_cost_usd = total_variation_quantity.positive? ? (total_variation_inventory_value / total_variation_quantity).round(2) : nil %>
   <% total_variation_sale_value = (total_variation_quantity * product_sale_price_usd).round(2) %>
   <% variation_safety_stock = variation.safety_stock.to_d %>
-  <% variation_stock_badge_class = if total_variation_quantity.zero?
-                                     'bg-rose-100 text-rose-700'
-                                   elsif variation_safety_stock.positive? && total_variation_quantity < variation_safety_stock
+  <% variation_stock_badge_class = if variation_safety_stock.positive? && total_variation_quantity < variation_safety_stock
                                      'bg-amber-100 text-amber-700'
+                                   elsif total_variation_quantity.zero?
+                                     'bg-rose-100 text-rose-700'
                                    else
                                      'bg-sky-100 text-sky-700'
                                    end %>

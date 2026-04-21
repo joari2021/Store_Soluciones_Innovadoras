@@ -119,7 +119,12 @@
           </div>
         </div>
         <div class="w-full md:w-[14rem]">
-          <label for="products_low_stock" class="block text-sm font-medium text-slate-700">Filtro de stock</label>
+          <label for="products_low_stock" class="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <span>Filtro de stock</span>
+            <span id="products-low-stock-badge">
+              <%= render partial: 'productos/low_stock_badge', locals: { count: @low_stock_total_count } %>
+            </span>
+          </label>
           <%= select_tag :low_stock,
                          options_for_select([
                            ['Todos', '0'],

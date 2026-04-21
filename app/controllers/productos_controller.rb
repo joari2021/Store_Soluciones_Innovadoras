@@ -21,6 +21,7 @@ class ProductosController < ApplicationController
     @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
     @selected_categoria_id = @selected_categoria&.id
     @product_counts_by_categoria_id = current_business.productos.group(:categoria_id).count
+    @low_stock_total_count = calculate_low_stock_total_count
     @below_target_margin_total_count = calculate_below_target_margin_total_count
     @inventory_global_totals = calculate_inventory_global_totals
 
@@ -202,7 +203,12 @@ class ProductosController < ApplicationController
         append_stream = view_context.turbo_stream.append('productos_tbody',
                                                          partial: 'productos/product_table_rows',
                                                          locals: { productos: [@producto] })
+        low_stock_count = calculate_low_stock_total_count
         below_target_count = calculate_below_target_margin_total_count
+        update_low_stock_badge_stream = view_context.turbo_stream.update(
+          'products-low-stock-badge',
+          view_context.render(partial: 'productos/low_stock_badge', locals: { count: low_stock_count })
+        )
         update_badge_stream = view_context.turbo_stream.update(
           'products-below-target-badge',
           view_context.render(partial: 'productos/below_target_badge', locals: { count: below_target_count })
@@ -213,7 +219,7 @@ class ProductosController < ApplicationController
           view_context.render(partial: 'shared/header_notifications')
         )
         clear_frame = view_context.turbo_stream.update('modal-productos', '')
-        render turbo_stream: [append_stream, update_badge_stream, refresh_header_notifications_stream, clear_frame]
+        render turbo_stream: [append_stream, update_low_stock_badge_stream, update_badge_stream, refresh_header_notifications_stream, clear_frame]
       else
         redirect_to productos_path, notice: 'Producto creado exitosamente.'
       end
@@ -350,7 +356,12 @@ class ProductosController < ApplicationController
           partial: 'productos/row_update_payload',
           locals: { producto: @producto }
         )
+        low_stock_count = calculate_low_stock_total_count
         below_target_count = calculate_below_target_margin_total_count
+        update_low_stock_badge_stream = view_context.turbo_stream.update(
+          'products-low-stock-badge',
+          view_context.render(partial: 'productos/low_stock_badge', locals: { count: low_stock_count })
+        )
         update_badge_stream = view_context.turbo_stream.update(
           'products-below-target-badge',
           view_context.render(partial: 'productos/below_target_badge', locals: { count: below_target_count })
@@ -361,7 +372,7 @@ class ProductosController < ApplicationController
           view_context.render(partial: 'shared/header_notifications')
         )
         clear_frame = view_context.turbo_stream.update('modal-productos', '')
-        render turbo_stream: [row_payload, update_badge_stream, refresh_header_notifications_stream, clear_frame]
+        render turbo_stream: [row_payload, update_low_stock_badge_stream, update_badge_stream, refresh_header_notifications_stream, clear_frame]
       else
         redirect_to productos_path, notice: 'Producto actualizado exitosamente.'
       end
@@ -1115,34 +1126,14 @@ class ProductosController < ApplicationController
   end
 
   def filter_by_low_stock(scope)
-    variation_low_stock_product_ids = ProductVariation
-                                      .joins(:producto)
-                                      .where(productos: { business_id: current_business.id })
-                                      .where('COALESCE(product_variations.safety_stock, 0) > 0')
-                                      .left_joins(:stock_lot_variations)
-                                      .group('product_variations.id', 'product_variations.producto_id', 'product_variations.safety_stock')
-                                      .having('COALESCE(SUM(stock_lot_variations.quantity_remaining), 0) <= COALESCE(product_variations.safety_stock, 0)')
-                                      .pluck(:producto_id)
-
-    products_with_unique_variation_ids = ProductVariation
-                                         .joins(:producto)
-                                         .where(productos: { business_id: current_business.id })
-                                         .where("LOWER(TRIM(COALESCE(product_variations.description, ''))) = ?", 'unica')
-                                         .distinct
-                                         .pluck(:producto_id)
-
-    general_low_stock_product_ids = scope
-                                    .except(:includes, :preload, :eager_load)
-                                    .where('COALESCE(productos.general_safety_stock, 0) > 0')
-                                    .where.not(id: products_with_unique_variation_ids)
-                                    .includes(:stock_lots, :stock_lot_variations)
-                                    .select { |producto| producto.total_quantity <= producto.general_safety_stock.to_d }
-                                    .map(&:id)
-
-    low_stock_product_ids = (variation_low_stock_product_ids + general_low_stock_product_ids).uniq
+    low_stock_product_ids = low_stock_product_ids_for_scope(scope)
     return scope.none if low_stock_product_ids.empty?
 
     scope.where(id: low_stock_product_ids)
+  end
+
+  def calculate_low_stock_total_count
+    low_stock_product_ids_for_scope(current_business.productos).size
   end
 
   def filter_by_below_target_margin(scope)
@@ -1180,6 +1171,97 @@ class ProductosController < ApplicationController
     relation.includes(:profit_margin_preset, :stock_lots)
             .select(&:below_target_margin_for_highest_active_lot?)
             .map(&:id)
+  end
+
+  def low_stock_product_ids_for_scope(scope)
+    relation = scope.except(:includes, :preload, :eager_load, :order)
+    relation.includes(:product_variations, stock_lots: [:stock_lot_variations, :purchase_invoice_item])
+            .select { |producto| product_low_stock?(producto) }
+            .map(&:id)
+  end
+
+  def product_low_stock?(producto)
+    variations = producto.product_variations.to_a
+    variation_totals = variation_totals_for_low_stock(producto, variations)
+
+    product_total_quantity = producto.total_quantity.to_d
+    product_display_safety_stock = if variations.one?
+                                     variations.first.safety_stock.to_d
+                                   else
+                                     producto.general_safety_stock.to_d
+                                   end
+
+    product_row_low_stock = product_display_safety_stock.positive? && product_total_quantity < product_display_safety_stock
+    variation_row_low_stock = variations.any? do |variation|
+      variation_safety_stock = variation.safety_stock.to_d
+      next false unless variation_safety_stock.positive?
+
+      variation_totals[variation.id].to_d < variation_safety_stock
+    end
+
+    product_row_low_stock || variation_row_low_stock
+  end
+
+  def variation_totals_for_low_stock(producto, variations)
+    return {} if variations.empty?
+
+    totals = Hash.new(0.to_d)
+    variation_lookup_by_id = variations.index_by(&:id)
+    variation_lookup_by_description = variations.index_by { |variation| variation.description.to_s.strip.downcase }
+
+    producto.stock_lots.each do |lot|
+      item = lot.purchase_invoice_item
+      units_per_pack = item&.unid_x_pack.to_d
+      lot_variation_rows = lot.stock_lot_variations.to_a
+
+      if lot_variation_rows.any?
+        lot_variation_rows.each do |entry|
+          linked_variation = if entry.product_variation_id.present?
+                               variation_lookup_by_id[entry.product_variation_id]
+                             else
+                               variation_lookup_by_description[entry.variation_description.to_s.strip.downcase]
+                             end
+          linked_variation ||= variations.first if linked_variation.blank? && variations.one?
+          next unless linked_variation
+
+          quantity_remaining = entry.quantity_remaining.to_d
+          next unless quantity_remaining.positive?
+
+          totals[linked_variation.id] += quantity_remaining
+        end
+        next
+      end
+
+      legacy_rows = item&.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+      if legacy_rows.any?
+        legacy_rows.each do |entry|
+          legacy_variation_id = (entry['variation_id'] || entry[:variation_id]).presence
+          legacy_description = (entry['description'] || entry[:description]).to_s.strip.downcase
+          linked_variation = if legacy_variation_id.present?
+                               variation_lookup_by_id[legacy_variation_id.to_i]
+                             else
+                               variation_lookup_by_description[legacy_description]
+                             end
+          linked_variation ||= variations.first if linked_variation.blank? && variations.one?
+          next unless linked_variation
+
+          quantity = (entry['quantity'] || entry[:quantity]).to_d
+          next unless quantity.positive?
+
+          totals[linked_variation.id] += quantity
+        end
+        next
+      end
+
+      next unless variations.one?
+
+      lot_quantity_remaining_units = lot.quantity_remaining.to_d * (units_per_pack.positive? ? units_per_pack : 1)
+      next unless lot_quantity_remaining_units.positive?
+
+      totals[variations.first.id] += lot_quantity_remaining_units
+    end
+
+    totals
   end
 
   def below_target_margin_scope(scope)
