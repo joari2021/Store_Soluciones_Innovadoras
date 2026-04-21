@@ -405,9 +405,24 @@ class ProductosController < ApplicationController
 
   def destroy
     if @producto.destroy
-      redirect_to productos_path, notice: 'Producto eliminado exitosamente.'
+      respond_to do |format|
+        format.html { redirect_to productos_path, notice: 'Producto eliminado exitosamente.' }
+        format.json do
+          render json: {
+            success: true,
+            product_id: @producto.id,
+            low_stock_total_count: calculate_low_stock_total_count,
+            below_target_margin_total_count: calculate_below_target_margin_total_count,
+          }, status: :ok
+        end
+      end
     else
-      redirect_to productos_path, alert: 'No se pudo eliminar el producto.'
+      respond_to do |format|
+        format.html { redirect_to productos_path, alert: 'No se pudo eliminar el producto.' }
+        format.json do
+          render json: { error: 'No se pudo eliminar el producto.' }, status: :unprocessable_entity
+        end
+      end
     end
   end
 

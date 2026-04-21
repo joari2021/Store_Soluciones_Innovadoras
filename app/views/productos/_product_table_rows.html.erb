@@ -181,7 +181,11 @@
         <%= link_to edit_producto_path(producto), remote: true, method: :get, class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-sky-50 p-2 text-sky-600 transition-colors hover:bg-sky-100', data: { turbo_frame: 'modal-productos' }, onclick: "openModal('productModal')" do %>
           <i data-lucide="edit-3" class="h-4 w-4"></i>
         <% end %>
-        <%= button_to producto_path(producto), method: :delete, form_class: 'delete-alertbox', class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-rose-50 p-2 text-rose-600 transition-colors hover:bg-rose-100' do %>
+        <%= button_to producto_path(producto),
+                      method: :delete,
+                      form_class: 'delete-alertbox',
+                      form: { data: { products_ajax_delete: true, product_id: producto.id } },
+                      class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-rose-50 p-2 text-rose-600 transition-colors hover:bg-rose-100' do %>
           <i data-lucide="trash-2" class="h-4 w-4"></i>
         <% end %>
       </div>
