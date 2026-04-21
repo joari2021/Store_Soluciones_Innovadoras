@@ -1,6 +1,7 @@
 class CambioEfectivosController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:ventas) }
+  before_action :ensure_can_manage_cash_exchange!, only: %i[create validate]
   before_action :set_cambio_efectivo, only: %i[destroy]
   before_action :authorize_destroy!, only: %i[destroy]
 
@@ -377,6 +378,32 @@ class CambioEfectivosController < ApplicationController
 
     deny_access("No tienes permisos para eliminar esta operacion de pasarela.")
     return
+  end
+
+  def ensure_can_manage_cash_exchange!
+    unless current_user_admin? || current_user_manager?
+      return render json: { error: "Solo encargado o administrador pueden usar la pasarela de cambios." }, status: :forbidden
+    end
+
+    open_cash_shift = current_business.cash_shifts.open.includes(:active_cashier).first
+    return if open_cash_shift.blank?
+
+    active_cashier = open_cash_shift.active_cashier
+    return if active_cashier.blank?
+    return if active_cashier.id == Current.user&.id
+
+    active_cashier_role = active_cashier.role_label.to_s.strip
+    active_cashier_name = active_cashier.display_name.to_s.strip
+    active_cashier_label = [active_cashier_role, active_cashier_name].reject(&:blank?).join(' ')
+
+    render json: {
+      error: "Los cambios solo pueden ser procesados por #{active_cashier_label}, quien es el cajero en este momento.",
+      active_cashier: {
+        id: active_cashier.id,
+        name: active_cashier_name,
+        role_label: active_cashier_role,
+      }
+    }, status: :forbidden
   end
 
   def cambio_efectivo_params
