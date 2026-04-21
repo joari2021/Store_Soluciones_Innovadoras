@@ -286,15 +286,25 @@ class VentasController < ApplicationController
   def historial_productos
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
-    filtered_sales = apply_historial_filters(current_business.ventas)
+    @producto_query = params[:producto_query].to_s.strip.presence
+    filtered_sales = apply_historial_filters(current_business.ventas, include_client_filter: false)
 
     sold_items_scope = VentaItem
       .joins(:venta)
+      .left_joins(:producto)
       .where(ventas: { business_id: current_business.id })
       .where(venta_id: filtered_sales.select(:id))
       .where.not(producto_id: nil)
       .includes(:venta, :product_variation, producto: [foto_attachment: :blob])
       .order('ventas.created_at DESC, venta_items.id DESC')
+
+    if @producto_query.present?
+      query_value = "%#{ActiveRecord::Base.sanitize_sql_like(@producto_query)}%"
+      sold_items_scope = sold_items_scope.where(
+        "venta_items.product_name ILIKE :query OR productos.descripcion ILIKE :query OR COALESCE(venta_items.variation_name, '') ILIKE :query",
+        query: query_value,
+      )
+    end
 
     @sold_products_total = sold_items_scope.count
     @sold_products_unique = sold_items_scope.distinct.count(:producto_id)
@@ -1196,7 +1206,7 @@ class VentasController < ApplicationController
     value.to_s.strip.downcase.presence
   end
 
-  def apply_historial_filters(scope)
+  def apply_historial_filters(scope, include_client_filter: true)
     @cliente_query = params[:cliente_query].to_s.strip.presence
     @selected_cash_shift_id = params[:cash_shift_id].to_s.strip.presence
     unless params.key?(:cash_shift_id)
@@ -1213,7 +1223,7 @@ class VentasController < ApplicationController
     end
 
     filters_explicitly_present = [
-      @cliente_query,
+      (include_client_filter ? @cliente_query : nil),
       @selected_cash_shift_id,
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip,
@@ -1222,7 +1232,7 @@ class VentasController < ApplicationController
 
     filtered_scope = scope.where.not(status: "draft")
 
-    if @cliente_query.present?
+    if include_client_filter && @cliente_query.present?
       query_value = "%#{ActiveRecord::Base.sanitize_sql_like(@cliente_query)}%"
       filtered_scope = filtered_scope
         .joins(:cliente)
@@ -1332,6 +1342,7 @@ class VentasController < ApplicationController
   def build_historial_query_params
     {}.tap do |hash|
       hash[:cliente_query] = @cliente_query if @cliente_query.present?
+      hash[:producto_query] = @producto_query if @producto_query.present?
       hash[:cash_shift_id] = @selected_cash_shift_id if @selected_cash_shift_id.present?
       hash[:fecha_desde] = format_historial_date(@selected_fecha_desde) if @selected_fecha_desde.present?
       hash[:fecha_hasta] = format_historial_date(@selected_fecha_hasta) if @selected_fecha_hasta.present?

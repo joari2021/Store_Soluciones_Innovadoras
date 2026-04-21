@@ -839,22 +839,13 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Venta ##{other_sale.id}"
   end
 
-  test "historial_productos filters by cliente query and date range without ambiguous created_at" do
-    matching_cliente = @business.clientes.create!(
-      name: "Cuadernos Cliente",
-      document_type: "V",
-      document_number: "11223344",
-    )
-    other_cliente = @business.clientes.create!(
-      name: "Otro Cliente",
-      document_type: "V",
-      document_number: "55667788",
-    )
+  test "historial_productos filters by product query and date range without ambiguous created_at" do
+    other_product, other_variation = create_product_with_stock!(available_units: 10, sale_price_usd: 12)
+    other_product.update!(descripcion: "Marcador Permanente #{SecureRandom.hex(2)}")
 
     matching_sale = create_paid_sale!(
       created_at: Time.zone.local(2026, 4, 20, 18, 0, 0),
       cash_shift: @open_cash_shift,
-      cliente: matching_cliente,
     )
     matching_sale.venta_items.create!(
       producto: @product,
@@ -869,20 +860,19 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     other_sale = create_paid_sale!(
       created_at: Time.zone.local(2026, 4, 21, 18, 0, 0),
       cash_shift: @open_cash_shift,
-      cliente: other_cliente,
     )
     other_sale.venta_items.create!(
-      producto: @product,
-      product_variation: @variation,
-      product_name: @product.descripcion,
-      variation_name: @variation.description,
+      producto: other_product,
+      product_variation: other_variation,
+      product_name: other_product.descripcion,
+      variation_name: other_variation.description,
       quantity: 1,
-      unit_price_usd: @product.precio_venta_usd,
-      subtotal_usd: @product.precio_venta_usd,
+      unit_price_usd: other_product.precio_venta_usd,
+      subtotal_usd: other_product.precio_venta_usd,
     )
 
     get historial_productos_ventas_path, params: {
-      cliente_query: "cuadernos",
+      producto_query: "producto ventas",
       fecha_desde: "2026-04-20",
       fecha_hasta: "2026-04-21",
     }
