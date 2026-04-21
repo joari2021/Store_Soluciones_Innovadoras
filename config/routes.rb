@@ -112,9 +112,6 @@ Rails.application.routes.draw do
   resources :discount_schedules, path: 'descuentos-programados', only: %i[index create edit update destroy]
   resources :purchase_invoices, path: 'facturas-compra' do
     collection do
-      get :initial_inventory, path: 'inventario-inicial'
-      get :initial_inventory_template, path: 'inventario-inicial/plantilla'
-      post :import_initial_inventory, path: 'inventario-inicial/importar'
       get :source_business_accounts, path: 'intercompany/source-business-accounts'
     end
   end
