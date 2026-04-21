@@ -141,6 +141,18 @@
           return match ? match[1] : '';
         };
 
+        const dispatchCashShiftOpened = (shiftIdValue, shiftUrl) => {
+          const shiftId = Number(String(shiftIdValue || extractShiftIdFromUrl(shiftUrl)).trim() || 0);
+          if (!(shiftId > 0)) return;
+
+          window.dispatchEvent(new CustomEvent('cash_shift:opened', {
+            detail: {
+              shiftId,
+              shiftUrl: String(shiftUrl || '').trim(),
+            },
+          }));
+        };
+
         const promoteOpenShiftCTA = (shiftUrl, shiftIdValue = '') => {
           if (!shiftUrl || !trigger) return;
 
@@ -226,6 +238,7 @@
 
                   if (cashShiftUrl) {
                     promoteOpenShiftCTA(cashShiftUrl, cashShiftId);
+                    dispatchCashShiftOpened(cashShiftId, cashShiftUrl);
                   }
                   return;
                 }
@@ -239,6 +252,7 @@
 
                 if (cashShiftUrl) {
                   promoteOpenShiftCTA(cashShiftUrl, cashShiftId);
+                  dispatchCashShiftOpened(cashShiftId, cashShiftUrl);
                 }
                 return;
               }
@@ -270,6 +284,7 @@
 
               if (cashShiftUrl) {
                 promoteOpenShiftCTA(cashShiftUrl, cashShiftId);
+                dispatchCashShiftOpened(cashShiftId, cashShiftUrl);
               }
               return;
             }
@@ -283,6 +298,7 @@
 
             if (cashShiftUrl) {
               promoteOpenShiftCTA(cashShiftUrl, cashShiftId);
+              dispatchCashShiftOpened(cashShiftId, cashShiftUrl);
             }
           } catch (error) {
             if (window.Swal) {
@@ -665,8 +681,8 @@
       if (!root) return;
       if (window.ventasPosBoundRoots.has(root)) return;
 
-      const hasOpenCashShift = root.dataset.openShift === 'true';
-      const openCashShiftId = Number(root.dataset.openShiftId || 0);
+      let hasOpenCashShift = root.dataset.openShift === 'true';
+      let openCashShiftId = Number(root.dataset.openShiftId || 0);
       let canChargeSale = root.dataset.canChargeSale === 'true';
       let canViewAllDrafts = root.dataset.canViewAllDrafts === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
@@ -789,19 +805,44 @@
 
       let cashierPollIntervalId = null;
 
-      if (hasOpenCashShift && openCashShiftId > 0) {
+      const startCashierPolling = () => {
+        if (!hasOpenCashShift || openCashShiftId <= 0) return;
+        if (cashierPollIntervalId) window.clearInterval(cashierPollIntervalId);
+
         fetchActiveCashierStatus().catch(() => null);
         cashierPollIntervalId = window.setInterval(() => {
           fetchActiveCashierStatus().catch(() => null);
         }, 15000);
-      }
+      };
+
+      const stopCashierPolling = () => {
+        if (!cashierPollIntervalId) return;
+        window.clearInterval(cashierPollIntervalId);
+        cashierPollIntervalId = null;
+      };
+
+      const onCashShiftOpened = (event) => {
+        const payload = event?.detail || {};
+        const shiftId = Number(payload.shiftId || payload.cashShiftId || 0);
+        if (!(shiftId > 0)) return;
+
+        hasOpenCashShift = true;
+        openCashShiftId = shiftId;
+        root.dataset.openShift = 'true';
+        root.dataset.openShiftId = String(shiftId);
+
+        startCashierPolling();
+        fetchActiveCashierStatus().catch(() => null);
+        renderCart();
+      };
+      window.addEventListener('cash_shift:opened', onCashShiftOpened);
+
+      startCashierPolling();
 
       document.addEventListener('turbo:before-cache', () => {
         window.removeEventListener('cashier:updated', onCashierUpdated);
-        if (cashierPollIntervalId) {
-          window.clearInterval(cashierPollIntervalId);
-          cashierPollIntervalId = null;
-        }
+        window.removeEventListener('cash_shift:opened', onCashShiftOpened);
+        stopCashierPolling();
       }, { once: true });
 
       const accountTypeKey = (account) => String(account?.account_type || '').toLowerCase();
