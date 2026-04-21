@@ -792,16 +792,23 @@ class PurchaseInvoicesController < ApplicationController
     pending_due_on = parse_filter_date(pending_due_on_raw)
 
     if invoice.persisted? && !payment_input_submitted
+      existing_pending_debt = find_invoice_pending_debt(invoice)
       total_invoice_bs = invoice.total_bs.to_d.round(2)
       total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
-      pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
+
+      if invoice.intercompany? && existing_pending_debt.present?
+        pending_amount_bs = pending_debt_balance_in_bs(invoice: invoice, debt: existing_pending_debt)
+        total_paid_bs = [total_invoice_bs - pending_amount_bs, 0.to_d].max.round(2)
+      else
+        pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
+      end
+
       pending_amount_bs = 0.to_d if pending_amount_bs.abs < 0.01.to_d
       effective_rate = invoice_effective_usd_rate(invoice)
       total_invoice_usd = effective_rate.positive? ? (total_invoice_bs / effective_rate).round(2) : invoice.monto_total.to_d.round(2)
       total_paid_usd = effective_rate.positive? ? (total_paid_bs / effective_rate).round(2) : 0.to_d
       pending_amount_usd = effective_rate.positive? ? (pending_amount_bs / effective_rate).round(2) : [total_invoice_usd - total_paid_usd, 0.to_d].max
 
-      existing_pending_debt = find_invoice_pending_debt(invoice)
       effective_mark_pending = existing_pending_debt.present? || pending_amount_bs.positive?
       effective_pending_due_on = existing_pending_debt&.due_on
 
