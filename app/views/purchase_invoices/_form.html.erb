@@ -660,6 +660,10 @@
       <% else %>
         <% pending_balance_bs = @invoice_pending_balance_bs.to_d %>
         <% total_paid_bs = @invoice_total_paid_bs.to_d %>
+        <% pending_balance_usd = @invoice_pending_balance_usd.to_d %>
+        <% total_paid_usd = @invoice_total_paid_usd.to_d %>
+        <% use_usd_summary = @invoice_pending_debt.present? %>
+        <% payment_movements_usd_map = @invoice_payment_movements_usd_map || {} %>
         <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
@@ -678,16 +682,16 @@
           </div>
           <div class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total factura Bs</p>
-              <p class="mt-1 text-base font-extrabold text-slate-800"><%= format_money(factura.total_bs, unit: 'Bs') %></p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500"><%= use_usd_summary ? 'Total factura $' : 'Total factura Bs' %></p>
+              <p class="mt-1 text-base font-extrabold text-slate-800"><%= use_usd_summary ? format_money(@invoice_total_usd_summary.to_d, unit: '$') : format_money(factura.total_bs, unit: 'Bs') %></p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total pagado actual Bs</p>
-              <p class="mt-1 text-base font-extrabold text-emerald-700"><%= format_money(total_paid_bs, unit: 'Bs') %></p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500"><%= use_usd_summary ? 'Total pagado actual $' : 'Total pagado actual Bs' %></p>
+              <p class="mt-1 text-base font-extrabold text-emerald-700"><%= use_usd_summary ? format_money(total_paid_usd, unit: '$') : format_money(total_paid_bs, unit: 'Bs') %></p>
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo pendiente actual Bs</p>
-              <p class="mt-1 text-base font-extrabold text-amber-700"><%= format_money(pending_balance_bs, unit: 'Bs') %></p>
+              <p class="text-xs font-semibold uppercase tracking-wider text-slate-500"><%= use_usd_summary ? 'Saldo pendiente actual $' : 'Saldo pendiente actual Bs' %></p>
+              <p class="mt-1 text-base font-extrabold text-amber-700"><%= use_usd_summary ? format_money(pending_balance_usd, unit: '$') : format_money(pending_balance_bs, unit: 'Bs') %></p>
             </div>
           </div>
           <div class="mt-4">
@@ -708,7 +712,7 @@
                         <% end %>
                       </p>
                     </div>
-                    <p class="text-sm font-extrabold text-emerald-700"><%= format_money(movement.amount, unit: 'Bs') %></p>
+                    <p class="text-sm font-extrabold text-emerald-700"><%= use_usd_summary ? format_money(payment_movements_usd_map[movement.id].to_d, unit: '$') : format_money(movement.amount, unit: 'Bs') %></p>
                   </div>
                 <% end %>
               </div>

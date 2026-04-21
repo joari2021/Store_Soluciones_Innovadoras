@@ -142,7 +142,24 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, 'Caja Bs'
     assert_includes response.body, 'Ver deuda'
     assert_includes response.body, 'Registrar pago'
+    assert_includes response.body, 'Saldo pendiente actual $'
+  end
+
+  test 'shows payment summary in bs for fully paid invoice without debt in show view' do
+    post purchase_invoices_path, params: purchase_invoice_payload(
+      payment_amount: '116.00',
+      mark_pending_payment: '0'
+    )
+
+    invoice = PurchaseInvoice.order(:id).last
+
+    get purchase_invoice_path(invoice)
+
+    assert_response :success
+    assert_includes response.body, 'Pago de factura'
+    assert_includes response.body, 'Total pagado Bs'
     assert_includes response.body, 'Saldo pendiente actual Bs'
+    assert_includes response.body, 'Base: total factura Bs'
   end
 
   test 'shows payment method and debt allocation in invoice show view' do

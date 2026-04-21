@@ -155,9 +155,12 @@
     <p class="mt-2 text-sm text-slate-700"><%= @purchase_invoice.observaciones.presence || '-' %></p>
   </div>
   <% invoice_pending_balance_bs = (@invoice_pending_balance_bs || 0).to_d.round(2) %>
+  <% invoice_total_paid_bs = (@invoice_total_paid_bs || 0).to_d.round(2) %>
+  <% invoice_total_bs = @purchase_invoice.total_bs.to_d.round(2) %>
   <% invoice_pending_balance_usd = (@invoice_pending_balance_usd || 0).to_d.round(2) %>
   <% invoice_total_paid_usd = (@invoice_total_paid_usd || 0).to_d.round(2) %>
   <% invoice_debt_assigned_usd = (@invoice_debt_assigned_usd || 0).to_d.round(2) %>
+  <% use_usd_summary = @invoice_pending_debt.present? %>
   <% payment_movements_usd_map = @invoice_payment_movements_usd_map || {} %>
   <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-100 px-6 py-4">
@@ -285,20 +288,22 @@
           <h2 class="text-base font-semibold text-slate-800">Pago de factura</h2>
           <p class="text-sm text-slate-500">Métodos de pago registrados y monto asignado a deuda.</p>
         </div>
-        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Base: total factura <%= format_money((@invoice_total_usd_summary || total_final_usd), unit: '$') %></p>
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          Base: total factura <%= use_usd_summary ? format_money((@invoice_total_usd_summary || total_final_usd), unit: '$') : format_money(invoice_total_bs, unit: 'Bs') %>
+        </p>
       </div>
       <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
         <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Total pagado $</p>
-          <p class="mt-2 text-lg font-extrabold text-emerald-800"><%= format_money(invoice_total_paid_usd, unit: '$') %></p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700"><%= use_usd_summary ? 'Total pagado $' : 'Total pagado Bs' %></p>
+          <p class="mt-2 text-lg font-extrabold text-emerald-800"><%= use_usd_summary ? format_money(invoice_total_paid_usd, unit: '$') : format_money(invoice_total_paid_bs, unit: 'Bs') %></p>
         </div>
         <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-wider text-amber-700">Asignado a deuda $</p>
-          <p class="mt-2 text-lg font-extrabold text-amber-800"><%= format_money(invoice_debt_assigned_usd, unit: '$') %></p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-amber-700"><%= use_usd_summary ? 'Asignado a deuda $' : 'Asignado a deuda Bs' %></p>
+          <p class="mt-2 text-lg font-extrabold text-amber-800"><%= use_usd_summary ? format_money(invoice_debt_assigned_usd, unit: '$') : format_money(@invoice_debt_assigned_bs.to_d, unit: 'Bs') %></p>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Saldo pendiente actual $</p>
-          <p class="mt-2 text-lg font-extrabold text-slate-800"><%= format_money(invoice_pending_balance_usd, unit: '$') %></p>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-500"><%= use_usd_summary ? 'Saldo pendiente actual $' : 'Saldo pendiente actual Bs' %></p>
+          <p class="mt-2 text-lg font-extrabold text-slate-800"><%= use_usd_summary ? format_money(invoice_pending_balance_usd, unit: '$') : format_money(invoice_pending_balance_bs, unit: 'Bs') %></p>
         </div>
       </div>
       <div class="mt-4">
@@ -321,7 +326,7 @@
                     · Método: <%= payment_method_label %>
                   </p>
                 </div>
-                <p class="text-sm font-extrabold text-emerald-700"><%= format_money(payment_movements_usd_map[movement.id].to_d, unit: '$') %></p>
+                <p class="text-sm font-extrabold text-emerald-700"><%= use_usd_summary ? format_money(payment_movements_usd_map[movement.id].to_d, unit: '$') : format_money(movement.amount.to_d, unit: 'Bs') %></p>
               </div>
             <% end %>
           </div>
