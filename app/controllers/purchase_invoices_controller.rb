@@ -1290,6 +1290,18 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def remove_invoice_related_records!(invoice)
+    if invoice.intercompany? && invoice.source_business_id.present?
+      source_business = invoice.source_business
+      if source_business.present?
+        source_rows = aggregate_source_stock_rows_for_invoice_items(
+          invoice.purchase_invoice_items.includes(producto: :product_variations),
+          source_business: source_business,
+        )
+        restore_source_stock_rows!(rows: source_rows)
+        raise ActiveRecord::RecordInvalid, @purchase_invoice if @purchase_invoice.errors.any?
+      end
+    end
+
     linked_debts = invoice_pending_debts_scope(invoice).includes(:debt_payments, :mirror_debt).to_a
     if invoice.intercompany? && invoice.source_business_id.present?
       linked_debts += Debt.where(business_id: invoice.source_business_id)
