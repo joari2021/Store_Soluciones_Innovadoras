@@ -154,7 +154,8 @@ class AccountSettlementsController < ApplicationController
           amount: credited_amount,
           description: "Liquidacion #{@account.account_type_label} (cierre ##{@settlement.id}) [ACCOUNT:#{@account.id}]",
           occurred_at: occurred_at,
-          payment_method: 'settlement'
+          payment_method: 'settlement',
+          account_settlement: @settlement
         )
       end
 
@@ -164,7 +165,8 @@ class AccountSettlementsController < ApplicationController
           amount: commission_amount,
           description: "Comision #{@account.account_type_label} (cierre ##{@settlement.id}) [ACCOUNT:#{@account.id}]",
           occurred_at: occurred_at,
-          payment_method: 'settlement'
+          payment_method: 'settlement',
+          account_settlement: @settlement
         )
       end
     end

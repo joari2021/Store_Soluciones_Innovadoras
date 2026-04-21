@@ -64,6 +64,7 @@ class AccountMovement < ApplicationRecord
 
   def sufficient_balance_for_debit
     return if account.blank?
+    return if settlement_commission_allows_overdraft?
 
     required_amount = additional_debit_required
     return unless required_amount.positive?
@@ -72,6 +73,16 @@ class AccountMovement < ApplicationRecord
     return if required_amount <= available_balance
 
     errors.add(:base, account.insufficient_balance_message(required_amount, available_balance: available_balance))
+  end
+
+  def settlement_commission_allows_overdraft?
+    return false unless movement_kind.to_s == 'expense'
+    return false unless payment_method.to_s == 'settlement'
+
+    settlement = account_settlement
+    return false if settlement.blank?
+
+    %w[biopago pos].include?(settlement.account&.account_type.to_s)
   end
 
   def additional_debit_required
