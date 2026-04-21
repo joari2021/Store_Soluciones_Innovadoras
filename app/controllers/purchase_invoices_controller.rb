@@ -69,6 +69,8 @@ class PurchaseInvoicesController < ApplicationController
     base_scope = base_scope.where('facturas.fecha_emision <= ?', @fecha_hasta.end_of_day) if @fecha_hasta.present?
 
     ordered_invoices = base_scope.order(fecha_emision: :desc, created_at: :desc).to_a
+    initial_inventory_invoices, regular_invoices = ordered_invoices.partition(&:initial_inventory?)
+    ordered_invoices = regular_invoices + initial_inventory_invoices
     full_status_map = build_invoice_payment_status_map(ordered_invoices)
 
     if @selected_payment_status.present?

@@ -305,6 +305,50 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert_select 'span', text: 'Entregada', count: 0
   end
 
+  test 'keeps initial inventory invoice at the end of index regardless emission date' do
+    old_purchase = @business.purchase_invoices.create!(
+      supplier: @supplier,
+      fecha_emision: Date.current - 10.days,
+      tasa_dolar: 10,
+      numero: "FAC-#{SecureRandom.hex(3)}",
+      invoice_kind: PurchaseInvoice::INVOICE_KIND_PURCHASE,
+      delivered: true
+    )
+    old_purchase.purchase_invoice_items.create!(
+      product_name: 'Producto viejo',
+      costo_mayor: 10,
+      cantidad: 1,
+      unid_x_pack: 1,
+      exento: false
+    )
+
+    latest_initial = @business.purchase_invoices.create!(
+      fecha_emision: Date.current,
+      tasa_dolar: 10,
+      numero: "INI-#{SecureRandom.hex(3)}",
+      invoice_kind: PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY,
+      delivered: true
+    )
+    latest_initial.purchase_invoice_items.create!(
+      product_name: 'Producto inicial',
+      costo_mayor: 10,
+      cantidad: 1,
+      unid_x_pack: 1,
+      exento: false
+    )
+
+    get purchase_invoices_path(format: :json)
+
+    assert_response :success
+    table_rows_html = response.parsed_body['table_rows_html'].to_s
+    old_purchase_position = table_rows_html.index("##{old_purchase.id}")
+    initial_position = table_rows_html.index("##{latest_initial.id}")
+
+    assert_not_nil old_purchase_position
+    assert_not_nil initial_position
+    assert_operator old_purchase_position, :<, initial_position
+  end
+
   test 'destroy removes linked debt payments account movements and stock lots' do
     due_date = Date.current + 5.days
 
