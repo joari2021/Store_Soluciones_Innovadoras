@@ -288,9 +288,9 @@ class VentasController < ApplicationController
 
     filtered_sales = apply_historial_filters(current_business.ventas)
 
-    sold_items_scope = current_business
-      .venta_items
+    sold_items_scope = VentaItem
       .joins(:venta)
+      .where(ventas: { business_id: current_business.id })
       .where(venta_id: filtered_sales.select(:id))
       .where.not(producto_id: nil)
       .includes(:venta, :product_variation, producto: [foto_attachment: :blob])
