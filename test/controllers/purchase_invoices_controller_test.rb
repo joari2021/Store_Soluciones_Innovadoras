@@ -740,6 +740,114 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     ], variation_quantities
   end
 
+  test 'intercompany edit updates pending debt amount when invoice total changes' do
+    source_business = Business.create!(name: "Origen Deuda #{SecureRandom.hex(4)}")
+    source_supplier = source_business.suppliers.create!(nombre: 'Proveedor Origen Deuda')
+    source_category = source_business.categorias.create!(nombre: "Categoria Origen Deuda #{SecureRandom.hex(3)}")
+    source_product = source_business.productos.create!(
+      descripcion: "Producto Origen Deuda #{SecureRandom.hex(3)}",
+      categoria: source_category,
+      precio_venta_usd: 8,
+      presentation: 'pack',
+      cant_presentation: 10
+    )
+    source_variation = source_product.product_variations.order(:id).first
+
+    source_invoice = source_business.purchase_invoices.create!(
+      supplier: source_supplier,
+      fecha_emision: Date.current,
+      tasa_dolar: 10,
+      numero: "SRC-DEUDA-#{SecureRandom.hex(3)}",
+      delivered: true
+    )
+    source_invoice.purchase_invoice_items.create!(
+      producto: source_product,
+      product_name: source_product.descripcion,
+      costo_mayor: 5,
+      costo_mayor_bs: 50,
+      cantidad: 100,
+      unid_x_pack: 1,
+      exento: false,
+      variation_breakdown: [{ variation_id: source_variation.id, description: source_variation.description, quantity: 100 }]
+    )
+
+    assert_difference('PurchaseInvoice.count', 1) do
+      assert_difference('Debt.count', 2) do
+        post purchase_invoices_path, params: {
+          mode: 'intercompany',
+          purchase_invoice: {
+            intercompany: '1',
+            source_business_id: source_business.id.to_s,
+            fecha_emision: Date.current,
+            tasa_dolar: '10',
+            numero: "IC-DEUDA-#{SecureRandom.hex(3)}",
+            delivered: '1',
+            purchase_invoice_items_attributes: {
+              '0' => {
+                producto_id: source_product.id.to_s,
+                product_name: source_product.descripcion,
+                cantidad: '1',
+                unid_x_pack: '10',
+                costo_mayor: '0',
+                exento: '1',
+                variation_breakdown: [{ variation_id: source_variation.id, description: source_variation.description, quantity: 10 }].to_json
+              }
+            }
+          },
+          mark_pending_payment: '1',
+          pending_due_on: (Date.current + 5.days).strftime('%d-%m-%Y')
+        }
+      end
+    end
+
+    invoice = PurchaseInvoice.order(:id).last
+    item = invoice.purchase_invoice_items.first
+    payable_debt = @business.debts.where('description LIKE ?', "%[FACTURA_COMPRA:#{invoice.id}]%").order(created_at: :desc).first
+
+    assert_not_nil payable_debt
+    original_invoice_total = invoice.monto_total.to_d.round(2)
+    original_debt_amount = payable_debt.amount.to_d.round(2)
+    assert_equal original_invoice_total, original_debt_amount
+
+    patch purchase_invoice_path(invoice), params: {
+      purchase_invoice: {
+        intercompany: '1',
+        source_business_id: source_business.id.to_s,
+        fecha_emision: invoice.fecha_emision,
+        tasa_dolar: invoice.tasa_dolar.to_s,
+        numero: invoice.numero,
+        delivered: '1',
+        purchase_invoice_items_attributes: {
+          '0' => {
+            id: item.id,
+            _destroy: '0',
+            producto_id: item.producto_id,
+            product_name: item.product_name,
+            cantidad: '1',
+            unid_x_pack: '20',
+            costo_mayor: item.costo_mayor.to_s,
+            costo_mayor_bs: item.costo_mayor_bs.to_s,
+            costo_menor: item.costo_menor.to_s,
+            exento: '1',
+            variation_breakdown: [{ variation_id: source_variation.id, description: source_variation.description, quantity: 20 }].to_json
+          }
+        }
+      },
+      mark_pending_payment: '1',
+      pending_due_on: (Date.current + 5.days).strftime('%d-%m-%Y')
+    }
+
+    assert_redirected_to purchase_invoices_path
+
+    invoice.reload
+    payable_debt.reload
+    updated_invoice_total = invoice.monto_total.to_d.round(2)
+    updated_debt_amount = payable_debt.amount.to_d.round(2)
+
+    assert_operator updated_invoice_total, :>, original_invoice_total
+    assert_equal updated_invoice_total, updated_debt_amount
+  end
+
   private
 
   def login_and_select_business!

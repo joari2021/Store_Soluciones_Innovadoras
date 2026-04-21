@@ -515,13 +515,17 @@ class PurchaseInvoicesController < ApplicationController
       existing_pending_debt = find_invoice_pending_debt(invoice)
       total_invoice_bs = invoice.total_bs.to_d.round(2)
       total_paid_bs = invoice_payment_movements_scope(invoice).sum(:amount).to_d.round(2)
-
-      if invoice.intercompany? && existing_pending_debt.present?
-        pending_amount_bs = pending_debt_balance_in_bs(invoice: invoice, debt: existing_pending_debt)
-        total_paid_bs = [total_invoice_bs - pending_amount_bs, 0.to_d].max.round(2)
-      else
-        pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
-      end
+      debt_paid_bs = if existing_pending_debt.present?
+                       amount_in_bs_for_invoice(
+                         invoice: invoice,
+                         amount: existing_pending_debt.paid_amount.to_d.round(2),
+                         currency: existing_pending_debt.currency
+                       )
+                     else
+                       0.to_d
+                     end
+      total_paid_bs = (total_paid_bs + debt_paid_bs).round(2)
+      pending_amount_bs = (total_invoice_bs - total_paid_bs).round(2)
 
       pending_amount_bs = 0.to_d if pending_amount_bs.abs < 0.01.to_d
       effective_rate = invoice_effective_usd_rate(invoice)
@@ -736,11 +740,12 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     if existing_pending_debt.present?
+      debt_paid_usd = existing_pending_debt.paid_amount.to_d.round(2)
       existing_pending_debt.update!(
         name: supplier_name,
         acreedor: supplier_name,
         description: "Saldo pendiente factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}]",
-        amount: pending_amount_usd,
+        amount: (pending_amount_usd + debt_paid_usd).round(2),
         currency: 'USD',
         issued_on: invoice.fecha_emision&.to_date || Date.current,
         due_on: due_on
@@ -1275,7 +1280,7 @@ class PurchaseInvoicesController < ApplicationController
     return if @purchase_invoice.errors.any?
 
     payable_debt.update!(
-      amount: pending_amount_usd,
+      amount: (pending_amount_usd + payable_debt.paid_amount.to_d.round(2)).round(2),
       currency: 'USD',
       acreedor: source_business.name,
       due_on: due_on.presence || payable_debt.due_on,
@@ -1284,7 +1289,7 @@ class PurchaseInvoicesController < ApplicationController
     )
 
     receivable_debt.update!(
-      amount: pending_amount_usd,
+      amount: (pending_amount_usd + receivable_debt.paid_amount.to_d.round(2)).round(2),
       currency: 'USD',
       due_on: due_on.presence || receivable_debt.due_on,
       mirror_sync_enabled: true,
