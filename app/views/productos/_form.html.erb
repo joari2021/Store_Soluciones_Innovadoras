@@ -199,6 +199,7 @@
                                   step: 1,
                                   min: 0,
                                   inputmode: 'numeric',
+                                  data: { disable_wheel_change: true },
                                   class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
             </div>
           </div>
@@ -300,7 +301,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Stock de seguridad</label>
-          <input class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" step="1" min="0" inputmode="numeric" name="producto[product_variations_attributes][NEW_RECORD][safety_stock]" type="number" value="0">
+          <input class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" step="1" min="0" inputmode="numeric" data-disable-wheel-change="true" name="producto[product_variations_attributes][NEW_RECORD][safety_stock]" type="number" value="0">
         </div>
       </div>
     </div>
@@ -315,6 +316,21 @@
       if (!frame.dataset.variationIndex) {
         frame.dataset.variationIndex = String(Date.now());
       }
+
+      const bindDisableWheelChangeInputs = () => {
+        const inputs = frame.querySelectorAll('input[type="number"][data-disable-wheel-change="true"]');
+
+        inputs.forEach((input) => {
+          if (input.dataset.disableWheelChangeBound === 'true') return;
+
+          input.dataset.disableWheelChangeBound = 'true';
+          input.addEventListener('wheel', (event) => {
+            event.preventDefault();
+          }, { passive: false });
+        });
+      };
+
+      bindDisableWheelChangeInputs();
 
       const confirmVariationDelete = () => {
         if (window.Swal) {
@@ -348,6 +364,7 @@
           const html = template.innerHTML.replace(/NEW_RECORD/g, currentIndex);
           frame.dataset.variationIndex = String(currentIndex + 1);
           container.insertAdjacentHTML('beforeend', html);
+          bindDisableWheelChangeInputs();
           return;
         }
 
