@@ -1,6 +1,11 @@
 <% absolute_index = start_index.to_i + sold_item_counter.to_i %>
 <% product = sold_item.producto %>
 <% image_available = product&.foto&.attached? %>
+<% sold_product_name = if product.present?
+                         product.display_name_with_presentation
+                       else
+                         sold_item.product_name.presence || 'Producto'
+                       end %>
 <tr class="transition-all duration-150 <%= absolute_index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/70">
   <td class="px-6 py-4">
     <div class="flex items-center gap-3">
@@ -10,7 +15,7 @@
         <%= image_tag 'default_image.jpeg', class: 'h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover', alt: 'Imagen por defecto' %>
       <% end %>
       <div class="min-w-0">
-        <p class="truncate text-sm font-semibold text-slate-800"><%= sold_item.product_name.presence || product&.descripcion || 'Producto' %></p>
+        <p class="truncate text-sm font-semibold text-slate-800"><%= sold_product_name %></p>
         <p class="mt-0.5 text-xs text-slate-500"><%= sold_item.variation_name.presence || sold_item.product_variation&.description || 'Unica' %></p>
       </div>
     </div>
