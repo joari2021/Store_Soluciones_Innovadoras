@@ -471,13 +471,13 @@
           form._productsSearchAbortController.abort();
         }
 
+        const url = buildSearchUrl();
         const abortController = new AbortController();
         form._productsSearchAbortController = abortController;
         setSearchLoadingState(true);
         syncCurrentRootDataset();
 
         try {
-          const url = buildSearchUrl();
           const response = await fetch(url.toString(), {
             headers: {
               Accept: "application/json",
