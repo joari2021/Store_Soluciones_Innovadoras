@@ -833,6 +833,7 @@ class ProductosController < ApplicationController
       :presentation,
       :cant_presentation,
       :allow_unpack,
+      :general_safety_stock,
       :precio_venta_usd,
       :categoria_id,
       :foto,

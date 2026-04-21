@@ -1,6 +1,6 @@
 <% can_manage_products = can_manage_action?(:manage_products) %>
 <% can_view_sensitive_inventory = current_user_admin? %>
-<% table_total_columns = 4 + (can_view_sensitive_inventory ? 3 : 0) + (can_manage_products ? 1 : 0) %>
+<% table_total_columns = 5 + (can_view_sensitive_inventory ? 3 : 0) + (can_manage_products ? 1 : 0) %>
 <% productos.each do |producto| %>
   <% variations = producto.product_variations.to_a.sort_by { |variation| variation.description.to_s.downcase } %>
   <% sorted_lots = producto.stock_lots.to_a.sort_by { |lot| [lot.purchased_at || lot.created_at, lot.created_at] }.reverse %>
@@ -149,6 +149,10 @@
       <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">Sin categoria</span>
     <% end %>
   </td>
+  <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+    <% general_safety_stock = producto.general_safety_stock.to_i %>
+    <%= general_safety_stock.positive? ? format_quantity(general_safety_stock, precision: 0) : '—' %>
+  </td>
   <td class="px-6 py-4 text-right">
     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= product_stock_badge_class %>"><%= format_quantity(product_total_quantity) %> disp.</span>
   </td>
@@ -204,6 +208,9 @@
       </button>
     </td>
     <td class="px-6 py-3 font-medium text-slate-600">Total por variacion</td>
+    <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700">
+      <%= variation_safety_stock.positive? ? format_quantity(variation_safety_stock, precision: 0) : '—' %>
+    </td>
     <td class="px-6 py-3 text-right whitespace-nowrap">
       <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= variation_stock_badge_class %>"><%= format_quantity(total_variation_quantity) %> disp.</span>
     </td>
@@ -237,6 +244,7 @@
           </span>
         </td>
         <td class="px-6 py-3 text-slate-600 whitespace-normal break-words"><%= lot_entry[:invoice_ref] %> · <%= lot_entry[:lot_date_label] %> · <%= lot_entry[:supplier_display_name] %></td>
+        <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-500">—</td>
         <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_quantity(lot_entry[:quantity_remaining]) %> / <%= format_quantity(lot_entry[:quantity_in]) %></td>
         <% if can_view_sensitive_inventory %>
           <td class="px-6 py-3 text-right whitespace-nowrap font-semibold text-slate-700"><%= format_money(lot_entry[:unit_cost_usd], unit: '$', precision: 2) %></td>

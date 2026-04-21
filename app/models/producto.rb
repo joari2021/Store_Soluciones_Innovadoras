@@ -37,9 +37,12 @@ class Producto < ApplicationRecord
   validates :porcentaje_ganancia,
             numericality: { greater_than_or_equal_to: 0 },
             allow_nil: true
+  validates :general_safety_stock,
+            numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 
   before_validation :ensure_default_variation, on: :create
   before_validation :normalize_presentation_values
+  before_validation :normalize_general_safety_stock
   before_validation :normalize_localized_monetary_fields
   pg_search_scope :whose_name_starts_with,
                   against: {
@@ -166,6 +169,10 @@ class Producto < ApplicationRecord
     self.presentation = :unidad if presentation.blank?
     self.cant_presentation = 1 if cant_presentation.blank?
     self.cant_presentation = 1 if unidad?
+  end
+
+  def normalize_general_safety_stock
+    self[:general_safety_stock] = general_safety_stock.present? ? general_safety_stock.to_i : 0
   end
 
   def normalize_localized_monetary_fields

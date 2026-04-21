@@ -207,6 +207,16 @@
         </div>
       <% end %>
     </div>
+    <% has_unique_variation = form.object.product_variations.any? { |variation| variation.description.to_s.strip.casecmp('unica').zero? } %>
+    <div id="general-safety-stock-row" class="mt-4 <%= has_unique_variation ? 'hidden' : '' %>">
+      <%= form.label :general_safety_stock, "Stock de seguridad general", class: "block text-xs font-bold text-slate-400 uppercase tracking-wider" %>
+      <%= form.number_field :general_safety_stock,
+                            value: (form.object.general_safety_stock || 0).to_i,
+                            step: 1,
+                            min: 0,
+                            inputmode: 'numeric',
+                            class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+    </div>
   </div>
   <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
   <div class="mt-2">
@@ -331,7 +341,29 @@
         });
       };
 
+      const hasUniqueVariationDescription = () => {
+        const variationRows = frame.querySelectorAll('.variation-row');
+        return Array.from(variationRows).some((row) => {
+          if (row.classList.contains('hidden')) return false;
+
+          const destroyInput = row.querySelector('.variation-destroy');
+          if (destroyInput && destroyInput.value === '1') return false;
+
+          const descriptionInput = row.querySelector('input[name*="[description]"]');
+          const description = String(descriptionInput?.value || '').trim().toLowerCase();
+          return description === 'unica';
+        });
+      };
+
+      const updateGeneralSafetyStockVisibility = () => {
+        const generalStockRow = frame.querySelector('#general-safety-stock-row');
+        if (!generalStockRow) return;
+
+        generalStockRow.classList.toggle('hidden', hasUniqueVariationDescription());
+      };
+
       bindDisableWheelChangeInputs();
+      updateGeneralSafetyStockVisibility();
 
       const confirmVariationDelete = () => {
         if (window.Swal) {
@@ -366,6 +398,7 @@
           frame.dataset.variationIndex = String(currentIndex + 1);
           container.insertAdjacentHTML('beforeend', html);
           bindDisableWheelChangeInputs();
+          updateGeneralSafetyStockVisibility();
           return;
         }
 
@@ -387,6 +420,16 @@
         } else {
           row.remove();
         }
+
+        updateGeneralSafetyStockVisibility();
+      });
+
+      frame.addEventListener('input', (event) => {
+        const input = event.target instanceof Element ? event.target : null;
+        if (!input) return;
+        if (!input.matches('input[name*="[description]"]')) return;
+
+        updateGeneralSafetyStockVisibility();
       });
     });
   </script>

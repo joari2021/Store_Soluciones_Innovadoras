@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_20_103000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -562,6 +562,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_20_103000) do
     t.boolean "allow_unpack", default: false, null: false
     t.bigint "source_business_id"
     t.bigint "source_product_id"
+    t.integer "general_safety_stock", default: 0, null: false
     t.index ["allow_unpack"], name: "index_productos_on_allow_unpack"
     t.index ["business_id", "source_business_id", "source_product_id"], name: "index_productos_on_business_and_source_product", unique: true
     t.index ["business_id"], name: "index_productos_on_business_id"
