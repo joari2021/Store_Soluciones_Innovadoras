@@ -1241,11 +1241,11 @@ class VentasController < ApplicationController
     end
 
     if @selected_fecha_desde.present?
-      filtered_scope = filtered_scope.where("created_at >= ?", @selected_fecha_desde.in_time_zone.beginning_of_day)
+      filtered_scope = filtered_scope.where("ventas.created_at >= ?", @selected_fecha_desde.in_time_zone.beginning_of_day)
     end
 
     if @selected_fecha_hasta.present?
-      filtered_scope = filtered_scope.where("created_at <= ?", @selected_fecha_hasta.in_time_zone.end_of_day)
+      filtered_scope = filtered_scope.where("ventas.created_at <= ?", @selected_fecha_hasta.in_time_zone.end_of_day)
     end
 
     @selected_fecha_desde = nil unless filters_explicitly_present || @selected_fecha_desde.present?

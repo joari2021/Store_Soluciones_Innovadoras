@@ -839,6 +839,59 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Venta ##{other_sale.id}"
   end
 
+  test "historial_productos filters by cliente query and date range without ambiguous created_at" do
+    matching_cliente = @business.clientes.create!(
+      name: "Cuadernos Cliente",
+      document_type: "V",
+      document_number: "11223344",
+    )
+    other_cliente = @business.clientes.create!(
+      name: "Otro Cliente",
+      document_type: "V",
+      document_number: "55667788",
+    )
+
+    matching_sale = create_paid_sale!(
+      created_at: Time.zone.local(2026, 4, 20, 18, 0, 0),
+      cash_shift: @open_cash_shift,
+      cliente: matching_cliente,
+    )
+    matching_sale.venta_items.create!(
+      producto: @product,
+      product_variation: @variation,
+      product_name: @product.descripcion,
+      variation_name: @variation.description,
+      quantity: 1,
+      unit_price_usd: @product.precio_venta_usd,
+      subtotal_usd: @product.precio_venta_usd,
+    )
+
+    other_sale = create_paid_sale!(
+      created_at: Time.zone.local(2026, 4, 21, 18, 0, 0),
+      cash_shift: @open_cash_shift,
+      cliente: other_cliente,
+    )
+    other_sale.venta_items.create!(
+      producto: @product,
+      product_variation: @variation,
+      product_name: @product.descripcion,
+      variation_name: @variation.description,
+      quantity: 1,
+      unit_price_usd: @product.precio_venta_usd,
+      subtotal_usd: @product.precio_venta_usd,
+    )
+
+    get historial_productos_ventas_path, params: {
+      cliente_query: "cuadernos",
+      fecha_desde: "2026-04-20",
+      fecha_hasta: "2026-04-21",
+    }
+
+    assert_response :success
+    assert_includes response.body, "Ver venta ##{matching_sale.id}"
+    refute_includes response.body, "Ver venta ##{other_sale.id}"
+  end
+
   test "service with auto cost discount creates payable pending debt when cost is not paid immediately" do
     service = create_auto_cost_service!(service_price_usd: 20, cost_units: 1)
 
