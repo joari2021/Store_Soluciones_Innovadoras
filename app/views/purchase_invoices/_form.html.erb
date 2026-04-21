@@ -2015,7 +2015,7 @@
 
           const applyProductSearchIvaAdjustment = !initialInventoryMode && !intercompanyModeActive() && !isExento && costoMayor > 0;
           if (applyProductSearchIvaAdjustment) {
-            costoMayor *= 0.84;
+            costoMayor /= 1.16;
           }
 
           if (costoMayorNativeInput) costoMayorNativeInput.value = costoMayor.toFixed(8);
