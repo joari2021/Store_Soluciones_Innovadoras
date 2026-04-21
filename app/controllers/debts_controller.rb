@@ -757,6 +757,7 @@ class DebtsController < ApplicationController
             .excluding_service_cost_records
         .where(debt_kind: 'receivable', currency: currencies)
             .where(cliente_id: cliente_id)
+        .where("debts.description IS NULL OR debts.description NOT LIKE ?", "%[IC_MIRROR]%")
             .includes(:debt_payments)
 
     active = scope.select { |debt| debt.balance.to_d > 0.01.to_d }

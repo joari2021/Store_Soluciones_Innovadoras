@@ -467,7 +467,11 @@ class PurchaseInvoicesController < ApplicationController
         raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
       end
 
-      sync_intercompany_pending_debts!(@purchase_invoice, source_business: source_business)
+      sync_intercompany_pending_debts!(
+        @purchase_invoice,
+        source_business: source_business,
+        payment_context: payment_context,
+      )
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
     end
 
@@ -1365,22 +1369,56 @@ class PurchaseInvoicesController < ApplicationController
     invoice_pending_debts_scope(invoice).order(created_at: :desc).first
   end
 
-  def sync_intercompany_pending_debts!(invoice, source_business:)
-    total_invoice_bs = invoice.total_bs.to_d.round(2)
-    rate = invoice.tasa_dolar.to_d
-    total_invoice_usd = if rate.positive?
-                          (total_invoice_bs / rate).round(2)
-                        else
-                          invoice.monto_total.to_d.round(2)
-                        end
+  def sync_intercompany_pending_debts!(invoice, source_business:, payment_context: nil)
+    pending_amount_usd = if payment_context.present?
+                           payment_context[:pending_amount_usd].to_d.round(2)
+                         else
+                           total_invoice_bs = invoice.total_bs.to_d.round(2)
+                           rate = invoice.tasa_dolar.to_d
+                           if rate.positive?
+                             (total_invoice_bs / rate).round(2)
+                           else
+                             invoice.monto_total.to_d.round(2)
+                           end
+                         end
 
     payable_debt = find_invoice_pending_debt(invoice)
     receivable_debt = payable_debt&.mirror_debt || find_source_mirror_pending_debt(invoice)
 
-    due_on = parse_filter_date(params[:pending_due_on].to_s.strip)
+    due_on = payment_context&.dig(:pending_due_on).presence || parse_filter_date(params[:pending_due_on].to_s.strip)
 
-    if total_invoice_usd <= 0
-      destroy_linked_debt_pair!(payable_debt, receivable_debt)
+    if pending_amount_usd <= 0
+      preserve_payable = payable_debt.present? && payable_debt.debt_payments.exists?
+      preserve_receivable = receivable_debt.present? && receivable_debt.debt_payments.exists?
+
+      if !preserve_payable && !preserve_receivable
+        destroy_linked_debt_pair!(payable_debt, receivable_debt)
+        return
+      end
+
+      if payable_debt.present?
+        payable_paid = payable_debt.paid_amount.to_d.round(2)
+        payable_debt.update!(
+          amount: payable_paid.positive? ? payable_paid : 0.01.to_d,
+          currency: 'USD',
+          acreedor: source_business.name,
+          due_on: due_on.presence || payable_debt.due_on,
+          mirror_sync_enabled: true,
+          mirror_debt: receivable_debt,
+        )
+      end
+
+      if receivable_debt.present?
+        receivable_paid = receivable_debt.paid_amount.to_d.round(2)
+        receivable_debt.update!(
+          amount: receivable_paid.positive? ? receivable_paid : 0.01.to_d,
+          currency: 'USD',
+          due_on: due_on.presence || receivable_debt.due_on,
+          mirror_sync_enabled: true,
+          mirror_debt: payable_debt,
+        )
+      end
+
       return
     end
 
@@ -1392,23 +1430,24 @@ class PurchaseInvoicesController < ApplicationController
       return
     end
 
-    ensure_intercompany_group_tokens!(
+    ensure_intercompany_isolated_group_tokens!(
+      invoice: invoice,
       payable_debt: payable_debt,
       receivable_debt: receivable_debt,
-      source_business: source_business,
     )
     return if @purchase_invoice.errors.any?
 
     payable_debt.update!(
-      amount: total_invoice_usd,
+      amount: pending_amount_usd,
       currency: 'USD',
+      acreedor: source_business.name,
       due_on: due_on.presence || payable_debt.due_on,
       mirror_sync_enabled: true,
       mirror_debt: receivable_debt,
     )
 
     receivable_debt.update!(
-      amount: total_invoice_usd,
+      amount: pending_amount_usd,
       currency: 'USD',
       due_on: due_on.presence || receivable_debt.due_on,
       mirror_sync_enabled: true,
@@ -1545,83 +1584,21 @@ class PurchaseInvoicesController < ApplicationController
     raw_rif.to_s.upcase.gsub(/[^A-Z0-9]/, '').sub(/\A[JVEG]/, '')
   end
 
-  def ensure_intercompany_group_tokens!(payable_debt:, receivable_debt:, source_business:)
-    assign_intercompany_group_token!(
-      debt: payable_debt,
-      owner_business: current_business,
-      debt_kind: 'payable',
-      cliente_id: payable_debt.cliente_id,
-      acreedor_name: source_business.name,
-      currency: 'USD',
-      exclude_debt_id: payable_debt.id,
-    )
+  def ensure_intercompany_isolated_group_tokens!(invoice:, payable_debt:, receivable_debt:)
+    isolated_token = intercompany_isolated_group_token_for(invoice)
+    return if isolated_token.blank?
 
-    assign_intercompany_group_token!(
-      debt: receivable_debt,
-      owner_business: source_business,
-      debt_kind: 'receivable',
-      cliente_id: receivable_debt.cliente_id,
-      currency: 'USD',
-      exclude_debt_id: receivable_debt.id,
-    )
-  end
-
-  def assign_intercompany_group_token!(debt:, owner_business:, debt_kind:, cliente_id:, currency:, exclude_debt_id:, acreedor_name: nil)
-    return if debt.blank?
-
-    active_group_token = find_active_group_token_for_intercompany_debt(
-      owner_business: owner_business,
-      debt_kind: debt_kind,
-      cliente_id: cliente_id,
-      acreedor_name: acreedor_name,
-      currency: currency,
-      exclude_debt_id: exclude_debt_id,
-    )
-
-    fallback_token = intercompany_effective_group_token_for(debt)
-    target_token = active_group_token.presence || fallback_token.presence || "grp_#{SecureRandom.hex(10)}"
-    return if debt.group_token.to_s.strip == target_token
-
-    debt.update!(group_token: target_token)
+    payable_debt.update!(group_token: isolated_token) if payable_debt.present? && payable_debt.group_token.to_s.strip != isolated_token
+    receivable_debt.update!(group_token: isolated_token) if receivable_debt.present? && receivable_debt.group_token.to_s.strip != isolated_token
   rescue ActiveRecord::RecordInvalid => e
     @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
   end
 
-  def find_active_group_token_for_intercompany_debt(owner_business:, debt_kind:, cliente_id:, currency:, exclude_debt_id:, acreedor_name: nil)
-    scope = Debt.where(business_id: owner_business.id, debt_kind: debt_kind, currency: currency)
-    scope = scope.where.not(id: exclude_debt_id) if exclude_debt_id.present?
+  def intercompany_isolated_group_token_for(invoice)
+    invoice_id = invoice&.id.to_i
+    return nil unless invoice_id.positive?
 
-    if debt_kind == 'payable'
-      normalized_acreedor = acreedor_name.to_s.strip.downcase
-      if normalized_acreedor.present?
-        scope = scope.where("LOWER(TRIM(COALESCE(acreedor, ''))) = ?", normalized_acreedor)
-      elsif cliente_id.present?
-        scope = scope.where(cliente_id: cliente_id)
-      end
-    elsif cliente_id.present?
-      scope = scope.where(cliente_id: cliente_id)
-    end
-
-    candidates = scope.includes(:debt_payments).order(created_at: :desc).to_a
-    active = candidates.select { |candidate| candidate.balance.to_d > 0.01.to_d }
-    active.each do |candidate|
-      token = intercompany_effective_group_token_for(candidate)
-      return token if token.present?
-    end
-
-    nil
-  end
-
-  def intercompany_effective_group_token_for(debt)
-    token = debt.group_token.to_s.strip
-    return token if token.present?
-
-    root_id = debt.group_root_debt_id
-    return "legacy-#{root_id}" if root_id.present?
-
-    return nil if debt.id.blank?
-
-    "legacy-debt-#{debt.id}"
+    "ic-factura-#{invoice_id}"
   end
 
   def aggregate_source_stock_rows_for_invoice_items(items, source_business:)
@@ -1672,6 +1649,21 @@ class PurchaseInvoicesController < ApplicationController
       source_business_id: source_business.id,
       source_product_id: source_product.id,
     )
+
+    if destination_product.blank?
+      destination_product = find_existing_destination_product_for_source(
+        source_product: source_product,
+        source_business: source_business,
+      )
+      if destination_product.present? && (destination_product.source_business_id.blank? || destination_product.source_product_id.blank?)
+        destination_product.update_columns(
+          source_business_id: source_business.id,
+          source_product_id: source_product.id,
+          updated_at: Time.current,
+        )
+      end
+    end
+
     return destination_product if destination_product.present?
 
     destination_category = current_business.categorias.find_or_create_by!(
@@ -1715,6 +1707,26 @@ class PurchaseInvoicesController < ApplicationController
   rescue ActiveRecord::RecordInvalid => e
     @purchase_invoice.errors.add(:base, e.record&.errors&.full_messages&.to_sentence.presence || e.message)
     nil
+  end
+
+  def find_existing_destination_product_for_source(source_product:, source_business:)
+    normalized_description = source_product.descripcion.to_s.strip.downcase
+    return nil if normalized_description.blank?
+
+    scope = current_business.productos
+                            .where('LOWER(TRIM(productos.descripcion)) = ?', normalized_description)
+                            .where(presentation: source_product.presentation)
+
+    scope = scope.where(cant_presentation: source_product.cant_presentation) if source_product.pack?
+
+    candidates = scope.to_a
+    return nil if candidates.empty?
+
+    candidates.find do |candidate|
+      same_mapping = candidate.source_business_id == source_business.id && candidate.source_product_id == source_product.id
+      unmapped = candidate.source_business_id.blank? && candidate.source_product_id.blank?
+      same_mapping || unmapped
+    end
   end
 
   def normalize_intercompany_item_variation_breakdown!(item:, source_product:, destination_product:)

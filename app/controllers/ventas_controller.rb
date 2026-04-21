@@ -4328,6 +4328,7 @@ class VentasController < ApplicationController
                    .debts
                    .excluding_service_cost_records
                    .where(debt_kind: "receivable", cliente_id: cliente_id, currency: currency)
+                   .where("debts.description IS NULL OR debts.description NOT LIKE ?", "%[IC_MIRROR]%")
                    .includes(:debt_payments)
                    .select { |debt| debt.balance.to_d > 0.01.to_d }
 

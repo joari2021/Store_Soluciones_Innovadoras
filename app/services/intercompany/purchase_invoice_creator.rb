@@ -430,6 +430,7 @@ module Intercompany
       invoice_reference = @purchase_invoice.numero.to_s.strip.presence || "##{@purchase_invoice.id}"
       issued_on = @purchase_invoice.fecha_emision&.to_date || Date.current
       due_on = @payment_context[:pending_due_on]
+      isolated_group_token = intercompany_isolated_group_token
       buyer_counterparty_client = buyer_counterparty_client!
       source_counterparty_client = source_counterparty_client!
 
@@ -437,11 +438,13 @@ module Intercompany
         debt_kind: "payable",
         cliente: buyer_counterparty_client,
         name: @source_business.name,
+        acreedor: @source_business.name,
         description: "Saldo pendiente factura inter-empresa #{invoice_reference} [FACTURA_COMPRA:#{@purchase_invoice.id}] [IC_MIRROR]",
         amount: pending_amount_usd,
         currency: "USD",
         issued_on: issued_on,
         due_on: due_on,
+        group_token: isolated_group_token,
         mirror_sync_enabled: true,
         mirror_account: primary_source_account_for_mirror,
       )
@@ -457,6 +460,7 @@ module Intercompany
         currency: "USD",
         issued_on: issued_on,
         due_on: due_on,
+        group_token: isolated_group_token,
         mirror_sync_enabled: true,
         mirror_account: source_destination_account,
       )
@@ -504,6 +508,13 @@ module Intercompany
 
       converted = (pending_amount_bs.to_d / rate).round(2)
       converted.positive? ? converted : 0.01.to_d
+    end
+
+    def intercompany_isolated_group_token
+      invoice_id = @purchase_invoice&.id.to_i
+      return nil unless invoice_id.positive?
+
+      "ic-factura-#{invoice_id}"
     end
 
     def intercompany_pending_amount_bs
