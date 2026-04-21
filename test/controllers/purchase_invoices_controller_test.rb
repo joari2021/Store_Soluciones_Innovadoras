@@ -283,6 +283,28 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert_select '[data-invoice-status="due"]', 0
   end
 
+  test 'shows delivery status filter selector in invoices index' do
+    create_invoice_with_payment_status(paid_amount_bs: 116, pending_debt_amount_bs: 0, delivered: true)
+
+    get purchase_invoices_path
+
+    assert_response :success
+    assert_includes response.body, 'Estado de entrega'
+    assert_select 'select[name="delivery_status"] option[value="delivered"]', text: 'Entregada'
+    assert_select 'select[name="delivery_status"] option[value="not_delivered"]', text: 'No entregada'
+  end
+
+  test 'filters invoices by selected delivery status in index' do
+    create_invoice_with_payment_status(paid_amount_bs: 116, pending_debt_amount_bs: 0, delivered: true)
+    create_invoice_with_payment_status(paid_amount_bs: 116, pending_debt_amount_bs: 0, delivered: false)
+
+    get purchase_invoices_path, params: { delivery_status: 'not_delivered' }
+
+    assert_response :success
+    assert_select 'span', text: 'No entregada', minimum: 1
+    assert_select 'span', text: 'Entregada', count: 0
+  end
+
   test 'destroy removes linked debt payments account movements and stock lots' do
     due_date = Date.current + 5.days
 
@@ -595,11 +617,12 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     }
   end
 
-  def create_invoice_with_payment_status(paid_amount_bs:, pending_debt_amount_bs:)
+  def create_invoice_with_payment_status(paid_amount_bs:, pending_debt_amount_bs:, delivered: true)
     invoice = @business.purchase_invoices.new(
       supplier: @supplier,
       fecha_emision: Date.current,
       tasa_dolar: 10,
+      delivered: delivered,
       numero: "FAC-#{SecureRandom.hex(3)}"
     )
     invoice.purchase_invoice_items.build(

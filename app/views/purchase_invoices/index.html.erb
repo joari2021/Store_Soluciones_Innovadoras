@@ -69,7 +69,7 @@
   </div>
   <% if @has_purchase_invoices || @filters_applied %>
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <%= form_with url: purchase_invoices_path, method: :get, local: true, class: "grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_repeat(2,minmax(0,0.8fr))_auto] lg:items-end" do %>
+      <%= form_with url: purchase_invoices_path, method: :get, local: true, class: "grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_repeat(2,minmax(0,0.8fr))_auto] lg:items-end" do %>
         <div>
           <label for="purchase_invoice_filter_supplier" class="block text-sm font-medium text-slate-700">Proveedor</label>
           <%= select_tag :supplier_id,
@@ -82,6 +82,13 @@
           <%= select_tag :payment_status,
                          options_for_select(invoice_payment_status_filter_options, @selected_payment_status),
                          id: 'purchase_invoice_filter_payment_status',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="purchase_invoice_filter_delivery_status" class="block text-sm font-medium text-slate-700">Estado de entrega</label>
+          <%= select_tag :delivery_status,
+                         options_for_select(invoice_delivery_status_filter_options, @selected_delivery_status),
+                         id: 'purchase_invoice_filter_delivery_status',
                          class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
         </div>
         <div>
@@ -124,7 +131,7 @@
             registradas.
           <% end %>
         </p>
-        <p>Filtro por proveedor, estado de pago y fecha de emisión.</p>
+        <p>Filtro por proveedor, estado de pago, estado de entrega y fecha de emisión.</p>
       </div>
     </div>
   <% end %>
@@ -135,6 +142,7 @@
       data-purchase-invoices-url="<%= purchase_invoices_path %>"
       data-purchase-invoices-supplier-id="<%= @selected_supplier_id %>"
       data-purchase-invoices-payment-status="<%= @selected_payment_status %>"
+      data-purchase-invoices-delivery-status="<%= @selected_delivery_status %>"
       data-purchase-invoices-from="<%= filter_from_query_value %>"
       data-purchase-invoices-to="<%= filter_to_query_value %>"
     >
@@ -222,6 +230,10 @@
 
           if (root.dataset.purchaseInvoicesPaymentStatus) {
             url.searchParams.set("payment_status", root.dataset.purchaseInvoicesPaymentStatus);
+          }
+
+          if (root.dataset.purchaseInvoicesDeliveryStatus) {
+            url.searchParams.set("delivery_status", root.dataset.purchaseInvoicesDeliveryStatus);
           }
 
           if (root.dataset.purchaseInvoicesFrom) {

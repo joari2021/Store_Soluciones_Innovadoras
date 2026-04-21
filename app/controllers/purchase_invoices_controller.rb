@@ -32,6 +32,7 @@ class PurchaseInvoicesController < ApplicationController
                 :invoice_payment_status_for,
                 :invoice_payment_status_label,
                 :invoice_payment_status_badge_class,
+                :invoice_delivery_status_filter_options,
                 :invoice_delivery_status_label,
                 :invoice_delivery_status_badge_class
 
@@ -53,6 +54,7 @@ class PurchaseInvoicesController < ApplicationController
     @has_purchase_invoices = base_scope.exists?
     @selected_supplier_id = params[:supplier_id].to_s.strip.presence
     @selected_payment_status = normalize_invoice_payment_status(params[:payment_status])
+    @selected_delivery_status = normalize_invoice_delivery_status(params[:delivery_status])
     @fecha_desde = parse_filter_date(params[:fecha_desde])
     @fecha_hasta = parse_filter_date(params[:fecha_hasta])
 
@@ -65,11 +67,15 @@ class PurchaseInvoicesController < ApplicationController
     @filters_applied = [
       @selected_supplier_id,
       @selected_payment_status,
+      @selected_delivery_status,
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip
     ].any?(&:present?)
 
     base_scope = base_scope.where(supplier_id: @selected_supplier_id) if @selected_supplier_id.present?
+    if @selected_delivery_status.present?
+      base_scope = base_scope.where(delivered: @selected_delivery_status == 'delivered')
+    end
 
     base_scope = base_scope.where('facturas.fecha_emision >= ?', @fecha_desde.beginning_of_day) if @fecha_desde.present?
     base_scope = base_scope.where('facturas.fecha_emision <= ?', @fecha_hasta.end_of_day) if @fecha_hasta.present?
@@ -1155,6 +1161,21 @@ class PurchaseInvoicesController < ApplicationController
 
   def invoice_payment_status_filter_options
     [['Todos los estados', '']] + INVOICE_PAYMENT_STATUS_LABELS.map { |key, label| [label, key] }
+  end
+
+  def normalize_invoice_delivery_status(raw_value)
+    value = raw_value.to_s.strip
+    return nil if value.blank?
+
+    %w[delivered not_delivered].include?(value) ? value : nil
+  end
+
+  def invoice_delivery_status_filter_options
+    [
+      ['Todos los estados de entrega', ''],
+      ['Entregada', 'delivered'],
+      ['No entregada', 'not_delivered']
+    ]
   end
 
   def invoice_payment_status_for(invoice)
