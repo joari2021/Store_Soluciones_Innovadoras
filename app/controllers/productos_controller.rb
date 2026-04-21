@@ -342,13 +342,16 @@ class ProductosController < ApplicationController
 
   def update
     update_attrs = producto_params.to_h
+    previous_description = @producto.descripcion.to_s
     propagate_photo_to_same_name_products = image_update_requested?
     if params[:producto].is_a?(ActionController::Parameters) && params[:producto].key?(:allow_unpack)
       update_attrs['allow_unpack'] = extract_allow_unpack_param
     end
 
     if @producto.update(update_attrs)
-      sync_product_image_to_other_businesses!(@producto) if propagate_photo_to_same_name_products
+      match_description = @producto.saved_change_to_descripcion? ? previous_description : @producto.descripcion.to_s
+      sync_product_selected_fields_to_other_businesses!(@producto, match_description: match_description)
+      sync_product_image_to_other_businesses!(@producto, match_description: match_description) if propagate_photo_to_same_name_products
 
       if request.headers['Turbo-Frame'].present?
         row_payload = view_context.turbo_stream.append(
@@ -839,11 +842,12 @@ class ProductosController < ApplicationController
     image_param.respond_to?(:content_type)
   end
 
-  def sync_product_image_to_other_businesses!(source_product)
+  def sync_product_image_to_other_businesses!(source_product, match_description: nil)
     return unless source_product.foto.attached?
+    target_description = match_description.to_s.strip.presence || source_product.descripcion.to_s
 
     Producto
-      .where(descripcion: source_product.descripcion)
+      .where(descripcion: target_description)
       .where.not(id: source_product.id)
       .where.not(business_id: source_product.business_id)
       .find_each do |target_product|
@@ -851,6 +855,60 @@ class ProductosController < ApplicationController
     end
   rescue StandardError => e
     Rails.logger.warn("[PRODUCT_IMAGE_SYNC] No se pudo sincronizar imagen del producto ##{source_product.id}: #{e.class}: #{e.message}")
+  end
+
+  def sync_product_selected_fields_to_other_businesses!(source_product, match_description: nil)
+    syncable_fields = %w[
+      descripcion
+      presentation
+      cant_presentation
+      categoria_id
+      profit_margin_preset_id
+      porcentaje_ganancia
+      precio_venta_usd
+    ]
+    changed_sync_fields = source_product.saved_changes.keys & syncable_fields
+    return if changed_sync_fields.empty?
+
+    target_description = match_description.to_s.strip.presence || source_product.descripcion.to_s
+    target_scope = Producto
+                   .where(descripcion: target_description)
+                   .where.not(id: source_product.id)
+                   .where.not(business_id: source_product.business_id)
+
+    source_category_name = source_product.categoria&.nombre.to_s.strip
+    source_fixed_margin_percentage = source_product.profit_margin_preset&.percentage.to_d
+
+    target_scope.find_each do |target_product|
+      target_updates = {}
+
+      target_updates[:descripcion] = source_product.descripcion if changed_sync_fields.include?('descripcion')
+      target_updates[:presentation] = source_product.presentation if changed_sync_fields.include?('presentation')
+      target_updates[:cant_presentation] = source_product.cant_presentation if changed_sync_fields.include?('cant_presentation')
+      target_updates[:porcentaje_ganancia] = source_product.porcentaje_ganancia if changed_sync_fields.include?('porcentaje_ganancia')
+      target_updates[:precio_venta_usd] = source_product.precio_venta_usd if changed_sync_fields.include?('precio_venta_usd')
+
+      if changed_sync_fields.include?('categoria_id')
+        next_category = if source_category_name.present?
+                          target_product.business.categorias.find_by(nombre: source_category_name)
+                        end
+        target_updates[:categoria_id] = next_category.id if next_category.present?
+      end
+
+      if changed_sync_fields.include?('profit_margin_preset_id')
+        next_preset = if source_product.profit_margin_preset.present?
+                        target_product.business.profit_margin_presets.find_by(percentage: source_fixed_margin_percentage)
+                      end
+        target_updates[:profit_margin_preset_id] = next_preset&.id
+      end
+
+      next if target_updates.empty?
+
+      target_product.assign_attributes(target_updates)
+      target_product.save!
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[PRODUCT_FIELD_SYNC] No se pudo sincronizar campos del producto ##{source_product.id}: #{e.class}: #{e.message}")
   end
 
   def producto_params
