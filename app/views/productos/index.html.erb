@@ -427,6 +427,12 @@
         return url;
       };
 
+      const shouldUseFullNavigation = () => {
+        const rawLowStock = lowStockInput ? String(lowStockInput.value || "0") : "0";
+        const rawBelowTarget = belowTargetMarginInput ? String(belowTargetMarginInput.value || "0") : "0";
+        return rawLowStock === "1" || rawBelowTarget === "1";
+      };
+
       const setSearchLoadingState = (loading) => {
         const tableLoadingOverlay = document.querySelector("[data-products-table-loading='true']");
         const submitButton = form.querySelector("[data-products-submit='true']");
@@ -474,6 +480,11 @@
       };
 
       const submitSearch = async () => {
+        if (shouldUseFullNavigation()) {
+          window.location.assign(buildNavigationUrl().toString());
+          return;
+        }
+
         const resultsContainer = currentResultsContainer();
         if (!resultsContainer) {
           form.requestSubmit();
@@ -604,7 +615,9 @@
 
       if (lowStockInput && lowStockInput.dataset.changeBound !== "true") {
         lowStockInput.dataset.changeBound = "true";
-        lowStockInput.addEventListener("change", () => void submitSearch());
+        lowStockInput.addEventListener("change", () => {
+          window.location.assign(buildNavigationUrl().toString());
+        });
       }
 
       if (
