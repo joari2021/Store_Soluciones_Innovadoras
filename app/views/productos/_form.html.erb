@@ -195,13 +195,13 @@
             </div>
             <div>
               <%= pv.label :safety_stock, "Stock de seguridad", class: "block text-xs font-bold text-slate-400 uppercase tracking-wider" %>
-              <%= pv.number_field :safety_stock,
-                                  value: (pv.object.safety_stock || 0).to_i,
-                                  step: 1,
-                                  min: 0,
-                                  inputmode: 'numeric',
-                                  data: { disable_wheel_change: true },
-                                  class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+              <%= pv.text_field :safety_stock,
+                                value: (pv.object.safety_stock || 0).to_i,
+                                inputmode: 'numeric',
+                                autocomplete: 'off',
+                                pattern: '[0-9]*',
+                                data: { variation_safety_stock: true },
+                                class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
             </div>
           </div>
         </div>
@@ -313,7 +313,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Stock de seguridad</label>
-          <input class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" step="1" min="0" inputmode="numeric" data-disable-wheel-change="true" name="producto[product_variations_attributes][NEW_RECORD][safety_stock]" type="number" value="0">
+          <input class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500" inputmode="numeric" autocomplete="off" pattern="[0-9]*" data-variation-safety-stock="true" name="producto[product_variations_attributes][NEW_RECORD][safety_stock]" type="text" value="0">
         </div>
       </div>
     </div>
@@ -342,6 +342,28 @@
         });
       };
 
+      const bindVariationSafetyStockInputs = () => {
+        const inputs = frame.querySelectorAll('input[data-variation-safety-stock="true"]');
+
+        inputs.forEach((input) => {
+          if (input.dataset.variationSafetyStockBound !== 'true') {
+            input.dataset.variationSafetyStockBound = 'true';
+
+            input.addEventListener('input', () => {
+              input.value = String(input.value || '').replace(/\D+/g, '');
+            });
+
+            input.addEventListener('blur', () => {
+              const normalized = String(input.value || '').replace(/\D+/g, '');
+              input.value = normalized === '' ? '0' : String(Number(normalized));
+            });
+          }
+
+          const normalized = String(input.value || '').replace(/\D+/g, '');
+          input.value = normalized === '' ? '0' : String(Number(normalized));
+        });
+      };
+
       const hasUniqueVariationDescription = () => {
         const variationRows = frame.querySelectorAll('.variation-row');
         return Array.from(variationRows).some((row) => {
@@ -364,6 +386,7 @@
       };
 
       bindDisableWheelChangeInputs();
+      bindVariationSafetyStockInputs();
       updateGeneralSafetyStockVisibility();
 
       const confirmVariationDelete = () => {
@@ -399,6 +422,7 @@
           frame.dataset.variationIndex = String(currentIndex + 1);
           container.insertAdjacentHTML('beforeend', html);
           bindDisableWheelChangeInputs();
+          bindVariationSafetyStockInputs();
           updateGeneralSafetyStockVisibility();
           return;
         }
