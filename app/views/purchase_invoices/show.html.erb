@@ -115,6 +115,9 @@
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
+        <%= link_to 'Editar factura',
+                    edit_purchase_invoice_path(@purchase_invoice),
+                    class: 'inline-flex items-center justify-center rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-600 focus:outline-none focus:ring-2 focus:ring-amber-300 cursor-pointer' %>
         <% if current_user_admin? %>
           <%= link_to 'Eliminar factura',
                       purchase_invoice_path(@purchase_invoice),

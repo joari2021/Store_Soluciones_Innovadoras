@@ -155,16 +155,20 @@ module ApplicationHelper
     source_link = debt_invoice_link_data(value)
     return description_text if source_link.blank?
 
-    safe_join([
-      ERB::Util.html_escape(description_text),
-      ' ',
-      link_to(
-        "(Factura ##{source_link[:invoice_id]})",
-        source_link[:path],
-        class: 'font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-800',
-        data: { turbo_frame: '_top' }
-      )
-    ])
+    description_text = description_text
+                       .sub(/\s+factura(?:\s+inter-empresa)?\s+#?[A-Za-z0-9\-]+/i, '')
+                       .gsub(/\s{2,}/, ' ')
+                       .strip
+    description_text = 'Deuda asociada' if description_text.blank?
+
+    link_node = link_to(
+      "(Factura ##{source_link[:invoice_id]})",
+      source_link[:path],
+      class: 'font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-800',
+      data: { turbo_frame: '_top' }
+    )
+
+    safe_join([ERB::Util.html_escape(description_text), ' ', link_node])
   end
 
   def debt_source_link_data(debt)
