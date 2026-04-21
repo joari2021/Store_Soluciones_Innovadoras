@@ -1115,14 +1115,32 @@ class ProductosController < ApplicationController
   end
 
   def filter_by_low_stock(scope)
-    low_stock_product_ids = ProductVariation
-                            .joins(:producto)
-                            .where(productos: { business_id: current_business.id })
-                            .where('COALESCE(product_variations.safety_stock, 0) > 0')
-                            .left_joins(:stock_lot_variations)
-                            .group('product_variations.id', 'product_variations.producto_id', 'product_variations.safety_stock')
-                            .having('COALESCE(SUM(stock_lot_variations.quantity_remaining), 0) <= COALESCE(product_variations.safety_stock, 0)')
-                            .select('DISTINCT product_variations.producto_id')
+    variation_low_stock_product_ids = ProductVariation
+                                      .joins(:producto)
+                                      .where(productos: { business_id: current_business.id })
+                                      .where('COALESCE(product_variations.safety_stock, 0) > 0')
+                                      .left_joins(:stock_lot_variations)
+                                      .group('product_variations.id', 'product_variations.producto_id', 'product_variations.safety_stock')
+                                      .having('COALESCE(SUM(stock_lot_variations.quantity_remaining), 0) <= COALESCE(product_variations.safety_stock, 0)')
+                                      .pluck(:producto_id)
+
+    products_with_unique_variation_ids = ProductVariation
+                                         .joins(:producto)
+                                         .where(productos: { business_id: current_business.id })
+                                         .where("LOWER(TRIM(COALESCE(product_variations.description, ''))) = ?", 'unica')
+                                         .distinct
+                                         .pluck(:producto_id)
+
+    general_low_stock_product_ids = scope
+                                    .except(:includes, :preload, :eager_load)
+                                    .where('COALESCE(productos.general_safety_stock, 0) > 0')
+                                    .where.not(id: products_with_unique_variation_ids)
+                                    .includes(:stock_lots, :stock_lot_variations)
+                                    .select { |producto| producto.total_quantity <= producto.general_safety_stock.to_d }
+                                    .map(&:id)
+
+    low_stock_product_ids = (variation_low_stock_product_ids + general_low_stock_product_ids).uniq
+    return scope.none if low_stock_product_ids.empty?
 
     scope.where(id: low_stock_product_ids)
   end
