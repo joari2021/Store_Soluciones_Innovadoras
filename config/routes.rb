@@ -84,6 +84,7 @@ Rails.application.routes.draw do
 
     collection do
       get :historial
+      get :historial_productos, path: 'historial/productos-vendidos'
       get :borradores
       get :drafts
       get :products_snapshot

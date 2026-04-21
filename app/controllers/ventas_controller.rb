@@ -283,6 +283,24 @@ class VentasController < ApplicationController
     load_historial_cash_exchanges!
   end
 
+  def historial_productos
+    @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
+
+    filtered_sales = apply_historial_filters(current_business.ventas)
+
+    sold_items_scope = current_business
+      .venta_items
+      .joins(:venta)
+      .where(venta_id: filtered_sales.select(:id))
+      .where.not(producto_id: nil)
+      .includes(:venta, :product_variation, producto: [foto_attachment: :blob])
+      .order('ventas.created_at DESC, venta_items.id DESC')
+
+    @sold_products_total = sold_items_scope.count
+    @sold_products_unique = sold_items_scope.distinct.count(:producto_id)
+    @pagy, @sold_items = pagy_countless(sold_items_scope, items: 30)
+  end
+
   def show
     @venta = current_business
       .ventas

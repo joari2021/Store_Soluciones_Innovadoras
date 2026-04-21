@@ -26,6 +26,10 @@
         <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Consulta operaciones, detecta rapido la moneda base de cada venta y navega al detalle con una lectura visual mucho mas clara.</p>
       </div>
       <div class="flex flex-wrap gap-2">
+        <%= link_to historial_productos_ventas_path(historial_query_params), class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 font-medium text-sky-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-sky-100 active:scale-95 md:w-auto" do %>
+          <i data-lucide="package-search" class="h-4 w-4"></i>
+          Productos vendidos
+        <% end %>
         <%= link_to borradores_ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95 md:w-auto" do %>
           <i data-lucide="files" class="h-4 w-4"></i>
           Borradores
