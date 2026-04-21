@@ -2,11 +2,12 @@ module Intercompany
   class PurchaseInvoiceCreator
     Result = Struct.new(:success?, :invoice, :errors)
 
-    def initialize(current_business:, source_business:, purchase_invoice:, payment_context:, current_user:)
+    def initialize(current_business:, source_business:, purchase_invoice:, payment_context:, apply_source_stock_movements:, current_user:)
       @current_business = current_business
       @source_business = source_business
       @purchase_invoice = purchase_invoice
       @payment_context = payment_context
+      @apply_source_stock_movements = apply_source_stock_movements == true
       @current_user = current_user
       @cloned_products_cache = {}
     end
@@ -80,7 +81,11 @@ module Intercompany
           next
         end
 
-        weighted_unit_cost = weighted_unit_cost_from_source!(source_product: source_product, rows: normalized_rows)
+        weighted_unit_cost = weighted_unit_cost_from_source!(
+          source_product: source_product,
+          rows: normalized_rows,
+          consume_stock: @apply_source_stock_movements,
+        )
         next if weighted_unit_cost.nil?
 
         total_units = normalized_rows.sum { |row| row[:quantity].to_d }
@@ -315,7 +320,7 @@ module Intercompany
       item.cantidad.to_d
     end
 
-    def weighted_unit_cost_from_source!(source_product:, rows:)
+    def weighted_unit_cost_from_source!(source_product:, rows:, consume_stock:)
       total_cost = 0.to_d
       total_units = 0.to_d
 
@@ -323,7 +328,8 @@ module Intercompany
         quantity = row[:quantity].to_d
         allocations = consume_source_variation!(source_product: source_product,
                                                 source_variation_id: row[:source_variation_id],
-                                                quantity: quantity)
+                                                quantity: quantity,
+                                                consume_stock: consume_stock)
         return nil if allocations.nil?
 
         allocations.each do |allocation|
@@ -337,7 +343,7 @@ module Intercompany
       (total_cost / total_units).round(8)
     end
 
-    def consume_source_variation!(source_product:, source_variation_id:, quantity:)
+    def consume_source_variation!(source_product:, source_variation_id:, quantity:, consume_stock:)
       remaining = quantity.to_d
       rows_scope = StockLotVariation
         .joins(:stock_lot)
@@ -358,14 +364,16 @@ module Intercompany
       rows_scope.each do |variation_row|
         break if remaining <= 0
 
-        variation_row.lock!
         lot = variation_row.stock_lot
         available_in_row = variation_row.quantity_remaining.to_d
         next if available_in_row <= 0
 
         consumed = [available_in_row, remaining].min
-        variation_row.update!(quantity_remaining: available_in_row - consumed)
-        lot.sync_quantity_remaining_from_variations!
+        if consume_stock
+          variation_row.lock!
+          variation_row.update!(quantity_remaining: available_in_row - consumed)
+          lot.sync_quantity_remaining_from_variations!
+        end
 
         allocations << {
           quantity: consumed,

@@ -19,11 +19,21 @@ class PurchaseInvoicesController < ApplicationController
     'partial' => 'border-amber-200 bg-amber-50 text-amber-700',
     'due' => 'border-rose-200 bg-rose-50 text-rose-700'
   }.freeze
+  INVOICE_DELIVERY_STATUS_LABELS = {
+    true => 'Entregada',
+    false => 'No entregada'
+  }.freeze
+  INVOICE_DELIVERY_STATUS_BADGE_CLASSES = {
+    true => 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    false => 'border-slate-300 bg-slate-100 text-slate-700'
+  }.freeze
 
   helper_method :invoice_payment_status_filter_options,
                 :invoice_payment_status_for,
                 :invoice_payment_status_label,
-                :invoice_payment_status_badge_class
+                :invoice_payment_status_badge_class,
+                :invoice_delivery_status_label,
+                :invoice_delivery_status_badge_class
 
   before_action :require_business
   before_action :require_admin
@@ -358,6 +368,7 @@ class PurchaseInvoicesController < ApplicationController
         source_business: source_business,
         purchase_invoice: @purchase_invoice,
         payment_context: payment_context,
+        apply_source_stock_movements: @purchase_invoice.stock_delivered?,
         current_user: Current.user
       ).call
 
@@ -437,6 +448,7 @@ class PurchaseInvoicesController < ApplicationController
       @purchase_invoice.purchase_invoice_items.includes(producto: :product_variations),
       source_business: source_business,
     )
+    prior_delivered = @purchase_invoice.stock_delivered?
 
     if @purchase_invoice.errors.any?
       apply_invoice_payment_form_state(default_invoice_payment_context)
@@ -446,10 +458,13 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     PurchaseInvoice.transaction do
-      restore_source_stock_rows!(rows: prior_rows)
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if prior_delivered
+        restore_source_stock_rows!(rows: prior_rows)
+        raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      end
 
       @purchase_invoice.assign_attributes(purchase_invoice_params.except(:source_business_id, :intercompany))
+      current_delivered = @purchase_invoice.stock_delivered?
       normalize_intercompany_items_for_destination!(@purchase_invoice, source_business: source_business)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
@@ -464,8 +479,10 @@ class PurchaseInvoicesController < ApplicationController
       )
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
-      consume_source_stock_rows!(rows: current_rows)
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if current_delivered
+        consume_source_stock_rows!(rows: current_rows)
+        raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      end
 
       if invoice_payment_rows_input_submitted?
         sync_intercompany_payment_movements!(
@@ -706,6 +723,7 @@ class PurchaseInvoicesController < ApplicationController
       :source_business_id,
       :fecha_emision,
       :tasa_dolar,
+      :delivered,
       :numero,
       :observaciones,
       purchase_invoice_items_attributes: %i[
@@ -1151,6 +1169,16 @@ class PurchaseInvoicesController < ApplicationController
     INVOICE_PAYMENT_STATUS_BADGE_CLASSES[status_key.to_s] || INVOICE_PAYMENT_STATUS_BADGE_CLASSES['due']
   end
 
+  def invoice_delivery_status_label(invoice)
+    key = invoice.stock_delivered? ? true : false
+    INVOICE_DELIVERY_STATUS_LABELS[key]
+  end
+
+  def invoice_delivery_status_badge_class(invoice)
+    key = invoice.stock_delivered? ? true : false
+    INVOICE_DELIVERY_STATUS_BADGE_CLASSES[key]
+  end
+
   def build_invoice_payment_status_map(invoices)
     invoices.each_with_object({}) do |invoice, map|
       if invoice.initial_inventory?
@@ -1303,7 +1331,7 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def remove_invoice_related_records!(invoice)
-    if invoice.intercompany? && invoice.source_business_id.present?
+    if invoice.intercompany? && invoice.source_business_id.present? && invoice.stock_delivered?
       source_business = invoice.source_business
       if source_business.present?
         source_rows = aggregate_source_stock_rows_for_invoice_items(

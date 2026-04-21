@@ -143,6 +143,7 @@ class PurchaseInvoiceItem < ApplicationRecord
 
   def sync_stock_lot
     return stock_lot&.destroy if producto_id.blank?
+    return stock_lot&.destroy unless purchase_invoice&.stock_delivered?
 
     lot = stock_lot || build_stock_lot
     initial_inventory = purchase_invoice&.initial_inventory?

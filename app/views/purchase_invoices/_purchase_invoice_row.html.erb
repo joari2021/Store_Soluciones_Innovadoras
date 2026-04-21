@@ -7,6 +7,7 @@
       <% if purchase_invoice.initial_inventory? %>
         <span class="inline-flex items-center rounded-full border border-cyan-200 bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-700">Inventario inicial</span>
       <% end %>
+      <span class="inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold <%= invoice_delivery_status_badge_class(purchase_invoice) %>"><%= invoice_delivery_status_label(purchase_invoice) %></span>
     </div>
   </td>
   <td class="px-6 py-4"><%= purchase_invoice.supplier_display_name %></td>

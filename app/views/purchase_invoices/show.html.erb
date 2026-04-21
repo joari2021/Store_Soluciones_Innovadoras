@@ -141,6 +141,12 @@
       <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Monto total</p>
       <p class="mt-2 text-sm font-semibold text-slate-800"><%= format_money(@purchase_invoice.monto_total, unit: "$") %></p>
     </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Estado entrega</p>
+      <p class="mt-2 text-sm font-semibold text-slate-800">
+        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold <%= invoice_delivery_status_badge_class(@purchase_invoice) %>"><%= invoice_delivery_status_label(@purchase_invoice) %></span>
+      </p>
+    </div>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Número</p>

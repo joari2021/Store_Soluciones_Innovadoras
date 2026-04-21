@@ -85,7 +85,7 @@
       </ul>
     </div>
   <% end %>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+  <div class="grid grid-cols-1 gap-4 md:grid-cols-5">
     <div>
       <% if initial_inventory_mode %>
         <%= f.hidden_field :supplier_id, value: nil %>
@@ -141,6 +141,22 @@
     <div>
       <%= f.label :numero, 'Número', class: 'block text-sm font-medium text-slate-700' %>
       <%= f.text_field :numero, class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+    </div>
+    <div>
+      <% if initial_inventory_mode %>
+        <%= f.hidden_field :delivered, value: true %>
+        <p class="block text-sm font-medium text-slate-700">Estado entrega</p>
+        <div class="mt-1 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+          Entregada
+        </div>
+      <% else %>
+        <%= f.label :delivered, 'Estado entrega', class: 'block text-sm font-medium text-slate-700' %>
+        <label class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+          <%= f.check_box :delivered, class: 'h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500' %>
+          Factura entregada (aplica stock)
+        </label>
+        <p class="mt-1 text-xs text-slate-500">Si no está entregada, no se altera inventario hasta marcarla como entregada.</p>
+      <% end %>
     </div>
   </div>
   <h3 class="mt-6 text-lg font-semibold text-slate-800">Productos</h3>

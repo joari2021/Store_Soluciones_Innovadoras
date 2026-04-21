@@ -364,6 +364,77 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal('8'), lot_variation.quantity_remaining.to_d
   end
 
+  test 'does not create stock lots when invoice is saved as not delivered' do
+    assert_difference('PurchaseInvoice.count', 1) do
+      post purchase_invoices_path, params: purchase_invoice_payload(
+        payment_amount: '232.00',
+        mark_pending_payment: '0',
+        product_id: @producto.id,
+        quantity: '2',
+        delivered: '0'
+      )
+    end
+
+    assert_redirected_to purchase_invoices_path
+
+    invoice = PurchaseInvoice.order(:id).last
+    item_ids = invoice.purchase_invoice_items.pluck(:id)
+
+    assert_equal false, invoice.stock_delivered?
+    assert_equal 0, StockLot.where(factura_item_id: item_ids).count
+    assert_equal 0.to_d, @producto.reload.total_quantity.to_d
+  end
+
+  test 'applies stock when marking delivered and reverts when switching back to not delivered' do
+    post purchase_invoices_path, params: purchase_invoice_payload(
+      payment_amount: '348.00',
+      mark_pending_payment: '0',
+      product_id: @producto.id,
+      quantity: '3',
+      delivered: '0'
+    )
+
+    invoice = PurchaseInvoice.order(:id).last
+    item = invoice.purchase_invoice_items.first
+
+    assert_equal 0.to_d, @producto.reload.total_quantity.to_d
+
+    patch purchase_invoice_path(invoice), params: update_invoice_payload(invoice: invoice, item: item, delivered: '1')
+    assert_redirected_to purchase_invoices_path
+
+    assert_equal 3.to_d, @producto.reload.total_quantity.to_d
+    assert_equal true, invoice.reload.stock_delivered?
+
+    patch purchase_invoice_path(invoice), params: update_invoice_payload(invoice: invoice, item: item, delivered: '0')
+    assert_redirected_to purchase_invoices_path
+
+    assert_equal false, invoice.reload.stock_delivered?
+    assert_equal 0.to_d, @producto.reload.total_quantity.to_d
+    assert_equal 0, StockLot.where(factura_item_id: item.id).count
+  end
+
+  test 'rejects switching to not delivered when invoice stock was already consumed' do
+    post purchase_invoices_path, params: purchase_invoice_payload(
+      payment_amount: '348.00',
+      mark_pending_payment: '0',
+      product_id: @producto.id,
+      quantity: '3',
+      delivered: '1'
+    )
+
+    invoice = PurchaseInvoice.order(:id).last
+    item = invoice.purchase_invoice_items.first
+    lot = item.stock_lot
+    lot.update!(quantity_remaining: 2)
+
+    patch purchase_invoice_path(invoice), params: update_invoice_payload(invoice: invoice, item: item, delivered: '0')
+
+    assert_response :unprocessable_entity
+    assert_includes response.body, 'no se puede cambiar a no entregada'
+    assert_equal true, invoice.reload.stock_delivered?
+    assert_equal 2.to_d, lot.reload.quantity_remaining.to_d
+  end
+
   test 'show invoice renders current variation name after variation rename' do
     variation = @producto.product_variations.order(:id).first
 
@@ -386,6 +457,74 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, '>Unica</span>'
   end
 
+  test 'intercompany not delivered does not alter source or destination stock' do
+    source_business = Business.create!(name: "Origen Test #{SecureRandom.hex(4)}")
+    source_supplier = source_business.suppliers.create!(nombre: 'Proveedor Origen')
+    source_category = source_business.categorias.create!(nombre: "Categoria Origen #{SecureRandom.hex(3)}")
+    source_product = source_business.productos.create!(
+      descripcion: "Producto Origen #{SecureRandom.hex(3)}",
+      categoria: source_category,
+      precio_venta_usd: 8
+    )
+    source_variation = source_product.product_variations.order(:id).first
+
+    source_invoice = source_business.purchase_invoices.create!(
+      supplier: source_supplier,
+      fecha_emision: Date.current,
+      tasa_dolar: 10,
+      numero: "SRC-#{SecureRandom.hex(3)}",
+      delivered: true
+    )
+    source_invoice.purchase_invoice_items.create!(
+      producto: source_product,
+      product_name: source_product.descripcion,
+      costo_mayor: 5,
+      costo_mayor_bs: 50,
+      cantidad: 10,
+      unid_x_pack: 1,
+      exento: false,
+      variation_breakdown: [{ variation_id: source_variation.id, description: source_variation.description, quantity: 10 }]
+    )
+
+    source_stock_before = source_product.reload.total_quantity.to_d
+
+    assert_difference('PurchaseInvoice.count', 1) do
+      post purchase_invoices_path, params: {
+        mode: 'intercompany',
+        purchase_invoice: {
+          intercompany: '1',
+          source_business_id: source_business.id.to_s,
+          fecha_emision: Date.current,
+          tasa_dolar: '10',
+          numero: "IC-#{SecureRandom.hex(3)}",
+          delivered: '0',
+          purchase_invoice_items_attributes: {
+            '0' => {
+              producto_id: source_product.id.to_s,
+              product_name: source_product.descripcion,
+              cantidad: '2',
+              unid_x_pack: '2',
+              costo_mayor: '0',
+              exento: '1',
+              variation_breakdown: [{ variation_id: source_variation.id, description: source_variation.description, quantity: 2 }]
+            }
+          }
+        },
+        mark_pending_payment: '1',
+        pending_due_on: (Date.current + 5.days).strftime('%d-%m-%Y')
+      }
+    end
+
+    assert_redirected_to purchase_invoices_path
+
+    invoice = PurchaseInvoice.order(:id).last
+    destination_item = invoice.purchase_invoice_items.first
+
+    assert_equal false, invoice.stock_delivered?
+    assert_equal source_stock_before, source_product.reload.total_quantity.to_d
+    assert_nil destination_item.stock_lot
+  end
+
   private
 
   def login_and_select_business!
@@ -394,7 +533,8 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
   end
 
   def purchase_invoice_payload(payment_amount:, mark_pending_payment:, pending_due_on: '', account_id: @bs_account.id,
-                               product_id: nil, quantity: '1', units_per_pack: '1', variation_breakdown: nil)
+                               product_id: nil, quantity: '1', units_per_pack: '1', variation_breakdown: nil,
+                               delivered: '1')
     item_attributes = {
       product_name: 'Producto prueba',
       costo_mayor: '10',
@@ -410,6 +550,7 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
         supplier_id: @supplier.id,
         fecha_emision: Date.current,
         tasa_dolar: '10',
+        delivered: delivered,
         numero: "FAC-#{SecureRandom.hex(3)}",
         purchase_invoice_items_attributes: {
           '0' => item_attributes
@@ -423,6 +564,34 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
       },
       mark_pending_payment: mark_pending_payment,
       pending_due_on: pending_due_on
+    }
+  end
+
+  def update_invoice_payload(invoice:, item:, delivered:)
+    {
+      purchase_invoice: {
+        supplier_id: @supplier.id,
+        fecha_emision: invoice.fecha_emision,
+        tasa_dolar: invoice.tasa_dolar.to_s,
+        delivered: delivered,
+        numero: invoice.numero,
+        purchase_invoice_items_attributes: {
+          '0' => {
+            id: item.id,
+            _destroy: '0',
+            producto_id: item.producto_id,
+            product_name: item.product_name,
+            cantidad: item.cantidad.to_s,
+            unid_x_pack: item.unid_x_pack.to_s,
+            costo_mayor: item.costo_mayor.to_s,
+            costo_mayor_bs: item.costo_mayor_bs.to_s,
+            costo_menor: item.costo_menor.to_s,
+            exento: item.exento? ? '1' : '0',
+            variation_breakdown: item.variation_breakdown
+          }
+        }
+      },
+      mark_pending_payment: '0'
     }
   end
 

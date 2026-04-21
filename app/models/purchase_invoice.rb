@@ -20,10 +20,13 @@ class PurchaseInvoice < ApplicationRecord
   validate :source_business_differs_from_destination, if: :intercompany?
   validates :invoice_kind, presence: true, inclusion: { in: INVOICE_KINDS }
   validate :single_initial_inventory_per_business
+  validate :prevent_undeliver_when_stock_consumed
 
   before_validation :normalize_invoice_kind
+  before_validation :normalize_delivered
   before_validation :set_supplier_name_snapshot
   before_save :calcular_monto_total
+  after_commit :sync_items_stock_lots_for_delivery_change, on: :update
 
   scope :initial_inventory, -> { where(invoice_kind: INVOICE_KIND_INITIAL_INVENTORY) }
 
@@ -41,6 +44,10 @@ class PurchaseInvoice < ApplicationRecord
 
   def supplier_display_name
     supplier_name.presence || supplier&.nombre || "Proveedor"
+  end
+
+  def stock_delivered?
+    initial_inventory? || ActiveModel::Type::Boolean.new.cast(self[:delivered])
   end
 
   def total_bs
@@ -136,6 +143,40 @@ class PurchaseInvoice < ApplicationRecord
     self.invoice_kind = invoice_kind.presence || INVOICE_KIND_PURCHASE
   end
 
+  def normalize_delivered
+    self.delivered = true if delivered.nil?
+    self.delivered = true if initial_inventory?
+  end
+
+  def prevent_undeliver_when_stock_consumed
+    return unless persisted?
+    return unless will_save_change_to_delivered?
+
+    previous_value, current_value = delivered_change_to_be_saved
+    return unless ActiveModel::Type::Boolean.new.cast(previous_value) && !ActiveModel::Type::Boolean.new.cast(current_value)
+    return if initial_inventory?
+
+    any_consumed = purchase_invoice_items.includes(stock_lot: :stock_lot_variations).any? do |item|
+      lot = item.stock_lot
+      next false if lot.blank?
+
+      lot_level_consumed = lot.quantity_remaining.to_d < lot.quantity_in.to_d
+      variation_level_consumed = if lot.stock_lot_variations.any?
+        lot.stock_lot_variations.any? do |variation_row|
+          variation_row.quantity_remaining.to_d < variation_row.quantity_in.to_d
+        end
+      else
+        false
+      end
+
+      lot_level_consumed || variation_level_consumed
+    end
+
+    return unless any_consumed
+
+    errors.add(:delivered, "no se puede cambiar a no entregada porque ya se consumió stock de esta factura.")
+  end
+
   def single_initial_inventory_per_business
     return unless initial_inventory?
     return if business_id.blank?
@@ -145,5 +186,13 @@ class PurchaseInvoice < ApplicationRecord
     return unless conflict_scope.exists?
 
     errors.add(:base, "Solo puede existir un inventario inicial por negocio.")
+  end
+
+  def sync_items_stock_lots_for_delivery_change
+    return unless saved_change_to_delivered?
+
+    purchase_invoice_items.find_each do |item|
+      item.send(:sync_stock_lot)
+    end
   end
 end

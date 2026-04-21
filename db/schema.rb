@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_21_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -368,8 +368,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_120000) do
     t.string "invoice_kind", default: "purchase", null: false
     t.boolean "intercompany", default: false, null: false
     t.bigint "source_business_id"
+    t.boolean "delivered", default: true, null: false
     t.index ["business_id"], name: "index_facturas_on_business_id"
     t.index ["business_id"], name: "index_facturas_unique_initial_inventory_per_business", unique: true, where: "((invoice_kind)::text = 'initial_inventory'::text)"
+    t.index ["delivered"], name: "index_facturas_on_delivered"
     t.index ["invoice_kind"], name: "index_facturas_on_invoice_kind"
     t.index ["source_business_id"], name: "index_facturas_on_source_business_id"
   end
