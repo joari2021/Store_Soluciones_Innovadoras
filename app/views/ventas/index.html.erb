@@ -5812,7 +5812,7 @@
             const surcharge = Number(row.surcharge_percent) || 0;
             const includeProductPrice = Boolean(row.include_product_price_in_sale);
             const productPriceUsd = Number(row.product_price_usd) || 0;
-            return `<option value="${id}" data-material-label="${escapeHtml(label)}" data-product-id="${productId}" data-required-quantity="${requiredQuantity}" data-surcharge-percent="${surcharge}" data-include-product-price="${includeProductPrice}" data-product-price-usd="${productPriceUsd}">${escapeHtml(`${label} (${formatMaterialFractionLabel(requiredQuantity)}) (+${formatNumber(surcharge, 2)}%)`)}</option>`;
+            return `<option value="${id}" data-material-label="${escapeHtml(label)}" data-product-id="${productId}" data-required-quantity="${requiredQuantity}" data-surcharge-percent="${surcharge}" data-include-product-price="${includeProductPrice}" data-product-price-usd="${productPriceUsd}">${escapeHtml(`${label} (+${formatNumber(surcharge, 2)}%)`)}</option>`;
           })
           .join('');
 

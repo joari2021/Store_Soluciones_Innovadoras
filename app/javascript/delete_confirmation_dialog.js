@@ -85,8 +85,12 @@ window.addEventListener("turbo:load", () => {
   };
 
   const refreshProductsResultsViaAjax = async () => {
-    const resultsContainer = document.querySelector("[data-products-results='true']");
-    const searchForm = document.querySelector("[data-products-search-form='true']");
+    const resultsContainer = document.querySelector(
+      "[data-products-results='true']",
+    );
+    const searchForm = document.querySelector(
+      "[data-products-search-form='true']",
+    );
     if (!resultsContainer || !searchForm) return;
 
     const url = new URL(searchForm.action, window.location.origin);
@@ -108,7 +112,9 @@ window.addEventListener("turbo:load", () => {
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || typeof payload.results_html !== "string") {
-      throw new Error(payload.error || "No se pudo actualizar el listado de productos.");
+      throw new Error(
+        payload.error || "No se pudo actualizar el listado de productos.",
+      );
     }
 
     const template = document.createElement("template");
