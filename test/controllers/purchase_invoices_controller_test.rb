@@ -608,6 +608,138 @@ class PurchaseInvoicesControllerTest < ActionDispatch::IntegrationTest
     assert_nil destination_item.stock_lot
   end
 
+  test 'intercompany edit keeps unit quantities without pack multiplication when variation breakdown is serialized' do
+    source_business = Business.create!(name: "Origen Multi #{SecureRandom.hex(4)}")
+    source_supplier = source_business.suppliers.create!(nombre: 'Proveedor Multi')
+    source_category = source_business.categorias.create!(nombre: "Categoria Multi #{SecureRandom.hex(3)}")
+    source_product = source_business.productos.create!(
+      descripcion: "Cuadernos Multi #{SecureRandom.hex(3)}",
+      categoria: source_category,
+      precio_venta_usd: 8,
+      presentation: 'pack',
+      cant_presentation: 20
+    )
+
+    source_product.product_variations.destroy_all
+    source_variations = [
+      'Femeninos Cuadriculados',
+      'Femeninos Doble Linea',
+      'Femeninos Una Linea',
+      'Masculinos Cuadriculados',
+      'Masculinos Doble Linea',
+      'Masculinos Una Linea'
+    ].map do |name|
+      source_product.product_variations.create!(description: name, safety_stock: 0)
+    end
+
+    source_invoice = source_business.purchase_invoices.create!(
+      supplier: source_supplier,
+      fecha_emision: Date.current,
+      tasa_dolar: 10,
+      numero: "SRC-MULTI-#{SecureRandom.hex(3)}",
+      delivered: true
+    )
+    source_invoice.purchase_invoice_items.create!(
+      producto: source_product,
+      product_name: source_product.descripcion,
+      costo_mayor: 5,
+      costo_mayor_bs: 50,
+      cantidad: 60,
+      unid_x_pack: 1,
+      exento: false,
+      variation_breakdown: source_variations.map { |variation|
+        { variation_id: variation.id, description: variation.description, quantity: 100 }
+      }
+    )
+
+    initial_rows = [
+      { variation_id: source_variations[0].id, description: source_variations[0].description, quantity: 5 },
+      { variation_id: source_variations[1].id, description: source_variations[1].description, quantity: 5 },
+      { variation_id: source_variations[2].id, description: source_variations[2].description, quantity: 10 }
+    ]
+
+    assert_difference('PurchaseInvoice.count', 1) do
+      post purchase_invoices_path, params: {
+        mode: 'intercompany',
+        purchase_invoice: {
+          intercompany: '1',
+          source_business_id: source_business.id.to_s,
+          fecha_emision: Date.current,
+          tasa_dolar: '10',
+          numero: "IC-MULTI-#{SecureRandom.hex(3)}",
+          delivered: '1',
+          purchase_invoice_items_attributes: {
+            '0' => {
+              producto_id: source_product.id.to_s,
+              product_name: source_product.descripcion,
+              cantidad: '1',
+              unid_x_pack: '20',
+              costo_mayor: '0',
+              exento: '1',
+              variation_breakdown: initial_rows.to_json
+            }
+          }
+        },
+        mark_pending_payment: '1',
+        pending_due_on: (Date.current + 5.days).strftime('%d-%m-%Y')
+      }
+    end
+
+    invoice = PurchaseInvoice.order(:id).last
+    item = invoice.purchase_invoice_items.first
+
+    edited_rows = initial_rows + [
+      { variation_id: source_variations[3].id, description: source_variations[3].description, quantity: 5 },
+      { variation_id: source_variations[4].id, description: source_variations[4].description, quantity: 5 },
+      { variation_id: source_variations[5].id, description: source_variations[5].description, quantity: 10 }
+    ]
+
+    patch purchase_invoice_path(invoice), params: {
+      purchase_invoice: {
+        intercompany: '1',
+        source_business_id: source_business.id.to_s,
+        fecha_emision: invoice.fecha_emision,
+        tasa_dolar: invoice.tasa_dolar.to_s,
+        numero: invoice.numero,
+        delivered: '1',
+        purchase_invoice_items_attributes: {
+          '0' => {
+            id: item.id,
+            _destroy: '0',
+            producto_id: item.producto_id,
+            product_name: item.product_name,
+            cantidad: '1',
+            unid_x_pack: '40',
+            costo_mayor: item.costo_mayor.to_s,
+            costo_mayor_bs: item.costo_mayor_bs.to_s,
+            costo_menor: item.costo_menor.to_s,
+            exento: '1',
+            variation_breakdown: edited_rows.to_json
+          }
+        }
+      },
+      mark_pending_payment: '1',
+      pending_due_on: (Date.current + 5.days).strftime('%d-%m-%Y')
+    }
+
+    assert_redirected_to purchase_invoices_path
+
+    item.reload
+    destination_product = item.producto
+    lot = item.stock_lot
+
+    assert_not_nil lot
+    assert_equal BigDecimal('40'), lot.quantity_in.to_d
+    assert_equal BigDecimal('40'), lot.quantity_remaining.to_d
+    assert_equal BigDecimal('40'), destination_product.reload.total_quantity.to_d
+    refute_equal BigDecimal('800'), destination_product.total_quantity.to_d
+
+    variation_quantities = lot.stock_lot_variations.order(:id).map { |row| row.quantity_remaining.to_d }.sort
+    assert_equal [
+      BigDecimal('5'), BigDecimal('5'), BigDecimal('5'), BigDecimal('5'), BigDecimal('10'), BigDecimal('10')
+    ], variation_quantities
+  end
+
   private
 
   def login_and_select_business!
