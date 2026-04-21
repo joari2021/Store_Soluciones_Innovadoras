@@ -350,9 +350,9 @@ class ProductosController < ApplicationController
 
     if @producto.update(update_attrs)
       match_description = @producto.saved_change_to_descripcion? ? previous_description : @producto.descripcion.to_s
-      sync_product_selected_fields_to_other_businesses!(@producto, match_description: match_description)
       should_sync_photo = propagate_photo_to_same_name_products || @producto.saved_change_to_descripcion?
       sync_product_image_to_other_businesses!(@producto, match_description: match_description) if should_sync_photo
+      sync_product_selected_fields_to_other_businesses!(@producto, match_description: match_description)
 
       if request.headers['Turbo-Frame'].present?
         row_payload = view_context.turbo_stream.append(
