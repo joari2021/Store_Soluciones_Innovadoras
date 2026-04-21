@@ -149,10 +149,14 @@
       <span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-500">Sin categoria</span>
     <% end %>
   </td>
-  <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
-    <% general_safety_stock = producto.general_safety_stock.to_i %>
-    <%= general_safety_stock.positive? ? format_quantity(general_safety_stock, precision: 0) : '—' %>
-  </td>
+    <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
+      <% display_safety_stock = if variations.one?
+                                  variations.first.safety_stock.to_i
+                                else
+                                  producto.general_safety_stock.to_i
+                                end %>
+      <%= display_safety_stock.positive? ? format_quantity(display_safety_stock, precision: 0) : '—' %>
+    </td>
   <td class="px-6 py-4 text-right">
     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-bold <%= product_stock_badge_class %>"><%= format_quantity(product_total_quantity) %> disp.</span>
   </td>
