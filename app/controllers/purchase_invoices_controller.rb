@@ -1258,10 +1258,71 @@ class PurchaseInvoicesController < ApplicationController
     @invoice_payment_movements = invoice_payment_movements_scope(@purchase_invoice)
     @invoice_pending_debt = find_invoice_pending_debt(@purchase_invoice)
     @invoice_bcv_rate = invoice_bcv_rate_for_today
+
+    @invoice_payment_movements_usd_map = @invoice_payment_movements.each_with_object({}) do |movement, hash|
+      hash[movement.id] = amount_in_usd_for_date(
+        amount: movement.amount.to_d,
+        currency: movement.account&.currency,
+        on_date: movement.occurred_at
+      )
+    end
+
+    @invoice_total_usd_summary = @purchase_invoice.monto_total.to_d.round(2)
+    direct_paid_usd = @invoice_payment_movements_usd_map.values.sum(&:to_d).round(2)
+
     pending_balance = pending_debt_balance_in_bs(invoice: @purchase_invoice, debt: @invoice_pending_debt)
     @invoice_pending_balance_bs = [pending_balance, 0.to_d].max
     @invoice_debt_assigned_bs = pending_debt_amount_in_bs(invoice: @purchase_invoice, debt: @invoice_pending_debt)
     @invoice_total_paid_bs = [@purchase_invoice.total_bs.to_d - @invoice_pending_balance_bs, 0.to_d].max.round(2)
+
+    if @invoice_pending_debt.present?
+      debt_amount_usd = debt_amount_usd_for_summary(@invoice_pending_debt)
+      debt_paid_usd = debt_paid_usd_for_summary(@invoice_pending_debt)
+      debt_pending_usd = [debt_amount_usd - debt_paid_usd, 0.to_d].max.round(2)
+
+      @invoice_debt_assigned_usd = debt_amount_usd
+      @invoice_pending_balance_usd = debt_pending_usd
+      @invoice_total_paid_usd = [@invoice_total_usd_summary - debt_pending_usd, 0.to_d].max.round(2)
+      @invoice_direct_paid_usd = [@invoice_total_paid_usd - debt_paid_usd, 0.to_d].max.round(2)
+    else
+      @invoice_debt_assigned_usd = 0.to_d
+      @invoice_pending_balance_usd = [@invoice_total_usd_summary - direct_paid_usd, 0.to_d].max.round(2)
+      @invoice_total_paid_usd = direct_paid_usd
+      @invoice_direct_paid_usd = direct_paid_usd
+    end
+  end
+
+  def debt_amount_usd_for_summary(debt)
+    amount_in_usd_for_date(
+      amount: debt.amount.to_d,
+      currency: debt.currency,
+      on_date: debt.issued_on
+    )
+  end
+
+  def debt_paid_usd_for_summary(debt)
+    debt.debt_payments.to_a.sum do |payment|
+      amount_in_usd_for_date(
+        amount: payment.amount.to_d,
+        currency: payment.currency,
+        on_date: payment.occurred_at
+      )
+    end.round(2)
+  end
+
+  def amount_in_usd_for_date(amount:, currency:, on_date:)
+    source_currency = currency.to_s.upcase
+    source_amount = amount.to_d
+    return source_amount.round(2) if source_currency.blank? || source_currency == 'USD'
+
+    converted = CurrencyConverter.convert(
+      amount: source_amount,
+      from_currency: source_currency,
+      to_currency: 'USD',
+      on_date: on_date,
+    )
+
+    converted&.dig(:amount).to_d.round(2)
   end
 
   def pending_debt_balance_in_bs(invoice:, debt:)
