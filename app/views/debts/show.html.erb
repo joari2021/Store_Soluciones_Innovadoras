@@ -130,7 +130,7 @@
                   <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
                   <td class="px-4 py-3"><%= debt.due_on ? debt.due_on.strftime("%d/%m/%Y") : "-" %></td>
                   <td class="px-4 py-3">
-                    <p><%= debt_display_description(debt.description) %></p>
+                    <p><%= debt_display_description_with_source_link(debt.description) %></p>
                     <% if row[:loan_enabled] && row[:loan_account_name].present? && row[:loan_amount].to_d.positive? %>
                       <% loan_currency = row[:loan_account_currency].to_s.upcase.presence || debt.currency.to_s.upcase %>
                       <% loan_symbol = Account::CURRENCIES.dig(loan_currency, :symbol) || loan_currency %>
@@ -258,7 +258,7 @@
               <% payment_symbol = Account::CURRENCIES.dig(payment.currency, :symbol) || payment.currency %>
               <tr>
                 <td class="px-4 py-3"><%= payment.occurred_at.strftime("%d/%m/%Y") %></td>
-                <td class="px-4 py-3"><%= debt_display_description(row[:debt_label]) %></td>
+                <td class="px-4 py-3"><%= debt_display_description_with_source_link(row[:debt_label]) %></td>
                 <td class="px-4 py-3"><%= payment.account.name %></td>
                 <td class="px-4 py-3"><%= payment.currency %></td>
                 <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>

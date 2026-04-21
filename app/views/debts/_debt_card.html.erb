@@ -13,7 +13,7 @@ end %>
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400"><%= debt.debt_kind_label %></p>
-      <p class="mt-1 text-sm font-semibold text-slate-700"><%= debt_display_description(debt.card_description_summary) %></p>
+      <p class="mt-1 text-sm font-semibold text-slate-700"><%= debt_display_description_with_source_link(debt.card_description_summary) %></p>
     </div>
     <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <%= badge_class %>">
       <%= status_label %>

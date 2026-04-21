@@ -150,6 +150,23 @@ module ApplicationHelper
     cleaned.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
   end
 
+  def debt_display_description_with_source_link(value)
+    description_text = debt_display_description(value)
+    source_link = debt_invoice_link_data(value)
+    return description_text if source_link.blank?
+
+    safe_join([
+      ERB::Util.html_escape(description_text),
+      ' ',
+      link_to(
+        "(Factura ##{source_link[:invoice_id]})",
+        source_link[:path],
+        class: 'font-semibold text-sky-700 underline decoration-sky-300 underline-offset-2 hover:text-sky-800',
+        data: { turbo_frame: '_top' }
+      )
+    ])
+  end
+
   def debt_source_link_data(debt)
     description = debt&.description.to_s
     return nil if description.blank?
@@ -178,6 +195,24 @@ module ApplicationHelper
 
     sale = current_business&.ventas&.select(:id)&.find_by(id: tagged_sale_id)
     sale&.id
+  end
+
+  def debt_invoice_link_data(value)
+    description = value.to_s
+    return nil if description.blank?
+
+    invoice_id = extract_movement_source_id(description, 'FACTURA_COMPRA') ||
+                 extract_movement_source_id(description, 'FACTURA_COMPRA_MIRROR') ||
+                 extract_movement_source_id(description, 'PURCHASE_INVOICE')
+    return nil if invoice_id.blank?
+
+    invoice = current_business&.purchase_invoices&.select(:id)&.find_by(id: invoice_id)
+    return nil if invoice.blank?
+
+    {
+      invoice_id: invoice.id,
+      path: purchase_invoice_path(invoice)
+    }
   end
 
   private
