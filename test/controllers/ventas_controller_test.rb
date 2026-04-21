@@ -550,6 +550,44 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "25 resultados"
   end
 
+  test "historial_productos json returns rows and next page for infinite pagination" do
+    31.times do |index|
+      sale = create_paid_sale!(
+        created_at: Time.zone.now.change(hour: 10) + index.seconds,
+        cash_shift: @open_cash_shift,
+      )
+
+      sale.venta_items.create!(
+        producto: @product,
+        product_variation: @variation,
+        product_name: @product.descripcion,
+        variation_name: @variation.description,
+        quantity: 1,
+        unit_price_usd: @product.precio_venta_usd,
+        subtotal_usd: @product.precio_venta_usd,
+      )
+    end
+
+    get historial_productos_ventas_path, params: { format: :json, page: 1 }
+
+    assert_response :success
+
+    payload = JSON.parse(response.body)
+    assert payload.fetch("table_rows_html").present?
+    assert_includes payload.fetch("table_rows_html"), "Ver venta #"
+    assert_equal 2, payload.fetch("next_page")
+    assert_equal 30, payload.fetch("batch_count")
+
+    get historial_productos_ventas_path, params: { format: :json, page: 2 }
+
+    assert_response :success
+
+    second_payload = JSON.parse(response.body)
+    assert second_payload.fetch("table_rows_html").present?
+    assert_nil second_payload.fetch("next_page")
+    assert_equal 1, second_payload.fetch("batch_count")
+  end
+
   test "historial totals use each sale stored base rate instead of day rate" do
     sale_date = Time.zone.local(2026, 3, 21, 10, 0, 0)
     create_paid_sale!(

@@ -299,6 +299,23 @@ class VentasController < ApplicationController
     @sold_products_total = sold_items_scope.count
     @sold_products_unique = sold_items_scope.distinct.count(:producto_id)
     @pagy, @sold_items = pagy_countless(sold_items_scope, items: 30)
+
+    return unless request.format.json?
+
+    page_offset = (@pagy.page - 1) * @pagy.items
+    rows_html = render_to_string(
+      partial: "ventas/historial_producto_row",
+      collection: @sold_items,
+      as: :sold_item,
+      formats: [:html],
+      locals: { start_index: page_offset },
+    )
+
+    render json: {
+      table_rows_html: rows_html,
+      next_page: @pagy.next,
+      batch_count: @sold_items.size,
+    }
   end
 
   def show

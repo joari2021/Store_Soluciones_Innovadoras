@@ -1,0 +1,26 @@
+<% absolute_index = start_index.to_i + sold_item_counter.to_i %>
+<% product = sold_item.producto %>
+<% image_available = product&.foto&.attached? %>
+<tr class="transition-all duration-150 <%= absolute_index.even? ? 'bg-white' : 'bg-slate-50/40' %> hover:bg-sky-50/70">
+  <td class="px-6 py-4">
+    <div class="flex items-center gap-3">
+      <% if image_available %>
+        <img src="<%= url_for(product.foto) %>" alt="Imagen de <%= product.descripcion %>" class="h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover" />
+      <% else %>
+        <%= image_tag 'default_image.jpeg', class: 'h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover', alt: 'Imagen por defecto' %>
+      <% end %>
+      <div class="min-w-0">
+        <p class="truncate text-sm font-semibold text-slate-800"><%= sold_item.product_name.presence || product&.descripcion || 'Producto' %></p>
+        <p class="mt-0.5 text-xs text-slate-500"><%= sold_item.variation_name.presence || sold_item.product_variation&.description || 'Unica' %></p>
+      </div>
+    </div>
+  </td>
+  <td class="px-6 py-4 whitespace-nowrap text-slate-700"><%= sold_item.venta.created_at.in_time_zone('America/Caracas').strftime('%d/%m/%Y %H:%M') %></td>
+  <td class="px-6 py-4 whitespace-nowrap">
+    <%= link_to venta_path(sold_item.venta), class: 'inline-flex items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-semibold text-cyan-700 transition-colors hover:bg-cyan-100', data: { turbo_frame: '_top' } do %>
+      <i data-lucide="external-link" class="h-3.5 w-3.5"></i>
+      Ver venta #<%= sold_item.venta_id %>
+    <% end %>
+  </td>
+  <td class="px-6 py-4 text-right font-semibold text-slate-800"><%= number_with_precision(sold_item.quantity.to_d, precision: 4, strip_insignificant_zeros: true) %></td>
+</tr>
