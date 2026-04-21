@@ -9,13 +9,21 @@ window.addEventListener("turbo:load", () => {
       `tr[data-product-empty-for="${productId}"]`,
     ];
 
-    document.querySelectorAll(selectors.join(",")).forEach((row) => row.remove());
+    document
+      .querySelectorAll(selectors.join(","))
+      .forEach((row) => row.remove());
   };
 
   const updateProductsCounters = () => {
-    const loadedNode = document.querySelector("[data-products-loaded-count='true']");
-    const totalNode = document.querySelector("[data-products-total-count='true']");
-    const totalLabelNode = document.querySelector("[data-products-total-label='true']");
+    const loadedNode = document.querySelector(
+      "[data-products-loaded-count='true']",
+    );
+    const totalNode = document.querySelector(
+      "[data-products-total-count='true']",
+    );
+    const totalLabelNode = document.querySelector(
+      "[data-products-total-label='true']",
+    );
 
     if (loadedNode) {
       const current = Number(loadedNode.textContent || 0);
@@ -41,19 +49,82 @@ window.addEventListener("turbo:load", () => {
 
   const updateProductsBadges = (payload) => {
     const lowStockBadge = document.getElementById("products-low-stock-badge");
-    const belowTargetBadge = document.getElementById("products-below-target-badge");
+    const belowTargetBadge = document.getElementById(
+      "products-below-target-badge",
+    );
 
-    if (lowStockBadge && Object.prototype.hasOwnProperty.call(payload, "low_stock_total_count")) {
-      lowStockBadge.innerHTML = renderCountBadge(payload.low_stock_total_count, "Productos con stock bajo");
+    if (
+      lowStockBadge &&
+      Object.prototype.hasOwnProperty.call(payload, "low_stock_total_count")
+    ) {
+      lowStockBadge.innerHTML = renderCountBadge(
+        payload.low_stock_total_count,
+        "Productos con stock bajo",
+      );
     }
 
-    if (belowTargetBadge && Object.prototype.hasOwnProperty.call(payload, "below_target_margin_total_count")) {
-      belowTargetBadge.innerHTML = renderCountBadge(payload.below_target_margin_total_count, "Productos por debajo del objetivo");
+    if (
+      belowTargetBadge &&
+      Object.prototype.hasOwnProperty.call(
+        payload,
+        "below_target_margin_total_count",
+      )
+    ) {
+      belowTargetBadge.innerHTML = renderCountBadge(
+        payload.below_target_margin_total_count,
+        "Productos por debajo del objetivo",
+      );
     }
   };
 
+  const hasVisibleProductRows = () => {
+    const tableBody = document.getElementById("productos_tbody");
+    if (!tableBody) return false;
+
+    return tableBody.querySelectorAll("tr[data-product-row-id]").length > 0;
+  };
+
+  const refreshProductsResultsViaAjax = async () => {
+    const resultsContainer = document.querySelector("[data-products-results='true']");
+    const searchForm = document.querySelector("[data-products-search-form='true']");
+    if (!resultsContainer || !searchForm) return;
+
+    const url = new URL(searchForm.action, window.location.origin);
+    const formData = new FormData(searchForm);
+    formData.forEach((value, key) => {
+      const normalizedValue = String(value || "").trim();
+      if (normalizedValue === "" || normalizedValue === "0") return;
+      url.searchParams.set(key, normalizedValue);
+    });
+    url.searchParams.set("format", "json");
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        Accept: "application/json",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      credentials: "same-origin",
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || typeof payload.results_html !== "string") {
+      throw new Error(payload.error || "No se pudo actualizar el listado de productos.");
+    }
+
+    const template = document.createElement("template");
+    template.innerHTML = payload.results_html.trim();
+    const nextNode = template.content.firstElementChild;
+    if (!nextNode) return;
+
+    resultsContainer.replaceWith(nextNode);
+    document.dispatchEvent(new Event("turbo:render"));
+    if (window.lucide?.createIcons) window.lucide.createIcons();
+  };
+
   const submitAjaxDeleteForProducts = async (form) => {
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+    const csrfToken = document
+      .querySelector('meta[name="csrf-token"]')
+      ?.getAttribute("content");
     const response = await fetch(form.action, {
       method: "DELETE",
       headers: {
@@ -69,10 +140,16 @@ window.addEventListener("turbo:load", () => {
       throw new Error(payload.error || "No se pudo eliminar el registro.");
     }
 
-    const productId = String(payload.product_id || form.dataset.productId || "").trim();
+    const productId = String(
+      payload.product_id || form.dataset.productId || "",
+    ).trim();
     removeProductRowsFromIndex(productId);
     updateProductsCounters();
     updateProductsBadges(payload);
+
+    if (!hasVisibleProductRows()) {
+      await refreshProductsResultsViaAjax();
+    }
   };
 
   document.addEventListener("submit", (event) => {
