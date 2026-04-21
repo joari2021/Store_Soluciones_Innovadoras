@@ -118,10 +118,10 @@
     <% variation_total_quantity = variation_groups.dig(variation, :total).to_d %>
     <% variation_total_quantity < variation_safety_stock %>
   <% end %>
-  <% product_stock_badge_class = if product_row_below_safety_stock || any_variation_below_safety_stock
-                                  'bg-amber-100 text-amber-700'
-                                elsif product_total_quantity.zero?
+  <% product_stock_badge_class = if product_total_quantity.zero?
                                   'bg-rose-100 text-rose-700'
+                                elsif product_row_below_safety_stock || any_variation_below_safety_stock
+                                  'bg-amber-100 text-amber-700'
                                 else
                                   'bg-sky-100 text-sky-700'
                                 end %>
@@ -199,10 +199,10 @@
   <% variation_unit_cost_usd = total_variation_quantity.positive? ? (total_variation_inventory_value / total_variation_quantity).round(2) : nil %>
   <% total_variation_sale_value = (total_variation_quantity * product_sale_price_usd).round(2) %>
   <% variation_safety_stock = variation.safety_stock.to_d %>
-  <% variation_stock_badge_class = if variation_safety_stock.positive? && total_variation_quantity < variation_safety_stock
-                                     'bg-amber-100 text-amber-700'
-                                   elsif total_variation_quantity.zero?
+  <% variation_stock_badge_class = if total_variation_quantity.zero?
                                      'bg-rose-100 text-rose-700'
+                                   elsif variation_safety_stock.positive? && total_variation_quantity < variation_safety_stock
+                                     'bg-amber-100 text-amber-700'
                                    else
                                      'bg-sky-100 text-sky-700'
                                    end %>
