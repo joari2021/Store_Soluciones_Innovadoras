@@ -4,7 +4,6 @@
 <% selected_fecha_desde_value = @selected_fecha_desde&.strftime('%d-%m-%Y') %>
 <% selected_fecha_hasta_value = @selected_fecha_hasta&.strftime('%d-%m-%Y') %>
 <% cash_shift_options = [['Todos los turnos', '']] + Array(@cash_shifts_for_filter).map { |shift| ["Turno ##{shift.id} · #{shift.opened_at.strftime('%d/%m/%Y %H:%M')} · #{shift.status_label}", shift.id.to_s] } %>
-
 <div class="space-y-6 fade-in">
   <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
@@ -29,7 +28,6 @@
         <% end %>
       </div>
     </div>
-
     <div class="relative mt-6 rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
       <%= form_with url: historial_productos_ventas_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,14rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' do %>
         <div>
@@ -72,7 +70,6 @@
         <% end %>
       <% end %>
     </div>
-
     <div class="relative mt-6 grid gap-3 sm:grid-cols-2">
       <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
         <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Items vendidos</p>
@@ -86,7 +83,6 @@
       </div>
     </div>
   </div>
-
   <div class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
     <div class="flex items-center justify-between gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 px-6 py-4">
       <div>
@@ -95,7 +91,6 @@
       </div>
       <span class="inline-flex items-center rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100"><%= @sold_products_total %> resultados</span>
     </div>
-
     <% if @sold_items.any? %>
       <div class="overflow-x-auto">
         <table class="min-w-full text-left text-sm text-slate-700">
@@ -138,7 +133,6 @@
           </tbody>
         </table>
       </div>
-
       <% if @pagy&.next %>
         <div class="border-t border-slate-100 px-6 py-4 text-center">
           <%= link_to historial_productos_ventas_path(historial_query_params.merge(page: @pagy.next)), class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50' do %>
