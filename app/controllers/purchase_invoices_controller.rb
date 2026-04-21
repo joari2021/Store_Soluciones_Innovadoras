@@ -988,7 +988,7 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def create_invoice_payment_movements!(invoice, payments)
-    occurred_at = invoice.fecha_emision.presence || Time.current
+    occurred_at = movement_occurred_at_for_invoice(invoice)
     description = build_invoice_payment_movement_description(invoice)
 
     payments.each do |entry|
@@ -1067,6 +1067,14 @@ class PurchaseInvoicesController < ApplicationController
   def build_invoice_payment_movement_description(invoice)
     invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
     "Pago factura compra #{invoice_reference} - #{invoice.supplier_display_name} [FACTURA_COMPRA:#{invoice.id}]"
+  end
+
+  def movement_occurred_at_for_invoice(invoice)
+    caracas_now = Time.current.in_time_zone('America/Caracas')
+    payment_date = invoice.fecha_emision&.to_date
+    return caracas_now if payment_date.blank?
+
+    caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
   end
 
   def invoice_payment_rows_for_form

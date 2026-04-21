@@ -387,7 +387,7 @@ module Intercompany
     end
 
     def register_buyer_outgoing_movements!(payment_entries)
-      occurred_at = @purchase_invoice.fecha_emision.presence || Time.current
+      occurred_at = movement_occurred_at_for_invoice
       description = "Pago factura inter-empresa ##{@purchase_invoice.id} a #{@source_business.name} [FACTURA_COMPRA:#{@purchase_invoice.id}]"
 
       payment_entries.each do |entry|
@@ -410,7 +410,7 @@ module Intercompany
       grouped_by_source_account = payment_entries.group_by { |entry| entry[:source_account]&.id }
       return if grouped_by_source_account.blank?
 
-      occurred_at = @purchase_invoice.fecha_emision.presence || Time.current
+      occurred_at = movement_occurred_at_for_invoice
       grouped_by_source_account.each do |_source_account_id, entries|
         source_account = entries.first[:source_account]
         next if source_account.blank?
@@ -530,6 +530,14 @@ module Intercompany
       total_paid_bs = Array(@payment_context[:payments]).sum { |entry| entry[:amount].to_d }.round(2)
       pending = (total_invoice_bs - total_paid_bs).round(2)
       pending.positive? ? pending : 0.to_d
+    end
+
+    def movement_occurred_at_for_invoice
+      caracas_now = Time.current.in_time_zone("America/Caracas")
+      payment_date = @purchase_invoice.fecha_emision&.to_date
+      return caracas_now if payment_date.blank?
+
+      caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
     end
 
     def buyer_default_account_for_mirror
