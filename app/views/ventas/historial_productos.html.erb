@@ -103,23 +103,28 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <%= turbo_frame_tag "sold-products-history-table-#{@pagy.page}", class: "contents" do %>
-              <%= render partial: 'ventas/historial_producto_row', collection: @sold_items, as: :sold_item, locals: { start_index: (@pagy.page - 1) * @pagy.items } %>
-              <% if @pagy.next %>
-                <%= turbo_frame_tag "sold-products-history-table-#{@pagy.next}", src: historial_productos_ventas_path(historial_query_params.merge(page: @pagy.next)), loading: :lazy do %>
-                  <tr>
-                    <td colspan="4" class="px-6 py-6 text-center text-sm text-slate-500">
-                      <span class="inline-flex items-center gap-3">
-                        <span class="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-slate-500"></span>
-                        Cargando mas productos...
-                      </span>
-                    </td>
-                  </tr>
-                <% end %>
-              <% end %>
-            <% end %>
+            <%= render partial: 'ventas/historial_producto_row', collection: @sold_items, as: :sold_item, locals: { start_index: (@pagy.page - 1) * @pagy.items } %>
           </tbody>
         </table>
+      </div>
+      <div class="border-t border-slate-100 px-6 py-4">
+        <div class="flex flex-wrap items-center justify-center gap-2 sm:justify-between">
+          <% if @pagy.prev %>
+            <%= link_to 'Anterior', historial_productos_ventas_path(historial_query_params.merge(page: @pagy.prev)), class: 'inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' %>
+          <% else %>
+            <span class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-400">Anterior</span>
+          <% end %>
+
+          <span class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-600">
+            Pagina <%= @pagy.page %>
+          </span>
+
+          <% if @pagy.next %>
+            <%= link_to 'Siguiente', historial_productos_ventas_path(historial_query_params.merge(page: @pagy.next)), class: 'inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' %>
+          <% else %>
+            <span class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-400">Siguiente</span>
+          <% end %>
+        </div>
       </div>
     <% else %>
       <div class="px-6 py-10 text-center">
