@@ -424,6 +424,15 @@ class PurchaseInvoicesController < ApplicationController
       return
     end
 
+    requested_source_id = params.dig(:purchase_invoice, :source_business_id).to_s.strip
+    if requested_source_id.present? && requested_source_id.to_i != source_business.id
+      @purchase_invoice.errors.add(:base, 'No se puede cambiar el negocio origen en una factura interempresa ya creada.')
+      apply_invoice_payment_form_state(default_invoice_payment_context)
+      load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+      render :edit, status: :unprocessable_entity
+      return
+    end
+
     prior_rows = aggregate_source_stock_rows_for_invoice_items(
       @purchase_invoice.purchase_invoice_items.includes(producto: :product_variations),
       source_business: source_business,
@@ -440,7 +449,7 @@ class PurchaseInvoicesController < ApplicationController
       restore_source_stock_rows!(rows: prior_rows)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
-      @purchase_invoice.assign_attributes(purchase_invoice_params)
+      @purchase_invoice.assign_attributes(purchase_invoice_params.except(:source_business_id, :intercompany))
       normalize_intercompany_items_for_destination!(@purchase_invoice, source_business: source_business)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
@@ -458,7 +467,7 @@ class PurchaseInvoicesController < ApplicationController
       consume_source_stock_rows!(rows: current_rows)
       raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
 
-      if invoice_payment_input_submitted?
+      if invoice_payment_rows_input_submitted?
         sync_intercompany_payment_movements!(
           @purchase_invoice,
           payments: payment_context[:payments],
@@ -786,7 +795,7 @@ class PurchaseInvoicesController < ApplicationController
   def build_invoice_payment_context(invoice, source_business: nil)
     rows_for_form = invoice_payment_rows_for_form
     normalized_rows = normalize_invoice_payment_rows(rows_for_form)
-    payment_input_submitted = invoice_payment_input_submitted?
+    payment_input_submitted = invoice_payment_rows_input_submitted?
     mark_pending_payment = ActiveModel::Type::Boolean.new.cast(params[:mark_pending_payment])
     pending_due_on_raw = params[:pending_due_on].to_s.strip
     pending_due_on = parse_filter_date(pending_due_on_raw)
@@ -877,6 +886,10 @@ class PurchaseInvoicesController < ApplicationController
 
   def invoice_payment_input_submitted?
     params.key?(:invoice_payments) || params.key?(:mark_pending_payment) || params.key?(:pending_due_on)
+  end
+
+  def invoice_payment_rows_input_submitted?
+    params.key?(:invoice_payments)
   end
 
   def build_invoice_payment_records(invoice, normalized_rows, source_business: nil)
