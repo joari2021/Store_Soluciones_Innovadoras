@@ -87,6 +87,10 @@ class PurchaseInvoiceItem < ApplicationRecord
                rescue StandardError
                  []
                end
+             when ActionController::Parameters
+               raw_breakdown.to_unsafe_h.sort_by { |key, _| key.to_i }.map { |_, value| value }
+             when Hash
+               raw_breakdown.sort_by { |key, _| key.to_i }.map { |_, value| value }
              when Array
                raw_breakdown
              else
@@ -142,6 +146,7 @@ class PurchaseInvoiceItem < ApplicationRecord
 
     lot = stock_lot || build_stock_lot
     initial_inventory = purchase_invoice&.initial_inventory?
+    lot_quantity = purchase_invoice&.intercompany? ? intercompany_units_quantity : (cantidad || 0)
     lot.producto_id = producto_id
     lot.supplier_id = initial_inventory ? nil : purchase_invoice&.supplier_id
     lot.supplier_name = if initial_inventory
@@ -151,8 +156,8 @@ class PurchaseInvoiceItem < ApplicationRecord
                         end
     lot.description = initial_inventory ? 'inventario inicial' : nil
     lot.unit_cost_usd = resolved_unit_cost_usd
-    lot.quantity_in = cantidad || 0
-    lot.quantity_remaining = cantidad || 0 if lot.new_record?
+    lot.quantity_in = lot_quantity
+    lot.quantity_remaining = lot_quantity if lot.new_record?
     lot.purchased_at = purchase_invoice&.fecha_emision || purchase_invoice&.created_at || Time.current
     lot.save!
 

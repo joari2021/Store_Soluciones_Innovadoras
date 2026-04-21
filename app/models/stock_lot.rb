@@ -18,7 +18,11 @@ class StockLot < ApplicationRecord
 
     if can_use_unique_variation_stock?(variation_id) && stock_lot_variations.empty?
       units_per_pack = purchase_invoice_item&.unid_x_pack.to_d
-      multiplier = units_per_pack.positive? ? units_per_pack : 1.to_d
+      multiplier = if intercompany_item?
+                     1.to_d
+                   else
+                     units_per_pack.positive? ? units_per_pack : 1.to_d
+                   end
       return quantity_remaining.to_d * multiplier
     end
 
@@ -72,7 +76,11 @@ class StockLot < ApplicationRecord
     return nil unless create_if_missing
 
     units_per_pack = purchase_invoice_item&.unid_x_pack.to_d
-    multiplier = units_per_pack.positive? ? units_per_pack : 1.to_d
+    multiplier = if intercompany_item?
+                   1.to_d
+                 else
+                   units_per_pack.positive? ? units_per_pack : 1.to_d
+                 end
     quantity_remaining_units = quantity_remaining.to_d * multiplier
     quantity_in_units = quantity_in.to_d * multiplier
     return nil unless quantity_remaining_units.positive?
@@ -96,12 +104,18 @@ class StockLot < ApplicationRecord
     total_units_remaining = stock_lot_variations.sum(:quantity_remaining).to_d
     units_per_pack = purchase_invoice_item&.unid_x_pack.to_d
 
-    self.quantity_remaining = if units_per_pack.positive?
+    self.quantity_remaining = if intercompany_item?
+                                total_units_remaining
+                              elsif units_per_pack.positive?
                                 total_units_remaining / units_per_pack
                               else
                                 total_units_remaining
                               end
 
     save!
+  end
+
+  def intercompany_item?
+    purchase_invoice_item&.purchase_invoice&.intercompany? == true
   end
 end
