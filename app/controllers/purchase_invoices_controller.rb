@@ -1572,7 +1572,7 @@ class PurchaseInvoicesController < ApplicationController
       variation.description.to_s.strip.downcase
     end
 
-    rows = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+    rows = normalized_item_variation_rows(item)
     normalized_rows = rows.filter_map do |raw_row|
       next unless raw_row.is_a?(Hash)
 
@@ -1606,11 +1606,12 @@ class PurchaseInvoicesController < ApplicationController
     if normalized_rows.empty? && source_variations.one?
       source_variation = source_variations.first
       destination_variation = destination_by_desc[source_variation.description.to_s.strip.downcase]
-      if destination_variation.present? && item.cantidad.to_d.positive?
+      requested_units = item.unid_x_pack.to_d.positive? ? item.unid_x_pack.to_d : item.cantidad.to_d
+      if destination_variation.present? && requested_units.positive?
         normalized_rows = [{
           'variation_id' => destination_variation.id,
           'description' => destination_variation.description,
-          'quantity' => item.cantidad.to_d.to_f,
+          'quantity' => requested_units.to_f,
         }]
       end
     end
@@ -1649,7 +1650,7 @@ class PurchaseInvoicesController < ApplicationController
   def source_rows_for_item(item:, source_product:)
     destination_product = item.producto
     source_variations = source_product.product_variations.order(:id).to_a
-    raw_rows = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+    raw_rows = normalized_item_variation_rows(item)
 
     rows = raw_rows.filter_map do |raw_row|
       next unless raw_row.is_a?(Hash)
@@ -1684,6 +1685,29 @@ class PurchaseInvoicesController < ApplicationController
     end
 
     rows
+  end
+
+  def normalized_item_variation_rows(item)
+    raw_breakdown = item.variation_breakdown
+
+    parsed = case raw_breakdown
+             when String
+               begin
+                 JSON.parse(raw_breakdown)
+               rescue StandardError
+                 []
+               end
+             when ActionController::Parameters
+               raw_breakdown.to_unsafe_h.sort_by { |key, _| key.to_i }.map { |_, value| value }
+             when Hash
+               raw_breakdown.sort_by { |key, _| key.to_i }.map { |_, value| value }
+             when Array
+               raw_breakdown
+             else
+               []
+             end
+
+    parsed.select { |entry| entry.is_a?(Hash) }
   end
 
   def resolve_source_variation_for_item_row(source_product:, source_variations:, destination_product:, row:)

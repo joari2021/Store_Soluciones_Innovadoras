@@ -274,6 +274,7 @@ class PurchaseInvoiceItem < ApplicationRecord
 
   def total_units_for_variation_breakdown
     return cantidad.to_d if purchase_invoice&.initial_inventory?
+    return intercompany_units_quantity if purchase_invoice&.intercompany?
 
     units_per_pack = unid_x_pack.to_d
     cantidad.to_d * (units_per_pack.positive? ? units_per_pack : 1)
