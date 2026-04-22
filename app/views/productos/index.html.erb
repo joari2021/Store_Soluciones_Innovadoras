@@ -7,20 +7,20 @@
       <div>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Productos</h1>
       </div>
-      <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+      <div class="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
         <% if can_unpack %>
           <%= link_to internal_usages_productos_path,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 sm:w-auto' do %>
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-100 sm:w-auto' do %>
             <i data-lucide="notebook-pen" class="h-4 w-4"></i>
             Uso interno
           <% end %>
           <%= link_to unpack_packs_productos_path,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 font-medium text-amber-700 shadow-sm transition-all hover:bg-amber-100 sm:w-auto' do %>
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2 text-sm font-medium text-amber-700 shadow-sm transition-all hover:bg-amber-100 sm:w-auto' do %>
             <i data-lucide="package-open" class="h-4 w-4"></i>
             Destapar pack
           <% end %>
           <%= link_to unpack_histories_productos_path,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-5 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:bg-cyan-100 sm:w-auto' do %>
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3.5 py-2 text-sm font-medium text-cyan-700 shadow-sm transition-all hover:bg-cyan-100 sm:w-auto' do %>
             <i data-lucide="history" class="h-4 w-4"></i>
             Historial desempaque
           <% end %>
@@ -28,34 +28,34 @@
         <% if can_manage_products %>
           <% if current_user_admin? %>
             <%= link_to global_products_path,
-                        class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-indigo-300 bg-indigo-50 px-5 py-3 font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 sm:w-auto' do %>
+                        class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-300 bg-indigo-50 px-3.5 py-2 text-sm font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 sm:w-auto' do %>
               <i data-lucide="database" class="h-4 w-4"></i>
               Productos globales
             <% end %>
             <%= link_to import_from_global_productos_path,
-                        class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-50 px-5 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:bg-cyan-100 sm:w-auto' do %>
+                        class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-3.5 py-2 text-sm font-medium text-cyan-700 shadow-sm transition-all hover:bg-cyan-100 sm:w-auto' do %>
               <i data-lucide="download" class="h-4 w-4"></i>
               Importar desde global
             <% end %>
           <% end %>
           <%= link_to export_excel_productos_path,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-white px-5 py-3 font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 sm:w-auto' do %>
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3.5 py-2 text-sm font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 sm:w-auto' do %>
             <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>
             Exportar inventario Excel
           <% end %>
           <%= link_to categorias_path,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
             <i data-lucide="tag" class="h-4 w-4"></i>
             Categorias
           <% end %>
           <%= link_to profit_margin_presets_path,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 sm:w-auto' do %>
             % Base de Ganancias
           <% end %>
           <%= link_to new_producto_path,
                       remote: true,
                       method: :get,
-                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95 sm:w-auto',
+                      class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95 sm:w-auto',
                       data: { turbo_frame: 'modal-productos' },
                       onclick: "openModal('productModal')" do %>
             <i data-lucide="plus" class="h-4 w-4"></i>
