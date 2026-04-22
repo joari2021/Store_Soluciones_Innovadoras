@@ -114,11 +114,9 @@
           <% else %>
             <span class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-400">Anterior</span>
           <% end %>
-
           <span class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-600">
             Pagina <%= @pagy.page %>
           </span>
-
           <% if @pagy.next %>
             <%= link_to 'Siguiente', historial_productos_ventas_path(historial_query_params.merge(page: @pagy.next)), class: 'inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' %>
           <% else %>
