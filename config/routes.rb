@@ -37,6 +37,9 @@ Rails.application.routes.draw do
   resources :profit_margin_presets, path: 'porcentajes-ganancia', only: %i[index create edit update destroy]
   resources :categorias, path: 'categorias', only: %i[index create edit update destroy]
   resources :suppliers do
+    collection do
+      get :search_products, path: 'buscar-productos'
+    end
     member do
       patch :overwrite_product_values
     end

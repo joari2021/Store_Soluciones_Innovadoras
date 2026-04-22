@@ -1,107 +1,167 @@
 class SuppliersController < ApplicationController
   before_action :require_business
   before_action :require_admin
-  before_action :set_supplier, only: %i[show edit update destroy overwrite_product_values]
+  before_action :load_local_global_product_ids
+  before_action :set_supplier, only: %i[show edit update overwrite_product_values]
   before_action :set_tasa_dolar_bcv, only: %i[show update]
 
   def index
-    @suppliers = current_business.suppliers.order(nombre: :asc)
+    @suppliers = filtered_global_suppliers
+                 .includes(:source_business, :suppliers, :global_supplier_products)
+                 .order(Arel.sql('LOWER(global_suppliers.name) ASC'))
   end
 
   def show
-    @supplier_products_ordered = @supplier.supplier_products
-                                          .preload(:producto)
-                                          .to_a
-                                          .sort_by { |row| row.producto&.descripcion.to_s.downcase }
+    load_global_supplier_products
   end
 
   def new
-    @supplier = current_business.suppliers.new
+    redirect_to suppliers_path, alert: 'La creación local de proveedores está deshabilitada. Usa proveedores filtrados por negocio.'
   end
 
   def create
-    @supplier = current_business.suppliers.new(supplier_params)
-    if @supplier.save
-      redirect_to suppliers_path, notice: 'Proveedor creado'
-    else
-      render :new
-    end
+    redirect_to suppliers_path, alert: 'La creación local de proveedores está deshabilitada.'
   end
 
   def edit; end
 
   def update
-    if @supplier.update(supplier_params)
-      redirect_to supplier_path(@supplier), notice: 'Proveedor actualizado'
+    if @supplier.update(global_supplier_params)
+      redirect_to supplier_path(@supplier), notice: 'Proveedor actualizado.'
     else
-      render :show, status: :unprocessable_entity
+      if product_associations_update?
+        set_tasa_dolar_bcv
+        load_global_supplier_products
+        render :show, status: :unprocessable_entity
+      else
+        render :edit, status: :unprocessable_entity
+      end
     end
   end
 
   def destroy
-    @supplier.destroy
-    redirect_to suppliers_path, notice: 'Proveedor eliminado'
+    redirect_to suppliers_path, alert: 'La eliminación local de proveedores está deshabilitada.'
   end
 
   def overwrite_product_values
-    producto_id = params[:producto_id].to_s.strip
-    supplier_product = @supplier.supplier_products.find_by(producto_id: producto_id)
-
-    unless supplier_product
-      render json: { error: 'No se encontró la asociación producto-proveedor.' }, status: :not_found
+    producto = current_business.productos.find_by(id: params[:producto_id])
+    if producto.blank? || producto.global_product_id.blank?
+      render json: { error: 'El producto local no está mapeado a un producto global.' }, status: :unprocessable_entity
       return
     end
 
-    attrs = {
+    unless @local_global_product_ids.include?(producto.global_product_id)
+      render json: { error: 'El producto no pertenece al catálogo local del negocio actual.' }, status: :unprocessable_entity
+      return
+    end
+
+    row = GlobalSupplierProduct.find_or_initialize_by(
+      global_supplier_id: @supplier.id,
+      global_product_id: producto.global_product_id,
+    )
+
+    row.assign_attributes(
       costo_mayor: params[:costo_mayor],
       cantidad: params[:cantidad],
-      costo_menor: params[:costo_menor]
-    }
+      costo_menor: params[:costo_menor],
+      active: true,
+    )
 
-    if supplier_product.update(attrs)
+    if row.save
       render json: {
         ok: true,
-        costo_mayor: supplier_product.costo_mayor,
-        cantidad: supplier_product.cantidad,
-        costo_menor: supplier_product.costo_menor
+        costo_mayor: row.costo_mayor,
+        cantidad: row.cantidad,
+        costo_menor: row.costo_menor,
       }
     else
-      render json: { error: supplier_product.errors.full_messages.to_sentence }, status: :unprocessable_entity
+      render json: { error: row.errors.full_messages.to_sentence }, status: :unprocessable_entity
     end
+  end
+
+  def search_products
+    query = params[:q].to_s.strip
+    render json: [] and return if query.length < 2
+    render json: [] and return if @local_global_product_ids.empty?
+
+    products = GlobalProduct
+               .where(id: @local_global_product_ids)
+               .where('global_products.name ILIKE ?', "%#{query}%")
+               .order(Arel.sql('LOWER(global_products.name) ASC'))
+               .limit(20)
+
+    render json: products.map { |product| { id: product.id, name: product.name, display_name: product.display_name_with_presentation } }
   end
 
   private
 
-  def set_supplier
-    @supplier = current_business.suppliers.find(params[:id])
+  def load_local_global_product_ids
+    @local_global_product_ids = current_business.productos.where.not(global_product_id: nil).distinct.pluck(:global_product_id)
   end
 
-  def supplier_params
-    params.require(:supplier).permit(
-      :nombre,
+  def filtered_global_suppliers
+    return GlobalSupplier.none if @local_global_product_ids.empty?
+
+    GlobalSupplier
+      .joins(:global_supplier_products)
+      .where(global_supplier_products: { global_product_id: @local_global_product_ids })
+      .distinct
+  end
+
+  def set_supplier
+    @supplier = filtered_global_suppliers.find(params[:id])
+  end
+
+  def global_supplier_params
+    attrs = params.require(:global_supplier).permit(
+      :name,
       :rif,
-      :telefono,
-      :telefono_pago_movil,
+      :phone,
+      :mobile_payment_phone,
       :email,
-      :direccion,
-      :nro_cuenta,
+      :address,
+      :bank_account_number,
       :pricing_currency_priority,
       :default_exento,
-      supplier_products_attributes: %i[
+      global_supplier_products_attributes: %i[
         id
-        producto_id
+        global_product_id
         costo_mayor
         cantidad
         costo_menor
         _destroy
       ]
     )
+
+    nested = attrs[:global_supplier_products_attributes]
+    return attrs if nested.blank?
+
+    allowed = @local_global_product_ids.map(&:to_s)
+    filtered_nested = nested.to_h.select do |_idx, payload|
+      product_id = payload[:global_product_id].to_s
+      id = payload[:id].to_s
+      next true if id.present?
+
+      allowed.include?(product_id)
+    end
+
+    attrs[:global_supplier_products_attributes] = filtered_nested
+    attrs
   end
 
   def set_tasa_dolar_bcv
-    latest_bcv = TasaCambio.latest_for('Dolar BCV')
-    @tasa_dolar_bcv = latest_bcv&.valor.to_f
-    @tasa_dolar_bcv_symbol = latest_bcv&.symbol.presence || 'Bs'
-    @tasa_dolar_bcv_fecha = latest_bcv&.fecha_referencia
+    @tasa_dolar_bcv = TasaCambio.latest_value('Dolar BCV').to_d
+  end
+
+  def load_global_supplier_products
+    @global_supplier_products_ordered = @supplier.global_supplier_products
+                                               .joins(:global_product)
+                                               .where(global_supplier_products: { global_product_id: @local_global_product_ids })
+                                               .includes(:global_product)
+                                               .order(Arel.sql('LOWER(global_products.name) ASC'))
+  end
+
+  def product_associations_update?
+    params.dig(:global_supplier, :global_supplier_products_attributes).present?
   end
 end

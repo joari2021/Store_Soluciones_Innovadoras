@@ -1,4 +1,4 @@
-<h1 class="text-2xl font-bold mb-4"><%= @supplier.nombre %></h1>
+<h1 class="text-2xl font-bold mb-4"><%= @supplier.name %></h1>
 <div class="bg-white rounded-2xl shadow-lg p-6">
   <% format_decimal_input = lambda do |value, scale = 2|
        next '' if value.nil?
@@ -13,23 +13,31 @@
          string_value
        end
      end %>
-  <% moneda_prioritaria_label = @supplier.pricing_currency_priority == 'bs' ? 'Bolívares (Bs)' : 'Dólar ($)' %>
+  <% moneda_prioritaria_label = @supplier.pricing_currency_priority == 'bs' ? 'Bolivares (Bs)' : 'Dolar ($)' %>
   <% fiscal_default_label = @supplier.default_exento? ? 'Exento' : 'IVA (No exento)' %>
   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
     <div class="min-w-0">
       <p class="mb-2"><strong>RIF:</strong> <%= @supplier.rif %></p>
-      <p class="mb-2"><strong>Telefono:</strong> <%= @supplier.telefono %></p>
-      <p class="mb-2"><strong>Telefono pago movil:</strong> <%= @supplier.telefono_pago_movil %></p>
-      <p class="mb-2"><strong>Nro cuenta:</strong> <%= @supplier.nro_cuenta %></p>
+      <p class="mb-2"><strong>Telefono:</strong> <%= @supplier.phone %></p>
+      <p class="mb-2"><strong>Telefono pago movil:</strong> <%= @supplier.mobile_payment_phone %></p>
+      <p class="mb-2"><strong>Nro cuenta:</strong> <%= @supplier.bank_account_number %></p>
       <p class="mb-2"><strong>Email:</strong> <%= @supplier.email %></p>
-      <p class="mb-2"><strong>Direccion:</strong> <%= @supplier.direccion %></p>
-      <p class="mb-2"><strong>Moneda prioritaria de cálculo:</strong> <%= moneda_prioritaria_label %></p>
-      <p class="mb-2"><strong>Fiscal por defecto (Factura):</strong> <%= fiscal_default_label %></p>
+      <p class="mb-2"><strong>Direccion:</strong> <%= @supplier.address %></p>
+      <p class="mb-2"><strong>Moneda prioritaria de calculo:</strong> <%= moneda_prioritaria_label %></p>
+      <p class="mb-2"><strong>Fiscal por defecto:</strong> <%= fiscal_default_label %></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <%= link_to edit_supplier_path(@supplier), class: 'inline-flex items-center justify-center rounded-xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-200 cursor-pointer' do %>
+        Editar proveedor
+      <% end %>
+      <%= link_to suppliers_path, class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer' do %>
+        Volver
+      <% end %>
     </div>
   </div>
   <hr class="my-5 border-slate-200">
-  <h2 class="text-lg font-semibold text-slate-800">Productos del proveedor</h2>
-  <p class="text-sm text-slate-500">Edita por fila y guarda con el ícono de disco. Variaciones se gestionan en Producto.</p>
+  <h2 class="text-lg font-semibold text-slate-800">Productos del proveedor global</h2>
+  <p class="text-sm text-slate-500">Edita por fila y guarda con el icono de disco. El buscador solo consulta productos globales que existen en el catalogo local de este negocio.</p>
   <%= form_with model: @supplier, url: supplier_path(@supplier), method: :patch, local: true, html: { id: 'supplier-products-form' } do |f| %>
     <div class="mt-4 relative w-full md:max-w-2xl">
       <label for="supplier-product-search" class="block text-sm font-medium text-slate-700">Buscar producto</label>
@@ -57,16 +65,17 @@
           </tr>
         </thead>
         <tbody id="supplier-products-body" class="divide-y divide-slate-100 bg-white">
-          <%= f.fields_for :supplier_products, @supplier_products_ordered do |sp| %>
-            <% row_key = sp.object.id || "new_#{sp.object.object_id}" %>
-            <% costo_mayor = sp.object.costo_mayor.to_d %>
-            <% costo_menor = sp.object.costo_menor.to_d %>
+          <%= f.fields_for :global_supplier_products, @global_supplier_products_ordered do |gsp| %>
+            <% row_key = gsp.object.id || "new_#{gsp.object.object_id}" %>
+            <% costo_mayor = gsp.object.costo_mayor.to_d %>
+            <% costo_menor = gsp.object.costo_menor.to_d %>
             <% tasa = (@tasa_dolar_bcv || 0).to_d %>
-            <tr class="supplier-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= sp.object.producto_id %>">
-              <td class="px-4 py-3 font-semibold text-slate-800"><%= sp.object.producto&.display_name_with_presentation || sp.object.producto&.descripcion || 'Producto' %></td>
+            <% product_name = gsp.object.global_product&.display_name_with_presentation || gsp.object.global_product&.name || 'Producto global' %>
+            <tr class="supplier-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= gsp.object.global_product_id %>">
+              <td class="px-4 py-3 font-semibold text-slate-800"><%= product_name %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_mayor, unit: '$') %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_mayor * tasa, unit: 'Bs') %></td>
-              <td class="px-4 py-3 text-center"><%= format_quantity(sp.object.cantidad) %></td>
+              <td class="px-4 py-3 text-center"><%= format_quantity(gsp.object.cantidad) %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_menor, unit: '$') %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_menor * tasa, unit: 'Bs') %></td>
               <td class="px-4 py-3">
@@ -84,17 +93,17 @@
                 </div>
               </td>
             </tr>
-            <tr class="supplier-row-edit hidden bg-slate-50/50" data-row-key="<%= row_key %>" data-new-record="false" data-product-id="<%= sp.object.producto_id %>">
-              <%= sp.hidden_field :_destroy, class: 'supplier-product-destroy' %>
-              <%= sp.hidden_field :producto_id %>
-              <%= sp.hidden_field :id if sp.object.persisted? %>
+            <tr class="supplier-row-edit hidden bg-slate-50/50" data-row-key="<%= row_key %>" data-new-record="false" data-product-id="<%= gsp.object.global_product_id %>">
+              <%= gsp.hidden_field :_destroy, class: 'supplier-product-destroy' %>
+              <%= gsp.hidden_field :global_product_id %>
+              <%= gsp.hidden_field :id if gsp.object.persisted? %>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
-                <input type="text" value="<%= sp.object.producto&.display_name_with_presentation || sp.object.producto&.descripcion || 'Producto' %>" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
+                <input type="text" value="<%= product_name %>" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
               </td>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
-                <%= sp.hidden_field :costo_mayor, class: 'row-costo-mayor-native' %>
+                <%= gsp.hidden_field :costo_mayor, class: 'row-costo-mayor-native' %>
                 <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="<%= format_money(costo_mayor, unit: '$') %>" class="row-costo-mayor block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
               </td>
               <td class="px-4 py-3">
@@ -103,11 +112,11 @@
               </td>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unid x Pack</label>
-                <%= sp.number_field :cantidad, step: 0.01, value: format_decimal_input.call(sp.object.cantidad, 2), class: 'row-cantidad-pack block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+                <%= gsp.number_field :cantidad, step: 0.01, value: format_decimal_input.call(gsp.object.cantidad, 2), class: 'row-cantidad-pack block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
               </td>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Menor $</label>
-                <%= sp.hidden_field :costo_menor, class: 'row-costo-menor-native' %>
+                <%= gsp.hidden_field :costo_menor, class: 'row-costo-menor-native' %>
                 <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="<%= format_money(costo_menor, unit: '$') %>" class="row-costo-menor block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" readonly>
               </td>
               <td class="px-4 py-3">
@@ -133,22 +142,19 @@
         </tbody>
       </table>
     </div>
-    <div class="mt-5 flex gap-2">
-      <%= link_to 'Volver', suppliers_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
-    </div>
   <% end %>
 </div>
 <template id="supplier-product-template-row">
   <tr class="supplier-row-edit bg-slate-50/50" data-row-key="NEW_RECORD" data-new-record="true" data-product-id="PRODUCT_ID">
-    <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][_destroy]" value="0" class="supplier-product-destroy">
-    <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][producto_id]" value="PRODUCT_ID">
+    <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][_destroy]" value="0" class="supplier-product-destroy">
+    <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][global_product_id]" value="PRODUCT_ID">
     <td class="px-4 py-3">
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
       <input type="text" value="PRODUCT_NAME" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
     </td>
     <td class="px-4 py-3">
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
-      <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][costo_mayor]" value="0" class="row-costo-mayor-native">
+      <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][costo_mayor]" value="0" class="row-costo-mayor-native">
       <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="$ 0,00" class="row-costo-mayor block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500">
     </td>
     <td class="px-4 py-3">
@@ -157,11 +163,11 @@
     </td>
     <td class="px-4 py-3">
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Unid x Pack</label>
-      <input class="row-cantidad-pack block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" name="supplier[supplier_products_attributes][NEW_RECORD][cantidad]" step="0.01" type="number">
+      <input class="row-cantidad-pack block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][cantidad]" step="0.01" type="number">
     </td>
     <td class="px-4 py-3">
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Menor $</label>
-      <input type="hidden" name="supplier[supplier_products_attributes][NEW_RECORD][costo_menor]" value="0" class="row-costo-menor-native">
+      <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][costo_menor]" value="0" class="row-costo-menor-native">
       <input type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="$ 0,00" class="row-costo-menor block w-full rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-right text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" readonly>
     </td>
     <td class="px-4 py-3">
@@ -220,6 +226,7 @@
     const formatNumber = (value) => Number(value || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const formatMoney = (value, unit) => `${unit} ${formatNumber(value)}`;
     const moneyMask = window.MoneyInputMask;
+
     const setMaskedMoney = (input, value, symbol) => {
       if (!input) return;
       if (moneyMask?.setValue) {
@@ -228,6 +235,7 @@
       }
       input.value = formatMoney(value, symbol);
     };
+
     const formatDecimalInput = (value, scale = 2) => {
       const rawValue = String(value ?? '').trim();
       if (rawValue === '') return '';
@@ -427,11 +435,11 @@
       if (deleteBtn) {
         if (window.Swal) {
           Swal.fire({
-            title: '¿Eliminar producto del proveedor?',
-            text: 'Esta acción quitará este producto de la lista del proveedor.',
+            title: '¿Eliminar producto del proveedor global?',
+            text: 'Esta accion quitara este producto de la lista global del proveedor.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: 'Sí, eliminar',
+            confirmButtonText: 'Si, eliminar',
             cancelButtonText: 'Cancelar',
             confirmButtonColor: '#dc2626',
             cancelButtonColor: '#64748b',
@@ -442,7 +450,7 @@
               markDeleteAndSubmit(deleteBtn.dataset.rowKey);
             }
           });
-        } else if (window.confirm('¿Seguro que deseas eliminar este producto del proveedor?')) {
+        } else if (window.confirm('¿Seguro que deseas eliminar este producto del proveedor global?')) {
           markDeleteAndSubmit(deleteBtn.dataset.rowKey);
         }
       }
@@ -458,7 +466,7 @@
       const associatedInDom = findAssociatedProductIdsInDom();
 
       resultsBox.innerHTML = items.map((item) => {
-        const productName = item.display_name || item.descripcion || '';
+        const productName = item.display_name || item.name || '';
         return (`<button type="button" class="w-full text-left px-3 py-2 hover:bg-slate-50" data-product-id="${item.id}" data-product-name="${escapeHtml(productName)}">
            <div class="flex items-center gap-2">
              <span class="text-sm font-medium text-slate-700">${escapeHtml(productName)}</span>
@@ -482,7 +490,7 @@
           return;
         }
 
-        fetch(`/productos/search?q=${encodeURIComponent(value)}`)
+        fetch(`<%= suppliers_search_products_path %>?q=${encodeURIComponent(value)}`)
           .then((res) => res.json())
           .then((data) => renderResults(data))
           .catch(() => {
