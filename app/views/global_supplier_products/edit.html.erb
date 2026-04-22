@@ -10,7 +10,6 @@
       <% end %>
     </div>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <%= form_with model: @global_supplier_product, local: true, class: "space-y-4" do |f| %>
       <% if @global_supplier_product.errors.any? %>
@@ -22,24 +21,20 @@
           </ul>
         </div>
       <% end %>
-
       <div class="grid gap-4 md:grid-cols-3">
         <div>
           <%= f.label :costo_mayor, "Costo mayor", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :costo_mayor, step: 0.01, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :cantidad, "Cantidad", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :cantidad, step: 0.01, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :costo_menor, "Costo menor", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :costo_menor, step: 0.01, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
       </div>
-
       <div class="flex items-center gap-3">
         <%= f.submit "Guardar y sincronizar", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 cursor-pointer" %>
       </div>

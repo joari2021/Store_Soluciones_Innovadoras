@@ -10,7 +10,6 @@
       <% end %>
     </div>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <%= form_with model: @global_product, local: true, class: "space-y-4" do |f| %>
       <% if @global_product.errors.any? %>
@@ -22,13 +21,11 @@
           </ul>
         </div>
       <% end %>
-
       <div class="grid gap-4 md:grid-cols-2">
         <div>
           <%= f.label :name, "Descripcion", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :name, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :image, "Imagen", class: "block text-sm font-medium text-slate-700" %>
           <%= f.file_field :image, accept: "image/*", class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
@@ -38,7 +35,6 @@
             </div>
           <% end %>
         </div>
-
         <div>
           <%= f.label :presentation, "Presentacion", class: "block text-sm font-medium text-slate-700" %>
           <%= f.select :presentation,
@@ -46,33 +42,27 @@
                        {},
                        class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :cant_presentation, "Unidades x pack", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :cant_presentation, min: 1, step: 1, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :category_name, "Categoria global", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :category_name, value: @global_product.category_name, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :fixed_margin_percentage, "Ganancia fija (%)", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :fixed_margin_percentage, step: 0.01, value: @global_product.fixed_margin_percentage, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :real_margin_percentage, "Ganancia real (%)", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :real_margin_percentage, step: 0.01, value: @global_product.real_margin_percentage, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :sale_price_usd, "Precio de venta", class: "block text-sm font-medium text-slate-700" %>
           <%= f.number_field :sale_price_usd, step: 0.01, value: @global_product.sale_price_usd, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
       </div>
-
       <div class="flex items-center gap-3">
         <%= f.submit "Guardar y sincronizar", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 cursor-pointer" %>
       </div>

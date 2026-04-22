@@ -10,7 +10,6 @@
       <% end %>
     </div>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <%= form_with model: @global_supplier, local: true, class: "space-y-4" do |f| %>
       <% if @global_supplier.errors.any? %>
@@ -22,38 +21,31 @@
           </ul>
         </div>
       <% end %>
-
       <div class="grid gap-4 md:grid-cols-2">
         <div>
           <%= f.label :name, "Nombre", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :name, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :rif, "RIF", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :rif, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :phone, "Telefono", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :phone, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :mobile_payment_phone, "Telefono pago movil", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :mobile_payment_phone, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :email, "Email", class: "block text-sm font-medium text-slate-700" %>
           <%= f.email_field :email, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :bank_account_number, "Nro cuenta", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_field :bank_account_number, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div>
           <%= f.label :pricing_currency_priority, "Prioridad moneda", class: "block text-sm font-medium text-slate-700" %>
           <%= f.select :pricing_currency_priority,
@@ -61,28 +53,23 @@
                        {},
                        class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
-
         <div class="flex items-center gap-2 pt-6">
           <%= f.check_box :default_exento, class: "rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
           <%= f.label :default_exento, "Exento por defecto", class: "text-sm font-medium text-slate-700" %>
         </div>
-
         <div class="md:col-span-2">
           <%= f.label :address, "Direccion", class: "block text-sm font-medium text-slate-700" %>
           <%= f.text_area :address, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
       </div>
-
       <div class="flex items-center gap-3">
         <%= f.submit "Guardar y sincronizar", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 cursor-pointer" %>
       </div>
     <% end %>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
     <h2 class="text-lg font-bold text-slate-800">Precios globales por producto</h2>
     <p class="mt-1 text-sm text-slate-500">Edita costo global por producto. Se sincroniza solo en filas locales mapeadas.</p>
-
     <% if @global_supplier_products.any? %>
       <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
         <table class="min-w-full text-sm text-slate-700">
