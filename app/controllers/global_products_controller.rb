@@ -49,7 +49,7 @@ class GlobalProductsController < ApplicationController
       submit_label: "Crear producto global",
       modal_mode: true,
       query_text: params[:query_text],
-      category_name: params[:category_name]
+      category_name: params[:category_name],
     )
   end
 
@@ -82,7 +82,7 @@ class GlobalProductsController < ApplicationController
           modal_mode: true,
           query_text: params[:query_text],
           category_name: params[:category_name],
-          status: :unprocessable_entity
+          status: :unprocessable_entity,
         )
       else
         render :new, status: :unprocessable_entity
@@ -98,7 +98,7 @@ class GlobalProductsController < ApplicationController
       submit_label: "Guardar y sincronizar",
       modal_mode: true,
       query_text: params[:query_text],
-      category_name: params[:category_name]
+      category_name: params[:category_name],
     )
   end
 
@@ -132,7 +132,7 @@ class GlobalProductsController < ApplicationController
           modal_mode: true,
           query_text: params[:query_text],
           category_name: params[:category_name],
-          status: :unprocessable_entity
+          status: :unprocessable_entity,
         )
       else
         render :edit, status: :unprocessable_entity
@@ -170,14 +170,14 @@ class GlobalProductsController < ApplicationController
       results_html: render_index_results,
       table_rows_html: render_table_rows,
       next_page: @next_page,
-      batch_count: @global_products.size
+      batch_count: @global_products.size,
     }
   end
 
   def render_index_results
     render_to_string(
       partial: "global_products/index_results",
-      formats: [:html]
+      formats: [:html],
     )
   end
 
@@ -185,13 +185,13 @@ class GlobalProductsController < ApplicationController
     render_to_string(
       partial: "global_products/table_rows",
       formats: [:html],
-      locals: { products: @global_products }
+      locals: { products: @global_products },
     )
   end
 
   def load_form_collections
     @category_name_options = GlobalCategory.order(Arel.sql("LOWER(global_categories.name) ASC")).pluck(:name)
-    @profit_margin_presets_for_select = ProfitMarginPreset.order(:percentage)
+    @profit_margin_presets_for_select = GlobalProfitMarginPreset.order(:percentage)
   rescue NameError
     @category_name_options = []
     @profit_margin_presets_for_select = []
@@ -239,7 +239,7 @@ class GlobalProductsController < ApplicationController
           modal_mode: modal_mode,
           query_text: query_text,
           category_name: category_name,
-        }
+        },
       )
     end
 

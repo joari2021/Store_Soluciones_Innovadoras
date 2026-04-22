@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_22_001000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_22_012000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -440,6 +440,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_22_001000) do
     t.index ["name"], name: "index_global_products_on_name"
     t.index ["source_business_id", "source_producto_id"], name: "index_global_products_on_source_business_and_producto", unique: true
     t.index ["source_business_id"], name: "index_global_products_on_source_business_id"
+  end
+
+  create_table "global_profit_margin_presets", force: :cascade do |t|
+    t.decimal "percentage", precision: 7, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["percentage"], name: "index_global_profit_margin_presets_on_percentage", unique: true
   end
 
   create_table "global_supplier_products", force: :cascade do |t|

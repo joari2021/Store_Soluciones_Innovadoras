@@ -10,6 +10,10 @@
                     class: 'inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto' do %>
           Categorias globales
         <% end %>
+        <%= link_to global_profit_margin_presets_path,
+                    class: 'inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto' do %>
+          Ganancias globales
+        <% end %>
         <%= link_to new_global_product_path(query_text: @query_text.presence, category_name: @selected_category.presence),
                     remote: true,
                     method: :get,
