@@ -11,6 +11,7 @@ class GlobalSuppliersController < ApplicationController
 
   def edit
     @global_supplier_products = @global_supplier.global_supplier_products
+                                               .joins(:global_product)
                                                .includes(:global_product)
                                                .order(Arel.sql("LOWER(global_products.name) ASC"))
   end
@@ -20,7 +21,10 @@ class GlobalSuppliersController < ApplicationController
       GlobalCatalog::SyncGlobalSupplierService.new(@global_supplier).call
       redirect_to global_suppliers_path, notice: "Proveedor global actualizado y sincronizado."
     else
-      @global_supplier_products = @global_supplier.global_supplier_products.includes(:global_product)
+      @global_supplier_products = @global_supplier.global_supplier_products
+                                                 .joins(:global_product)
+                                                 .includes(:global_product)
+                                                 .order(Arel.sql("LOWER(global_products.name) ASC"))
       render :edit, status: :unprocessable_entity
     end
   end

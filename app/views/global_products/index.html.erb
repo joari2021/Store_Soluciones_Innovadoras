@@ -21,7 +21,6 @@
       </div>
     </div>
   </div>
-
   <% if @has_global_products || @filters_applied %>
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <div class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
@@ -43,7 +42,6 @@
           <% end %>
         </div>
       </div>
-
       <%= form_with url: global_products_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,20rem)_auto_auto] md:items-end md:justify-start' do %>
         <div class="w-full md:w-[20rem]">
           <label for="global_products_query_text" class="block text-sm font-medium text-slate-700">Buscar por descripcion</label>
@@ -73,11 +71,9 @@
       <% end %>
     </div>
   <% end %>
-
   <%= render partial: 'index_results' %>
   <%= render partial: 'modal-global-products' %>
 </section>
-
 <script>
   (() => {
     const root = document.querySelector('[data-global-products-root="true"]');
