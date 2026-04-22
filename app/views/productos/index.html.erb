@@ -32,6 +32,11 @@
               <i data-lucide="database" class="h-4 w-4"></i>
               Productos globales
             <% end %>
+            <%= link_to import_from_global_productos_path,
+                        class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-300 bg-cyan-50 px-5 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:bg-cyan-100 sm:w-auto' do %>
+              <i data-lucide="download" class="h-4 w-4"></i>
+              Importar desde global
+            <% end %>
           <% end %>
           <%= link_to export_excel_productos_path,
                       class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-white px-5 py-3 font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 sm:w-auto' do %>

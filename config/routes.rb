@@ -19,6 +19,8 @@ Rails.application.routes.draw do
 
   resources :productos do
     collection do
+      get :import_from_global, path: 'importar-desde-global'
+      post :create_from_global, path: 'importar-desde-global'
       get :search
       get :export_excel
       get :internal_usages, path: 'uso-interno'
@@ -39,7 +41,7 @@ Rails.application.routes.draw do
       patch :overwrite_product_values
     end
   end
-  resources :global_products, path: 'global/productos', only: %i[index edit update]
+  resources :global_products, path: 'global/productos', only: %i[index new create edit update]
   resources :global_suppliers, path: 'global/proveedores', only: %i[index edit update]
   resources :global_supplier_products, path: 'global/proveedor-productos', only: %i[edit update]
   resources :businesses, path: 'negocios' do

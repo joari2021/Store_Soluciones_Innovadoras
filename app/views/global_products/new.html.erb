@@ -2,8 +2,8 @@
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Editar producto global</h1>
-        <p class="mt-1 text-sm text-slate-500">Los cambios se sincronizan solo en productos locales mapeados.</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Nuevo producto global</h1>
+        <p class="mt-1 text-sm text-slate-500">Crea el producto en el catalogo global para importarlo y sincronizarlo en negocios.</p>
       </div>
       <%= link_to global_products_path, class: "inline-flex items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" do %>
         Volver
@@ -32,11 +32,6 @@
         <div>
           <%= f.label :image, "Imagen", class: "block text-sm font-medium text-slate-700" %>
           <%= f.file_field :image, accept: "image/*", class: "mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
-          <% if @global_product.image.attached? %>
-            <div class="mt-2">
-              <%= image_tag @global_product.image, class: "h-16 w-16 rounded-lg object-cover border border-slate-200" %>
-            </div>
-          <% end %>
         </div>
 
         <div>
@@ -74,7 +69,7 @@
       </div>
 
       <div class="flex items-center gap-3">
-        <%= f.submit "Guardar y sincronizar", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 cursor-pointer" %>
+        <%= f.submit "Crear producto global", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 cursor-pointer" %>
       </div>
     <% end %>
   </div>

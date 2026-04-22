@@ -13,6 +13,35 @@ class ProductosController < ApplicationController
                                                   update_unpack_history destroy_unpack_history]
   before_action :require_internal_usage_access!, only: %i[internal_usages create_internal_usage destroy_internal_usage]
 
+  def import_from_global
+    @global_products = GlobalProduct
+                       .includes(:source_business)
+                       .order(Arel.sql('LOWER(global_products.name) ASC'))
+  end
+
+  def create_from_global
+    global_product = GlobalProduct.find(params[:global_product_id])
+
+    existing = current_business.productos.find_by(global_product_id: global_product.id)
+    if existing.present?
+      return redirect_to productos_path,
+                         alert: "Este producto global ya esta importado en este negocio (#{existing.descripcion})."
+    end
+
+    @producto = current_business.productos.new(build_local_product_payload_from_global(global_product))
+
+    ActiveRecord::Base.transaction do
+      @producto.save!
+      source_image = source_image_for_global_product(global_product)
+      @producto.foto.attach(source_image.blob) if source_image.present?
+    end
+
+    redirect_to productos_path, notice: 'Producto importado desde catalogo global.'
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to import_from_global_productos_path,
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
   def index
     @query_text = params[:query_text].to_s.strip
     @low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
@@ -856,6 +885,46 @@ class ProductosController < ApplicationController
 
   def load_profit_margin_presets_for_select
     @profit_margin_presets_for_select = current_business.profit_margin_presets.order(percentage: :asc)
+  end
+
+  def build_local_product_payload_from_global(global_product)
+    source_product = resolve_source_product_for_global(global_product)
+
+    category_name = global_product.category_name.presence || source_product&.categoria&.nombre.presence || 'General'
+    categoria = current_business.categorias.find_or_create_by!(nombre: category_name)
+
+    fixed_margin = global_product.fixed_margin_percentage || source_product&.profit_margin_preset&.percentage
+    profit_preset = if fixed_margin.present?
+                      current_business.profit_margin_presets.find_or_create_by!(percentage: fixed_margin.to_d)
+                    end
+
+    {
+      global_product_id: global_product.id,
+      descripcion: global_product.name,
+      presentation: global_product.presentation,
+      cant_presentation: [global_product.cant_presentation.to_i, 1].max,
+      exento: global_product.exento,
+      categoria: categoria,
+      profit_margin_preset: profit_preset,
+      porcentaje_ganancia: global_product.real_margin_percentage || source_product&.porcentaje_ganancia,
+      precio_venta_usd: global_product.sale_price_usd || source_product&.precio_venta_usd || 0,
+      allow_unpack: source_product&.allow_unpack || false,
+      general_safety_stock: source_product&.general_safety_stock || 0,
+    }
+  end
+
+  def resolve_source_product_for_global(global_product)
+    if global_product.source_business_id.present? && global_product.source_producto_id.present?
+      return Producto.find_by(business_id: global_product.source_business_id, id: global_product.source_producto_id)
+    end
+
+    global_product.productos.first
+  end
+
+  def source_image_for_global_product(global_product)
+    return global_product.image if global_product.image.attached?
+
+    resolve_source_product_for_global(global_product)&.foto
   end
 
   def parse_unpack_rows(raw_rows)
