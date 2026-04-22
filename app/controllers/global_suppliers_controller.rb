@@ -18,7 +18,10 @@ class GlobalSuppliersController < ApplicationController
   end
 
   def update
+    previous_global_supplier_product_ids = @global_supplier.global_supplier_products.pluck(:id)
+
     if @global_supplier.update(global_supplier_params)
+      sync_removed_global_supplier_products!(previous_global_supplier_product_ids)
       GlobalCatalog::SyncGlobalSupplierService.new(@global_supplier).call
       sync_global_supplier_products!
       redirect_to global_supplier_path(@global_supplier), notice: "Proveedor global actualizado y sincronizado."
@@ -81,5 +84,21 @@ class GlobalSuppliersController < ApplicationController
     @global_supplier.global_supplier_products.find_each do |row|
       GlobalCatalog::SyncGlobalSupplierProductService.new(row).call
     end
+  end
+
+  def sync_removed_global_supplier_products!(previous_ids)
+    previous_ids = Array(previous_ids).map(&:to_i).select(&:positive?).uniq
+    return if previous_ids.empty?
+
+    current_ids = @global_supplier.global_supplier_products.pluck(:id)
+    removed_ids = previous_ids - current_ids
+    return if removed_ids.empty?
+
+    mapped_supplier_ids = Supplier.where(global_supplier_id: @global_supplier.id).pluck(:id)
+    return if mapped_supplier_ids.empty?
+
+    SupplierProduct
+      .where(supplier_id: mapped_supplier_ids, global_supplier_product_id: removed_ids)
+      .find_each(&:destroy!)
   end
 end
