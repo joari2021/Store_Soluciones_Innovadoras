@@ -84,6 +84,7 @@ class GlobalProductsController < ApplicationController
 
     if @global_product.save
       @global_product.image.attach(params.dig(:global_product, :image)) if params.dig(:global_product, :image).present?
+      GlobalCatalog::SyncGlobalProductTaxonomyService.new(@global_product).call
       if request.headers["Turbo-Frame"].present?
         prepare_index_state(
           query_text: params[:query_text],
@@ -135,6 +136,7 @@ class GlobalProductsController < ApplicationController
 
     if @global_product.update(global_product_params)
       @global_product.image.attach(params.dig(:global_product, :image)) if params.dig(:global_product, :image).present?
+      GlobalCatalog::SyncGlobalProductTaxonomyService.new(@global_product).call
 
       if request.headers["Turbo-Frame"].present?
         prepare_index_state(
