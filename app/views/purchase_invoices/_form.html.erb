@@ -276,7 +276,7 @@
           <% variation_count = effective_variation_rows.size %>
           <% product_variations_json = product_variations.to_json %>
           <% variation_breakdown_json = effective_variation_rows.to_json %>
-            <% supplier_ref = if selected_global_supplier_id.present? && fi.object.producto&.global_product_id.present?
+          <% supplier_ref = if selected_global_supplier_id.present? && fi.object.producto&.global_product_id.present?
               GlobalSupplierProduct.find_by(global_supplier_id: selected_global_supplier_id, global_product_id: fi.object.producto.global_product_id)
             end %>
           <% ref_costo_mayor = supplier_ref&.costo_mayor&.to_s('F') || '' %>

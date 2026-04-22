@@ -135,7 +135,6 @@ class GlobalProductsController < ApplicationController
 
     if @global_product.update(global_product_params)
       @global_product.image.attach(params.dig(:global_product, :image)) if params.dig(:global_product, :image).present?
-      GlobalCatalog::SyncGlobalProductService.new(@global_product).call
 
       if request.headers["Turbo-Frame"].present?
         prepare_index_state(
@@ -151,7 +150,7 @@ class GlobalProductsController < ApplicationController
         clear_frame = view_context.turbo_stream.update("modal-global-products", "")
         render turbo_stream: [refresh_results, clear_frame]
       else
-        redirect_to global_products_path, notice: "Producto global actualizado y sincronizado."
+        redirect_to global_products_path, notice: "Producto global actualizado."
       end
     else
       if request.headers["Turbo-Frame"].present?

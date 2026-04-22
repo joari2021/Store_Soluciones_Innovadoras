@@ -7,9 +7,8 @@ class GlobalSupplierProductsController < ApplicationController
 
   def update
     if @global_supplier_product.update(global_supplier_product_params)
-      GlobalCatalog::SyncGlobalSupplierProductService.new(@global_supplier_product).call
       redirect_to edit_global_supplier_path(@global_supplier_product.global_supplier_id),
-                  notice: "Costo global actualizado y sincronizado."
+                  notice: "Costo global actualizado."
     else
       render :edit, status: :unprocessable_entity
     end
