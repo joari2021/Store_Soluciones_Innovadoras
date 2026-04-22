@@ -13,6 +13,7 @@ class CashShiftsControllerTest < ActionDispatch::IntegrationTest
 
     @cash_shift = @business.cash_shifts.create!(
       opened_by: @opener_user,
+      active_cashier: @opener_user,
       status: 'open',
       opened_at: Time.current,
       opening_balance_ves: 0,
@@ -20,7 +21,7 @@ class CashShiftsControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  test 'opener user can close cash shift' do
+  test 'active cashier can close cash shift' do
     login!(@opener_user, @opener_password)
 
     patch close_cash_shift_path(@cash_shift), params: {
@@ -38,7 +39,7 @@ class CashShiftsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @opener_user.id, @cash_shift.closed_by_id
   end
 
-  test 'different user cannot close cash shift' do
+  test 'non active cashier cannot close cash shift' do
     login!(@other_user, @other_password)
 
     patch close_cash_shift_path(@cash_shift), params: {

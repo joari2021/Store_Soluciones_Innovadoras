@@ -9,11 +9,9 @@
 <% category_name_options.sort_by!(&:downcase) %>
 <% profit_margin_presets = Array(@profit_margin_presets_for_select) %>
 <% selected_profit_margin_preset_id = profit_margin_presets.find { |preset| preset.percentage.to_d == global_product.fixed_margin_percentage.to_d }&.id %>
-
 <%= form_with(model: global_product, local: true, html: { class: "space-y-4", multipart: true }) do |f| %>
   <%= hidden_field_tag :query_text, query_text if query_text.present? %>
   <%= hidden_field_tag :category_name, category_name if category_name.present? %>
-
   <% if global_product.errors.any? %>
     <div id="form-errors" class="alert alert-danger rounded-xl p-4 mb-3 shadow-sm border border-danger" style="background: #fee2e2; color: #b91c1c;">
       <h4 class="text-base font-bold mb-2"><%= pluralize(global_product.errors.count, "error") %> impidieron guardar el producto global:</h4>
@@ -24,7 +22,6 @@
       </ul>
     </div>
   <% end %>
-
   <div class="flex flex-col items-center justify-center mb-2">
     <div class="relative" style="width: 140px; height: 140px;">
       <% image_url = begin
@@ -42,7 +39,6 @@
       rescue ArgumentError
         asset_path('default_image.jpeg')
       end %>
-
       <img id="preview-global-product-image" src="<%= image_url %>" alt="Foto del producto global" style="width: 140px; height: 140px; object-fit: cover; border-radius: 50%; border: 2px solid #e2e8f0; background: #f8fafc;">
       <label for="global_product_image" class="absolute" style="bottom: 0; right: 0; background: #0ea5e9; border-radius: 50%; padding: 10px; cursor: pointer;">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 24 24">
@@ -53,7 +49,6 @@
     </div>
     <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">Foto</div>
   </div>
-
   <script>
     function previewGlobalProductImage(event) {
       const input = event.target;
@@ -67,12 +62,10 @@
       }
     }
   </script>
-
   <div>
     <%= f.label :name, "Descripcion", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
     <%= f.text_field :name, class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
   </div>
-
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
       <%= f.label :presentation, "Presentacion", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
@@ -92,7 +85,6 @@
                          class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
     </div>
   </div>
-
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
       <label for="global_product_category_name" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Categoria</label>
@@ -115,7 +107,6 @@
       <input type="text" name="global_product_cost_unit_visual" id="global_product_cost_unit_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="$ 0,00" data-money-mask="true" data-money-symbol="$" readonly>
     </div>
   </div>
-
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
       <label for="global_product_fixed_margin_percentage" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ganancia fija (%)</label>
@@ -149,7 +140,6 @@
                        data: { money_mask: true, money_symbol: "%" } %>
     </div>
   </div>
-
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
       <%= f.label :sale_price_usd, "Precio Venta ($)", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
@@ -166,7 +156,6 @@
       <input type="text" name="global_product_price_bs_visual" id="global_product_price_bs_visual" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Bs 0,00" readonly>
     </div>
   </div>
-
   <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
     <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-amber-800">
       <%= f.check_box :exento, class: "h-4 w-4 cursor-pointer rounded border-amber-300 text-amber-600 focus:ring-amber-500" %>
@@ -174,7 +163,6 @@
     </label>
     <p class="mt-1 text-xs text-amber-700">Si esta activo, este producto no suma IVA y no se recalcula en IVA invertido.</p>
   </div>
-
   <div>
     <% if modal_mode %>
       <%= f.submit submit_label, class: "modal-submit hidden" %>
