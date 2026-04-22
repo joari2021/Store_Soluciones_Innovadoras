@@ -39,8 +39,9 @@ Rails.application.routes.draw do
       patch :overwrite_product_values
     end
   end
-  resources :global_products, path: 'global/productos', only: %i[index]
-  resources :global_suppliers, path: 'global/proveedores', only: %i[index]
+  resources :global_products, path: 'global/productos', only: %i[index edit update]
+  resources :global_suppliers, path: 'global/proveedores', only: %i[index edit update]
+  resources :global_supplier_products, path: 'global/proveedor-productos', only: %i[edit update]
   resources :businesses, path: 'negocios' do
     member do
       post :select
