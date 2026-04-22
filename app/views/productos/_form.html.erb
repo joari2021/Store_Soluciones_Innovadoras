@@ -1,4 +1,9 @@
 <%= form_with(model: producto, data: { controller: "form-producto", 'form-producto-tasa-dolar-value' => (@tasa_dolar_bcv || 0), 'form-producto-persisted-value' => producto.persisted? }, html: { class: "space-y-4" }) do |form| %>
+  <% locked_by_global = producto.global_product_id.present? %>
+  <% locked_hint = 'Este campo se edita en Productos Globales.' %>
+  <% locked_field_class = 'cursor-not-allowed bg-slate-100 border-red-200 text-slate-500' %>
+  <% locked_inline_style = 'cursor: not-allowed;' %>
+  <% normal_field_class = 'w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all' %>
   <% if producto.errors.any? %>
     <div id="form-errors" class="alert alert-danger rounded-xl p-4 mb-3 shadow-sm border border-danger" style="background: #fee2e2; color: #b91c1c;">
       <h4 class="text-base font-bold mb-2"><%= pluralize(producto.errors.count, "error") %> impidieron guardar el producto:</h4>
@@ -7,6 +12,11 @@
           <li><%= error.full_message %></li>
         <% end %>
       </ul>
+    </div>
+  <% end %>
+  <% if locked_by_global %>
+    <div class="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+      ⛔ Campos maestros bloqueados en local. Debes editarlos desde Productos Globales.
     </div>
   <% end %>
   <div class="flex flex-col items-center justify-center mb-2">
@@ -28,12 +38,12 @@
         asset_path('default_image.jpeg')
       end %>
       <img id="preview-foto" src="<%= image_url %>" alt="Foto del producto" style="width: 140px; height: 140px; object-fit: cover; border-radius: 50%; border: 2px solid #e2e8f0; background: #f8fafc;">
-      <label for="producto_foto" class="absolute" style="bottom: 0; right: 0; background: #0ea5e9; border-radius: 50%; padding: 10px; cursor: pointer;">
+      <label for="producto_foto" class="absolute" title="<%= locked_by_global ? locked_hint : 'Cambiar foto' %>" style="bottom: 0; right: 0; background: <%= locked_by_global ? '#ef4444' : '#0ea5e9' %>; border-radius: 50%; padding: 10px; cursor: <%= locked_by_global ? 'not-allowed' : 'pointer' %>; opacity: <%= locked_by_global ? '0.7' : '1' %>;">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 24 24">
           <path d="M3 17.25V21h3.75l11.06-11.06-3.75-3.75L3 17.25zm17.71-10.04a1.003 1.003 0 0 0 0-1.42l-2.5-2.5a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
         </svg>
       </label>
-      <%= form.file_field :foto, class: "hidden", id: "producto_foto", accept: "image/*", onchange: "previewFoto(event)" %>
+      <%= form.file_field :foto, class: "hidden", id: "producto_foto", accept: "image/*", onchange: "previewFoto(event)", disabled: locked_by_global %>
     </div>
     <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-2">Foto</div>
   </div>
@@ -51,7 +61,11 @@
   </script>
   <div>
     <%= form.label :descripcion, class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
-    <%= form.text_field :descripcion, class:"w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all"%>
+    <%= form.text_field :descripcion,
+                        class: "#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
+                        readonly: locked_by_global,
+                        title: (locked_by_global ? locked_hint : nil),
+                        style: (locked_by_global ? locked_inline_style : nil) %>
   </div>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
@@ -62,16 +76,23 @@
                         ['Pack', 'pack']
                       ], producto.presentation.to_s),
                       {},
-                      class: 'w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all',
-                      id: 'producto_presentation' %>
+                      class: "#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
+                      id: 'producto_presentation',
+                      disabled: locked_by_global,
+                      title: (locked_by_global ? locked_hint : nil),
+                      style: (locked_by_global ? locked_inline_style : nil) %>
+      <%= form.hidden_field :presentation if locked_by_global %>
     </div>
     <div>
       <%= form.label :cant_presentation, 'Unidades por pack', class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
       <%= form.number_field :cant_presentation,
                             min: 1,
                             step: 1,
-                            class: 'w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all',
-                            id: 'producto_cant_presentation' %>
+                            class: "#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
+                            id: 'producto_cant_presentation',
+                            readonly: locked_by_global,
+                            title: (locked_by_global ? locked_hint : nil),
+                            style: (locked_by_global ? locked_inline_style : nil) %>
     </div>
   </div>
   <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
@@ -96,7 +117,11 @@
                                    :id,
                                    :nombre,
                                    { prompt: 'Selecciona una categoria' },
-                                   class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
+                                   class: "#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
+                                   disabled: locked_by_global,
+                                   title: (locked_by_global ? locked_hint : nil),
+                                   style: (locked_by_global ? locked_inline_style : nil) %>
+        <%= form.hidden_field :categoria_id if locked_by_global %>
       <% else %>
         <div class="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
           No hay categorias registradas. Crea una categoria primero desde la seccion de categorias.
@@ -124,9 +149,13 @@
                           selected_profit_margin_preset_id
                         ),
                         { include_blank: 'Selecciona % fijo' },
-                        class: 'w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all',
+                        class: "#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
                         id: 'producto_profit_margin_preset_id',
-                        data: { fixed_profit_select: true } %>
+                        data: { fixed_profit_select: true },
+                        disabled: locked_by_global,
+                        title: (locked_by_global ? locked_hint : nil),
+                        style: (locked_by_global ? locked_inline_style : nil) %>
+        <%= form.hidden_field :profit_margin_preset_id if locked_by_global %>
       <% else %>
         <div class="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
           No hay porcentajes de ganancia fijos registrados.
@@ -148,12 +177,15 @@
     <div>
       <%= form.label :precio_venta_usd, "Precio Venta ($)", class:"text-xs font-bold text-slate-400 uppercase tracking-wider" %>
       <%= form.text_field :precio_venta_usd,
-                          class:"w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none",
+                          class:"#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
                           id: "producto_precio_venta_usd",
                           inputmode: "decimal",
                           autocomplete: "off",
                           placeholder: "$ 0,00",
-                          data: { money_mask: true, money_symbol: '$' } %>
+                          data: { money_mask: true, money_symbol: '$' },
+                          readonly: locked_by_global,
+                          title: (locked_by_global ? locked_hint : nil),
+                          style: (locked_by_global ? locked_inline_style : nil) %>
     </div>
     <div>
       <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Precio Venta (Bs)</label>
