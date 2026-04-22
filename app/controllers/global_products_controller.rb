@@ -8,9 +8,11 @@ class GlobalProductsController < ApplicationController
 
   def index
     @query_text = params[:query_text].to_s.strip
+    @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
     @category_counts = global_category_counts
     @selected_category = params[:category_name].to_s.strip.presence
     @category_options = @category_counts.keys.sort
+    @below_target_margin_total_count = calculate_below_target_margin_total_count
 
     base_scope = GlobalProduct.order(Arel.sql("LOWER(global_products.name) ASC, global_products.id ASC"))
     @has_global_products = base_scope.exists?
@@ -29,7 +31,9 @@ class GlobalProductsController < ApplicationController
       end
     end
 
-    @filters_applied = @query_text.present? || @selected_category.present?
+    filtered_scope = filter_by_below_target_margin(filtered_scope) if @below_target_margin_filter
+
+    @filters_applied = @query_text.present? || @selected_category.present? || @below_target_margin_filter
     @matching_global_products_count = filtered_scope.count
 
     paginated_scope = filtered_scope.includes(:productos, :global_supplier_products)
@@ -70,6 +74,7 @@ class GlobalProductsController < ApplicationController
       modal_mode: true,
       query_text: params[:query_text],
       category_name: params[:category_name],
+      below_target_margin: params[:below_target_margin],
     )
   end
 
@@ -83,6 +88,7 @@ class GlobalProductsController < ApplicationController
         prepare_index_state(
           query_text: params[:query_text],
           category_name: params[:category_name],
+          below_target_margin: params[:below_target_margin],
         )
 
         refresh_results = view_context.turbo_stream.update(
@@ -102,6 +108,7 @@ class GlobalProductsController < ApplicationController
           modal_mode: true,
           query_text: params[:query_text],
           category_name: params[:category_name],
+          below_target_margin: params[:below_target_margin],
           status: :unprocessable_entity,
         )
       else
@@ -119,6 +126,7 @@ class GlobalProductsController < ApplicationController
       modal_mode: true,
       query_text: params[:query_text],
       category_name: params[:category_name],
+      below_target_margin: params[:below_target_margin],
     )
   end
 
@@ -133,6 +141,7 @@ class GlobalProductsController < ApplicationController
         prepare_index_state(
           query_text: params[:query_text],
           category_name: params[:category_name],
+          below_target_margin: params[:below_target_margin],
         )
 
         refresh_results = view_context.turbo_stream.update(
@@ -152,6 +161,7 @@ class GlobalProductsController < ApplicationController
           modal_mode: true,
           query_text: params[:query_text],
           category_name: params[:category_name],
+          below_target_margin: params[:below_target_margin],
           status: :unprocessable_entity,
         )
       else
@@ -216,11 +226,13 @@ class GlobalProductsController < ApplicationController
     @profit_margin_presets_for_select = []
   end
 
-  def prepare_index_state(query_text:, category_name:)
+  def prepare_index_state(query_text:, category_name:, below_target_margin:)
     @query_text = query_text.to_s.strip
     @selected_category = category_name.to_s.strip.presence
+    @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(below_target_margin)
     @category_counts = global_category_counts
     @category_options = @category_counts.keys.sort
+    @below_target_margin_total_count = calculate_below_target_margin_total_count
 
     base_scope = GlobalProduct.order(Arel.sql("LOWER(global_products.name) ASC, global_products.id ASC"))
     @has_global_products = base_scope.exists?
@@ -239,7 +251,9 @@ class GlobalProductsController < ApplicationController
       end
     end
 
-    @filters_applied = @query_text.present? || @selected_category.present?
+    filtered_scope = filter_by_below_target_margin(filtered_scope) if @below_target_margin_filter
+
+    @filters_applied = @query_text.present? || @selected_category.present? || @below_target_margin_filter
     @matching_global_products_count = filtered_scope.count
     @pagy, @global_products = pagy_countless(
       filtered_scope.includes(:productos, :global_supplier_products),
@@ -248,7 +262,10 @@ class GlobalProductsController < ApplicationController
     @next_page = @pagy.next
   end
 
-  def render_modal_form(global_product:, submit_label:, modal_mode:, query_text:, category_name:, status: :ok)
+  def render_modal_form(global_product:, submit_label:, modal_mode:, query_text:, category_name:, below_target_margin:, status: :ok)
+    global_suppliers_for_product = global_suppliers_for_product(global_product)
+    cheapest_supplier_cost_unit = cheapest_supplier_cost_unit(global_suppliers_for_product)
+
     frame_html = view_context.turbo_frame_tag("modal-global-products") do
       view_context.render(
         partial: "form",
@@ -258,10 +275,57 @@ class GlobalProductsController < ApplicationController
           modal_mode: modal_mode,
           query_text: query_text,
           category_name: category_name,
+          below_target_margin: below_target_margin,
+          global_suppliers_for_product: global_suppliers_for_product,
+          cheapest_supplier_cost_unit: cheapest_supplier_cost_unit,
         },
       )
     end
 
     render html: frame_html.html_safe, status: status, layout: false
+  end
+
+  def global_suppliers_for_product(global_product)
+    return [] unless global_product&.persisted?
+
+    global_product
+      .global_supplier_products
+      .joins(:global_supplier)
+      .includes(:global_supplier)
+      .where(active: true)
+      .order(Arel.sql("LOWER(global_suppliers.name) ASC"))
+  end
+
+  def cheapest_supplier_cost_unit(global_supplier_rows)
+    Array(global_supplier_rows)
+      .filter_map { |row| row.costo_menor.to_d if row.costo_menor.present? }
+      .select(&:positive?)
+      .min
+  end
+
+  def filter_by_below_target_margin(scope)
+    scope.where(below_target_margin_condition_sql)
+  end
+
+  def calculate_below_target_margin_total_count
+    GlobalProduct.where(below_target_margin_condition_sql).count
+  end
+
+  def below_target_margin_condition_sql
+    cheapest_cost_sql = <<~SQL.squish
+      (
+        SELECT MIN(gsp.costo_menor)
+        FROM global_supplier_products gsp
+        WHERE gsp.global_product_id = global_products.id
+          AND gsp.active = TRUE
+          AND gsp.costo_menor IS NOT NULL
+      )
+    SQL
+
+    sale_price_sql = "COALESCE(NULLIF(TRIM(global_products.metadata->>'sale_price_usd'), ''), '0')::numeric"
+    fixed_margin_sql = "COALESCE(NULLIF(TRIM(global_products.metadata->>'fixed_margin_percentage'), ''), '0')::numeric"
+    objective_price_sql = "(#{cheapest_cost_sql} * (1 + (#{fixed_margin_sql} / 100.0)))"
+
+    "#{cheapest_cost_sql} > 0 AND #{sale_price_sql} < #{objective_price_sql}"
   end
 end

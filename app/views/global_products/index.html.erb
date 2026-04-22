@@ -14,7 +14,7 @@
                     class: 'inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto' do %>
           Ganancias globales
         <% end %>
-        <%= link_to new_global_product_path(query_text: @query_text.presence, category_name: @selected_category.presence),
+        <%= link_to new_global_product_path(query_text: @query_text.presence, category_name: @selected_category.presence, below_target_margin: (@below_target_margin_filter ? '1' : nil)),
                     remote: true,
                     method: :get,
                     class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:bg-slate-800 active:scale-95 sm:w-auto',
@@ -31,18 +31,21 @@
   </div>
   <% if @has_global_products || @filters_applied %>
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <% active_filter_params = {} %>
+      <% active_filter_params[:query_text] = @query_text if @query_text.present? %>
+      <% active_filter_params[:below_target_margin] = 1 if @below_target_margin_filter %>
       <div class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
         <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrar por categoria</p>
         <div class="mt-3 flex flex-wrap gap-2">
           <% all_active = @selected_category.blank? %>
-          <%= link_to global_products_path(query_text: @query_text.presence),
+          <%= link_to global_products_path(active_filter_params),
                       class: "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all #{all_active ? 'border-sky-300 bg-sky-100 text-sky-700 shadow-sm' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100'}" do %>
             <span>Todas</span>
             <span class="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-slate-700"><%= @category_counts.values.sum %></span>
           <% end %>
           <% @category_options.each do |category_name| %>
             <% is_active = @selected_category == category_name %>
-            <%= link_to global_products_path(query_text: @query_text.presence, category_name: category_name),
+            <%= link_to global_products_path(active_filter_params.merge(category_name: category_name)),
                         class: "inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all #{is_active ? 'border-cyan-300 bg-cyan-100 text-cyan-800 shadow-sm' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:bg-slate-100'}" do %>
               <span><%= category_name %></span>
               <span class="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-bold text-slate-700"><%= @category_counts[category_name].to_i %></span>
@@ -50,7 +53,7 @@
           <% end %>
         </div>
       </div>
-      <%= form_with url: global_products_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,20rem)_auto_auto] md:items-end md:justify-start' do %>
+      <%= form_with url: global_products_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,20rem)_minmax(0,14rem)_auto_auto] md:items-end md:justify-start' do %>
         <div class="w-full md:w-[20rem]">
           <label for="global_products_query_text" class="block text-sm font-medium text-slate-700">Buscar por descripcion</label>
           <div class="relative mt-1">
@@ -62,6 +65,21 @@
                                placeholder: 'Ej: arroz, harina, refresco...',
                                class: 'block w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
           </div>
+        </div>
+        <div class="w-full md:w-[14rem]">
+          <label for="global_products_below_target_margin" class="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <span>Filtro precio objetivo</span>
+            <span id="global-products-below-target-badge" class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
+              <%= @below_target_margin_total_count.to_i %>
+            </span>
+          </label>
+          <%= select_tag :below_target_margin,
+                         options_for_select([
+                           ['Todos', '0'],
+                           ['Por debajo del objetivo', '1']
+                         ], @below_target_margin_filter ? '1' : '0'),
+                         id: 'global_products_below_target_margin',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
         </div>
         <% if @selected_category.present? %>
           <%= hidden_field_tag :category_name, @selected_category %>
@@ -153,13 +171,18 @@
       const parsed = new URL(url, window.location.origin);
       const queryText = parsed.searchParams.get('query_text') || '';
       const categoryName = parsed.searchParams.get('category_name') || '';
+      const belowTargetMargin = parsed.searchParams.get('below_target_margin') || '0';
 
       const searchInput = getSearchInput();
       if (searchInput) searchInput.value = queryText;
 
+      const belowTargetInput = document.getElementById('global_products_below_target_margin');
+      if (belowTargetInput) belowTargetInput.value = belowTargetMargin;
+
       const form = getSearchForm();
       if (form) {
         let categoryInput = form.querySelector('input[name="category_name"]');
+
         if (categoryName) {
           if (!categoryInput) {
             categoryInput = document.createElement('input');
@@ -268,7 +291,7 @@
 
       for (const [key, value] of formData.entries()) {
         const normalizedValue = String(value || '').trim();
-        if (normalizedValue) {
+        if (normalizedValue && !(key === 'below_target_margin' && normalizedValue === '0')) {
           url.searchParams.set(key, normalizedValue);
         }
       }

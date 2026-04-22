@@ -6,7 +6,7 @@
     <td class="px-6 py-4 text-right"><%= product.global_supplier_products.size %></td>
     <td class="px-6 py-4 text-right">
       <%= link_to "Editar",
-                  edit_global_product_path(product, query_text: @query_text.presence, category_name: @selected_category.presence),
+                  edit_global_product_path(product, query_text: @query_text.presence, category_name: @selected_category.presence, below_target_margin: (@below_target_margin_filter ? '1' : nil)),
                   remote: true,
                   method: :get,
                   class: "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50",

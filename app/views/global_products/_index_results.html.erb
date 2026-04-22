@@ -7,8 +7,11 @@
         <span><%= @matching_global_products_count == 1 ? 'producto global' : 'productos globales' %></span>.
       </p>
       <p>
-        <% if @selected_category.present? %>
-          Filtro activo: categoria <span class="font-semibold text-slate-700"><%= @selected_category %></span>.
+        <% active_filters = [] %>
+        <% active_filters << "categoria #{@selected_category}" if @selected_category.present? %>
+        <% active_filters << "precio por debajo del objetivo" if @below_target_margin_filter %>
+        <% if active_filters.any? %>
+          Filtro activo: <span class="font-semibold text-slate-700"><%= active_filters.join(' + ') %></span>.
         <% else %>
           Catalogo global compartido entre negocios.
         <% end %>

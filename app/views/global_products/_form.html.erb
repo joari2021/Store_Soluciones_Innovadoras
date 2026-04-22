@@ -9,9 +9,12 @@
 <% category_name_options.sort_by!(&:downcase) %>
 <% profit_margin_presets = Array(@profit_margin_presets_for_select) %>
 <% selected_profit_margin_preset_id = profit_margin_presets.find { |preset| preset.percentage.to_d == global_product.fixed_margin_percentage.to_d }&.id %>
+<% global_suppliers_for_product = Array(local_assigns[:global_suppliers_for_product]) %>
+<% cheapest_supplier_cost_unit = local_assigns[:cheapest_supplier_cost_unit] %>
 <%= form_with(model: global_product, local: true, html: { class: "space-y-4", multipart: true }) do |f| %>
   <%= hidden_field_tag :query_text, query_text if query_text.present? %>
   <%= hidden_field_tag :category_name, category_name if category_name.present? %>
+  <%= hidden_field_tag :below_target_margin, below_target_margin if below_target_margin.present? %>
   <% if global_product.errors.any? %>
     <div id="form-errors" class="alert alert-danger rounded-xl p-4 mb-3 shadow-sm border border-danger" style="background: #fee2e2; color: #b91c1c;">
       <h4 class="text-base font-bold mb-2"><%= pluralize(global_product.errors.count, "error") %> impidieron guardar el producto global:</h4>
@@ -104,7 +107,7 @@
     </div>
     <div>
       <label for="global_product_cost_unit_visual" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Costo Unid</label>
-      <input type="text" name="global_product_cost_unit_visual" id="global_product_cost_unit_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="$ 0,00" data-money-mask="true" data-money-symbol="$" readonly>
+      <input type="text" name="global_product_cost_unit_visual" id="global_product_cost_unit_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="$ 0,00" data-money-mask="true" data-money-symbol="$" value="<%= cheapest_supplier_cost_unit.present? ? format_money(cheapest_supplier_cost_unit, unit: '$') : '' %>" readonly>
     </div>
   </div>
   <div>
@@ -142,6 +145,27 @@
     <div>
       <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Precio Venta (Bs)</label>
       <input type="text" name="global_product_price_bs_visual" id="global_product_price_bs_visual" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Bs 0,00" readonly>
+    </div>
+  </div>
+  <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
+  <div class="mt-2">
+    <h6 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Proveedores globales</h6>
+    <div class="mt-3 space-y-3">
+      <% global_suppliers_for_product.each do |sp| %>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
+          <div class="flex items-center justify-between">
+            <div class="text-sm font-bold text-slate-700"><%= sp.global_supplier&.name || 'Proveedor global' %></div>
+          </div>
+          <div class="mt-3 grid grid-cols-2 gap-4 text-sm text-slate-600">
+            <div><span class="font-semibold">Costo mayor:</span> <%= format_money(sp.costo_mayor, unit: '$') %></div>
+            <div><span class="font-semibold">Costo menor:</span> <%= format_money(sp.costo_menor, unit: '$') %></div>
+            <div><span class="font-semibold">Unid por pack:</span> <%= format_quantity(sp.cantidad, precision: 0) %></div>
+          </div>
+        </div>
+      <% end %>
+      <% if global_suppliers_for_product.empty? %>
+        <div class="text-sm text-slate-500">Este producto global no tiene proveedores globales asignados.</div>
+      <% end %>
     </div>
   </div>
   <div>
