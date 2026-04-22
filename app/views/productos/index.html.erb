@@ -26,6 +26,13 @@
           <% end %>
         <% end %>
         <% if can_manage_products %>
+          <% if current_user_admin? %>
+            <%= link_to global_products_path,
+                        class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-indigo-300 bg-indigo-50 px-5 py-3 font-medium text-indigo-700 shadow-sm transition-all hover:bg-indigo-100 sm:w-auto' do %>
+              <i data-lucide="database" class="h-4 w-4"></i>
+              Productos globales
+            <% end %>
+          <% end %>
           <%= link_to export_excel_productos_path,
                       class: 'inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-300 bg-white px-5 py-3 font-medium text-emerald-700 shadow-sm transition-all hover:bg-emerald-50 sm:w-auto' do %>
             <i data-lucide="file-spreadsheet" class="h-4 w-4"></i>

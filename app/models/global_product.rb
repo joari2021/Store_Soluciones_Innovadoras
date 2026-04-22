@@ -1,4 +1,6 @@
 class GlobalProduct < ApplicationRecord
+  enum :presentation, { unidad: 0, pack: 1 }, default: :unidad
+
   has_many :global_supplier_products, dependent: :restrict_with_error
   has_many :global_suppliers, through: :global_supplier_products
 
