@@ -41,6 +41,7 @@ Rails.application.routes.draw do
       get :search_products, path: 'buscar-productos'
     end
     member do
+      get :local_preview, path: 'local'
       patch :overwrite_product_values
     end
   end

@@ -2,8 +2,8 @@ class SuppliersController < ApplicationController
   before_action :require_business
   before_action :require_admin
   before_action :load_local_global_product_ids
-  before_action :set_supplier, only: %i[show edit update overwrite_product_values]
-  before_action :set_tasa_dolar_bcv, only: %i[show update]
+  before_action :set_supplier, only: %i[show edit update overwrite_product_values local_preview]
+  before_action :set_tasa_dolar_bcv, only: %i[show update local_preview]
 
   def index
     @suppliers = filtered_global_suppliers
@@ -13,6 +13,24 @@ class SuppliersController < ApplicationController
 
   def show
     load_global_supplier_products
+  end
+
+  def local_preview
+    unless current_business.id == 1
+      redirect_to supplier_path(@supplier), alert: 'Esta vista local solo está habilitada para el negocio principal.'
+      return
+    end
+
+    @local_supplier = current_business.suppliers.find_by(global_supplier_id: @supplier.id)
+    if @local_supplier.blank?
+      redirect_to supplier_path(@supplier), alert: 'No existe proveedor local asociado para este proveedor global en el negocio actual.'
+      return
+    end
+
+    @local_supplier_products_ordered = @local_supplier.supplier_products
+                                                   .preload(:producto)
+                                                   .to_a
+                                                   .sort_by { |row| row.producto&.descripcion.to_s.downcase }
   end
 
   def new

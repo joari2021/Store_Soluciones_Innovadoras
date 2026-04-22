@@ -1,0 +1,57 @@
+<h1 class="text-2xl font-bold mb-4">Proveedor local (solo lectura)</h1>
+<div class="bg-white rounded-2xl shadow-lg p-6">
+  <% moneda_prioritaria_label = @local_supplier.pricing_currency_priority == 'bs' ? 'Bolivares (Bs)' : 'Dolar ($)' %>
+  <% fiscal_default_label = @local_supplier.default_exento? ? 'Exento' : 'IVA (No exento)' %>
+
+  <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+    <div class="min-w-0">
+      <p class="mb-2"><strong>Nombre:</strong> <%= @local_supplier.nombre %></p>
+      <p class="mb-2"><strong>RIF:</strong> <%= @local_supplier.rif.presence || '-' %></p>
+      <p class="mb-2"><strong>Telefono:</strong> <%= @local_supplier.telefono.presence || '-' %></p>
+      <p class="mb-2"><strong>Telefono pago movil:</strong> <%= @local_supplier.telefono_pago_movil.presence || '-' %></p>
+      <p class="mb-2"><strong>Nro cuenta:</strong> <%= @local_supplier.nro_cuenta.presence || '-' %></p>
+      <p class="mb-2"><strong>Email:</strong> <%= @local_supplier.email.presence || '-' %></p>
+      <p class="mb-2"><strong>Direccion:</strong> <%= @local_supplier.direccion.presence || '-' %></p>
+      <p class="mb-2"><strong>Moneda prioritaria de calculo:</strong> <%= moneda_prioritaria_label %></p>
+      <p class="mb-2"><strong>Fiscal por defecto:</strong> <%= fiscal_default_label %></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <%= link_to 'Volver a proveedor filtrado', supplier_path(@supplier), class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer' %>
+    </div>
+  </div>
+
+  <hr class="my-5 border-slate-200">
+
+  <h2 class="text-lg font-semibold text-slate-800">Productos del proveedor local</h2>
+  <p class="text-sm text-slate-500">Solo lectura. No se muestran opciones de edicion o eliminacion.</p>
+
+  <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
+    <table class="min-w-full text-sm text-slate-700" data-tasa-bcv="<%= @tasa_dolar_bcv || 0 %>">
+      <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+        <tr>
+          <th class="px-4 py-3 text-left">Producto</th>
+          <th class="px-4 py-3 text-right">Costo Mayor $</th>
+          <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
+          <th class="px-4 py-3 text-center">Unid x Pack</th>
+          <th class="px-4 py-3 text-right">Costo Menor $</th>
+          <th class="px-4 py-3 text-right">Costo Menor Bs</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 bg-white">
+        <% tasa = (@tasa_dolar_bcv || 0).to_d %>
+        <% @local_supplier_products_ordered.each_with_index do |row, index| %>
+          <% costo_mayor = row.costo_mayor.to_d %>
+          <% costo_menor = row.costo_menor.to_d %>
+          <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
+            <td class="px-4 py-3 font-semibold text-slate-800"><%= row.producto&.display_name_with_presentation || row.producto&.descripcion || '-' %></td>
+            <td class="px-4 py-3 text-right"><%= format_money(costo_mayor, unit: '$') %></td>
+            <td class="px-4 py-3 text-right"><%= format_money(costo_mayor * tasa, unit: 'Bs') %></td>
+            <td class="px-4 py-3 text-center"><%= format_quantity(row.cantidad) %></td>
+            <td class="px-4 py-3 text-right"><%= format_money(costo_menor, unit: '$') %></td>
+            <td class="px-4 py-3 text-right"><%= format_money(costo_menor * tasa, unit: 'Bs') %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
