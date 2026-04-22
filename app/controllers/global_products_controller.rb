@@ -147,14 +147,13 @@ class GlobalProductsController < ApplicationController
   end
 
   def global_product_params
-    params.require(:global_product).permit(:name, :presentation, :cant_presentation, :exento, :active)
+    params.require(:global_product).permit(:name, :presentation, :cant_presentation, :active)
   end
 
   def global_product_metadata_params
     params.fetch(:global_product, {}).permit(
       :category_name,
       :fixed_margin_percentage,
-      :real_margin_percentage,
       :sale_price_usd,
     )
   end

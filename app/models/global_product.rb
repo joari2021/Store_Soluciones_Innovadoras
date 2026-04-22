@@ -2,7 +2,6 @@ class GlobalProduct < ApplicationRecord
   METADATA_KEYS = %w[
     category_name
     fixed_margin_percentage
-    real_margin_percentage
     sale_price_usd
   ].freeze
 
@@ -40,10 +39,6 @@ class GlobalProduct < ApplicationRecord
 
   def fixed_margin_percentage
     to_decimal(metadata_value("fixed_margin_percentage"))
-  end
-
-  def real_margin_percentage
-    to_decimal(metadata_value("real_margin_percentage"))
   end
 
   def sale_price_usd

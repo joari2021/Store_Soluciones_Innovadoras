@@ -107,38 +107,26 @@
       <input type="text" name="global_product_cost_unit_visual" id="global_product_cost_unit_visual" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="$ 0,00" data-money-mask="true" data-money-symbol="$" readonly>
     </div>
   </div>
-  <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-    <div>
-      <label for="global_product_fixed_margin_percentage" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ganancia fija (%)</label>
-      <% if profit_margin_presets.any? %>
-        <%= select_tag "global_product[fixed_margin_percentage]",
-                       options_for_select(
-                         profit_margin_presets.map { |preset| ["#{format_quantity(preset.percentage)}%", preset.percentage.to_d.to_s('F')] },
-                         selected_profit_margin_preset_id.present? ? profit_margin_presets.find { |preset| preset.id == selected_profit_margin_preset_id }&.percentage.to_d.to_s('F') : global_product.fixed_margin_percentage.to_d.to_s('F')
-                       ),
-                       include_blank: "Selecciona % fijo",
-                       id: "global_product_fixed_margin_percentage",
-                       class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
-      <% else %>
-        <%= f.text_field :fixed_margin_percentage,
-                         value: global_product.fixed_margin_percentage,
-                         class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all",
-                         inputmode: "decimal",
-                         autocomplete: "off",
-                         placeholder: "% 0,00",
-                         data: { money_mask: true, money_symbol: "%" } %>
-      <% end %>
-    </div>
-    <div>
-      <%= f.label :real_margin_percentage, "Ganancia real (%)", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
-      <%= f.text_field :real_margin_percentage,
-                       value: global_product.real_margin_percentage,
-                       class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none transition-all",
+  <div>
+    <label for="global_product_fixed_margin_percentage" class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ganancia fija (%)</label>
+    <% if profit_margin_presets.any? %>
+      <%= select_tag "global_product[fixed_margin_percentage]",
+                     options_for_select(
+                       profit_margin_presets.map { |preset| ["#{format_quantity(preset.percentage)}%", preset.percentage.to_d.to_s('F')] },
+                       selected_profit_margin_preset_id.present? ? profit_margin_presets.find { |preset| preset.id == selected_profit_margin_preset_id }&.percentage.to_d.to_s('F') : global_product.fixed_margin_percentage.to_d.to_s('F')
+                     ),
+                     include_blank: "Selecciona % fijo",
+                     id: "global_product_fixed_margin_percentage",
+                     class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
+    <% else %>
+      <%= f.text_field :fixed_margin_percentage,
+                       value: global_product.fixed_margin_percentage,
+                       class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all",
                        inputmode: "decimal",
                        autocomplete: "off",
                        placeholder: "% 0,00",
                        data: { money_mask: true, money_symbol: "%" } %>
-    </div>
+    <% end %>
   </div>
   <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <div>
@@ -155,13 +143,6 @@
       <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Precio Venta (Bs)</label>
       <input type="text" name="global_product_price_bs_visual" id="global_product_price_bs_visual" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Bs 0,00" readonly>
     </div>
-  </div>
-  <div class="rounded-2xl border border-amber-200 bg-amber-50/60 p-3">
-    <label class="inline-flex cursor-pointer items-center gap-2 text-sm font-semibold text-amber-800">
-      <%= f.check_box :exento, class: "h-4 w-4 cursor-pointer rounded border-amber-300 text-amber-600 focus:ring-amber-500" %>
-      Producto exento de IVA en la venta
-    </label>
-    <p class="mt-1 text-xs text-amber-700">Si esta activo, este producto no suma IVA y no se recalcula en IVA invertido.</p>
   </div>
   <div>
     <% if modal_mode %>

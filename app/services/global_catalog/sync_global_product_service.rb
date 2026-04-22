@@ -10,8 +10,6 @@ module GlobalCatalog
           descripcion: @global_product.name,
           presentation: @global_product.presentation_before_type_cast,
           cant_presentation: @global_product.cant_presentation,
-          exento: @global_product.exento,
-          porcentaje_ganancia: @global_product.real_margin_percentage,
           precio_venta_usd: @global_product.sale_price_usd,
           updated_at: Time.current,
         }
