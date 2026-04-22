@@ -190,7 +190,7 @@ class GlobalProductsController < ApplicationController
   end
 
   def load_form_collections
-    @category_name_options = Categoria.order(Arel.sql("LOWER(categorias.nombre) ASC")).pluck(:nombre)
+    @category_name_options = GlobalCategory.order(Arel.sql("LOWER(global_categories.name) ASC")).pluck(:name)
     @profit_margin_presets_for_select = ProfitMarginPreset.order(:percentage)
   rescue NameError
     @category_name_options = []
