@@ -14,6 +14,7 @@ class GlobalSuppliersController < ApplicationController
                                                .joins(:global_product)
                                                .includes(:global_product)
                                                .order(Arel.sql("LOWER(global_products.name) ASC"))
+    @tasa_dolar_bcv = TasaCambio.latest_value('Dolar BCV').to_d
   end
 
   def update
@@ -25,6 +26,7 @@ class GlobalSuppliersController < ApplicationController
                                                  .joins(:global_product)
                                                  .includes(:global_product)
                                                  .order(Arel.sql("LOWER(global_products.name) ASC"))
+      @tasa_dolar_bcv = TasaCambio.latest_value('Dolar BCV').to_d
       render :edit, status: :unprocessable_entity
     end
   end
