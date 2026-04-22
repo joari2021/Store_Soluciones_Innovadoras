@@ -2,6 +2,7 @@ class Supplier < ApplicationRecord
   PRICING_CURRENCY_PRIORITIES = %w[usd bs].freeze
 
   belongs_to :business
+  belongs_to :global_supplier, optional: true
   has_many :supplier_products, dependent: :destroy
   has_many :productos, through: :supplier_products
 

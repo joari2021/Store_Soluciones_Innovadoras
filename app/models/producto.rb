@@ -2,6 +2,7 @@ class Producto < ApplicationRecord
   include PgSearch::Model
 
   belongs_to :business
+  belongs_to :global_product, optional: true
   belongs_to :categoria
   belongs_to :profit_margin_preset, optional: true
   has_one_attached :foto

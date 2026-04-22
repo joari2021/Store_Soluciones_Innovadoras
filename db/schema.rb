@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_21_150010) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -419,6 +419,58 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
     t.index ["serie_tv_id"], name: "index_generos_serie_tvs_on_serie_tv_id"
   end
 
+  create_table "global_products", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "presentation", default: 0, null: false
+    t.integer "cant_presentation", default: 1, null: false
+    t.boolean "exento", default: false, null: false
+    t.boolean "active", default: true, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "source_business_id"
+    t.bigint "source_producto_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_global_products_on_name"
+    t.index ["source_business_id", "source_producto_id"], name: "index_global_products_on_source_business_and_producto", unique: true
+    t.index ["source_business_id"], name: "index_global_products_on_source_business_id"
+  end
+
+  create_table "global_supplier_products", force: :cascade do |t|
+    t.bigint "global_supplier_id", null: false
+    t.bigint "global_product_id", null: false
+    t.decimal "costo_mayor", precision: 12, scale: 2
+    t.decimal "cantidad", precision: 12, scale: 2
+    t.decimal "costo_menor", precision: 12, scale: 2
+    t.boolean "active", default: true, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["global_product_id"], name: "index_global_supplier_products_on_global_product_id"
+    t.index ["global_supplier_id", "global_product_id"], name: "index_global_supplier_products_unique_pair", unique: true
+    t.index ["global_supplier_id"], name: "index_global_supplier_products_on_global_supplier_id"
+  end
+
+  create_table "global_suppliers", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "rif"
+    t.string "phone"
+    t.string "mobile_payment_phone"
+    t.string "email"
+    t.text "address"
+    t.string "bank_account_number"
+    t.string "pricing_currency_priority", default: "usd", null: false
+    t.boolean "default_exento", default: false, null: false
+    t.boolean "active", default: true, null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.bigint "source_business_id"
+    t.bigint "source_supplier_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["name"], name: "index_global_suppliers_on_name"
+    t.index ["source_business_id", "source_supplier_id"], name: "index_global_suppliers_on_source_business_and_supplier", unique: true
+    t.index ["source_business_id"], name: "index_global_suppliers_on_source_business_id"
+  end
+
   create_table "hidden_debt_groups", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.string "group_key", null: false
@@ -565,10 +617,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
     t.bigint "source_business_id"
     t.bigint "source_product_id"
     t.integer "general_safety_stock", default: 0, null: false
+    t.bigint "global_product_id"
     t.index ["allow_unpack"], name: "index_productos_on_allow_unpack"
+    t.index ["business_id", "global_product_id"], name: "index_productos_on_business_and_global_product"
     t.index ["business_id", "source_business_id", "source_product_id"], name: "index_productos_on_business_and_source_product", unique: true
     t.index ["business_id"], name: "index_productos_on_business_id"
     t.index ["categoria_id"], name: "index_productos_on_categoria_id"
+    t.index ["global_product_id"], name: "index_productos_on_global_product_id"
     t.index ["profit_margin_preset_id"], name: "index_productos_on_profit_margin_preset_id"
     t.index ["source_business_id"], name: "index_productos_on_source_business_id"
   end
@@ -833,7 +888,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
     t.decimal "costo_menor", precision: 12, scale: 2
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "global_supplier_product_id"
+    t.index ["global_supplier_product_id"], name: "index_supplier_products_on_global_supplier_product_id"
     t.index ["producto_id"], name: "index_supplier_products_on_producto_id"
+    t.index ["supplier_id", "global_supplier_product_id"], name: "index_supplier_products_on_supplier_and_global_pair"
     t.index ["supplier_id", "producto_id"], name: "index_supplier_products_on_supplier_id_and_producto_id"
   end
 
@@ -850,7 +908,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
     t.string "pricing_currency_priority", default: "usd", null: false
     t.boolean "default_exento", default: false, null: false
     t.bigint "business_id", null: false
+    t.bigint "global_supplier_id"
+    t.index ["business_id", "global_supplier_id"], name: "index_suppliers_on_business_and_global_supplier"
     t.index ["business_id"], name: "index_suppliers_on_business_id"
+    t.index ["global_supplier_id"], name: "index_suppliers_on_global_supplier_id"
   end
 
   create_table "system_services", force: :cascade do |t|
@@ -1019,6 +1080,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
   add_foreign_key "generos_peliculas", "peliculas"
   add_foreign_key "generos_serie_tvs", "generos"
   add_foreign_key "generos_serie_tvs", "serie_tvs"
+  add_foreign_key "global_products", "businesses", column: "source_business_id"
+  add_foreign_key "global_supplier_products", "global_products"
+  add_foreign_key "global_supplier_products", "global_suppliers"
+  add_foreign_key "global_suppliers", "businesses", column: "source_business_id"
   add_foreign_key "hidden_debt_groups", "businesses"
   add_foreign_key "pack_unwrap_items", "pack_unwraps"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id"
@@ -1038,6 +1103,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
   add_foreign_key "productos", "businesses"
   add_foreign_key "productos", "businesses", column: "source_business_id"
   add_foreign_key "productos", "categorias"
+  add_foreign_key "productos", "global_products"
   add_foreign_key "productos", "profit_margin_presets"
   add_foreign_key "profit_margin_presets", "businesses"
   add_foreign_key "rankings", "peliculas"
@@ -1067,9 +1133,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_21_133000) do
   add_foreign_key "stock_lots", "factura_items"
   add_foreign_key "stock_lots", "productos"
   add_foreign_key "stock_lots", "suppliers", on_delete: :nullify
+  add_foreign_key "supplier_products", "global_supplier_products"
   add_foreign_key "supplier_products", "productos"
   add_foreign_key "supplier_products", "suppliers"
   add_foreign_key "suppliers", "businesses"
+  add_foreign_key "suppliers", "global_suppliers"
   add_foreign_key "users", "businesses"
   add_foreign_key "venta_items", "product_variations"
   add_foreign_key "venta_items", "productos"
