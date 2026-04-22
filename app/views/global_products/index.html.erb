@@ -6,6 +6,10 @@
         <p class="mt-1 text-sm text-slate-500">Catalogo maestro compartido entre negocios.</p>
       </div>
       <div class="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+        <%= link_to global_suppliers_path,
+                    class: 'inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto' do %>
+          Proveedores globales
+        <% end %>
         <%= link_to global_categories_path,
                     class: 'inline-flex w-full items-center justify-center rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 sm:w-auto' do %>
           Categorias globales
