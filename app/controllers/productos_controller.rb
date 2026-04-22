@@ -14,9 +14,20 @@ class ProductosController < ApplicationController
   before_action :require_internal_usage_access!, only: %i[internal_usages create_internal_usage destroy_internal_usage]
 
   def import_from_global
-    @global_products = GlobalProduct
-                       .includes(:source_business)
-                       .order(Arel.sql('LOWER(global_products.name) ASC'))
+    @query_text = params[:query_text].to_s.strip
+
+    base_scope = GlobalProduct
+                 .includes(:source_business, image_attachment: :blob)
+                 .order(Arel.sql('LOWER(global_products.name) ASC'))
+
+    @global_products = if @query_text.present?
+                         escaped = ActiveRecord::Base.sanitize_sql_like(@query_text.downcase)
+                         base_scope.where('LOWER(global_products.name) LIKE ?', "%#{escaped}%")
+                       else
+                         base_scope
+                       end
+
+    @imported_global_product_ids = current_business.productos.where.not(global_product_id: nil).pluck(:global_product_id)
   end
 
   def create_from_global

@@ -36,7 +36,7 @@ class GlobalProductsController < ApplicationController
     @filters_applied = @query_text.present? || @selected_category.present? || @below_target_margin_filter
     @matching_global_products_count = filtered_scope.count
 
-    paginated_scope = filtered_scope.includes(:productos, :global_supplier_products)
+    paginated_scope = filtered_scope.includes(:productos, :global_supplier_products, image_attachment: :blob)
     @pagy, @global_products = pagy_countless(paginated_scope, items: GLOBAL_PRODUCTS_PER_PAGE)
     @next_page = @pagy.next
 
@@ -257,7 +257,7 @@ class GlobalProductsController < ApplicationController
     @filters_applied = @query_text.present? || @selected_category.present? || @below_target_margin_filter
     @matching_global_products_count = filtered_scope.count
     @pagy, @global_products = pagy_countless(
-      filtered_scope.includes(:productos, :global_supplier_products),
+      filtered_scope.includes(:productos, :global_supplier_products, image_attachment: :blob),
       items: GLOBAL_PRODUCTS_PER_PAGE,
     )
     @next_page = @pagy.next
