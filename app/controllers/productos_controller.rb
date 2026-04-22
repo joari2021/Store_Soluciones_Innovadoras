@@ -83,6 +83,7 @@ class ProductosController < ApplicationController
   def search
     query = params[:q].to_s.strip
     supplier_id = params[:supplier_id].to_s.strip
+    global_supplier_id = params[:global_supplier_id].to_s.strip
     source_business_id = params[:source_business_id].to_s.strip
 
     if source_business_id.present?
@@ -153,6 +154,42 @@ class ProductosController < ApplicationController
                 else
                   Producto.none
                 end
+
+    if global_supplier_id.present?
+      global_supplier = GlobalSupplier.find_by(id: global_supplier_id)
+      return render json: [] unless global_supplier
+
+      rows = productos
+             .where.not(global_product_id: nil)
+             .joins("INNER JOIN global_supplier_products ON global_supplier_products.global_product_id = productos.global_product_id AND global_supplier_products.global_supplier_id = #{global_supplier.id.to_i} AND global_supplier_products.active = TRUE")
+             .includes(:product_variations)
+             .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+             .limit(10)
+             .select(
+               'productos.*',
+               'global_supplier_products.costo_mayor AS supplier_costo_mayor',
+               'global_supplier_products.costo_menor AS supplier_costo_menor',
+               'global_supplier_products.cantidad AS supplier_unid_x_pack'
+             )
+
+      payload = rows.map do |row|
+        {
+          id: row.id,
+          descripcion: row.descripcion,
+          display_name: row.display_name_with_presentation,
+          costo_mayor: row.attributes['supplier_costo_mayor'],
+          costo_menor: row.attributes['supplier_costo_menor'],
+          unid_x_pack: row.attributes['supplier_unid_x_pack'],
+          exento: row.respond_to?(:exento?) ? row.exento? : false,
+          variations: row.product_variations.order(:id).map do |variation|
+            { id: variation.id, description: variation.description }
+          end
+        }
+      end
+
+      render json: payload
+      return
+    end
 
     if supplier_id.present?
       supplier = current_business.suppliers.find_by(id: supplier_id)

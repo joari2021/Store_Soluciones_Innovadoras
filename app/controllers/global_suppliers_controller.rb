@@ -1,7 +1,7 @@
 class GlobalSuppliersController < ApplicationController
   before_action :require_business
   before_action :require_admin
-  before_action :set_global_supplier, only: %i[show edit update]
+  before_action :set_global_supplier, only: %i[show edit update overwrite_product_values]
   before_action :set_tasa_dolar_bcv, only: %i[show]
 
   def index
@@ -33,6 +33,37 @@ class GlobalSuppliersController < ApplicationController
       else
         render :edit, status: :unprocessable_entity
       end
+    end
+  end
+
+  def overwrite_product_values
+    producto = current_business.productos.find_by(id: params[:producto_id])
+    if producto.blank? || producto.global_product_id.blank?
+      render json: { error: 'El producto local no está mapeado a un producto global.' }, status: :unprocessable_entity
+      return
+    end
+
+    row = GlobalSupplierProduct.find_or_initialize_by(
+      global_supplier_id: @global_supplier.id,
+      global_product_id: producto.global_product_id,
+    )
+
+    row.assign_attributes(
+      costo_mayor: params[:costo_mayor],
+      cantidad: params[:cantidad],
+      costo_menor: params[:costo_menor],
+      active: true,
+    )
+
+    if row.save
+      render json: {
+        ok: true,
+        costo_mayor: row.costo_mayor,
+        cantidad: row.cantidad,
+        costo_menor: row.costo_menor,
+      }
+    else
+      render json: { error: row.errors.full_messages.to_sentence }, status: :unprocessable_entity
     end
   end
 

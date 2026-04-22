@@ -31,16 +31,16 @@ class PurchaseInvoicesController < ApplicationController
   before_action :require_admin
   before_action :ensure_purchase_invoice_columns_loaded
   before_action :set_purchase_invoice, only: %i[show edit update destroy]
-  before_action :load_suppliers, only: %i[index new edit create update]
+  before_action :load_global_suppliers, only: %i[index new edit create update]
   before_action :load_bs_accounts, only: %i[new create]
   before_action :load_intercompany_options, only: %i[new create edit update]
   before_action :load_invoice_payment_summary, only: %i[show edit]
 
   def index
-    base_scope = current_business.purchase_invoices.includes(:supplier)
+    base_scope = current_business.purchase_invoices.includes(supplier: :global_supplier)
 
     @has_purchase_invoices = base_scope.exists?
-    @selected_supplier_id = params[:supplier_id].to_s.strip.presence
+    @selected_global_supplier_id = params[:global_supplier_id].to_s.strip.presence
     @selected_payment_status = normalize_invoice_payment_status(params[:payment_status])
     @selected_delivery_status = normalize_invoice_delivery_status(params[:delivery_status])
     @fecha_desde = parse_filter_date(params[:fecha_desde])
@@ -53,14 +53,16 @@ class PurchaseInvoicesController < ApplicationController
     @fecha_desde_value = normalized_filter_date_value(params[:fecha_desde], @fecha_desde)
     @fecha_hasta_value = normalized_filter_date_value(params[:fecha_hasta], @fecha_hasta)
     @filters_applied = [
-      @selected_supplier_id,
+      @selected_global_supplier_id,
       @selected_payment_status,
       @selected_delivery_status,
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip
     ].any?(&:present?)
 
-    base_scope = base_scope.where(supplier_id: @selected_supplier_id) if @selected_supplier_id.present?
+    if @selected_global_supplier_id.present?
+      base_scope = base_scope.joins(:supplier).where(suppliers: { global_supplier_id: @selected_global_supplier_id })
+    end
     if @selected_delivery_status.present?
       base_scope = base_scope.where(delivered: @selected_delivery_status == 'delivered')
     end
@@ -161,7 +163,15 @@ class PurchaseInvoicesController < ApplicationController
 
   def create
     payment_context = nil
-    @purchase_invoice = current_business.purchase_invoices.new(purchase_invoice_params)
+    @purchase_invoice = current_business.purchase_invoices.new
+    purchase_attrs = purchase_invoice_params.to_h
+    resolved_supplier_id = resolve_local_supplier_id_from_global(
+      global_supplier_id: purchase_attrs['global_supplier_id'],
+      enforce_presence: !intercompany_mode_requested? && requested_invoice_kind != PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY,
+    )
+    purchase_attrs['supplier_id'] = resolved_supplier_id
+    purchase_attrs.delete('global_supplier_id')
+    @purchase_invoice.assign_attributes(purchase_attrs)
     @purchase_invoice.invoice_kind = requested_invoice_kind
     source_business = intercompany_mode_requested? ? intercompany_source_business : nil
 
@@ -232,7 +242,15 @@ class PurchaseInvoicesController < ApplicationController
   def update
     return update_intercompany_invoice if @purchase_invoice.intercompany?
 
-    if @purchase_invoice.update(purchase_invoice_params)
+    update_attrs = purchase_invoice_params.to_h
+    resolved_supplier_id = resolve_local_supplier_id_from_global(
+      global_supplier_id: update_attrs['global_supplier_id'],
+      enforce_presence: !@purchase_invoice.initial_inventory?,
+    )
+    update_attrs['supplier_id'] = resolved_supplier_id
+    update_attrs.delete('global_supplier_id')
+
+    if @purchase_invoice.update(update_attrs)
       unless @purchase_invoice.initial_inventory?
         payment_context = build_invoice_payment_context(@purchase_invoice)
         sync_pending_supplier_debt!(@purchase_invoice, payment_context)
@@ -378,8 +396,9 @@ class PurchaseInvoicesController < ApplicationController
     @purchase_invoice = current_business.purchase_invoices.find(params[:id])
   end
 
-  def load_suppliers
-    @available_suppliers = current_business.suppliers.order(:nombre)
+  def load_global_suppliers
+    @available_global_suppliers = GlobalSupplier.where(active: true)
+                                 .order(Arel.sql('LOWER(global_suppliers.name) ASC'))
   end
 
   def load_intercompany_options
@@ -412,6 +431,7 @@ class PurchaseInvoicesController < ApplicationController
   def purchase_invoice_params
     params.require(:purchase_invoice).permit(
       :supplier_id,
+      :global_supplier_id,
       :intercompany,
       :source_business_id,
       :fecha_emision,
@@ -434,6 +454,41 @@ class PurchaseInvoicesController < ApplicationController
         _destroy
       ]
     )
+  end
+
+  def resolve_local_supplier_id_from_global(global_supplier_id:, enforce_presence:)
+    normalized_global_id = global_supplier_id.to_s.strip
+    if normalized_global_id.blank?
+      @purchase_invoice&.errors&.add(:base, 'debe seleccionar un proveedor global.') if enforce_presence
+      return nil
+    end
+
+    global_supplier = GlobalSupplier.find_by(id: normalized_global_id)
+    unless global_supplier
+      @purchase_invoice&.errors&.add(:base, 'el proveedor global seleccionado no es válido.')
+      return nil
+    end
+
+    local_supplier = current_business.suppliers.find_or_initialize_by(global_supplier_id: global_supplier.id)
+    if local_supplier.new_record?
+      local_supplier.assign_attributes(
+        nombre: global_supplier.name,
+        rif: global_supplier.rif,
+        telefono: global_supplier.phone,
+        telefono_pago_movil: global_supplier.mobile_payment_phone,
+        email: global_supplier.email,
+        direccion: global_supplier.address,
+        nro_cuenta: global_supplier.bank_account_number,
+        pricing_currency_priority: global_supplier.pricing_currency_priority,
+        default_exento: global_supplier.default_exento,
+      )
+      local_supplier.save!
+    end
+
+    local_supplier.id
+  rescue ActiveRecord::RecordInvalid => e
+    @purchase_invoice&.errors&.add(:base, e.record.errors.full_messages.to_sentence.presence || 'no se pudo preparar el proveedor local de compatibilidad.')
+    nil
   end
 
   def intercompany_mode_requested?

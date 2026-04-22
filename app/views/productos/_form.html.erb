@@ -222,12 +222,19 @@
   <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
   <div class="mt-2">
     <h6 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Proveedores</h6>
+    <% global_supplier_rows = if producto.global_product_id.present?
+         GlobalSupplierProduct.joins(:global_supplier)
+                              .includes(:global_supplier)
+                              .where(global_product_id: producto.global_product_id, active: true)
+                              .order(Arel.sql('LOWER(global_suppliers.name) ASC'))
+       else
+         []
+       end %>
     <div class="mt-3 space-y-3">
-      <% if producto.supplier_products.loaded? || producto.persisted? %>
-        <% producto.supplier_products.includes(:supplier).each do |sp| %>
+      <% global_supplier_rows.each do |sp| %>
           <div class="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
             <div class="flex items-center justify-between">
-              <div class="text-sm font-bold text-slate-700"><%= sp.supplier&.nombre || 'Proveedor' %></div>
+              <div class="text-sm font-bold text-slate-700"><%= sp.global_supplier&.name || 'Proveedor global' %></div>
             </div>
             <div class="mt-3 grid grid-cols-2 gap-4 text-sm text-slate-600">
               <div><span class="font-semibold">Costo mayor:</span> <%= format_money(sp.costo_mayor, unit: '$') %></div>
@@ -235,10 +242,9 @@
               <div><span class="font-semibold">Unid por pack:</span> <%= format_quantity(sp.cantidad, precision: 0) %></div>
             </div>
           </div>
-        <% end %>
       <% end %>
-      <% if producto.supplier_products.empty? %>
-        <div class="text-sm text-slate-500">Este producto no tiene proveedores asignados.</div>
+      <% if global_supplier_rows.empty? %>
+        <div class="text-sm text-slate-500">Este producto no tiene proveedores globales asignados.</div>
       <% end %>
     </div>
   </div>

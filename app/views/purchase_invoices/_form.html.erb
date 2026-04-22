@@ -2,6 +2,7 @@
 <% intercompany_mode = !initial_inventory_mode && (factura.intercompany? || ActiveModel::Type::Boolean.new.cast(params.dig(:purchase_invoice, :intercompany)) || params[:mode].to_s == 'intercompany') %>
 <% source_business_from_params = params.dig(:purchase_invoice, :source_business_id).to_s.strip.presence %>
 <% intercompany_selected_source_business_id = factura.source_business_id.presence || source_business_from_params&.to_i %>
+<% selected_global_supplier_id = params.dig(:purchase_invoice, :global_supplier_id).to_s.strip.presence || factura.supplier&.global_supplier_id&.to_s %>
 <% if intercompany_mode && intercompany_selected_source_business_id.blank? %>
   <% preferred_source_business = @available_source_businesses.find { |business| business.accounts.where(account_type: 'bank_account', currency: 'VES').exists? } || @available_source_businesses.first %>
   <% intercompany_selected_source_business_id = preferred_source_business&.id %>
@@ -96,18 +97,20 @@
         </div>
       <% else %>
         <%= f.hidden_field :intercompany, value: intercompany_mode ? 1 : 0, id: 'purchase_invoice_intercompany' %>
+        <%= f.hidden_field :supplier_id, value: factura.supplier_id, id: 'purchase_invoice_supplier_id_hidden' %>
         <% if intercompany_mode %>
           <div class="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700">
             Modo activo: Factura inter-empresas
           </div>
         <% end %>
         <div id="supplier-mode-fields" class="<%= intercompany_mode ? 'hidden' : '' %>">
-          <%= f.label :supplier_id, 'Proveedor', class: 'mt-2 block text-sm font-medium text-slate-700' %>
-          <% supplier_options = @available_suppliers.map { |supplier| [supplier.nombre, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
-          <%= f.select :supplier_id,
-                      options_for_select(supplier_options, f.object.supplier_id),
-                      { prompt: 'Seleccionar proveedor' },
-                      class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
+          <%= label_tag 'purchase_invoice_global_supplier_id', 'Proveedor global', class: 'mt-2 block text-sm font-medium text-slate-700' %>
+          <% supplier_options = @available_global_suppliers.map { |supplier| [supplier.name, supplier.id, { 'data-pricing-currency-priority' => (supplier.pricing_currency_priority.presence || 'usd'), 'data-default-exento' => (supplier.default_exento? ? 'true' : 'false') }] } %>
+          <%= select_tag 'purchase_invoice[global_supplier_id]',
+                         options_for_select(supplier_options, selected_global_supplier_id),
+                         prompt: 'Seleccionar proveedor global',
+                         id: 'purchase_invoice_global_supplier_id',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 shadow-sm focus:ring-sky-500 focus:border-sky-500' %>
         </div>
         <div id="intercompany-mode-fields" class="<%= intercompany_mode ? '' : 'hidden' %>">
           <%= f.label :source_business_id, 'Negocio proveedor (origen)', class: 'mt-2 block text-sm font-medium text-slate-700' %>
@@ -273,8 +276,8 @@
           <% variation_count = effective_variation_rows.size %>
           <% product_variations_json = product_variations.to_json %>
           <% variation_breakdown_json = effective_variation_rows.to_json %>
-          <% supplier_ref = if factura.supplier_id.present? && fi.object.producto_id.present?
-              SupplierProduct.find_by(supplier_id: factura.supplier_id, producto_id: fi.object.producto_id)
+            <% supplier_ref = if selected_global_supplier_id.present? && fi.object.producto&.global_product_id.present?
+              GlobalSupplierProduct.find_by(global_supplier_id: selected_global_supplier_id, global_product_id: fi.object.producto.global_product_id)
             end %>
           <% ref_costo_mayor = supplier_ref&.costo_mayor&.to_s('F') || '' %>
           <% ref_unid_x_pack = supplier_ref&.cantidad&.to_s('F') || '' %>
@@ -364,7 +367,7 @@
             <td class="px-4 py-3 table-number js-total-usd"><%= format_money(total_usd, unit: '$') %></td>
             <td class="px-4 py-3 table-number js-total-bs"><%= format_money(total_bs, unit: 'Bs') %></td>
           </tr>
-          <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= factura.supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>" data-single-variation-id="<%= single_variation&.[](:id) %>" data-single-variation-description="<%= single_variation&.[](:description) %>">
+          <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= selected_global_supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>" data-single-variation-id="<%= single_variation&.[](:id) %>" data-single-variation-description="<%= single_variation&.[](:description) %>">
             <%= fi.hidden_field :_destroy, class: 'factura-item-destroy' %>
             <%= fi.hidden_field :producto_id %>
             <%= fi.hidden_field :product_name, value: product_name %>
@@ -910,7 +913,7 @@
       const searchInput = form.querySelector('#producto-search');
       const resultsBox = form.querySelector('#producto-results');
       const searchDebugNode = form.querySelector('[data-intercompany-search-debug="true"]');
-      const supplierSelect = form.querySelector('#purchase_invoice_supplier_id');
+      const supplierSelect = form.querySelector('#purchase_invoice_global_supplier_id');
       const intercompanyInput = form.querySelector('#purchase_invoice_intercompany');
       const sourceBusinessSelect = form.querySelector('#purchase_invoice_source_business_id');
       const supplierModeFields = form.querySelector('#supplier-mode-fields');
@@ -1899,7 +1902,7 @@
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
         try {
-          const response = await fetch(`/suppliers/${encodeURIComponent(supplierId)}/overwrite_product_values`, {
+          const response = await fetch(`/global/proveedores/${encodeURIComponent(supplierId)}/overwrite_product_values`, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
@@ -2153,7 +2156,7 @@
 
             const queryParams = intercompanyModeActive()
               ? `q=${encodeURIComponent(value)}&source_business_id=${encodeURIComponent(sourceBusinessId)}`
-              : `q=${encodeURIComponent(value)}&supplier_id=${encodeURIComponent(supplierId)}`;
+              : `q=${encodeURIComponent(value)}&global_supplier_id=${encodeURIComponent(supplierId)}`;
 
             updateIntercompanySearchDebug({ status: 'consultando', query: value, note: queryParams });
 
