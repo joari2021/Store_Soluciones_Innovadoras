@@ -1,0 +1,36 @@
+<div id="global-products-results" data-global-products-index="true" data-next-page="<%= @next_page %>">
+  <% if @global_products.any? %>
+    <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <table class="min-w-full table-auto text-sm text-slate-700">
+        <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+          <tr>
+            <th class="px-6 py-4 text-left font-bold">Producto global</th>
+            <th class="px-6 py-4 text-left font-bold">Categoria</th>
+            <th class="px-6 py-4 text-right font-bold">Mapeos locales</th>
+            <th class="px-6 py-4 text-right font-bold">Vinculos proveedor</th>
+            <th class="px-6 py-4 text-right font-bold">Accion</th>
+          </tr>
+        </thead>
+        <tbody id="global_products_tbody" class="divide-y divide-slate-100">
+          <%= render partial: "global_products/table_rows", locals: { products: @global_products } %>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="global-products-load-more" class="mt-4 text-center <%= @next_page.present? ? '' : 'hidden' %>">
+      <button type="button" data-global-products-load-more="true" class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+        Cargar mas
+      </button>
+    </div>
+  <% elsif @filters_applied %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No se encontraron productos globales con esos filtros</h3>
+      <p class="mt-1 text-sm text-slate-500">Prueba limpiando o ajustando la busqueda y categoria.</p>
+    </div>
+  <% else %>
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+      <h3 class="text-base font-semibold text-slate-700">No hay productos globales registrados</h3>
+      <p class="mt-1 text-sm text-slate-500">Crea tu primer producto global para comenzar.</p>
+    </div>
+  <% end %>
+</div>

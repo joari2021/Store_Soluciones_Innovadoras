@@ -1,16 +1,52 @@
 class GlobalProductsController < ApplicationController
+  GLOBAL_PRODUCTS_PER_PAGE = 36
+
   before_action :require_business
   before_action :require_admin
   before_action :set_global_product, only: %i[edit update]
 
   def index
-    @global_products = GlobalProduct
-                       .includes(:source_business, :productos, :global_supplier_products)
-                       .order(Arel.sql("LOWER(global_products.name) ASC"))
+    @query_text = params[:query_text].to_s.strip
+    @category_counts = global_category_counts
+    @selected_category = params[:category_name].to_s.strip.presence
+    @category_options = @category_counts.keys.sort
+
+    base_scope = GlobalProduct.order(Arel.sql("LOWER(global_products.name) ASC, global_products.id ASC"))
+    @has_global_products = base_scope.exists?
+
+    filtered_scope = base_scope
+    if @query_text.present?
+      escaped = ActiveRecord::Base.sanitize_sql_like(@query_text.downcase)
+      filtered_scope = filtered_scope.where("LOWER(global_products.name) LIKE ?", "%#{escaped}%")
+    end
+
+    if @selected_category.present?
+      if @selected_category == "Sin categoria"
+        filtered_scope = filtered_scope.where("COALESCE(NULLIF(TRIM(global_products.metadata->>'category_name'), ''), '') = ''")
+      else
+        filtered_scope = filtered_scope.where("LOWER(TRIM(global_products.metadata->>'category_name')) = ?", @selected_category.downcase)
+      end
+    end
+
+    @filters_applied = @query_text.present? || @selected_category.present?
+    @matching_global_products_count = filtered_scope.count
+
+    paginated_scope = filtered_scope.includes(:productos, :global_supplier_products)
+    @pagy, @global_products = pagy_countless(paginated_scope, items: GLOBAL_PRODUCTS_PER_PAGE)
+    @next_page = @pagy.next
+
+    render json: paginated_global_products_payload if request.format.json?
   end
 
   def new
     @global_product = GlobalProduct.new(presentation: :unidad, cant_presentation: 1)
+
+    return unless request.headers["Turbo-Frame"].present?
+
+    frame_html = view_context.turbo_frame_tag("modal-global-products") do
+      view_context.render(partial: "form", locals: { global_product: @global_product, submit_label: "Crear producto global" })
+    end
+    render html: frame_html.html_safe, layout: false
   end
 
   def create
@@ -19,9 +55,37 @@ class GlobalProductsController < ApplicationController
 
     if @global_product.save
       @global_product.image.attach(params.dig(:global_product, :image)) if params.dig(:global_product, :image).present?
-      redirect_to global_products_path, notice: "Producto global creado correctamente."
+      if request.headers["Turbo-Frame"].present?
+        @query_text = ""
+        @selected_category = nil
+        @filters_applied = false
+        @category_counts = global_category_counts
+        @category_options = @category_counts.keys.sort
+        @has_global_products = true
+        refreshed_scope = GlobalProduct
+                          .order(Arel.sql("LOWER(global_products.name) ASC, global_products.id ASC"))
+                          .includes(:productos, :global_supplier_products)
+        @pagy, @global_products = pagy_countless(refreshed_scope, items: GLOBAL_PRODUCTS_PER_PAGE)
+        @next_page = @pagy.next
+
+        refresh_results = view_context.turbo_stream.update(
+          "global-products-results",
+          view_context.render(partial: "global_products/index_results")
+        )
+        clear_frame = view_context.turbo_stream.update("modal-global-products", "")
+        render turbo_stream: [refresh_results, clear_frame]
+      else
+        redirect_to global_products_path, notice: "Producto global creado correctamente."
+      end
     else
-      render :new, status: :unprocessable_entity
+      if request.headers["Turbo-Frame"].present?
+        frame_html = view_context.turbo_frame_tag("modal-global-products") do
+          view_context.render(partial: "form", locals: { global_product: @global_product, submit_label: "Crear producto global" })
+        end
+        render html: frame_html.html_safe, status: :unprocessable_entity, layout: false
+      else
+        render :new, status: :unprocessable_entity
+      end
     end
   end
 
@@ -55,6 +119,36 @@ class GlobalProductsController < ApplicationController
       :fixed_margin_percentage,
       :real_margin_percentage,
       :sale_price_usd,
+    )
+  end
+
+  def global_category_counts
+    GlobalProduct
+      .pluck(Arel.sql("COALESCE(NULLIF(TRIM(global_products.metadata->>'category_name'), ''), 'Sin categoria')"))
+      .tally
+  end
+
+  def paginated_global_products_payload
+    {
+      results_html: render_index_results,
+      table_rows_html: render_table_rows,
+      next_page: @next_page,
+      batch_count: @global_products.size
+    }
+  end
+
+  def render_index_results
+    render_to_string(
+      partial: "global_products/index_results",
+      formats: [:html]
+    )
+  end
+
+  def render_table_rows
+    render_to_string(
+      partial: "global_products/table_rows",
+      formats: [:html],
+      locals: { products: @global_products }
     )
   end
 end

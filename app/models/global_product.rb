@@ -20,6 +20,16 @@ class GlobalProduct < ApplicationRecord
   validates :presentation, presence: true
   validates :cant_presentation, numericality: { only_integer: true, greater_than: 0 }
 
+  def presentation_display_suffix
+    return "(unidad)" if unidad?
+
+    "(pack de #{cant_presentation.to_i} unids)"
+  end
+
+  def display_name_with_presentation
+    "#{name} #{presentation_display_suffix}".squish
+  end
+
   def metadata_value(key)
     metadata.to_h[key.to_s]
   end
