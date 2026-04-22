@@ -6,6 +6,8 @@ class GlobalSupplier < ApplicationRecord
 
   has_many :suppliers, dependent: :nullify
 
+  accepts_nested_attributes_for :global_supplier_products, allow_destroy: true
+
   belongs_to :source_business, class_name: "Business", optional: true
 
   validates :name, presence: true

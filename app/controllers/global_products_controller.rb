@@ -39,6 +39,26 @@ class GlobalProductsController < ApplicationController
     render json: paginated_global_products_payload if request.format.json?
   end
 
+  def search
+    query = params[:q].to_s.strip
+    return render json: [] if query.blank?
+
+    escaped = ActiveRecord::Base.sanitize_sql_like(query.downcase)
+
+    products = GlobalProduct
+      .where("LOWER(global_products.name) LIKE ?", "%#{escaped}%")
+      .order(Arel.sql("LOWER(global_products.name) ASC"))
+      .limit(10)
+
+    render json: products.map { |product|
+      {
+        id: product.id,
+        name: product.name,
+        display_name: product.display_name_with_presentation,
+      }
+    }
+  end
+
   def new
     @global_product = GlobalProduct.new(presentation: :unidad, cant_presentation: 1)
 
