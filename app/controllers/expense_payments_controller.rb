@@ -108,9 +108,17 @@ class ExpensePaymentsController < ApplicationController
 
     raw = value.to_s.strip
 
-    return Date.strptime(raw.tr("/", "-"), "%d-%m-%Y").in_time_zone if raw.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    now = Time.current.in_time_zone
 
-    return Date.iso8601(raw).in_time_zone if raw.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+    if raw.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+      date = Date.strptime(raw.tr("/", "-"), "%d-%m-%Y")
+      return Time.zone.local(date.year, date.month, date.day, now.hour, now.min, now.sec)
+    end
+
+    if raw.match?(/\A\d{4}-\d{2}-\d{2}\z/)
+      date = Date.iso8601(raw)
+      return Time.zone.local(date.year, date.month, date.day, now.hour, now.min, now.sec)
+    end
 
     Time.zone.parse(raw)
   rescue ArgumentError
