@@ -216,7 +216,9 @@
       </div>
       <% if defined?(@pagy) && @pagy.present? && @pagy.pages > 1 %>
         <div class="border-t border-slate-200 bg-slate-50 px-4 py-3">
-          <%== pagy_nav(@pagy) %>
+          <div class="services-pagy">
+            <%== pagy_nav(@pagy) %>
+          </div>
         </div>
       <% end %>
     </div>
