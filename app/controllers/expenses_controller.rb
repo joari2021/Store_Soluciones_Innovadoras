@@ -4,6 +4,7 @@ class ExpensesController < ApplicationController
   before_action :set_expense, only: %i[show edit update destroy]
   before_action :load_accounts, only: %i[new create]
   before_action :load_expense_categories, only: %i[index history new create edit update]
+  before_action :set_return_to_context, only: %i[new create]
 
   DEFAULT_EXPENSE_CATEGORIES = [
     'Nomina',
@@ -79,7 +80,7 @@ class ExpensesController < ApplicationController
       end
 
       if success
-        redirect_to expenses_path, notice: 'Gasto creado exitosamente.'
+        redirect_to @return_to_path, notice: 'Gasto creado exitosamente.'
       else
         render :new, status: :unprocessable_entity
       end
@@ -87,7 +88,7 @@ class ExpensesController < ApplicationController
     end
 
     if @expense.save
-      redirect_to expenses_path, notice: 'Gasto creado exitosamente.'
+      redirect_to @return_to_path, notice: 'Gasto creado exitosamente.'
     else
       render :new, status: :unprocessable_entity
     end
@@ -133,6 +134,11 @@ class ExpensesController < ApplicationController
   end
 
   private
+
+  def set_return_to_context
+    @return_to_key = params[:return_to].to_s == 'history' ? 'history' : 'index'
+    @return_to_path = @return_to_key == 'history' ? history_expenses_path : expenses_path
+  end
 
   def set_expense
     @expense = current_business.expenses.find(params[:id])

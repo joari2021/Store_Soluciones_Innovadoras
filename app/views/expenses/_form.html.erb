@@ -24,6 +24,7 @@
 %>
 <% initial_payment_date_value = (initial_payment_date || Date.current).strftime('%d-%m-%Y') %>
 <%= form_with model: @expense, local: true, class: "space-y-6", data: { expense_form: true, expense_currency_symbols: currency_symbols.to_json } do |form| %>
+  <%= hidden_field_tag :return_to, @return_to_key if @return_to_key.present? %>
   <% if @expense.errors.any? %>
     <% balance_error_message = @expense.errors.full_messages.find { |message| message.to_s.downcase.include?('saldo insuficiente') } %>
     <% if balance_error_message.present? %>
@@ -193,7 +194,7 @@
   <% end %>
   <div class="flex flex-wrap items-center gap-3">
     <%= form.submit(@expense.persisted? ? "Actualizar gasto" : "Crear gasto", class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 cursor-pointer") %>
-    <%= link_to 'Cancelar', expenses_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
+    <%= link_to 'Cancelar', (@return_to_path || expenses_path), class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" %>
   </div>
 <% end %>
 <script>
