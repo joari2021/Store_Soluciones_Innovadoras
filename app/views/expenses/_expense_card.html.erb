@@ -1,5 +1,6 @@
 <% currency_symbol = Account::CURRENCIES.dig(expense.currency, :symbol) || expense.currency %>
 <% overdue = expense.overdue_count %>
+<% amount_usd_bcv = @expense_amount_usd_bcv_by_id.to_h[expense.id] %>
 <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
@@ -27,6 +28,9 @@
       <p class="uppercase tracking-wider">Monto</p>
       <p class="mt-1 text-sm font-semibold text-slate-700">
         <%= expense.amount.present? ? number_to_currency(expense.amount, unit: "#{currency_symbol} ") : 'Monto libre' %>
+        <% if expense.amount.present? && expense.currency.to_s.upcase == 'VES' && amount_usd_bcv.present? && amount_usd_bcv.positive? %>
+          <span class="text-xs font-medium text-slate-500">| $ <%= number_with_precision(amount_usd_bcv, precision: 2, delimiter: '.', separator: ',') %> BCV</span>
+        <% end %>
       </p>
     </div>
     <div>

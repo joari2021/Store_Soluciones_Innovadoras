@@ -29,6 +29,7 @@ class ExpensesController < ApplicationController
     )
 
     all_expenses = @fixed_expenses + @fixed_finalized_expenses + @variable_expenses + @variable_finalized_expenses
+    @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(all_expenses)
     @expenses_count = all_expenses.size
     @overdue_total = all_expenses.sum(&:overdue_count)
     @next_due_on = all_expenses.map(&:next_due_on).compact.min
@@ -278,6 +279,32 @@ class ExpensesController < ApplicationController
       end
 
       memo[payment.id] = converted&.dig(:amount)
+    end
+  end
+
+  def build_expense_amount_usd_bcv_by_id(expenses)
+    conversion_cache = {}
+
+    Array(expenses).each_with_object({}) do |expense, memo|
+      next unless expense.amount.present?
+      next unless expense.currency.to_s.upcase == 'VES'
+
+      amount = expense.amount.to_d
+      date = expense.start_date || expense.next_due_on || Date.current
+      cache_key = [amount, date]
+
+      converted = conversion_cache[cache_key]
+      unless conversion_cache.key?(cache_key)
+        converted = CurrencyConverter.convert(
+          amount: amount,
+          from_currency: 'VES',
+          to_currency: 'USD',
+          on_date: date
+        )
+        conversion_cache[cache_key] = converted
+      end
+
+      memo[expense.id] = converted&.dig(:amount).to_d
     end
   end
 
