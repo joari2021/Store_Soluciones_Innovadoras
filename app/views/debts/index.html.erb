@@ -270,17 +270,23 @@
             <div class="grid gap-4">
               <% @payable_groups.each do |counterparty_name, debts| %>
                 <% grouped_currencies = debts.map(&:currency).uniq %>
-                <% oldest_overdue_due_on = oldest_overdue_due_on_for_group(debts) %>
-                <% overdue_count = overdue_count_for_group(debts) %>
+                <% overdue_badges = overdue_badges_for_group(debts) %>
                 <article class="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Acreedor</p>
                       <h3 class="truncate text-sm font-bold text-slate-800"><%= counterparty_name.presence || 'Sin acreedor' %></h3>
-                      <% if oldest_overdue_due_on.present? %>
-                        <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold bg-rose-100 text-rose-700">Vencida desde <%= oldest_overdue_due_on.strftime('%d/%m/%Y') %></span>
-                        <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold bg-rose-50 text-rose-700"><%= pluralize(overdue_count, 'vencida', 'vencidas') %> en este grupo</span>
-                      <% end %>
+                      <div class="mt-1 flex flex-wrap gap-1.5">
+                        <% overdue_badges[:past_due].each_with_index do |(due_on, due_count), index| %>
+                          <% label = due_count == 1 ? '1 vencida' : "#{due_count} vencidas" %>
+                          <% suffix = index.zero? ? "desde #{due_on.strftime('%d/%m/%Y')}" : due_on.strftime('%d/%m/%Y') %>
+                          <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-rose-100 text-rose-700"><%= "#{label} #{suffix}" %></span>
+                        <% end %>
+                        <% if overdue_badges[:due_today_count].positive? %>
+                          <% today_label = overdue_badges[:due_today_count] == 1 ? '1 vence hoy' : "#{overdue_badges[:due_today_count]} vencen hoy" %>
+                          <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-700"><%= today_label %></span>
+                        <% end %>
+                      </div>
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
