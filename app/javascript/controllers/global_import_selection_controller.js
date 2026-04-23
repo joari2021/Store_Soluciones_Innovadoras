@@ -57,11 +57,19 @@ export default class extends Controller {
       checkbox.checked = this.selectedSet.has(productId);
     });
 
-    this.renderHiddenInputs(
-      this.searchHiddenInputsTarget,
-      "selected_global_product_ids[]",
-    );
-    this.renderHiddenInputs(this.importHiddenInputsTarget, "global_product_ids[]");
+    if (this.hasSearchHiddenInputsTarget) {
+      this.renderHiddenInputs(
+        this.searchHiddenInputsTarget,
+        "selected_global_product_ids[]",
+      );
+    }
+
+    if (this.hasImportHiddenInputsTarget) {
+      this.renderHiddenInputs(
+        this.importHiddenInputsTarget,
+        "global_product_ids[]",
+      );
+    }
 
     const selectedCount = this.selectedSet.size;
 
