@@ -1,6 +1,7 @@
 class DebtsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
+  helper_method :oldest_overdue_due_on_for_group, :overdue_count_for_group
   before_action :ensure_can_create_debt!, only: %i[new create prepare_group]
   before_action :ensure_can_edit_debt!, only: %i[edit update]
   before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
