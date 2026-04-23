@@ -116,13 +116,20 @@ class ExpensesController < ApplicationController
   end
 
   def destroy
-    if @expense.expense_payments.exists?
+    if should_archive_expense?(@expense)
       @expense.update!(active: false, next_due_on: nil, end_date: Date.current)
       redirect_to expenses_path, notice: 'Gasto archivado para conservar su historial de pagos.'
-    else
-      @expense.destroy
-      redirect_to expenses_path, notice: 'Gasto eliminado.'
+      return
     end
+
+    Expense.transaction do
+      remove_account_movements_for_expense!(@expense)
+      @expense.destroy!
+    end
+
+    redirect_to expenses_path, notice: 'Gasto eliminado.'
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
+    redirect_to expenses_path, alert: "No se pudo eliminar el gasto: #{e.message}"
   end
 
   private
@@ -255,6 +262,35 @@ class ExpensesController < ApplicationController
   def build_movement_description(expense, _reference)
     base = "Gasto #{expense.name} [GASTO:#{expense.id}]"
     base
+  end
+
+  def should_archive_expense?(expense)
+    expense.expense_payments.exists? && expense.frequency.to_s != 'once' && expense.next_due_on.present?
+  end
+
+  def remove_account_movements_for_expense!(expense)
+    expense.expense_payments.includes(:account).each do |payment|
+      remove_account_movement_for_payment!(payment)
+    end
+  end
+
+  def remove_account_movement_for_payment!(payment)
+    account = payment.account
+    return if account.blank?
+
+    movement = account.account_movements
+                      .where(movement_kind: 'expense')
+                      .where('description LIKE ?', "%[PAGO_GASTO:#{payment.id}]%")
+                      .order(created_at: :desc)
+                      .first
+
+    movement ||= account.account_movements
+                       .where(movement_kind: 'expense', amount: payment.amount, occurred_at: payment.occurred_at)
+                       .where('description LIKE ?', "%[GASTO:#{payment.expense_id}]%")
+                       .order(created_at: :desc)
+                       .first
+
+    movement&.destroy!
   end
 
   def normalize_account_movement_method(method)
