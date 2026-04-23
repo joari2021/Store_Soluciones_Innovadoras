@@ -17,9 +17,9 @@
     <%= form_with url: import_from_global_productos_path,
                   method: :get,
                   local: true,
-                  class: 'grid gap-3 md:grid-cols-[minmax(0,20rem)_auto_auto] md:items-end md:justify-start',
+                  class: 'flex flex-wrap items-end justify-start gap-3',
                   data: { global_import_selection_target: 'searchForm' } do %>
-      <div data-global-import-selection-target="searchHiddenInputs"></div>
+      <div class="hidden" data-global-import-selection-target="searchHiddenInputs"></div>
       <div class="w-full md:w-[20rem]">
         <label for="import_global_products_query_text" class="block text-sm font-medium text-slate-700">Buscar producto global</label>
         <div class="relative mt-1">
@@ -61,7 +61,6 @@
         Importar seleccionados
       </button>
     </div>
-
     <% if @global_products.any? %>
       <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <table class="min-w-full table-auto text-sm text-slate-700">
