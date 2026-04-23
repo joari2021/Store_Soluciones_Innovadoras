@@ -15,6 +15,7 @@ class ProductosController < ApplicationController
 
   def import_from_global
     @query_text = params[:query_text].to_s.strip
+    @selected_global_product_ids = Array(params[:selected_global_product_ids]).map(&:to_i).select(&:positive?).uniq
 
     base_scope = GlobalProduct
                  .includes(:source_business, image_attachment: :blob)
@@ -28,6 +29,7 @@ class ProductosController < ApplicationController
                        end
 
     @imported_global_product_ids = current_business.productos.where.not(global_product_id: nil).pluck(:global_product_id)
+    @selected_global_product_ids -= @imported_global_product_ids
   end
 
   def create_from_global
