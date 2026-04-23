@@ -1144,7 +1144,7 @@ class DebtsController < ApplicationController
         movement_kind: loan_movement_kind_for(debt),
         amount: loan_amount,
         description: build_loan_movement_description(debt),
-        occurred_at: debt.issued_on || Date.current,
+        occurred_at: loan_occurred_at_for(debt),
         payment_method: account.account_type == 'bank_account' ? 'transfer' : nil
       }
 
@@ -1175,6 +1175,13 @@ class DebtsController < ApplicationController
     counterparty_label = debt.counterparty_label
     actor_name = Current.user&.display_name.to_s.strip.presence || 'Usuario no identificado'
     "Prestamo deuda: #{debt_description} - #{counterparty_label}: #{counterparty_name} - Registrado por: #{actor_name} [DEBT:#{debt.id}] [LOAN_DEBT]"
+  end
+
+  def loan_occurred_at_for(debt)
+    now = Time.current.in_time_zone
+    base_date = debt.issued_on || now.to_date
+
+    Time.zone.local(base_date.year, base_date.month, base_date.day, now.hour, now.min, now.sec)
   end
 
   def current_user_can_manage_loan_debts?
