@@ -33,13 +33,11 @@ class ExpensesController < ApplicationController
       expenses_scope.where(expense_type: 'variable').to_a
     )
 
-    @fixed_mixed_expenses = build_mixed_expense_cards(@fixed_expenses, @fixed_finalized_expenses)
-    @variable_mixed_expenses = build_mixed_expense_cards(@variable_expenses, @variable_finalized_expenses)
+    @fixed_history_groups = build_history_groups(@fixed_expenses, @fixed_finalized_expenses)
+    @variable_history_groups = build_history_groups(@variable_expenses, @variable_finalized_expenses)
 
     all_expenses = @fixed_expenses + @fixed_finalized_expenses + @variable_expenses + @variable_finalized_expenses
     @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(all_expenses)
-    @fixed_payment_history_cards = build_recurring_payment_history_cards(@fixed_expenses + @fixed_finalized_expenses)
-    @variable_payment_history_cards = build_recurring_payment_history_cards(@variable_expenses + @variable_finalized_expenses)
     @expenses_count = all_expenses.size
     @overdue_total = all_expenses.sum(&:overdue_count)
     @next_due_on = all_expenses.map(&:next_due_on).compact.min
@@ -254,21 +252,6 @@ class ExpensesController < ApplicationController
     [sorted_active, sorted_finalized]
   end
 
-  def build_mixed_expense_cards(active, finalized)
-    merged = Array(active).map { |expense| [expense, :active] } + Array(finalized).map { |expense| [expense, :finalized] }
-
-    merged.sort_by do |expense, _state|
-      [sort_reference_datetime_for_expense(expense), expense.name.to_s.downcase]
-    end.reverse
-  end
-
-  def sort_reference_datetime_for_expense(expense)
-    return expense.next_due_on.in_time_zone.end_of_day if expense.next_due_on.present?
-    return expense.last_paid_on.in_time_zone.end_of_day if expense.last_paid_on.present?
-
-    expense.updated_at || expense.created_at || Time.zone.at(0)
-  end
-
   def load_expense_categories
     ensure_default_expense_categories!
     @expense_categories = current_business.expense_categories.order(:name)
@@ -292,9 +275,20 @@ class ExpensesController < ApplicationController
     filtered
   end
 
-  def build_recurring_payment_history_cards(expenses)
-    ids = Array(expenses).select { |expense| expense.frequency.to_s != 'once' }.map(&:id)
+  def build_history_groups(active_expenses, finalized_expenses)
+    expenses = Array(active_expenses) + Array(finalized_expenses)
+    ids = expenses.map(&:id)
     return [] if ids.empty?
+
+    entries = []
+
+    finalized_expenses.each do |expense|
+      paid_at = latest_payment_datetime_for_expense(expense)
+      paid_at ||= expense.last_paid_on&.in_time_zone&.end_of_day
+      next if paid_at.blank?
+
+      entries << { kind: :finalized_expense, occurred_at: paid_at, expense: expense }
+    end
 
     payments = ExpensePayment
                .includes(:account, :expense)
@@ -311,7 +305,27 @@ class ExpensesController < ApplicationController
       payments = payments.where('occurred_at <= ?', to_time)
     end
 
-    payments.to_a
+    payments.each do |payment|
+      entries << { kind: :payment, occurred_at: payment.occurred_at, payment: payment }
+    end
+
+    sorted_entries = entries.sort_by do |entry|
+      timestamp = entry[:occurred_at] || Time.zone.at(0)
+      [timestamp, entry[:kind] == :payment ? 1 : 0]
+    end.reverse
+
+    sorted_entries
+      .group_by { |entry| (entry[:occurred_at] || Time.zone.at(0)).to_date }
+      .sort_by { |date, _items| date }
+      .reverse
+  end
+
+  def latest_payment_datetime_for_expense(expense)
+    latest_payment = expense.expense_payments.max_by do |payment|
+      [payment.occurred_at || Time.zone.at(0), payment.id.to_i]
+    end
+
+    latest_payment&.occurred_at
   end
 
   def parse_filter_date(value)

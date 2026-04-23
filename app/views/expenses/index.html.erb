@@ -1,6 +1,6 @@
 <% expense_sections = [
-  { key: 'fixed', title: 'Gastos fijos', active: @fixed_expenses, finalized: @fixed_finalized_expenses, mixed: @fixed_mixed_expenses, history: @fixed_payment_history_cards },
-  { key: 'variable', title: 'Gastos variables', active: @variable_expenses, finalized: @variable_finalized_expenses, mixed: @variable_mixed_expenses, history: @variable_payment_history_cards }
+  { key: 'fixed', title: 'Gastos fijos', active: @fixed_expenses, finalized: @fixed_finalized_expenses, history_groups: @fixed_history_groups },
+  { key: 'variable', title: 'Gastos variables', active: @variable_expenses, finalized: @variable_finalized_expenses, history_groups: @variable_history_groups }
 ] %>
 <div class="space-y-6 fade-in" data-expense-index="true">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
@@ -88,28 +88,50 @@
         <div class="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
           <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Activo</span>
           <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">Finalizado</span>
+          <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">Pago registrado</span>
         </div>
-        <% if section[:mixed].any? %>
+        <% if section[:active].any? %>
           <div class="space-y-3">
-            <% section[:mixed].each do |expense, state| %>
-              <%= render 'expense_card', expense: expense, state: state %>
+            <% section[:active].each do |expense| %>
+              <%= render 'expense_card', expense: expense, state: :active %>
             <% end %>
           </div>
         <% else %>
           <div class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
-            No hay gastos en esta seccion.
+            No hay gastos activos en esta seccion.
           </div>
         <% end %>
-        <div class="mt-5 rounded-2xl border border-cyan-300 bg-cyan-50/60 p-3">
-          <p class="text-xs font-semibold uppercase tracking-widest text-cyan-700">Historial por pagos registrados · <%= section[:history].size %></p>
-          <div class="mt-3 space-y-3">
-            <% if section[:history].any? %>
-              <% section[:history].each do |payment| %>
-                <%= render 'expense_payment_history_card', payment: payment %>
+        <div class="my-5 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent"></div>
+        <div class="rounded-2xl border border-cyan-300 bg-cyan-50/60 p-3">
+          <% history_total = section[:history_groups].to_a.sum { |(_date, items)| items.size } %>
+          <p class="text-xs font-semibold uppercase tracking-widest text-cyan-800">Historial de gastos realizados · <%= history_total %></p>
+          <div class="mt-3 space-y-4">
+            <% if section[:history_groups].present? %>
+              <% section[:history_groups].each do |history_date, items| %>
+                <div class="rounded-2xl border border-cyan-200 bg-white/80 p-3">
+                  <div class="mb-3 flex items-center gap-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
+                    <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-600 text-lg font-extrabold text-white">
+                      <%= history_date.strftime('%d') %>
+                    </div>
+                    <div>
+                      <p class="text-sm font-bold tracking-wide text-cyan-900"><%= I18n.l(history_date, format: '%A').to_s.capitalize %></p>
+                      <p class="text-xs font-semibold uppercase tracking-wider text-cyan-700"><%= I18n.l(history_date, format: '%B %Y').to_s.capitalize %></p>
+                    </div>
+                  </div>
+                  <div class="space-y-3">
+                    <% items.each do |entry| %>
+                      <% if entry[:kind] == :payment %>
+                        <%= render 'expense_payment_history_card', payment: entry[:payment] %>
+                      <% else %>
+                        <%= render 'expense_card', expense: entry[:expense], state: :finalized %>
+                      <% end %>
+                    <% end %>
+                  </div>
+                </div>
               <% end %>
             <% else %>
               <div class="rounded-xl border border-dashed border-cyan-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                No hay historial de pagos en esta seccion.
+                No hay historial de gastos realizados en esta seccion.
               </div>
             <% end %>
           </div>
