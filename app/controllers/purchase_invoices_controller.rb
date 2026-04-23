@@ -314,7 +314,8 @@ class PurchaseInvoicesController < ApplicationController
         end
       end
 
-      @purchase_invoice.assign_attributes(purchase_invoice_params.except(:source_business_id, :intercompany))
+      intercompany_update_attrs = purchase_invoice_params.to_h.except('source_business_id', 'intercompany', 'global_supplier_id')
+      @purchase_invoice.assign_attributes(intercompany_update_attrs)
       current_delivered = @purchase_invoice.stock_delivered?
       normalize_intercompany_items_for_destination!(@purchase_invoice, source_business: source_business)
       if @purchase_invoice.errors.any?
