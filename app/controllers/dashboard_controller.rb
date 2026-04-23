@@ -9,6 +9,9 @@ class DashboardController < ApplicationController
       @from_date, @to_date = @to_date, @from_date
     end
 
+    @month_filter_options = dashboard_month_filter_options
+    @selected_month_filter = selected_dashboard_month_filter
+
     range = @from_date.beginning_of_day..@to_date.end_of_day
     sales_scope = current_business.ventas.where(status: "paid", created_at: range).includes(:venta_items)
 
@@ -30,6 +33,31 @@ class DashboardController < ApplicationController
     Date.parse(normalized)
   rescue ArgumentError
     nil
+  end
+
+  def dashboard_month_filter_options
+    today = Time.current.in_time_zone("America/Caracas").to_date
+
+    (0..11).map do |offset|
+      month_start = today.beginning_of_month << offset
+      month_end = month_start.end_of_month
+
+      {
+        value: month_start.strftime('%Y-%m'),
+        label: I18n.l(month_start, format: '%B %Y').to_s.split.map(&:capitalize).join(' '),
+        from: month_start.strftime('%d-%m-%Y'),
+        to: month_end.strftime('%d-%m-%Y')
+      }
+    end
+  end
+
+  def selected_dashboard_month_filter
+    return nil unless @from_date == @from_date.beginning_of_month
+    return nil unless @to_date == @to_date.end_of_month
+
+    candidate = @from_date.strftime('%Y-%m')
+    exists = @month_filter_options.any? { |option| option[:value] == candidate }
+    exists ? candidate : nil
   end
 
   def parse_notes_payload(raw_notes)
