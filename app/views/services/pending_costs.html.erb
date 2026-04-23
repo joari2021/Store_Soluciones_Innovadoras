@@ -175,14 +175,23 @@
                 <td class="px-4 py-3 text-center font-semibold text-slate-700"><%= format_quantity(row[:quantity], precision: 2) %></td>
                 <td class="px-4 py-3 text-right font-semibold text-slate-800"><%= format_money(row[:sale_unit_price_usd], unit: "$ ") %></td>
                 <td class="px-4 py-3 text-xs text-slate-600">
-                  <div class="flex flex-col gap-0.5">
-                    <span><span class="font-semibold text-slate-700">Beneficiario:</span> <%= row[:service_beneficiary_name].to_s.strip.presence || "Beneficiario no registrado" %></span>
-                    <span><span class="font-semibold text-slate-700">Responsable:</span> <%= row[:service_responsible_name].to_s.strip.presence || "Responsable no registrado" %></span>
-                  </div>
+                  <% if row[:printing_sale] %>
+                    <div class="flex flex-col gap-0.5">
+                      <span><span class="font-semibold text-slate-700">Beneficiario:</span> <%= row[:service_beneficiary_name].to_s.strip.presence || "Beneficiario no registrado" %></span>
+                      <span><span class="font-semibold text-slate-700">Responsable:</span> <%= row[:service_responsible_name].to_s.strip.presence || "Responsable no registrado" %></span>
+                    </div>
+                  <% elsif row[:cost_status].to_s == 'no_cost' || !row[:has_cost_structure] %>
+                    <span class="font-semibold text-slate-500">N/A</span>
+                  <% else %>
+                    <div class="flex flex-col gap-0.5">
+                      <span><span class="font-semibold text-slate-700">Beneficiario:</span> <%= row[:service_beneficiary_name].to_s.strip.presence || "Beneficiario no registrado" %></span>
+                      <span><span class="font-semibold text-slate-700">Responsable:</span> <%= row[:service_responsible_name].to_s.strip.presence || "Responsable no registrado" %></span>
+                    </div>
+                  <% end %>
                 </td>
                 <td class="px-4 py-3 text-center">
                   <% if row[:cost_status_hidden] %>
-                    <span class="text-xs font-semibold text-slate-400">-</span>
+                    <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 bg-slate-100 text-slate-600 ring-slate-200">Sin costo</span>
                   <% else %>
                     <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 <%= row[:cost_status_class] %>"><%= row[:cost_status_label] %></span>
                   <% end %>
