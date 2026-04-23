@@ -359,11 +359,15 @@ class ExpensesController < ApplicationController
     conversion_cache = {}
 
     Array(expenses).each_with_object({}) do |expense, memo|
-      next unless expense.amount.present?
-      next unless expense.currency.to_s.upcase == 'VES'
+      latest_payment = expense.expense_payments.max_by do |payment|
+        [payment.occurred_at || Time.zone.at(0), payment.id.to_i]
+      end
+      next if latest_payment.blank?
+      next unless latest_payment.amount.present?
+      next unless latest_payment.currency.to_s.upcase == 'VES'
 
-      amount = expense.amount.to_d
-      date = expense.start_date || expense.next_due_on || Date.current
+      amount = latest_payment.amount.to_d
+      date = latest_payment.occurred_at&.to_date || Date.current
       cache_key = [amount, date]
 
       converted = conversion_cache[cache_key]

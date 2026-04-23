@@ -34,7 +34,7 @@ end %>
       <p class="uppercase tracking-wider">Monto</p>
       <p class="mt-1 text-sm font-semibold text-slate-700">
         <%= expense.amount.present? ? number_to_currency(expense.amount, unit: "#{currency_symbol} ") : 'Monto libre' %>
-        <% if expense.amount.present? && expense.currency.to_s.upcase == 'VES' && amount_usd_bcv.present? && amount_usd_bcv.positive? %>
+        <% if amount_usd_bcv.present? && amount_usd_bcv.positive? %>
           <span class="text-xs font-medium text-slate-500">| $ <%= number_with_precision(amount_usd_bcv, precision: 2, delimiter: '.', separator: ',') %> BCV</span>
         <% end %>
       </p>
