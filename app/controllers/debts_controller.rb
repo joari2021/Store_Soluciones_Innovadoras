@@ -1,7 +1,7 @@
 class DebtsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
-  helper_method :oldest_overdue_due_on_for_group, :overdue_count_for_group
+  helper_method :oldest_overdue_due_on_for_group, :overdue_count_for_group, :overdue_badges_for_group
   before_action :ensure_can_create_debt!, only: %i[new create prepare_group]
   before_action :ensure_can_edit_debt!, only: %i[edit update]
   before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
@@ -1825,10 +1825,13 @@ class DebtsController < ApplicationController
                   last_payment_at = group_last_payment_at_for(grouped_debts)
                   oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
                   overdue_count = overdue_count_for_group(grouped_debts)
+                  overdue_badges = overdue_badges_for_group(grouped_debts)
                   representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
                   representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
                   representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
                   representative.define_singleton_method(:card_overdue_count) { overdue_count }
+                  representative.define_singleton_method(:card_overdue_counts_by_due_on) { overdue_badges[:past_due] }
+                  representative.define_singleton_method(:card_due_today_count) { overdue_badges[:due_today_count] }
                   representative
     end
 
@@ -1982,6 +1985,42 @@ class DebtsController < ApplicationController
 
       debt.respond_to?(:card_overdue_count) ? debt.card_overdue_count.to_i : 1
     end
+  end
+
+  def overdue_badges_for_group(debts)
+    today = Date.current
+    past_due_counts = Hash.new(0)
+    due_today_count = 0
+
+    Array(debts).each do |debt|
+      if debt.respond_to?(:card_overdue_counts_by_due_on)
+        debt.card_overdue_counts_by_due_on.to_h.each do |due_on, count|
+          next if due_on.blank?
+
+          due_date = due_on.is_a?(Date) ? due_on : Date.parse(due_on.to_s)
+          next unless due_date < today
+
+          past_due_counts[due_date] += count.to_i
+        end
+        due_today_count += debt.card_due_today_count.to_i if debt.respond_to?(:card_due_today_count)
+      else
+        next unless balance_for_overdue_grouping(debt) > 0.01.to_d
+
+        due_on = due_on_for_overdue_grouping(debt)
+        next if due_on.blank?
+
+        if due_on < today
+          past_due_counts[due_on] += 1
+        elsif due_on == today
+          due_today_count += 1
+        end
+      end
+    end
+
+    {
+      past_due: past_due_counts.sort_by { |due_on, _count| due_on },
+      due_today_count: due_today_count,
+    }
   end
 
   def balance_for_overdue_grouping(debt)
