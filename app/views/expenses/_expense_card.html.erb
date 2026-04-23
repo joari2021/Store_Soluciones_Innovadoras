@@ -1,6 +1,7 @@
 <% currency_symbol = Account::CURRENCIES.dig(expense.currency, :symbol) || expense.currency %>
 <% overdue = expense.overdue_count %>
 <% amount_usd_bcv = @expense_amount_usd_bcv_by_id.to_h[expense.id] %>
+<% display_type_label = local_assigns.fetch(:display_type_label, expense.expense_type_label) %>
 <% card_state = local_assigns.fetch(:state, expense.next_due_on.present? ? :active : :finalized).to_sym %>
 <% last_payment = expense.expense_payments.max_by { |payment| [payment.occurred_at || Time.zone.at(0), payment.id.to_i] } %>
 <% last_payment_date = last_payment&.occurred_at&.in_time_zone&.strftime('%d/%m/%Y') || expense.last_paid_on&.strftime('%d/%m/%Y') %>
@@ -12,7 +13,7 @@ end %>
 <article class="rounded-2xl border p-4 shadow-sm <%= card_classes %>">
   <div class="flex items-start justify-between gap-3">
     <div class="min-w-0">
-      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400"><%= expense.expense_type_label %></p>
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400"><%= display_type_label %></p>
       <h3 class="mt-1 truncate text-base font-bold text-slate-800"><%= expense.name %></h3>
       <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-sky-700"><%= expense.category_label %></p>
       <% if expense.description.present? %>

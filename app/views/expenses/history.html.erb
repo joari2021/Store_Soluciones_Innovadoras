@@ -1,0 +1,121 @@
+<div class="mx-auto w-full max-w-5xl space-y-6 fade-in" data-expense-history="true">
+  <div class="rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Historial de gastos</h1>
+        <p class="mt-1 text-sm text-slate-500">Vista unificada de gastos finalizados y pagos registrados de gastos activos programables.</p>
+      </div>
+      <div class="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+        <%= link_to expenses_path, class: "w-full md:w-auto border border-slate-300 bg-white text-slate-700 px-5 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-50 transition-all font-medium cursor-pointer", data: { turbo_frame: "_top" } do %>
+          <i data-lucide="arrow-left" class="h-5 w-5"></i>
+          Volver a gastos activos
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <%= form_with url: history_expenses_path, method: :get, local: true, class: "grid gap-3 md:grid-cols-4 md:items-end" do |form| %>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Desde</label>
+        <%= form.text_field :from,
+                            value: @filter_from&.strftime('%d-%m-%Y'),
+                            placeholder: 'dd-mm-aaaa',
+                            autocomplete: 'off',
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Hasta</label>
+        <%= form.text_field :to,
+                            value: @filter_to&.strftime('%d-%m-%Y'),
+                            placeholder: 'dd-mm-aaaa',
+                            autocomplete: 'off',
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Categoria</label>
+        <%= form.select :expense_category_id,
+                        options_for_select([['Todas', '']] + @expense_categories.map { |category| [category.name, category.id] }, @filter_category_id),
+                        {},
+                        class: "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
+      </div>
+      <div class="flex gap-2">
+        <%= form.submit "Filtrar", class: "inline-flex cursor-pointer items-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800" %>
+        <%= link_to history_expenses_path, class: "inline-flex cursor-pointer items-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" do %>
+          Limpiar
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <section class="rounded-2xl border border-cyan-300 bg-cyan-50/60 p-4 shadow-sm sm:p-5">
+    <div class="mb-4 flex items-end justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Registro unificado</h2>
+        <p class="mt-1 text-xs font-semibold uppercase tracking-wider text-cyan-800">Historial de gastos realizados · <%= @history_total %></p>
+      </div>
+    </div>
+
+    <div class="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
+      <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">Finalizado / Unico</span>
+      <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">Pago de gasto activo</span>
+    </div>
+
+    <div class="space-y-4">
+      <% if @history_groups.present? %>
+        <% @history_groups.each do |history_date, items| %>
+          <div class="rounded-2xl border border-cyan-200 bg-white/80 p-3">
+            <div class="mb-3 flex items-center gap-3 rounded-xl border border-cyan-100 bg-cyan-50 px-3 py-2">
+              <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-cyan-600 text-lg font-extrabold text-white">
+                <%= history_date.strftime('%d') %>
+              </div>
+              <div>
+                <p class="text-sm font-bold tracking-wide text-cyan-900"><%= I18n.l(history_date, format: '%A').to_s.capitalize %></p>
+                <p class="text-xs font-semibold uppercase tracking-wider text-cyan-700"><%= I18n.l(history_date, format: '%B %Y').to_s.capitalize %></p>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <% items.each do |entry| %>
+                <% if entry[:kind] == :payment %>
+                  <%= render 'expense_payment_history_card', payment: entry[:payment], from_active_expense: true %>
+                <% else %>
+                  <% expense = entry[:expense] %>
+                  <% type_label = expense.frequency.to_s == 'once' ? 'Gasto unico' : expense.expense_type_label %>
+                  <%= render 'expense_card', expense: expense, state: :finalized, display_type_label: type_label %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      <% else %>
+        <div class="rounded-xl border border-dashed border-cyan-300 bg-white px-4 py-8 text-center text-sm text-slate-500">
+          No hay historial de gastos para los filtros seleccionados.
+        </div>
+      <% end %>
+    </div>
+
+    <% if @pagy.pages.to_i > 1 %>
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <% if @pagy.prev %>
+          <%= link_to 'Anterior', pagy_url_for(@pagy, @pagy.prev), class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' %>
+        <% end %>
+
+        <% @pagy.series.each do |item| %>
+          <% if item.is_a?(Integer) %>
+            <% if item == @pagy.page %>
+              <span class="inline-flex h-10 min-w-[2.5rem] items-center justify-center rounded-xl bg-slate-900 px-3 text-sm font-bold text-white"><%= item %></span>
+            <% else %>
+              <%= link_to item, pagy_url_for(@pagy, item), class: 'inline-flex h-10 min-w-[2.5rem] items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' %>
+            <% end %>
+          <% elsif item == :gap %>
+            <span class="px-1 text-slate-400">...</span>
+          <% end %>
+        <% end %>
+
+        <% if @pagy.next %>
+          <%= link_to 'Siguiente', pagy_url_for(@pagy, @pagy.next), class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' %>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+</div>

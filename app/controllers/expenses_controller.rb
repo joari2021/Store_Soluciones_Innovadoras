@@ -3,7 +3,7 @@ class ExpensesController < ApplicationController
   before_action :require_admin
   before_action :set_expense, only: %i[show edit update destroy]
   before_action :load_accounts, only: %i[new create]
-  before_action :load_expense_categories, only: %i[index new create edit update]
+  before_action :load_expense_categories, only: %i[index history new create edit update]
 
   DEFAULT_EXPENSE_CATEGORIES = [
     'Nomina',
@@ -19,6 +19,25 @@ class ExpensesController < ApplicationController
   ].freeze
 
   def index
+    expenses_scope = current_business.expenses.includes(:expense_payments, :expense_category)
+
+    programmed_active_scope = expenses_scope.where.not(frequency: 'once').where.not(next_due_on: nil)
+
+    @fixed_expenses, @fixed_finalized_expenses = split_and_sort_expenses(
+      programmed_active_scope.where(expense_type: 'fixed').to_a
+    )
+    @variable_expenses, @variable_finalized_expenses = split_and_sort_expenses(
+      programmed_active_scope.where(expense_type: 'variable').to_a
+    )
+
+    all_expenses = @fixed_expenses + @variable_expenses
+    @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(all_expenses)
+    @expenses_count = all_expenses.size
+    @overdue_total = all_expenses.sum(&:overdue_count)
+    @next_due_on = all_expenses.map(&:next_due_on).compact.min
+  end
+
+  def history
     @filter_from = parse_filter_date(params[:from])
     @filter_to = parse_filter_date(params[:to])
     @filter_category_id = params[:expense_category_id].to_s.presence
@@ -26,21 +45,17 @@ class ExpensesController < ApplicationController
     expenses_scope = current_business.expenses.includes(:expense_payments, :expense_category)
     expenses_scope = apply_expense_filters(expenses_scope)
 
-    @fixed_expenses, @fixed_finalized_expenses = split_and_sort_expenses(
-      expenses_scope.where(expense_type: 'fixed').to_a
-    )
-    @variable_expenses, @variable_finalized_expenses = split_and_sort_expenses(
-      expenses_scope.where(expense_type: 'variable').to_a
-    )
+    expenses = expenses_scope.to_a
+    @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(expenses)
 
-    @fixed_history_groups = build_history_groups(@fixed_expenses, @fixed_finalized_expenses)
-    @variable_history_groups = build_history_groups(@variable_expenses, @variable_finalized_expenses)
+    history_entries = build_unified_history_entries(expenses)
+    @pagy = Pagy.new(count: history_entries.size, page: params[:page], items: 12)
+    paginated_entries = history_entries[@pagy.offset, @pagy.items] || []
+    @history_groups = paginated_entries.group_by do |entry|
+      (entry[:occurred_at] || Time.zone.at(0)).to_date
+    end
 
-    all_expenses = @fixed_expenses + @fixed_finalized_expenses + @variable_expenses + @variable_finalized_expenses
-    @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(all_expenses)
-    @expenses_count = all_expenses.size
-    @overdue_total = all_expenses.sum(&:overdue_count)
-    @next_due_on = all_expenses.map(&:next_due_on).compact.min
+    @history_total = history_entries.size
   end
 
   def new
@@ -280,57 +295,50 @@ class ExpensesController < ApplicationController
     filtered
   end
 
-  def build_history_groups(active_expenses, finalized_expenses)
-    expenses = Array(active_expenses) + Array(finalized_expenses)
-    ids = expenses.map(&:id)
-    return [] if ids.empty?
+  def build_unified_history_entries(expenses)
+    all_expenses = Array(expenses)
+    return [] if all_expenses.empty?
 
     entries = []
+    active_recurring_ids = []
 
-    finalized_expenses.each do |expense|
-      paid_at = latest_payment_datetime_for_expense(expense)
-      paid_at ||= expense.last_paid_on&.in_time_zone&.end_of_day
-      next if paid_at.blank?
+    all_expenses.each do |expense|
+      if expense.next_due_on.blank?
+        paid_at = latest_payment_datetime_for_expense(expense)
+        paid_at ||= expense.last_paid_on&.in_time_zone&.end_of_day
+        next if paid_at.blank?
 
-      entries << { kind: :finalized_expense, occurred_at: paid_at, expense: expense }
+        entries << { kind: :finalized_expense, occurred_at: paid_at, expense: expense }
+      elsif expense.frequency.to_s != 'once'
+        active_recurring_ids << expense.id
+      end
     end
 
-    active_scheduled_ids = Array(active_expenses)
-                          .select { |expense| expense.frequency.to_s != 'once' && expense.next_due_on.present? }
-                          .map(&:id)
+    unless active_recurring_ids.empty?
+      payments = ExpensePayment
+                 .includes(:account, :expense)
+                 .where(expense_id: active_recurring_ids)
+                 .order(occurred_at: :desc, id: :desc)
 
-    payments = if active_scheduled_ids.empty?
-                 ExpensePayment.none
-               else
-                 ExpensePayment
-                   .includes(:account, :expense)
-                   .where(expense_id: active_scheduled_ids)
-                   .order(occurred_at: :desc, id: :desc)
-               end
+      if @filter_from.present?
+        from_time = @filter_from.in_time_zone.beginning_of_day
+        payments = payments.where('occurred_at >= ?', from_time)
+      end
 
-    if @filter_from.present?
-      from_time = @filter_from.in_time_zone.beginning_of_day
-      payments = payments.where('occurred_at >= ?', from_time)
+      if @filter_to.present?
+        to_time = @filter_to.in_time_zone.end_of_day
+        payments = payments.where('occurred_at <= ?', to_time)
+      end
+
+      payments.each do |payment|
+        entries << { kind: :payment, occurred_at: payment.occurred_at, payment: payment }
+      end
     end
 
-    if @filter_to.present?
-      to_time = @filter_to.in_time_zone.end_of_day
-      payments = payments.where('occurred_at <= ?', to_time)
-    end
-
-    payments.each do |payment|
-      entries << { kind: :payment, occurred_at: payment.occurred_at, payment: payment }
-    end
-
-    sorted_entries = entries.sort_by do |entry|
+    entries.sort_by do |entry|
       timestamp = entry[:occurred_at] || Time.zone.at(0)
       [timestamp, entry[:kind] == :payment ? 1 : 0]
     end.reverse
-
-    sorted_entries
-      .group_by { |entry| (entry[:occurred_at] || Time.zone.at(0)).to_date }
-      .sort_by { |date, _items| date }
-      .reverse
   end
 
   def latest_payment_datetime_for_expense(expense)

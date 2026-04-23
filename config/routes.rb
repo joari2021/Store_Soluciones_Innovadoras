@@ -83,6 +83,9 @@ Rails.application.routes.draw do
   end
   resources :expense_categories, path: 'gastos/categorias', only: %i[index create edit update destroy]
   resources :expenses, path: 'gastos' do
+    collection do
+      get :history, path: 'historial'
+    end
     resources :expense_payments, only: %i[new create destroy]
     post 'convert_amount', to: 'api/expense_payments#convert_amount', on: :member
   end
