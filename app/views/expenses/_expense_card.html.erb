@@ -2,6 +2,8 @@
 <% overdue = expense.overdue_count %>
 <% amount_usd_bcv = @expense_amount_usd_bcv_by_id.to_h[expense.id] %>
 <% card_state = local_assigns.fetch(:state, expense.next_due_on.present? ? :active : :finalized).to_sym %>
+<% last_payment = expense.expense_payments.max_by { |payment| [payment.occurred_at || Time.zone.at(0), payment.id.to_i] } %>
+<% last_payment_date = last_payment&.occurred_at&.in_time_zone&.strftime('%d/%m/%Y') || expense.last_paid_on&.strftime('%d/%m/%Y') %>
 <% card_classes = if card_state == :finalized
   'border-amber-200 bg-amber-50/30'
 else
@@ -27,8 +29,14 @@ end %>
       <p class="mt-1 text-sm font-semibold text-slate-700"><%= expense.frequency_label %></p>
     </div>
     <div>
-      <p class="uppercase tracking-wider">Proximo pago</p>
-      <p class="mt-1 text-sm font-semibold text-slate-700"><%= expense.next_due_on ? expense.next_due_on.strftime('%d/%m/%Y') : 'Sin fecha' %></p>
+      <p class="uppercase tracking-wider"><%= card_state == :finalized ? 'Fecha pago' : 'Proximo pago' %></p>
+      <p class="mt-1 text-sm font-semibold text-slate-700">
+        <%= if card_state == :finalized
+              last_payment_date.presence || 'Sin registro'
+            else
+              expense.next_due_on ? expense.next_due_on.strftime('%d/%m/%Y') : 'Sin fecha'
+            end %>
+      </p>
     </div>
     <div>
       <p class="uppercase tracking-wider">Monto</p>
