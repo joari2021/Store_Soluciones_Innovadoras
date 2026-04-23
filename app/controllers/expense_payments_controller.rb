@@ -1,7 +1,7 @@
 class ExpensePaymentsController < ApplicationController
   before_action :require_business
   before_action :set_expense
-  before_action :load_accounts
+  before_action :load_accounts, only: %i[new create]
 
   def new
     @expense_payment = @expense.expense_payments.new(
@@ -45,6 +45,20 @@ class ExpensePaymentsController < ApplicationController
     render :new, status: :unprocessable_entity
   end
 
+  def destroy
+    @expense_payment = @expense.expense_payments.includes(:account).find(params[:id])
+
+    ExpensePayment.transaction do
+      remove_account_movement_for_payment(@expense_payment)
+      @expense_payment.destroy!
+      refresh_expense_after_payment_destroy!(@expense)
+    end
+
+    redirect_to expenses_path, notice: "Pago eliminado."
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordInvalid => e
+    redirect_to expenses_path, alert: "No se pudo eliminar el pago: #{e.message}"
+  end
+
   private
 
   def set_expense
@@ -77,8 +91,49 @@ class ExpensePaymentsController < ApplicationController
   end
 
   def build_movement_description
-    base = "Gasto #{@expense.name} [GASTO:#{@expense.id}]"
+    base = "Gasto #{@expense.name} [GASTO:#{@expense.id}] [PAGO_GASTO:#{@expense_payment.id}]"
     base
+  end
+
+  def remove_account_movement_for_payment(payment)
+    account = payment.account
+    return if account.blank?
+
+    movement = account.account_movements
+                      .where(movement_kind: "expense")
+                      .where("description LIKE ?", "%[PAGO_GASTO:#{payment.id}]%")
+                      .order(created_at: :desc)
+                      .first
+
+    movement ||= account.account_movements
+                       .where(movement_kind: "expense", amount: payment.amount, occurred_at: payment.occurred_at)
+                       .where("description LIKE ?", "%[GASTO:#{payment.expense_id}]%")
+                       .order(created_at: :desc)
+                       .first
+
+    movement&.destroy!
+  end
+
+  def refresh_expense_after_payment_destroy!(expense)
+    remaining = expense.expense_payments.order(occurred_at: :desc, id: :desc)
+    expense.payments_count = remaining.size
+
+    latest_paid_on = remaining.first&.occurred_at&.to_date
+    expense.last_paid_on = latest_paid_on
+
+    if remaining.empty?
+      expense.next_due_on = expense.start_date || Date.current
+      expense.active = true
+    elsif expense.frequency == "once"
+      expense.next_due_on = nil
+      expense.active = false
+    else
+      reference_date = latest_paid_on || Date.current
+      expense.next_due_on = expense.compute_next_due_on(reference_date)
+      expense.active = expense.next_due_on.present?
+    end
+
+    expense.save!
   end
 
   def normalize_account_movement_method(method)

@@ -101,8 +101,13 @@ class ExpensesController < ApplicationController
   end
 
   def destroy
-    @expense.destroy
-    redirect_to expenses_path, notice: 'Gasto eliminado.'
+    if @expense.expense_payments.exists?
+      @expense.update!(active: false, next_due_on: nil, end_date: Date.current)
+      redirect_to expenses_path, notice: 'Gasto archivado para conservar su historial de pagos.'
+    else
+      @expense.destroy
+      redirect_to expenses_path, notice: 'Gasto eliminado.'
+    end
   end
 
   private
