@@ -3,6 +3,7 @@
 <% amount_usd_bcv = @expense_amount_usd_bcv_by_id.to_h[expense.id] %>
 <% display_type_label = local_assigns.fetch(:display_type_label, expense.expense_type_label) %>
 <% card_state = local_assigns.fetch(:state, expense.next_due_on.present? ? :active : :finalized).to_sym %>
+<% return_to_key = local_assigns.fetch(:return_to, 'index').to_s == 'history' ? 'history' : 'index' %>
 <% last_payment = expense.expense_payments.max_by { |payment| [payment.occurred_at || Time.zone.at(0), payment.id.to_i] } %>
 <% last_payment_date = last_payment&.occurred_at&.in_time_zone&.strftime('%d/%m/%Y') || expense.last_paid_on&.strftime('%d/%m/%Y') %>
 <% card_classes = if card_state == :finalized
@@ -66,7 +67,7 @@ end %>
       <i data-lucide="pencil" class="h-4 w-4"></i>
       Editar
     <% end %>
-    <%= link_to expense_path(expense), class: 'inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 cursor-pointer', data: { turbo_method: :delete, swal_delete: 'expense' } do %>
+    <%= link_to expense_path(expense, return_to: return_to_key), class: 'inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 cursor-pointer', data: { turbo_method: :delete, swal_delete: 'expense' } do %>
       <i data-lucide="trash" class="h-4 w-4"></i>
       Eliminar
     <% end %>

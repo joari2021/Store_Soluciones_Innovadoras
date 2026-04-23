@@ -117,9 +117,11 @@ class ExpensesController < ApplicationController
   end
 
   def destroy
+    destination_path = destroy_return_path
+
     if should_archive_expense?(@expense)
       @expense.update!(active: false, next_due_on: nil, end_date: Date.current)
-      redirect_to expenses_path, notice: 'Gasto archivado para conservar su historial de pagos.'
+      redirect_to destination_path, notice: 'Gasto archivado para conservar su historial de pagos.'
       return
     end
 
@@ -128,9 +130,9 @@ class ExpensesController < ApplicationController
       @expense.destroy!
     end
 
-    redirect_to expenses_path, notice: 'Gasto eliminado.'
+    redirect_to destination_path, notice: 'Gasto eliminado.'
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
-    redirect_to expenses_path, alert: "No se pudo eliminar el gasto: #{e.message}"
+    redirect_to destination_path, alert: "No se pudo eliminar el gasto: #{e.message}"
   end
 
   private
@@ -272,6 +274,10 @@ class ExpensesController < ApplicationController
 
   def should_archive_expense?(expense)
     expense.expense_payments.exists? && expense.frequency.to_s != 'once' && expense.next_due_on.present?
+  end
+
+  def destroy_return_path
+    params[:return_to].to_s == 'history' ? history_expenses_path : expenses_path
   end
 
   def remove_account_movements_for_expense!(expense)

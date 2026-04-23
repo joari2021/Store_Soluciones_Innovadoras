@@ -81,7 +81,7 @@
                 <% else %>
                   <% expense = entry[:expense] %>
                   <% type_label = expense.frequency.to_s == 'once' ? 'Gasto unico' : expense.expense_type_label %>
-                  <%= render 'expense_card', expense: expense, state: :finalized, display_type_label: type_label %>
+                  <%= render 'expense_card', expense: expense, state: :finalized, display_type_label: type_label, return_to: 'history' %>
                 <% end %>
               <% end %>
             </div>

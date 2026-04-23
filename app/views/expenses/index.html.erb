@@ -56,7 +56,7 @@
         <% if section[:active].any? %>
           <div class="space-y-3">
             <% section[:active].each do |expense| %>
-              <%= render 'expense_card', expense: expense, state: :active %>
+              <%= render 'expense_card', expense: expense, state: :active, return_to: 'index' %>
             <% end %>
           </div>
         <% else %>
