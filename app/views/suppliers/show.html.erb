@@ -490,7 +490,7 @@
           return;
         }
 
-        fetch(`<%= suppliers_search_products_path %>?q=${encodeURIComponent(value)}`)
+        fetch(`<%= search_products_suppliers_path %>?q=${encodeURIComponent(value)}`)
           .then((res) => res.json())
           .then((data) => renderResults(data))
           .catch(() => {
