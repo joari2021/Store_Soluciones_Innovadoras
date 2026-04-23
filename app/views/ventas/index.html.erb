@@ -943,6 +943,9 @@
         const productRulesRaw = source.product_rules && typeof source.product_rules === 'object'
           ? source.product_rules
           : {};
+        const serviceRulesRaw = source.service_rules && typeof source.service_rules === 'object'
+          ? source.service_rules
+          : {};
         const servicePricesRaw = source.service_fixed_prices && typeof source.service_fixed_prices === 'object'
           ? source.service_fixed_prices
           : {};
@@ -962,13 +965,31 @@
           };
         });
 
-        const serviceFixedPrices = {};
+        const serviceRules = {};
+        Object.entries(serviceRulesRaw).forEach(([key, rule]) => {
+          const normalizedKey = String(key || '').trim();
+          if (!normalizedKey || normalizedKey === 'null' || normalizedKey === 'undefined') return;
+          if (!rule || typeof rule !== 'object') return;
+
+          const mode = String(rule.mode || '').trim().toLowerCase();
+          const value = Number(rule.value);
+          if (!['fixed', 'percent'].includes(mode)) return;
+          if (!(Number.isFinite(value) && value > 0)) return;
+
+          serviceRules[normalizedKey] = {
+            mode,
+            value: mode === 'percent' ? Math.max(0, Math.min(100, value)) : value,
+          };
+        });
+
         Object.entries(servicePricesRaw).forEach(([key, value]) => {
           const normalizedKey = String(key || '').trim();
           if (!normalizedKey || normalizedKey === 'null' || normalizedKey === 'undefined') return;
+          if (serviceRules[normalizedKey]) return;
+
           const numeric = Number(value);
           if (!(Number.isFinite(numeric) && numeric > 0)) return;
-          serviceFixedPrices[normalizedKey] = numeric;
+          serviceRules[normalizedKey] = { mode: 'fixed', value: numeric };
         });
 
         const generalDiscount = Number(source.general_product_discount_percent);
@@ -978,15 +999,18 @@
             ? Math.max(0, Math.min(100, generalDiscount))
             : 0,
           product_rules: productRules,
-          service_fixed_prices: serviceFixedPrices,
+          service_rules: serviceRules,
         };
       };
 
       const clientHasBenefits = (client) => {
+        if (!client) return false;
+        if (typeof client.has_benefits === 'boolean') return client.has_benefits;
+
         const benefits = normalizeClientBenefits(client?.benefits || {});
         return benefits.general_product_discount_percent > 0
           || Object.keys(benefits.product_rules).length > 0
-          || Object.keys(benefits.service_fixed_prices).length > 0;
+          || Object.keys(benefits.service_rules).length > 0;
       };
 
       const resolveProductUnitPriceUsdForClient = (product, client) => {
@@ -1012,12 +1036,21 @@
         return basePrice;
       };
 
-      const resolveServiceFixedUnitPriceUsdForClient = (service, client) => {
+      const resolveServiceRuleForClient = (service, client) => {
         if (!client || !service) return null;
         const benefits = normalizeClientBenefits(client.benefits || {});
-        const fixed = Number(benefits.service_fixed_prices[String(service.id)]);
-        if (!(Number.isFinite(fixed) && fixed > 0)) return null;
-        return roundTo(fixed, 2);
+        const rule = benefits.service_rules[String(service.id)];
+        if (!rule || typeof rule !== 'object') return null;
+
+        const mode = String(rule.mode || '').trim().toLowerCase();
+        const value = Number(rule.value || 0);
+        if (!['fixed', 'percent'].includes(mode)) return null;
+        if (!(Number.isFinite(value) && value > 0)) return null;
+
+        return {
+          mode,
+          value: mode === 'percent' ? Math.max(0, Math.min(100, value)) : value,
+        };
       };
 
       const normalizeScheduledDiscountRules = (rawRules) => {
@@ -3967,9 +4000,9 @@
         let unitPriceUsd = 0;
         let unitPriceBaseVes = null;
         const usesBolivarReference = serviceUsesBolivarReference(service);
-        const clientFixedUnitPriceUsd = resolveServiceFixedUnitPriceUsdForClient(service, selectedClient);
-        if (Number.isFinite(clientFixedUnitPriceUsd) && clientFixedUnitPriceUsd > 0) {
-          unitPriceUsd = roundTo(clientFixedUnitPriceUsd, 6);
+        const clientServiceRule = resolveServiceRuleForClient(service, selectedClient);
+        if (clientServiceRule?.mode === 'fixed' && Number(clientServiceRule.value) > 0) {
+          unitPriceUsd = roundTo(Number(clientServiceRule.value), 6);
         }
 
         const discountPercent = resolvePrintVolumeDiscountPercent(service);
@@ -3998,6 +4031,14 @@
             unitPriceUsd = discountPercent > 0
               ? roundTo(baseUnitUsd * (1 - discountPercent / 100), 6)
               : roundTo(baseUnitUsd, 6);
+          }
+        }
+
+        if (clientServiceRule?.mode === 'percent' && Number(clientServiceRule.value) > 0) {
+          const percent = Math.max(0, Math.min(100, Number(clientServiceRule.value || 0)));
+          unitPriceUsd = roundTo(Math.max(0, unitPriceUsd * (1 - percent / 100)), 6);
+          if (Number.isFinite(unitPriceBaseVes) && unitPriceBaseVes > 0) {
+            unitPriceBaseVes = roundTo(Math.max(0, unitPriceBaseVes * (1 - percent / 100)), 2);
           }
         }
 

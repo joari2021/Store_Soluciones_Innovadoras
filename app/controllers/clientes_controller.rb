@@ -97,7 +97,7 @@ class ClientesController < ApplicationController
       :benefits_config_json,
       :general_product_discount_percent,
       product_rules_rows: %i[product_id mode value],
-      service_fixed_price_rows: %i[service_id value],
+      service_rules_rows: %i[service_id mode value],
     )
     build_cliente_attributes(permitted)
   end
@@ -142,20 +142,26 @@ class ClientesController < ApplicationController
       benefits_config["product_rules"] = product_rules
     end
 
-    service_rows = Array(attrs.delete("service_fixed_price_rows"))
+    service_rows = Array(attrs.delete("service_rules_rows"))
     if service_rows.any?
-      service_prices = {}
+      service_rules = {}
       service_rows.each do |row|
         next unless row.is_a?(Hash)
 
         service_id = row["service_id"].to_s.strip
+        mode = row["mode"].to_s.strip.downcase
         value = row["value"].to_d
         next if service_id.blank?
+        next unless %w[fixed percent].include?(mode)
         next unless value.positive?
 
-        service_prices[service_id] = value.round(2).to_f
+        normalized_value = mode == "percent" ? [value, 100.to_d].min : value
+        service_rules[service_id] = {
+          "mode" => mode,
+          "value" => normalized_value.round(2).to_f,
+        }
       end
-      benefits_config["service_fixed_prices"] = service_prices
+      benefits_config["service_rules"] = service_rules
     end
 
     attrs["benefits_config"] = Cliente.normalize_benefits_config(benefits_config)

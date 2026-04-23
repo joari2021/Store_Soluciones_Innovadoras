@@ -50,10 +50,10 @@
       <%= f.text_area :address, rows: 3, class: editable_input %>
     </div>
     <% unless contact_only_edit %>
-      <% benefit_products = current_business.productos.order(:descripcion).pluck(:id, :descripcion) %>
-      <% benefit_services = current_business.services.order(:description).pluck(:id, :description) %>
+      <% benefit_products = current_business.productos.order(:descripcion).pluck(:id, :descripcion).map { |id, label| { id: id.to_s, label: label.to_s } } %>
+      <% benefit_services = current_business.services.order(:description).pluck(:id, :description).map { |id, label| { id: id.to_s, label: label.to_s } } %>
       <% initial_benefits = cliente.normalized_benefits_config %>
-      <div class="rounded-2xl border border-fuchsia-200 bg-fuchsia-50/60 p-4 md:p-5" id="cliente-benefits-config" data-initial-benefits="<%= json_escape(initial_benefits.to_json) %>">
+      <div class="rounded-2xl border border-fuchsia-200 bg-fuchsia-50/60 p-4 md:p-5" id="cliente-benefits-config" data-initial-benefits="<%= json_escape(initial_benefits.to_json) %>" data-benefit-products="<%= json_escape(benefit_products.to_json) %>" data-benefit-services="<%= json_escape(benefit_services.to_json) %>">
         <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <p class="text-sm font-semibold text-fuchsia-700">Beneficios comerciales del cliente</p>
@@ -94,13 +94,13 @@
             <p class="text-xs font-semibold uppercase tracking-wide text-fuchsia-700">Servicios especificos</p>
             <button type="button" id="cliente-benefits-add-service-rule" class="inline-flex items-center justify-center rounded-lg bg-fuchsia-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-fuchsia-700">Agregar servicio</button>
           </div>
-          <p class="mt-1 text-xs text-slate-500">En servicios siempre se aplica monto fijo.</p>
           <div class="mt-3 overflow-x-auto">
             <table class="min-w-full text-xs text-slate-700">
               <thead class="bg-slate-50 text-slate-500">
                 <tr>
                   <th class="px-2 py-2 text-left">Servicio</th>
-                  <th class="px-2 py-2 text-left">Monto fijo (USD)</th>
+                  <th class="px-2 py-2 text-left">Modo</th>
+                  <th class="px-2 py-2 text-left">Valor</th>
                   <th class="px-2 py-2 text-right">Accion</th>
                 </tr>
               </thead>
@@ -108,16 +108,6 @@
             </table>
           </div>
         </div>
-        <datalist id="cliente-benefits-products-list">
-          <% benefit_products.each do |id, descripcion| %>
-            <option value="<%= id %>"><%= descripcion %></option>
-          <% end %>
-        </datalist>
-        <datalist id="cliente-benefits-services-list">
-          <% benefit_services.each do |id, descripcion| %>
-            <option value="<%= id %>"><%= descripcion %></option>
-          <% end %>
-        </datalist>
       </div>
     <% end %>
   </div>
@@ -150,6 +140,24 @@
       const addProductButton = document.getElementById('cliente-benefits-add-product-rule');
       const addServiceButton = document.getElementById('cliente-benefits-add-service-rule');
 
+      const parseOptions = (raw) => {
+        try {
+          const parsed = JSON.parse(raw || '[]');
+          if (!Array.isArray(parsed)) return [];
+          return parsed
+            .map((row) => ({
+              id: String(row?.id || '').trim(),
+              label: String(row?.label || '').trim(),
+            }))
+            .filter((row) => row.id && row.label);
+        } catch (_error) {
+          return [];
+        }
+      };
+
+      const productOptions = parseOptions(root.dataset.benefitProducts);
+      const serviceOptions = parseOptions(root.dataset.benefitServices);
+
       if (!hiddenInput || !generalInput || !productBody || !serviceBody || !addProductButton || !addServiceButton) return;
 
       const toNumber = (value) => {
@@ -170,12 +178,133 @@
         return Math.round(numeric * 100) / 100;
       };
 
+      const escapeHtml = (value) => String(value || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+
+      const normalizeText = (value) => String(value || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim();
+
+      const bindEntityPicker = ({ rowEl, entity, options, initialId }) => {
+        const hiddenField = rowEl.querySelector(`[data-role="${entity}-id"]`);
+        const searchInput = rowEl.querySelector(`[data-role="${entity}-search"]`);
+        const resultsPanel = rowEl.querySelector(`[data-role="${entity}-results"]`);
+        const chipsPanel = rowEl.querySelector(`[data-role="${entity}-chips"]`);
+        if (!hiddenField || !searchInput || !resultsPanel || !chipsPanel) return;
+
+        const selectedById = (id) => options.find((entry) => entry.id === String(id || '').trim()) || null;
+
+        const renderChips = () => {
+          const selected = selectedById(hiddenField.value);
+          if (!selected) {
+            chipsPanel.innerHTML = '<span class="text-xs text-slate-400">Sin seleccion.</span>';
+            return;
+          }
+
+          chipsPanel.innerHTML = `
+            <span class="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-semibold text-sky-700" data-chip-value="${escapeHtml(selected.id)}">
+              <span class="max-w-[14rem] truncate">${escapeHtml(selected.label)}</span>
+              <button type="button" class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-sky-100 text-[10px] text-sky-700 hover:bg-sky-200" data-role="clear-${entity}">x</button>
+            </span>
+          `;
+        };
+
+        const hideResults = () => {
+          resultsPanel.classList.add('hidden');
+        };
+
+        const renderResults = () => {
+          const query = normalizeText(searchInput.value);
+          const selectedId = String(hiddenField.value || '').trim();
+
+          const matches = options
+            .filter((entry) => entry.id !== selectedId)
+            .filter((entry) => !query || normalizeText(entry.label).includes(query))
+            .slice(0, 25);
+
+          if (!matches.length) {
+            resultsPanel.innerHTML = '<div class="px-3 py-2 text-xs text-slate-400">Sin resultados</div>';
+            resultsPanel.classList.remove('hidden');
+            return;
+          }
+
+          resultsPanel.innerHTML = matches.map((entry) => `
+            <button type="button" class="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 last:border-b-0" data-role="select-${entity}" data-value="${escapeHtml(entry.id)}">${escapeHtml(entry.label)}</button>
+          `).join('');
+          resultsPanel.classList.remove('hidden');
+        };
+
+        const selectEntity = (id) => {
+          const selected = selectedById(id);
+          if (!selected) return;
+          hiddenField.value = selected.id;
+          searchInput.value = '';
+          renderChips();
+          hideResults();
+          buildPayload();
+        };
+
+        const clearEntity = () => {
+          hiddenField.value = '';
+          searchInput.value = '';
+          renderChips();
+          hideResults();
+          buildPayload();
+        };
+
+        if (initialId) {
+          const selected = selectedById(initialId);
+          if (selected) hiddenField.value = selected.id;
+        }
+
+        searchInput.addEventListener('focus', renderResults);
+        searchInput.addEventListener('input', renderResults);
+        searchInput.addEventListener('keydown', (event) => {
+          if (event.key === 'Escape') hideResults();
+          if (event.key === 'Enter') {
+            const first = resultsPanel.querySelector(`[data-role="select-${entity}"]`);
+            if (!first) return;
+            event.preventDefault();
+            selectEntity(first.dataset.value);
+          }
+        });
+
+        resultsPanel.addEventListener('click', (event) => {
+          const button = event.target.closest(`[data-role="select-${entity}"]`);
+          if (!button) return;
+          selectEntity(button.dataset.value);
+        });
+
+        chipsPanel.addEventListener('click', (event) => {
+          const button = event.target.closest(`[data-role="clear-${entity}"]`);
+          if (!button) return;
+          clearEntity();
+        });
+
+        document.addEventListener('click', (event) => {
+          if (!rowEl.contains(event.target)) hideResults();
+        });
+
+        renderChips();
+      };
+
       const appendProductRow = (row = {}) => {
         const tr = document.createElement('tr');
         tr.className = 'border-b border-slate-100';
         tr.innerHTML = `
           <td class="px-2 py-2">
-            <input type="text" list="cliente-benefits-products-list" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-id" name="cliente[product_rules_rows][][product_id]" placeholder="ID producto" value="${String(row.productId || '')}">
+            <input type="hidden" data-role="product-id" name="cliente[product_rules_rows][][product_id]" value="${String(row.productId || '')}">
+            <div class="relative">
+              <input type="search" class="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700" data-role="product-search" placeholder="Buscar producto..." autocomplete="off">
+              <div class="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 hidden max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg" data-role="product-results"></div>
+            </div>
+            <div class="mt-2 flex min-h-9 flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2" data-role="product-chips"></div>
           </td>
           <td class="px-2 py-2">
             <select class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="product-mode" name="cliente[product_rules_rows][][mode]">
@@ -191,6 +320,7 @@
           </td>
         `;
         productBody.appendChild(tr);
+        bindEntityPicker({ rowEl: tr, entity: 'product', options: productOptions, initialId: row.productId });
       };
 
       const appendServiceRow = (row = {}) => {
@@ -198,23 +328,35 @@
         tr.className = 'border-b border-slate-100';
         tr.innerHTML = `
           <td class="px-2 py-2">
-            <input type="text" list="cliente-benefits-services-list" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-id" name="cliente[service_fixed_price_rows][][service_id]" placeholder="ID servicio" value="${String(row.serviceId || '')}">
+            <input type="hidden" data-role="service-id" name="cliente[service_rules_rows][][service_id]" value="${String(row.serviceId || '')}">
+            <div class="relative">
+              <input type="search" class="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm text-slate-700" data-role="service-search" placeholder="Buscar servicio..." autocomplete="off">
+              <div class="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-20 hidden max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg" data-role="service-results"></div>
+            </div>
+            <div class="mt-2 flex min-h-9 flex-wrap gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2" data-role="service-chips"></div>
           </td>
           <td class="px-2 py-2">
-            <input type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-value" name="cliente[service_fixed_price_rows][][value]" value="${String(row.value || '')}">
+            <select class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-mode" name="cliente[service_rules_rows][][mode]">
+              <option value="fixed" ${row.mode === 'percent' ? '' : 'selected'}>Monto fijo USD</option>
+              <option value="percent" ${row.mode === 'percent' ? 'selected' : ''}>Descuento %</option>
+            </select>
+          </td>
+          <td class="px-2 py-2">
+            <input type="number" min="0" step="0.01" class="w-full rounded-lg border border-slate-200 px-2 py-1" data-role="service-value" name="cliente[service_rules_rows][][value]" value="${String(row.value || '')}">
           </td>
           <td class="px-2 py-2 text-right">
             <button type="button" class="rounded-lg bg-rose-50 px-2 py-1 text-rose-600 hover:bg-rose-100" data-role="remove-row">Quitar</button>
           </td>
         `;
         serviceBody.appendChild(tr);
+        bindEntityPicker({ rowEl: tr, entity: 'service', options: serviceOptions, initialId: row.serviceId });
       };
 
       const buildPayload = () => {
         const payload = {
           general_product_discount_percent: clampPercent(generalInput.value),
           product_rules: {},
-          service_fixed_prices: {},
+          service_rules: {},
         };
 
         Array.from(productBody.querySelectorAll('tr')).forEach((rowEl) => {
@@ -232,9 +374,14 @@
 
         Array.from(serviceBody.querySelectorAll('tr')).forEach((rowEl) => {
           const serviceId = String(rowEl.querySelector('[data-role="service-id"]')?.value || '').trim();
-          const value = clampPositive(rowEl.querySelector('[data-role="service-value"]')?.value);
+          const mode = String(rowEl.querySelector('[data-role="service-mode"]')?.value || 'fixed').trim().toLowerCase();
+          if (!['fixed', 'percent'].includes(mode)) return;
+
+          const rawValue = rowEl.querySelector('[data-role="service-value"]')?.value;
+          const value = mode === 'percent' ? clampPercent(rawValue) : clampPositive(rawValue);
           if (!serviceId || !(value > 0)) return;
-          payload.service_fixed_prices[serviceId] = value;
+
+          payload.service_rules[serviceId] = { mode, value };
         });
 
         hiddenInput.value = JSON.stringify(payload);
@@ -252,9 +399,17 @@
         });
       }
 
-      if (initial?.service_fixed_prices && typeof initial.service_fixed_prices === 'object') {
+      if (initial?.service_rules && typeof initial.service_rules === 'object') {
+        Object.entries(initial.service_rules).forEach(([serviceId, rule]) => {
+          appendServiceRow({
+            serviceId,
+            mode: String(rule?.mode || 'fixed'),
+            value: String(rule?.value || ''),
+          });
+        });
+      } else if (initial?.service_fixed_prices && typeof initial.service_fixed_prices === 'object') {
         Object.entries(initial.service_fixed_prices).forEach(([serviceId, value]) => {
-          appendServiceRow({ serviceId, value: String(value || '') });
+          appendServiceRow({ serviceId, mode: 'fixed', value: String(value || '') });
         });
       }
 

@@ -561,18 +561,29 @@ class VentasController < ApplicationController
           base_currency: base_currency,
         )
 
-        client_service_price_usd = client_service_fixed_price_usd(
+        service_benefit_rule = client_service_rule(
           benefits_config: client_benefits,
           service_id: service.id,
         )
-        if client_service_price_usd.positive?
-          unit_price_usd = client_service_price_usd
-          unit_price_base_amount = if base_currency == "VES" && tasa_dolar.to_d.positive?
-              (client_service_price_usd * tasa_dolar.to_d).round(2)
-            else
-              client_service_price_usd.round(2)
+        if service_benefit_rule.present?
+          rule_mode = service_benefit_rule[:mode].to_s
+          rule_value = service_benefit_rule[:value].to_d
+
+          if rule_mode == "fixed"
+            unit_price_usd = rule_value.round(6)
+            unit_price_base_amount = if base_currency == "VES" && tasa_dolar.to_d.positive?
+                (unit_price_usd * tasa_dolar.to_d).round(2)
+              else
+                unit_price_usd.round(2)
+              end
+            discount_percent = 0.to_d
+          elsif rule_mode == "percent"
+            percent = [rule_value, 100.to_d].min
+            unit_price_usd = (unit_price_usd.to_d * (1 - (percent / 100))).round(6)
+            if unit_price_base_amount.to_d.positive?
+              unit_price_base_amount = (unit_price_base_amount.to_d * (1 - (percent / 100))).round(2)
             end
-          discount_percent = 0.to_d
+          end
         end
 
         service_discount_rules = active_discount_rules_by_target(:services)[service.id]
@@ -1653,18 +1664,29 @@ class VentasController < ApplicationController
               base_currency: base_currency,
             )
 
-            client_service_price_usd = client_service_fixed_price_usd(
+            service_benefit_rule = client_service_rule(
               benefits_config: client_benefits,
               service_id: service.id,
             )
-            if client_service_price_usd.positive?
-              unit_price_usd = client_service_price_usd
-              unit_price_base_amount = if base_currency == "VES" && tasa_dolar.to_d.positive?
-                  (client_service_price_usd * tasa_dolar.to_d).round(2)
-                else
-                  client_service_price_usd.round(2)
+            if service_benefit_rule.present?
+              rule_mode = service_benefit_rule[:mode].to_s
+              rule_value = service_benefit_rule[:value].to_d
+
+              if rule_mode == "fixed"
+                unit_price_usd = rule_value.round(6)
+                unit_price_base_amount = if base_currency == "VES" && tasa_dolar.to_d.positive?
+                    (unit_price_usd * tasa_dolar.to_d).round(2)
+                  else
+                    unit_price_usd.round(2)
+                  end
+                discount_percent = 0.to_d
+              elsif rule_mode == "percent"
+                percent = [rule_value, 100.to_d].min
+                unit_price_usd = (unit_price_usd.to_d * (1 - (percent / 100))).round(6)
+                if unit_price_base_amount.to_d.positive?
+                  unit_price_base_amount = (unit_price_base_amount.to_d * (1 - (percent / 100))).round(2)
                 end
-              discount_percent = 0.to_d
+              end
             end
 
             unit_price_usd = apply_discount_schedule_to_unit_price_usd(
@@ -2532,16 +2554,33 @@ class VentasController < ApplicationController
     discounted.positive? ? discounted.round(2) : 0.to_d
   end
 
-  def client_service_fixed_price_usd(benefits_config:, service_id:)
-    return 0.to_d unless benefits_config.is_a?(Hash)
+  def client_service_rule(benefits_config:, service_id:)
+    return nil unless benefits_config.is_a?(Hash)
 
-    service_prices = benefits_config.deep_stringify_keys["service_fixed_prices"]
-    return 0.to_d unless service_prices.is_a?(Hash)
+    config = benefits_config.deep_stringify_keys
+    rule = nil
 
-    amount = service_prices[service_id.to_s].to_d
-    return 0.to_d unless amount.positive?
+    service_rules = config["service_rules"]
+    if service_rules.is_a?(Hash)
+      raw_rule = service_rules[service_id.to_s]
+      if raw_rule.is_a?(Hash)
+        mode = raw_rule["mode"].to_s.strip.downcase
+        value = raw_rule["value"].to_d
+        if %w[fixed percent].include?(mode) && value.positive?
+          rule = { mode: mode, value: value.round(2) }
+        end
+      end
+    end
 
-    amount.round(2)
+    return rule if rule.present?
+
+    legacy_prices = config["service_fixed_prices"]
+    return nil unless legacy_prices.is_a?(Hash)
+
+    amount = legacy_prices[service_id.to_s].to_d
+    return nil unless amount.positive?
+
+    { mode: "fixed", value: amount.round(2) }
   end
 
   def active_discount_rules
