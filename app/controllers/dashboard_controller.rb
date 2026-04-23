@@ -3,8 +3,11 @@ class DashboardController < ApplicationController
   before_action :require_admin
 
   def index
-    @from_date = parse_date(params[:from]) || 30.days.ago.to_date
-    @to_date = parse_date(params[:to]) || Date.current
+    @default_from_date = 30.days.ago.to_date
+    @default_to_date = Date.current
+
+    @from_date = parse_date(params[:from]) || @default_from_date
+    @to_date = parse_date(params[:to]) || @default_to_date
     if @from_date > @to_date
       @from_date, @to_date = @to_date, @from_date
     end
@@ -38,7 +41,7 @@ class DashboardController < ApplicationController
   def dashboard_month_filter_options
     today = Time.current.in_time_zone("America/Caracas").to_date
 
-    (0..11).map do |offset|
+    month_rows = (0..11).map do |offset|
       month_start = today.beginning_of_month << offset
       month_end = month_start.end_of_month
 
@@ -49,15 +52,24 @@ class DashboardController < ApplicationController
         to: month_end.strftime('%d-%m-%Y')
       }
     end
+
+    [
+      {
+        value: 'all',
+        label: 'Todos los meses',
+        from: @default_from_date.strftime('%d-%m-%Y'),
+        to: @default_to_date.strftime('%d-%m-%Y')
+      }
+    ] + month_rows
   end
 
   def selected_dashboard_month_filter
-    return nil unless @from_date == @from_date.beginning_of_month
-    return nil unless @to_date == @to_date.end_of_month
+    return 'all' unless @from_date == @from_date.beginning_of_month
+    return 'all' unless @to_date == @to_date.end_of_month
 
     candidate = @from_date.strftime('%Y-%m')
     exists = @month_filter_options.any? { |option| option[:value] == candidate }
-    exists ? candidate : nil
+    exists ? candidate : 'all'
   end
 
   def parse_notes_payload(raw_notes)
