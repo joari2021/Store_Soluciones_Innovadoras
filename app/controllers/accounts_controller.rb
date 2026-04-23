@@ -362,6 +362,10 @@ class AccountsController < ApplicationController
   end
 
   def update_movement
+    if transfer_main_movement?(@movement)
+      return update_transfer_movement
+    end
+
     concept = params[:concept].to_s.strip
     return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
                        alert: "Indica el concepto del movimiento." if concept.blank?
@@ -414,7 +418,12 @@ class AccountsController < ApplicationController
 
   def destroy_movement
     movement_id = @movement.id
-    @movement.destroy!
+
+    if transfer_main_movement?(@movement)
+      destroy_transfer_movement_cluster!(@movement)
+    else
+      @movement.destroy!
+    end
 
     redirect_to account_path(@account), notice: "Movimiento ##{movement_id} eliminado correctamente."
   rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordInvalid => e
@@ -579,7 +588,7 @@ class AccountsController < ApplicationController
 
   def set_manual_movement
     @movement = @account.account_movements.find_by(id: params[:movement_id])
-    return if @movement.present? && manual_account_movement_editable?(@movement)
+    return if @movement.present? && editable_account_movement?(@movement)
 
     redirect_to account_path(@account), alert: "Solo puedes editar o eliminar movimientos manuales."
   end
@@ -596,8 +605,156 @@ class AccountsController < ApplicationController
     return false if movement.blank?
     return false if movement.account_settlement_id.present? || movement.cambio_efectivo_id.present?
 
+    return true if transfer_main_movement?(movement)
+
     description = movement.description.to_s
     !description.match?(/\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i)
+  end
+
+  def editable_account_movement?(movement)
+    manual_account_movement_editable?(movement) || transfer_main_movement?(movement)
+  end
+
+  def update_transfer_movement
+    payment_date = parse_transfer_date(params[:payment_date])
+    if payment_date.blank?
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "Indica una fecha valida para el movimiento."
+    end
+
+    amount = parse_transfer_decimal(params[:amount])
+    unless amount.positive?
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "Indica un monto valido mayor a 0."
+    end
+
+    reference = params[:reference].to_s.strip
+    if (@account.account_type == "bank_account" || transfer_counterpart_for(@movement)&.account_type == "bank_account") && !valid_bank_reference?(reference)
+      return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                         alert: "La referencia debe tener exactamente 4 digitos."
+    end
+
+    counterpart = transfer_counterpart_for(@movement)
+    return redirect_to account_path(@account), alert: "No se encontro el movimiento espejo de la transferencia." if counterpart.blank?
+
+    caracas_now = Time.current.in_time_zone("America/Caracas")
+    occurred_at = caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
+
+    counterpart_amount = suggested_transfer_amount(
+      amount_from: amount,
+      from_account: @account,
+      to_account: counterpart.account,
+      transfer_date: payment_date,
+    )
+    return redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                       alert: "No se pudo recalcular el monto en la cuenta relacionada." if counterpart_amount.blank? || counterpart_amount <= 0
+
+    AccountMovement.transaction do
+      update_transfer_side_movement!(@movement, amount: amount, occurred_at: occurred_at, reference: reference, counterpart: counterpart)
+      update_transfer_side_movement!(counterpart, amount: counterpart_amount, occurred_at: occurred_at, reference: reference, counterpart: @movement)
+      outgoing_amount = @movement.movement_kind == "expense" ? amount : counterpart_amount
+      sync_transfer_commission_for_update!(@movement, counterpart, amount: outgoing_amount, occurred_at: occurred_at, reference: reference, payment_date: payment_date)
+    end
+
+    redirect_to account_path(@account, movement_id: @movement.id), notice: "Transferencia actualizada correctamente."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_movement_account_path(@account, movement_id: @movement.id),
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
+  def update_transfer_side_movement!(movement, amount:, occurred_at:, reference:, counterpart:)
+    movement.update!(
+      amount: amount,
+      occurred_at: occurred_at,
+      payment_method: transfer_payment_method_for(movement.account, "transfer"),
+      reference: reference.presence,
+      description: transfer_side_description_for(movement: movement, counterpart: counterpart, reference: reference),
+    )
+  end
+
+  def transfer_side_description_for(movement:, counterpart:, reference:)
+    base = if movement.movement_kind == "expense"
+             "Transferencia a cuenta #{counterpart.account.name} [ACCOUNT:#{counterpart.account_id}] [AM:#{counterpart.id}]"
+           else
+             "Transferencia desde cuenta #{counterpart.account.name} [ACCOUNT:#{counterpart.account_id}] [AM:#{counterpart.id}]"
+           end
+    transfer_movement_description(base: base, reference: reference)
+  end
+
+  def sync_transfer_commission_for_update!(movement, counterpart, amount:, occurred_at:, reference:, payment_date:)
+    incoming = movement.movement_kind == "income" ? movement : counterpart
+    outgoing = movement.movement_kind == "expense" ? movement : counterpart
+    commission = transfer_commission_for_incoming(incoming)
+    return if commission.blank?
+
+    recalculated_commission = suggested_transfer_commission_amount(
+      amount_from: amount,
+      from_account: outgoing.account,
+      commission_account: commission.account,
+      transfer_date: payment_date,
+    )
+    return if recalculated_commission.blank? || recalculated_commission <= 0
+
+    commission.update!(
+      amount: recalculated_commission,
+      occurred_at: occurred_at,
+      payment_method: transfer_payment_method_for(commission.account, "transfer"),
+      reference: reference.presence,
+      description: transfer_movement_description(
+        base: "Comision de transferencia a cuenta #{incoming.account.name} [ACCOUNT:#{incoming.account_id}] [AM:#{incoming.id}]",
+        reference: reference,
+      ),
+    )
+  end
+
+  def destroy_transfer_movement_cluster!(movement)
+    counterpart = transfer_counterpart_for(movement)
+    incoming = movement.movement_kind == "income" ? movement : counterpart
+    incoming ||= counterpart if counterpart&.movement_kind == "income"
+
+    ids = [movement&.id, counterpart&.id]
+    if incoming.present?
+      ids.concat(transfer_commissions_for_incoming(incoming).pluck(:id))
+    end
+
+    AccountMovement.where(id: ids.compact.uniq).find_each(&:destroy!)
+  end
+
+  def transfer_counterpart_for(movement)
+    related_id = extract_movement_source_id(movement.description, "AM")
+    return nil if related_id.blank?
+
+    movement_scope_for_business.find_by(id: related_id)
+  end
+
+  def transfer_commission_for_incoming(incoming_movement)
+    transfer_commissions_for_incoming(incoming_movement).order(created_at: :desc).first
+  end
+
+  def transfer_commissions_for_incoming(incoming_movement)
+    movement_scope_for_business
+      .where(movement_kind: "expense")
+      .where("description ILIKE ?", "%Comision%transferencia%")
+      .where("description LIKE ?", "%[AM:#{incoming_movement.id}]%")
+  end
+
+  def transfer_main_movement?(movement)
+    return false if movement.blank?
+
+    description = movement.description.to_s
+    return false unless description.match?(/\[AM:\d+\]/)
+    return false unless description.match?(/\[ACCOUNT:\d+\]/)
+
+    description.match?(/\ATransferencia\s+/i)
+  end
+
+  def movement_scope_for_business
+    AccountMovement.joins(:account).where(accounts: { business_id: current_business.id })
+  end
+
+  def extract_movement_source_id(description, tag)
+    match = description.to_s.match(/\[#{Regexp.escape(tag)}:(\d+)\]/i)
+    match&.captures&.first&.to_i
   end
 
   def movement_concept_from_description(description)
