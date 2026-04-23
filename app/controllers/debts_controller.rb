@@ -260,6 +260,12 @@ class DebtsController < ApplicationController
     moneda = normalized_entries.first&.dig(:currency).presence || 'USD'
     active_group_debts = if shared_attrs[:debt_kind] == 'receivable'
                            active_receivable_group_debts(cliente_id: cliente_id, currency: moneda)
+                         elsif payable_grouping_allowed_for_entries?(normalized_entries)
+                           active_payable_group_debts(
+                             acreedor: shared_attrs[:acreedor],
+                             cliente_id: shared_attrs[:cliente_id],
+                             currency: moneda,
+                           )
                          else
                            []
                          end
@@ -769,6 +775,53 @@ class DebtsController < ApplicationController
     end
 
     selected ? selected.last : []
+  end
+
+  def active_payable_group_debts(acreedor:, cliente_id:, currency:)
+    normalized_currency = currency.to_s.strip.upcase
+    return [] if normalized_currency.blank?
+
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .where(debt_kind: 'payable', currency: normalized_currency)
+            .where("debts.description IS NULL OR (debts.description NOT LIKE ? AND debts.description NOT LIKE ?)",
+                   "%[FACTURA_COMPRA:%", "%[PURCHASE_INVOICE:%")
+            .includes(:debt_payments)
+
+    normalized_acreedor = acreedor.to_s.strip
+    if normalized_acreedor.present?
+      scope = scope.where("LOWER(COALESCE(acreedor, '')) = ?", normalized_acreedor.downcase)
+    elsif cliente_id.present?
+      scope = scope.where(cliente_id: cliente_id)
+    else
+      scope = scope.where(cliente_id: nil)
+    end
+
+    active = scope.select { |debt| debt.balance.to_d > 0.01.to_d }
+    return [] if active.empty?
+
+    grouped = active.group_by { |debt| debt_group_token(debt) }
+    selected = grouped.max_by do |_token, debts|
+      debts.map { |debt| debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1) }.max
+    end
+
+    selected ? selected.last : []
+  end
+
+  def payable_grouping_allowed_for_entries?(entries)
+    rows = Array(entries)
+    return false if rows.empty?
+
+    rows.none? do |entry|
+      description = entry[:description].to_s
+      purchase_invoice_origin_description?(description)
+    end
+  end
+
+  def purchase_invoice_origin_description?(description)
+    text = description.to_s
+    text.include?('[FACTURA_COMPRA:') || text.include?('[PURCHASE_INVOICE:')
   end
 
   def normalized_debt_entries
