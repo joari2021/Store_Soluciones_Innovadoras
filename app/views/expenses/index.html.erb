@@ -88,7 +88,7 @@
         <div class="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
           <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Activo</span>
           <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">Finalizado</span>
-          <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">Pago registrado</span>
+          <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">Pago de gasto activo</span>
         </div>
         <% if section[:active].any? %>
           <div class="space-y-3">
@@ -121,7 +121,7 @@
                   <div class="space-y-3">
                     <% items.each do |entry| %>
                       <% if entry[:kind] == :payment %>
-                        <%= render 'expense_payment_history_card', payment: entry[:payment] %>
+                        <%= render 'expense_payment_history_card', payment: entry[:payment], from_active_expense: entry[:payment].expense&.next_due_on.present? %>
                       <% else %>
                         <%= render 'expense_card', expense: entry[:expense], state: :finalized %>
                       <% end %>
