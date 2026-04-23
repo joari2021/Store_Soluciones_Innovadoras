@@ -13,7 +13,6 @@
       </div>
     </div>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
     <%= form_with url: history_expenses_path, method: :get, local: true, class: "grid gap-3 md:grid-cols-4 md:items-end" do |form| %>
       <div>
@@ -47,7 +46,6 @@
       </div>
     <% end %>
   </div>
-
   <section class="rounded-2xl border border-cyan-300 bg-cyan-50/60 p-4 shadow-sm sm:p-5">
     <div class="mb-4 flex items-end justify-between gap-3">
       <div>
@@ -55,12 +53,10 @@
         <p class="mt-1 text-xs font-semibold uppercase tracking-wider text-cyan-800">Historial de gastos realizados · <%= @history_total %></p>
       </div>
     </div>
-
     <div class="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
       <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">Finalizado / Unico</span>
       <span class="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">Pago de gasto activo</span>
     </div>
-
     <div class="space-y-4">
       <% if @history_groups.present? %>
         <% @history_groups.each do |history_date, items| %>
@@ -93,13 +89,11 @@
         </div>
       <% end %>
     </div>
-
     <% if @pagy.pages.to_i > 1 %>
       <div class="mt-5 flex flex-wrap items-center justify-center gap-2">
         <% if @pagy.prev %>
           <%= link_to 'Anterior', pagy_url_for(@pagy, @pagy.prev), class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' %>
         <% end %>
-
         <% @pagy.series.each do |item| %>
           <% if item.is_a?(Integer) %>
             <% if item == @pagy.page %>
@@ -111,7 +105,6 @@
             <span class="px-1 text-slate-400">...</span>
           <% end %>
         <% end %>
-
         <% if @pagy.next %>
           <%= link_to 'Siguiente', pagy_url_for(@pagy, @pagy.next), class: 'inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' %>
         <% end %>
