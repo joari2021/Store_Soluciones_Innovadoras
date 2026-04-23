@@ -33,6 +33,9 @@ class ExpensesController < ApplicationController
       expenses_scope.where(expense_type: 'variable').to_a
     )
 
+    @fixed_mixed_expenses = build_mixed_expense_cards(@fixed_expenses, @fixed_finalized_expenses)
+    @variable_mixed_expenses = build_mixed_expense_cards(@variable_expenses, @variable_finalized_expenses)
+
     all_expenses = @fixed_expenses + @fixed_finalized_expenses + @variable_expenses + @variable_finalized_expenses
     @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(all_expenses)
     @fixed_payment_history_cards = build_recurring_payment_history_cards(@fixed_expenses + @fixed_finalized_expenses)
@@ -249,6 +252,21 @@ class ExpensesController < ApplicationController
     sorted_finalized = finalized.sort_by { |expense| expense.name.to_s.downcase }
 
     [sorted_active, sorted_finalized]
+  end
+
+  def build_mixed_expense_cards(active, finalized)
+    merged = Array(active).map { |expense| [expense, :active] } + Array(finalized).map { |expense| [expense, :finalized] }
+
+    merged.sort_by do |expense, _state|
+      [sort_reference_datetime_for_expense(expense), expense.name.to_s.downcase]
+    end.reverse
+  end
+
+  def sort_reference_datetime_for_expense(expense)
+    return expense.next_due_on.in_time_zone.end_of_day if expense.next_due_on.present?
+    return expense.last_paid_on.in_time_zone.end_of_day if expense.last_paid_on.present?
+
+    expense.updated_at || expense.created_at || Time.zone.at(0)
   end
 
   def load_expense_categories

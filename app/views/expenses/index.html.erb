@@ -1,6 +1,6 @@
 <% expense_sections = [
-  { key: 'fixed', title: 'Gastos fijos', active: @fixed_expenses, finalized: @fixed_finalized_expenses, history: @fixed_payment_history_cards },
-  { key: 'variable', title: 'Gastos variables', active: @variable_expenses, finalized: @variable_finalized_expenses, history: @variable_payment_history_cards }
+  { key: 'fixed', title: 'Gastos fijos', active: @fixed_expenses, finalized: @fixed_finalized_expenses, mixed: @fixed_mixed_expenses, history: @fixed_payment_history_cards },
+  { key: 'variable', title: 'Gastos variables', active: @variable_expenses, finalized: @variable_finalized_expenses, mixed: @variable_mixed_expenses, history: @variable_payment_history_cards }
 ] %>
 <div class="space-y-6 fade-in" data-expense-index="true">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
@@ -42,11 +42,19 @@
     <%= form_with url: expenses_path, method: :get, local: true, class: "grid gap-3 md:grid-cols-4 md:items-end" do |form| %>
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Desde</label>
-        <%= form.date_field :from, value: @filter_from, class: "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
+        <%= form.text_field :from,
+                            value: @filter_from&.strftime('%d-%m-%Y'),
+                            placeholder: 'dd-mm-aaaa',
+                            autocomplete: 'off',
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
       </div>
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Hasta</label>
-        <%= form.date_field :to, value: @filter_to, class: "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
+        <%= form.text_field :to,
+                            value: @filter_to&.strftime('%d-%m-%Y'),
+                            placeholder: 'dd-mm-aaaa',
+                            autocomplete: 'off',
+                            class: "js-materialize-datepicker materialize-datepicker-input mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" %>
       </div>
       <div>
         <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Categoria</label>
@@ -77,31 +85,21 @@
             </p>
           </div>
         </div>
-        <% if section[:active].any? %>
+        <div class="mb-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
+          <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Activo</span>
+          <span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-700">Finalizado</span>
+        </div>
+        <% if section[:mixed].any? %>
           <div class="space-y-3">
-            <% section[:active].each do |expense| %>
-              <%= render 'expense_card', expense: expense %>
+            <% section[:mixed].each do |expense, state| %>
+              <%= render 'expense_card', expense: expense, state: state %>
             <% end %>
           </div>
         <% else %>
           <div class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
-            No hay gastos activos en esta seccion.
+            No hay gastos en esta seccion.
           </div>
         <% end %>
-        <div class="mt-5 rounded-2xl border border-amber-300 bg-amber-50/60 p-3">
-          <p class="text-xs font-semibold uppercase tracking-widest text-amber-700">Finalizados · <%= section[:finalized].size %></p>
-          <div class="mt-3 space-y-3">
-            <% if section[:finalized].any? %>
-              <% section[:finalized].each do |expense| %>
-                <%= render 'expense_card', expense: expense %>
-              <% end %>
-            <% else %>
-              <div class="rounded-xl border border-dashed border-amber-300 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                No hay gastos finalizados en esta seccion.
-              </div>
-            <% end %>
-          </div>
-        </div>
         <div class="mt-5 rounded-2xl border border-cyan-300 bg-cyan-50/60 p-3">
           <p class="text-xs font-semibold uppercase tracking-widest text-cyan-700">Historial por pagos registrados · <%= section[:history].size %></p>
           <div class="mt-3 space-y-3">
