@@ -153,7 +153,11 @@ class AccountsController < ApplicationController
     amount_from = parse_transfer_decimal(params[:amount_from])
     return redirect_to accounts_path, alert: "Indica un monto origen valido mayor a 0." unless amount_from.positive?
 
-    transfer_payment_method = origin_is_cash_box ? nil : normalize_transfer_payment_method(params[:transfer_payment_method])
+    transfer_payment_method = if origin_is_cash_box
+                                'transfer'
+                              else
+                                normalize_transfer_payment_method(params[:transfer_payment_method])
+                              end
     if !origin_is_cash_box && transfer_payment_method.blank?
       return redirect_to accounts_path,
                          alert: "Selecciona un metodo de pago valido para la transferencia."
