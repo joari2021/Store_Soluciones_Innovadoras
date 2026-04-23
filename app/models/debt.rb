@@ -121,7 +121,7 @@ class Debt < ApplicationRecord
     return false if due_on.blank?
     return false if balance <= 0
 
-    due_on < today
+    due_on <= today
   end
 
   def status_label(today = Date.current)

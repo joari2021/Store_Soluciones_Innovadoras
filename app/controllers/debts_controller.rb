@@ -1822,8 +1822,10 @@ class DebtsController < ApplicationController
                   representative.card_description_summary = card_description_summary_for(grouped_debts)
                   last_activity_at = group_last_activity_at_for(grouped_debts)
                   last_payment_at = group_last_payment_at_for(grouped_debts)
+                  oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
                   representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
                   representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
+                  representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
                   representative
     end
 
@@ -1960,11 +1962,23 @@ class DebtsController < ApplicationController
     today = Date.current
 
     Array(debts)
-      .select { |debt| debt.balance.to_d > 0.01.to_d }
-      .map(&:due_on)
+      .select { |debt| balance_for_overdue_grouping(debt) > 0.01.to_d }
+      .map { |debt| due_on_for_overdue_grouping(debt) }
       .compact
-      .select { |due_on| due_on < today }
+      .select { |due_on| due_on <= today }
       .min
+  end
+
+  def balance_for_overdue_grouping(debt)
+    return debt.card_total_balance.to_d if debt.respond_to?(:card_total_balance)
+
+    debt.balance.to_d
+  end
+
+  def due_on_for_overdue_grouping(debt)
+    return debt.card_oldest_overdue_due_on if debt.respond_to?(:card_oldest_overdue_due_on)
+
+    debt.due_on
   end
 
   def debt_last_payment_at_for_index(debt)
