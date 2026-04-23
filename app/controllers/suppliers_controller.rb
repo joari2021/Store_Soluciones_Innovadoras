@@ -8,7 +8,7 @@ class SuppliersController < ApplicationController
   def index
     @suppliers = filtered_global_suppliers
                  .includes(:source_business, :suppliers, :global_supplier_products)
-                 .order(Arel.sql('LOWER(global_suppliers.name) ASC'))
+                 .order(:name)
   end
 
   def show
