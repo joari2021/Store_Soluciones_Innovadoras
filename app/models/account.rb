@@ -152,6 +152,11 @@ class Account < ApplicationRecord
   end
 
   def self.ensure_cash_accounts!(business)
+    return if business.blank?
+
+    master_business = Business.order(:created_at).first
+    master_business = business if master_business.blank?
+
     cash_definitions = [
       { name: 'Efectivo Bs (Caja)', currency: 'VES', cash_role: 'cash_box' },
       { name: 'Efectivo $ (Caja)', currency: 'USD', cash_role: 'cash_box' },
@@ -160,19 +165,54 @@ class Account < ApplicationRecord
     ]
 
     cash_definitions.each do |definition|
-      account = business.accounts.find_or_initialize_by(
+      master_account = master_business.accounts
+                                    .where(account_type: 'cash_box', currency: definition[:currency], cash_role: definition[:cash_role])
+                                    .order(:id)
+                                    .first
+
+      if master_account.blank?
+        master_account = master_business.accounts.create!(
+          name: definition[:name],
+          account_type: 'cash_box',
+          currency: definition[:currency],
+          cash_role: definition[:cash_role],
+          theme_color: 'sky',
+          balance: 0,
+          active: true,
+          notes: 'Cuenta de efectivo del sistema'
+        )
+      end
+
+      account = business.accounts
+                        .where(account_type: 'cash_box', currency: definition[:currency], cash_role: definition[:cash_role])
+                        .order(:id)
+                        .first
+
+      if account.present?
+        account.update_columns(
+          shared_key: master_account.shared_key,
+          name: master_account.name,
+          theme_color: master_account.theme_color,
+          notes: master_account.notes,
+          updated_at: Time.current
+        )
+        master_account.sync_shared_attachments!(account) if account.id != master_account.id
+        next
+      end
+
+      account = business.accounts.new(
         account_type: 'cash_box',
         currency: definition[:currency],
-        cash_role: definition[:cash_role]
+        cash_role: definition[:cash_role],
+        shared_key: master_account.shared_key,
+        name: master_account.name,
+        theme_color: master_account.theme_color,
+        notes: master_account.notes,
+        balance: 0,
+        active: true
       )
-      next if account.persisted?
-
-      account.name = definition[:name]
-      account.theme_color = 'sky'
-      account.balance = 0
-      account.active = true
-      account.notes = 'Cuenta de efectivo del sistema'
       account.save!
+      master_account.sync_shared_attachments!(account) if account.id != master_account.id
     end
   end
 
@@ -197,8 +237,17 @@ class Account < ApplicationRecord
     Business.find_each do |business|
       target = Account.find_by(business_id: business.id, shared_key: source_account.shared_key)
 
+      if target.blank? && source_account.cash_box_account? && source_account.cash_role.present?
+        target = Account.where(
+          business_id: business.id,
+          account_type: 'cash_box',
+          currency: source_account.currency,
+          cash_role: source_account.cash_role
+        ).order(:id).first
+      end
+
       if target.present?
-        target.update_columns(shared_attrs.merge(updated_at: Time.current))
+        target.update_columns(shared_attrs.merge(shared_key: source_account.shared_key, updated_at: Time.current))
       else
         target = business.accounts.create!(
           shared_key: source_account.shared_key,
