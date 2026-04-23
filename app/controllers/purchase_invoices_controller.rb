@@ -274,6 +274,7 @@ class PurchaseInvoicesController < ApplicationController
     payment_context = nil
     if source_business.blank?
       @purchase_invoice.errors.add(:base, 'La factura interempresa no tiene negocio origen válido.')
+      log_intercompany_update_failure!(stage: 'missing_source_business')
       apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit, status: :unprocessable_entity
@@ -283,6 +284,7 @@ class PurchaseInvoicesController < ApplicationController
     requested_source_id = params.dig(:purchase_invoice, :source_business_id).to_s.strip
     if requested_source_id.present? && requested_source_id.to_i != source_business.id
       @purchase_invoice.errors.add(:base, 'No se puede cambiar el negocio origen en una factura interempresa ya creada.')
+      log_intercompany_update_failure!(stage: 'source_business_changed')
       apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit, status: :unprocessable_entity
@@ -296,6 +298,7 @@ class PurchaseInvoicesController < ApplicationController
     prior_delivered = @purchase_invoice.stock_delivered?
 
     if @purchase_invoice.errors.any?
+      log_intercompany_update_failure!(stage: 'pre_transaction_validation')
       apply_invoice_payment_form_state(default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit, status: :unprocessable_entity
@@ -305,16 +308,25 @@ class PurchaseInvoicesController < ApplicationController
     PurchaseInvoice.transaction do
       if prior_delivered
         restore_source_stock_rows!(rows: prior_rows)
-        raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+        if @purchase_invoice.errors.any?
+          log_intercompany_update_failure!(stage: 'restore_source_stock_rows')
+          raise ActiveRecord::Rollback
+        end
       end
 
       @purchase_invoice.assign_attributes(purchase_invoice_params.except(:source_business_id, :intercompany))
       current_delivered = @purchase_invoice.stock_delivered?
       normalize_intercompany_items_for_destination!(@purchase_invoice, source_business: source_business)
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if @purchase_invoice.errors.any?
+        log_intercompany_update_failure!(stage: 'normalize_items_for_destination')
+        raise ActiveRecord::Rollback
+      end
 
       payment_context = build_invoice_payment_context(@purchase_invoice, source_business: source_business)
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if @purchase_invoice.errors.any?
+        log_intercompany_update_failure!(stage: 'build_payment_context')
+        raise ActiveRecord::Rollback
+      end
 
       @purchase_invoice.save!
 
@@ -322,11 +334,17 @@ class PurchaseInvoicesController < ApplicationController
         @purchase_invoice.purchase_invoice_items.includes(producto: :product_variations),
         source_business: source_business,
       )
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if @purchase_invoice.errors.any?
+        log_intercompany_update_failure!(stage: 'aggregate_current_source_rows')
+        raise ActiveRecord::Rollback
+      end
 
       if current_delivered
         consume_source_stock_rows!(rows: current_rows)
-        raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+        if @purchase_invoice.errors.any?
+          log_intercompany_update_failure!(stage: 'consume_source_stock_rows')
+          raise ActiveRecord::Rollback
+        end
       end
 
       if invoice_payment_rows_input_submitted?
@@ -335,7 +353,10 @@ class PurchaseInvoicesController < ApplicationController
           payments: payment_context[:payments],
           source_business: source_business,
         )
-        raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+        if @purchase_invoice.errors.any?
+          log_intercompany_update_failure!(stage: 'sync_payment_movements')
+          raise ActiveRecord::Rollback
+        end
       end
 
       sync_intercompany_pending_debts!(
@@ -343,10 +364,14 @@ class PurchaseInvoicesController < ApplicationController
         source_business: source_business,
         payment_context: payment_context,
       )
-      raise ActiveRecord::Rollback if @purchase_invoice.errors.any?
+      if @purchase_invoice.errors.any?
+        log_intercompany_update_failure!(stage: 'sync_pending_debts')
+        raise ActiveRecord::Rollback
+      end
     end
 
     if @purchase_invoice.errors.any?
+      log_intercompany_update_failure!(stage: 'post_transaction')
       apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
       render :edit, status: :unprocessable_entity
@@ -366,6 +391,15 @@ class PurchaseInvoicesController < ApplicationController
     else
       @purchase_invoice.errors.add(:base, e.message)
     end
+
+    log_intercompany_update_exception!(e)
+
+    apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
+    load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+    render :edit, status: :unprocessable_entity
+  rescue StandardError => e
+    @purchase_invoice.errors.add(:base, 'Ocurrió un error inesperado al actualizar la factura interempresa.')
+    log_intercompany_update_exception!(e)
 
     apply_invoice_payment_form_state(payment_context || default_invoice_payment_context)
     load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
@@ -1479,6 +1513,27 @@ class PurchaseInvoicesController < ApplicationController
 
   def normalize_intercompany_rif_document_number(raw_rif)
     raw_rif.to_s.upcase.gsub(/[^A-Z0-9]/, '').sub(/\A[JVEG]/, '')
+  end
+
+  def log_intercompany_update_failure!(stage:)
+    return unless @purchase_invoice
+
+    Rails.logger.warn(
+      "[INTERCOMPANY_INVOICE_UPDATE_FAILED] " \
+      "stage=#{stage} invoice_id=#{@purchase_invoice.id} " \
+      "business_id=#{current_business&.id} source_business_id=#{@purchase_invoice.source_business_id} " \
+      "errors=#{@purchase_invoice.errors.full_messages.join(' | ')}"
+    )
+  end
+
+  def log_intercompany_update_exception!(error)
+    invoice_id = @purchase_invoice&.id
+    Rails.logger.error(
+      "[INTERCOMPANY_INVOICE_UPDATE_EXCEPTION] " \
+      "invoice_id=#{invoice_id} business_id=#{current_business&.id} " \
+      "error_class=#{error.class} error_message=#{error.message}"
+    )
+    Rails.logger.error(error.backtrace.first(15).join("\n")) if error.backtrace.present?
   end
 
   def ensure_intercompany_isolated_group_tokens!(invoice:, payable_debt:, receivable_debt:)
