@@ -1823,9 +1823,11 @@ class DebtsController < ApplicationController
                   last_activity_at = group_last_activity_at_for(grouped_debts)
                   last_payment_at = group_last_payment_at_for(grouped_debts)
                   oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
+                  overdue_count = overdue_count_for_group(grouped_debts)
                   representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
                   representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
                   representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
+                  representative.define_singleton_method(:card_overdue_count) { overdue_count }
                   representative
     end
 
@@ -1967,6 +1969,18 @@ class DebtsController < ApplicationController
       .compact
       .select { |due_on| due_on <= today }
       .min
+  end
+
+  def overdue_count_for_group(debts)
+    today = Date.current
+
+    Array(debts).sum do |debt|
+      due_on = due_on_for_overdue_grouping(debt)
+      next 0 if due_on.blank? || due_on > today
+      next 0 unless balance_for_overdue_grouping(debt) > 0.01.to_d
+
+      debt.respond_to?(:card_overdue_count) ? debt.card_overdue_count.to_i : 1
+    end
   end
 
   def balance_for_overdue_grouping(debt)
