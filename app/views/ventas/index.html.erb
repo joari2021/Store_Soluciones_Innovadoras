@@ -1005,7 +1005,6 @@
 
       const clientHasBenefits = (client) => {
         if (!client) return false;
-        if (typeof client.has_benefits === 'boolean') return client.has_benefits;
 
         const benefits = normalizeClientBenefits(client?.benefits || {});
         return benefits.general_product_discount_percent > 0
