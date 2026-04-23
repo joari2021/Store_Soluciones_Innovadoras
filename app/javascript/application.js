@@ -653,6 +653,11 @@ document.addEventListener(
         text: "Se eliminará el pago y sus movimientos asociados en cuentas. Esta acción no se puede deshacer.",
         confirmButtonText: "Sí, eliminar pago",
       },
+      expense_payment: {
+        title: "¿Eliminar pago del historial?",
+        text: "Se eliminará solo este pago del gasto y su movimiento asociado en cuenta. Esta acción no se puede deshacer.",
+        confirmButtonText: "Sí, eliminar pago",
+      },
       logout: {
         title: "¿Cerrar sesion?",
         text: "Tu sesion actual se cerrara en este dispositivo.",
