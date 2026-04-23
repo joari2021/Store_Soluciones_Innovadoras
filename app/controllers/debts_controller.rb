@@ -1041,7 +1041,7 @@ class DebtsController < ApplicationController
     max_amount.positive? ? max_amount : 0.to_d
   end
 
-  def validate_loan_entries(entries, _debt_kind)
+  def validate_loan_entries(entries, debt_kind)
     if entries.any? { |entry| entry[:loan_enabled] } && !current_user_can_manage_loan_debts?
       @debt.errors.add(:base, 'Solo administrador o encargado puede registrar deudas como prestamo.')
       return false
@@ -1109,7 +1109,8 @@ class DebtsController < ApplicationController
                       conversion[:amount].to_d
                     end
 
-      if loan_amount > account.balance.to_d
+      requires_available_balance = debt_kind.to_s == 'receivable'
+      if requires_available_balance && loan_amount > account.balance.to_d
         @debt.errors.add(:base,
                          "Deuda #{index + 1}: #{account.insufficient_balance_message(loan_amount)}")
         valid = false

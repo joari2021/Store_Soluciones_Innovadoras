@@ -5,6 +5,7 @@
     <div class="min-w-0">
       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400"><%= expense.expense_type_label %></p>
       <h3 class="mt-1 truncate text-base font-bold text-slate-800"><%= expense.name %></h3>
+      <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-sky-700"><%= expense.category_label %></p>
       <% if expense.description.present? %>
         <p class="mt-1 text-xs text-slate-500"><%= expense.description %></p>
       <% end %>

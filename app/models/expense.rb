@@ -15,6 +15,7 @@ class Expense < ApplicationRecord
   }.freeze
 
   belongs_to :business
+  belongs_to :expense_category, optional: true
   has_many :expense_payments, dependent: :destroy
 
   validates :name, presence: true
@@ -41,6 +42,10 @@ class Expense < ApplicationRecord
 
   def frequency_label
     FREQUENCIES.dig(frequency, :label) || frequency.to_s.humanize
+  end
+
+  def category_label
+    expense_category&.name.to_s.strip.presence || 'Sin categoria'
   end
 
   def schedule_enabled?

@@ -144,20 +144,23 @@ class AccountsController < ApplicationController
       return redirect_to accounts_path, alert: "La cuenta destino debe ser diferente a la cuenta origen."
     end
 
+    origin_is_cash_box = @account.account_type == 'cash_box'
+    allow_negative_balance = ActiveModel::Type::Boolean.new.cast(params[:allow_negative_balance])
+
     transfer_date = parse_transfer_date(params[:transfer_date])
     return redirect_to accounts_path, alert: "Indica una fecha valida para la transferencia." if transfer_date.blank?
 
     amount_from = parse_transfer_decimal(params[:amount_from])
     return redirect_to accounts_path, alert: "Indica un monto origen valido mayor a 0." unless amount_from.positive?
 
-    transfer_payment_method = normalize_transfer_payment_method(params[:transfer_payment_method])
-    if transfer_payment_method.blank?
+    transfer_payment_method = origin_is_cash_box ? nil : normalize_transfer_payment_method(params[:transfer_payment_method])
+    if !origin_is_cash_box && transfer_payment_method.blank?
       return redirect_to accounts_path,
                          alert: "Selecciona un metodo de pago valido para la transferencia."
     end
 
-    reference = params[:reference].to_s.strip
-    unless valid_bank_reference?(reference)
+    reference = origin_is_cash_box ? '' : params[:reference].to_s.strip
+    if !origin_is_cash_box && !valid_bank_reference?(reference)
       return redirect_to accounts_path,
                          alert: "La referencia debe tener exactamente 4 digitos."
     end
@@ -180,7 +183,7 @@ class AccountsController < ApplicationController
     commission_amount = 0.to_d
     commission_account = nil
 
-    if transfer_commission_applicable?(transfer_payment_method)
+    if !origin_is_cash_box && transfer_commission_applicable?(transfer_payment_method)
       commission_account = current_business.accounts.find_by(id: params[:commission_account_id])
       if commission_account.blank? || ![target_account.id, @account.id].include?(commission_account.id)
         return redirect_to accounts_path,
@@ -209,14 +212,14 @@ class AccountsController < ApplicationController
     end
 
     source_required = amount_from + (commission_account&.id == @account.id ? commission_amount : 0.to_d)
-    if source_required > @account.balance.to_d
+    if !allow_negative_balance && source_required > @account.balance.to_d
       return redirect_to accounts_path,
                          alert: @account.insufficient_balance_message(source_required)
     end
 
     if commission_account&.id == target_account.id
       target_available_after_transfer = target_account.balance.to_d + amount_to.to_d
-      if commission_amount > target_available_after_transfer
+      if !allow_negative_balance && commission_amount > target_available_after_transfer
         return redirect_to accounts_path,
                            alert: target_account.insufficient_balance_message(
                              commission_amount,
@@ -232,6 +235,7 @@ class AccountsController < ApplicationController
       outgoing = @account.account_movements.create!(
         movement_kind: "expense",
         amount: amount_from,
+        allow_negative_balance: allow_negative_balance,
         occurred_at: occurred_at,
         payment_method: transfer_payment_method_for(@account, transfer_payment_method),
         reference: reference.presence,
@@ -255,6 +259,7 @@ class AccountsController < ApplicationController
         commission_account.account_movements.create!(
           movement_kind: "expense",
           amount: commission_amount,
+          allow_negative_balance: allow_negative_balance,
           occurred_at: occurred_at,
           payment_method: transfer_payment_method_for(commission_account, transfer_payment_method),
           reference: reference.presence,
@@ -269,6 +274,7 @@ class AccountsController < ApplicationController
   end
 
   def register_payment
+      allow_negative_balance = ActiveModel::Type::Boolean.new.cast(params[:allow_negative_balance])
     if Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type)
       return redirect_to account_path(@account), alert: "No se pueden registrar pagos en cuentas especiales."
     end
@@ -297,7 +303,7 @@ class AccountsController < ApplicationController
 
     total_debit = movement_kind == "expense" ? (amount + commission_amount).round(2) : 0.to_d
 
-    if movement_kind == "expense" && total_debit > @account.balance.to_d
+    if movement_kind == "expense" && !allow_negative_balance && total_debit > @account.balance.to_d
       return redirect_to account_path(@account), alert: @account.insufficient_balance_message(total_debit)
     end
 
@@ -317,6 +323,7 @@ class AccountsController < ApplicationController
       movement = @account.account_movements.create!(
         movement_kind: movement_kind,
         amount: amount,
+        allow_negative_balance: allow_negative_balance,
         occurred_at: occurred_at,
         payment_method: payment_method,
         reference: reference.presence,
@@ -330,6 +337,7 @@ class AccountsController < ApplicationController
         @account.account_movements.create!(
           movement_kind: "expense",
           amount: commission_amount,
+          allow_negative_balance: allow_negative_balance,
           occurred_at: occurred_at,
           payment_method: payment_method,
           reference: reference.presence,

@@ -182,12 +182,12 @@ class DashboardController < ApplicationController
       .joins(:expense)
       .where(expenses: { business_id: current_business.id })
       .where(occurred_at: range)
-      .includes(:expense)
+      .includes(expense: :expense_category)
 
     grouped = Hash.new(0.to_d)
 
     payments.each do |payment|
-      label = payment.expense&.name.to_s.strip.presence || "Gasto"
+      label = payment.expense&.expense_category&.name.to_s.strip.presence || "Sin categoria"
       grouped[label] += convert_to_usd(payment.amount.to_d, payment.currency, payment.occurred_at)
     end
 

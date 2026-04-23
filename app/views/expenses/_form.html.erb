@@ -56,6 +56,13 @@
         <%= form.label :expense_type, "Tipo", class: "block text-sm font-medium text-slate-700" %>
         <%= form.select :expense_type, Expense.expense_type_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
       </div>
+      <div>
+        <%= form.label :expense_category_id, "Categoria", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.select :expense_category_id,
+                        options_from_collection_for_select(@expense_categories, :id, :name, form.object.expense_category_id),
+                        { include_blank: 'Sin categoria' },
+                        class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+      </div>
       <div class="md:col-span-2">
         <%= form.label :description, "Descripcion", class: "block text-sm font-medium text-slate-700" %>
         <%= form.text_area :description, rows: 3, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>

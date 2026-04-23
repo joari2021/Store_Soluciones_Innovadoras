@@ -2,7 +2,6 @@
 <div class="bg-white rounded-2xl shadow-lg p-6">
   <% moneda_prioritaria_label = @local_supplier.pricing_currency_priority == 'bs' ? 'Bolivares (Bs)' : 'Dolar ($)' %>
   <% fiscal_default_label = @local_supplier.default_exento? ? 'Exento' : 'IVA (No exento)' %>
-
   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
     <div class="min-w-0">
       <p class="mb-2"><strong>Nombre:</strong> <%= @local_supplier.nombre %></p>
@@ -19,12 +18,9 @@
       <%= link_to 'Volver a proveedor filtrado', supplier_path(@supplier), class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 cursor-pointer' %>
     </div>
   </div>
-
   <hr class="my-5 border-slate-200">
-
   <h2 class="text-lg font-semibold text-slate-800">Productos del proveedor local</h2>
   <p class="text-sm text-slate-500">Solo lectura. No se muestran opciones de edicion o eliminacion.</p>
-
   <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
     <table class="min-w-full text-sm text-slate-700" data-tasa-bcv="<%= @tasa_dolar_bcv || 0 %>">
       <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">

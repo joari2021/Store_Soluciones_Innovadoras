@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_22_012000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_23_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -300,6 +300,15 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_22_012000) do
     t.index ["starts_on"], name: "index_discount_schedules_on_starts_on"
   end
 
+  create_table "expense_categories", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.string "name", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "name"], name: "index_expense_categories_on_business_id_and_name", unique: true
+    t.index ["business_id"], name: "index_expense_categories_on_business_id"
+  end
+
   create_table "expense_payments", force: :cascade do |t|
     t.bigint "expense_id", null: false
     t.bigint "account_id", null: false
@@ -332,7 +341,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_22_012000) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "expense_category_id"
     t.index ["business_id"], name: "index_expenses_on_business_id"
+    t.index ["expense_category_id"], name: "index_expenses_on_expense_category_id"
   end
 
   create_table "factura_items", force: :cascade do |t|
@@ -1078,9 +1089,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_22_012000) do
   add_foreign_key "debts", "services", on_delete: :nullify
   add_foreign_key "debts", "ventas", on_delete: :nullify
   add_foreign_key "discount_schedules", "businesses"
+  add_foreign_key "expense_categories", "businesses"
   add_foreign_key "expense_payments", "accounts"
   add_foreign_key "expense_payments", "expenses"
   add_foreign_key "expenses", "businesses"
+  add_foreign_key "expenses", "expense_categories"
   add_foreign_key "factura_items", "facturas"
   add_foreign_key "factura_items", "productos", on_delete: :nullify
   add_foreign_key "facturas", "businesses"

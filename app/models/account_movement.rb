@@ -17,6 +17,8 @@ class AccountMovement < ApplicationRecord
   belongs_to :account_settlement, optional: true
   belongs_to :cambio_efectivo, optional: true
 
+  attr_accessor :allow_negative_balance
+
   validates :movement_kind, presence: true, inclusion: { in: MOVEMENT_KINDS.keys }
   validates :amount, presence: true, numericality: { greater_than: 0 }
   validates :occurred_at, presence: true
@@ -64,6 +66,7 @@ class AccountMovement < ApplicationRecord
 
   def sufficient_balance_for_debit
     return if account.blank?
+    return if ActiveModel::Type::Boolean.new.cast(allow_negative_balance)
     return if settlement_commission_allows_overdraft?
 
     required_amount = additional_debit_required

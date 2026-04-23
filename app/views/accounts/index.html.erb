@@ -275,6 +275,7 @@
         </div>
         <form id="accounts-transfer-form" method="post" class="space-y-4 px-5 py-4">
           <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+          <input type="hidden" name="allow_negative_balance" value="0" data-transfer-allow-negative>
           <div class="grid gap-3 md:grid-cols-2">
             <div>
               <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Cuenta origen</label>
@@ -315,7 +316,7 @@
             <p class="rounded-xl border border-sky-100 bg-sky-50 px-3 py-2 text-xs text-sky-700" data-transfer-hint>
               Selecciona cuenta destino, fecha y monto para ver conversion sugerida.
             </p>
-            <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4" data-transfer-bank-fields>
               <div class="grid gap-3 md:grid-cols-2">
                 <div>
                   <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Metodo de pago</label>
@@ -520,6 +521,8 @@
           const commissionAccountSelect = modal.querySelector('[data-transfer-commission-account]');
           const commissionHint = modal.querySelector('[data-transfer-commission-hint]');
           const commissionResult = modal.querySelector('[data-transfer-commission-result]');
+          const bankFieldsBlock = modal.querySelector('[data-transfer-bank-fields]');
+          const allowNegativeInput = modal.querySelector('[data-transfer-allow-negative]');
 
           let currentOrigin = null;
           let destinationEdited = false;
@@ -537,6 +540,7 @@
           const selectedTargetAccount = () => accountsById.get(String(targetSelect?.value || '')) || null;
           const selectedCommissionAccount = () => accountsById.get(String(commissionAccountSelect?.value || '')) || null;
           const commissionApplies = () => ['interbank_transfer', 'mobile_payment'].includes(String(methodSelect?.value || ''));
+          const originIsCashBox = () => String(currentOrigin?.account_type || '').toLowerCase() === 'cash_box';
 
           const rebuildTargetOptions = () => {
             if (!targetSelect) return;
@@ -662,6 +666,30 @@
           };
 
           const updateCommissionFieldState = () => {
+            if (originIsCashBox()) {
+              if (commissionAmountInput) {
+                commissionAmountInput.disabled = true;
+                if (window.MoneyInputMask?.setValue) {
+                  window.MoneyInputMask.setValue(commissionAmountInput, 0, currentOrigin?.symbol || '$');
+                } else {
+                  commissionAmountInput.value = '';
+                }
+              }
+              if (commissionAccountSelect) {
+                commissionAccountSelect.disabled = true;
+                commissionAccountSelect.value = '';
+              }
+              if (commissionHint) {
+                commissionHint.textContent = 'Desde caja efectivo no se registra comision en transferencias.';
+              }
+              if (commissionResult) {
+                commissionResult.textContent = 'No aplica comision para origen en caja efectivo.';
+                setTone(commissionResult, 'neutral');
+              }
+              updateBalanceSummaries();
+              return;
+            }
+
             const enabled = commissionApplies();
 
             if (commissionAmountInput) commissionAmountInput.disabled = !enabled;
@@ -798,6 +826,7 @@
             if (targetSelect) targetSelect.value = '';
             if (methodSelect) methodSelect.value = '';
             if (referenceInput) referenceInput.value = '';
+            if (allowNegativeInput) allowNegativeInput.value = '0';
             if (amountFromInput) amountFromInput.value = '';
             if (amountToInput) amountToInput.value = '';
             if (amountFromInput) applyMoneySymbol(amountFromInput, originData.symbol);
@@ -808,6 +837,19 @@
             }
             if (dateInput) dateInput.value = formatDateInput(new Date());
             setHint('Selecciona cuenta destino, fecha y monto para ver conversion sugerida.');
+
+            if (bankFieldsBlock) {
+              bankFieldsBlock.classList.toggle('hidden', originIsCashBox());
+            }
+            if (methodSelect) {
+              methodSelect.required = !originIsCashBox();
+              if (originIsCashBox()) methodSelect.value = '';
+            }
+            if (referenceInput) {
+              referenceInput.required = !originIsCashBox();
+              if (originIsCashBox()) referenceInput.value = '';
+            }
+
             rebuildCommissionPayerOptions();
             updateCommissionFieldState();
             updateBalanceSummaries();
@@ -910,27 +952,27 @@
           referenceInput?.addEventListener('input', sanitizeReference);
 
           form.addEventListener('submit', async (event) => {
+            if (allowNegativeInput) allowNegativeInput.value = '0';
+
             const targetAccount = selectedTargetAccount();
             const commissionAccount = selectedCommissionAccount();
             const originAmount = parseDecimal(amountFromInput?.value, amountFromInput);
             const destinationAmount = parseDecimal(amountToInput?.value, amountToInput);
-            const commissionAmount = commissionApplies() ? parseDecimal(commissionAmountInput?.value, commissionAmountInput) : 0;
+            const commissionAmount = (originIsCashBox() || !commissionApplies()) ? 0 : parseDecimal(commissionAmountInput?.value, commissionAmountInput);
             const totalOriginDebit = originAmount + (commissionAccount && String(commissionAccount.id) === String(currentOrigin?.id) ? commissionAmount : 0);
             const originRemaining = Number(currentOrigin?.balance || 0) - totalOriginDebit;
 
             let blockingMessage = '';
 
-            if (originRemaining < 0) {
-              blockingMessage = 'El monto a debitar no esta disponible en la cuenta origen.';
-            } else if (commissionApplies() && !commissionAccount) {
+            if (!originIsCashBox() && commissionApplies() && !commissionAccount) {
               blockingMessage = 'Selecciona cual cuenta pagara la comision antes de registrar la transferencia.';
-            } else if (commissionApplies() && commissionAccount) {
+            } else if (!originIsCashBox() && commissionApplies() && commissionAccount) {
               const commissionBaseAvailable = Number(commissionAccount.balance || 0);
               const extraTargetCredit = String(commissionAccount.id) === String(targetAccount?.id) ? destinationAmount : 0;
-              if ((commissionBaseAvailable + extraTargetCredit - commissionAmount) < 0) {
-                blockingMessage = 'La cuenta seleccionada para pagar la comision no tiene saldo disponible suficiente.';
+              if ((commissionBaseAvailable + extraTargetCredit - commissionAmount) < 0 && !originIsCashBox()) {
+                // Se confirma abajo con alerta de saldo negativo.
               }
-            } else if (sanitizeReference().length !== 4) {
+            } else if (!originIsCashBox() && sanitizeReference().length !== 4) {
               blockingMessage = 'La referencia debe tener exactamente 4 digitos.';
             }
 
@@ -949,6 +991,59 @@
             }
 
             window.alert(blockingMessage);
+          });
+
+          form.addEventListener('submit', async (event) => {
+            if (event.defaultPrevented) return;
+            const targetAccount = selectedTargetAccount();
+            const commissionAccount = selectedCommissionAccount();
+            const originAmount = parseDecimal(amountFromInput?.value, amountFromInput);
+            const destinationAmount = parseDecimal(amountToInput?.value, amountToInput);
+            const commissionAmount = (originIsCashBox() || !commissionApplies()) ? 0 : parseDecimal(commissionAmountInput?.value, commissionAmountInput);
+
+            const warnings = [];
+
+            const totalOriginDebit = originAmount + (commissionAccount && String(commissionAccount.id) === String(currentOrigin?.id) ? commissionAmount : 0);
+            const originRemaining = Number(currentOrigin?.balance || 0) - totalOriginDebit;
+            if (originRemaining < 0) {
+              warnings.push(`- ${currentOrigin?.name}: saldo proyectado ${formatMoneyText(originRemaining, currentOrigin?.symbol)}`);
+            }
+
+            if (!originIsCashBox() && commissionApplies() && commissionAccount) {
+              const commissionBaseAvailable = Number(commissionAccount.balance || 0);
+              const extraTargetCredit = String(commissionAccount.id) === String(targetAccount?.id) ? destinationAmount : 0;
+              const remainingAfterCommission = commissionBaseAvailable + extraTargetCredit - commissionAmount;
+              if (remainingAfterCommission < 0 && String(commissionAccount.id) !== String(currentOrigin?.id)) {
+                warnings.push(`- ${commissionAccount.name}: saldo proyectado ${formatMoneyText(remainingAfterCommission, commissionAccount.symbol)}`);
+              }
+            }
+
+            if (!warnings.length) return;
+
+            event.preventDefault();
+
+            let confirmed = false;
+            const warningText = `Las siguientes cuentas quedarán con saldo negativo:\n${warnings.join('\n')}\n\n¿Deseas registrar de todas formas?`;
+
+            if (window.Swal?.fire) {
+              const result = await window.Swal.fire({
+                icon: 'warning',
+                title: 'Saldo negativo detectado',
+                text: warningText,
+                showCancelButton: true,
+                confirmButtonText: 'Sí, registrar',
+                cancelButtonText: 'Cancelar',
+                heightAuto: false,
+              });
+              confirmed = !!result.isConfirmed;
+            } else {
+              confirmed = window.confirm(warningText);
+            }
+
+            if (!confirmed) return;
+
+            if (allowNegativeInput) allowNegativeInput.value = '1';
+            form.submit();
           });
         })();
       </script>

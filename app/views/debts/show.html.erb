@@ -308,7 +308,7 @@
         <p class="mt-1 text-xs text-slate-500">Un solo registro se distribuye automaticamente en todas las deudas activas del grupo.</p>
       </div>
       <% if @debt.persisted? %>
-        <%= form_with url: debt_debt_payments_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { register_payment_form: true, register_payment_receivable: (@debt.receivable? ? '1' : '0') } do |form| %>
+        <%= form_with url: debt_debt_payments_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { register_payment_form: true, register_payment_receivable: (@debt.receivable? ? '1' : '0'), register_payment_payable: (@debt.payable? ? '1' : '0'), register_payment_admin: (current_user_admin? ? '1' : '0') } do |form| %>
         <input type="hidden" name="debt_payment[allow_overpayment]" value="0" data-register-payment-allow-overpayment="true" />
         <input type="hidden" name="from_debt_show_modal" value="1" />
         <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -524,6 +524,8 @@
                 const closeRegisterPaymentButtons = root.querySelectorAll("[data-register-payment-close='true']");
                 const registerPaymentForm = root.querySelector("[data-register-payment-form='true']");
                 const registerPaymentIsReceivable = registerPaymentForm?.dataset?.registerPaymentReceivable === "1";
+                const registerPaymentIsPayable = registerPaymentForm?.dataset?.registerPaymentPayable === "1";
+                const registerPaymentIsAdmin = registerPaymentForm?.dataset?.registerPaymentAdmin === "1";
                 const registerPaymentAccount = root.querySelector("[data-register-payment-account='true']");
                 const registerPaymentMethodWrapper = root.querySelector("[data-register-payment-method-wrapper='true']");
                 const registerPaymentMethod = root.querySelector("[data-register-payment-method='true']");
@@ -748,7 +750,7 @@
 
                 const isRestrictedAccountTypeByDate = (accountType) => {
                   const normalized = String(accountType || "").trim().toLowerCase();
-                  return ["biopago", "pos", "cash_box"].includes(normalized);
+                  return ["cash_box"].includes(normalized);
                 };
 
                 const formatBsAmount = (value) => {
@@ -788,7 +790,7 @@
                   if (!registerPaymentAccount) return;
 
                   const selectedDate = parseDmyDate(registerPaymentDateInput?.value);
-                  const allowRestricted = isTodayDate(selectedDate);
+                  const allowRestricted = registerPaymentIsAdmin || registerPaymentIsPayable || isTodayDate(selectedDate);
 
                   Array.from(registerPaymentAccount.options).forEach((option) => {
                     if (!option.value) {
@@ -1169,6 +1171,10 @@
                     updateAmountHidden();
 
                     if (!loanEnabled?.checked) return;
+
+                    const debtKindInput = addDebtForm.querySelector("input[name='debt[debt_kind]']");
+                    const isPayableDebt = String(debtKindInput?.value || '').trim() === 'payable';
+                    if (isPayableDebt) return;
 
                     const selectedOption = loanAccount?.options?.[loanAccount.selectedIndex];
                     if (!selectedOption || !selectedOption.value) return;

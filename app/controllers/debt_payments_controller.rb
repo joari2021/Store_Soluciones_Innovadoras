@@ -207,7 +207,7 @@ class DebtPaymentsController < ApplicationController
     intercompany_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
 
     base_scope = current_business.accounts
-                                 .where.not(account_type: 'cashea')
+                                 .where.not(account_type: %w[cashea biopago pos])
                                  .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
 
     active_scope = apply_payment_currency_filter(base_scope.where(active: true))
@@ -324,6 +324,7 @@ class DebtPaymentsController < ApplicationController
   end
 
   def payment_date_allowed_for_current_user?(submitted_date)
+    return true if @debt.payable?
     return true if current_user_admin?
     return true if submitted_date.blank?
 

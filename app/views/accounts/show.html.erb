@@ -339,6 +339,7 @@
       </div>
       <form action="<%= register_payment_account_path(@account) %>" method="post" class="space-y-4 px-5 py-4">
         <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+        <input type="hidden" name="allow_negative_balance" value="0" data-payment-allow-negative>
         <div>
           <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Concepto</label>
           <input type="text" name="concept" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Ej: Pago de proveedor" data-payment-concept required>
@@ -407,6 +408,8 @@
       const errorEl = modal.querySelector('[data-payment-error]');
       const remainingEl = modal.querySelector('[data-payment-remaining]');
       const submitButton = modal.querySelector('[data-payment-submit]');
+      const allowNegativeInput = modal.querySelector('[data-payment-allow-negative]');
+      const paymentForm = modal.querySelector('form');
 
       const parseAmount = (input) => {
         if (!input) return 0;
@@ -484,6 +487,7 @@
       const openModal = () => {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
+        if (allowNegativeInput) allowNegativeInput.value = '0';
         if (window.MoneyInputMask?.init) window.MoneyInputMask.init(modal);
         if (window.initializeMaterializeDatepickers) window.initializeMaterializeDatepickers(modal);
         if (dateInput && !dateInput.value) dateInput.value = defaultDateLabel();
@@ -521,13 +525,48 @@
       }
       if (conceptInput) conceptInput.addEventListener('input', syncRemaining);
       if (dateInput) dateInput.addEventListener('change', syncRemaining);
-      modal.querySelector('form')?.addEventListener('submit', (event) => {
-        if (!referenceInput) return;
+      paymentForm?.addEventListener('submit', async (event) => {
+        if (allowNegativeInput) allowNegativeInput.value = '0';
 
-        if (sanitizeReference().length !== 4) {
+        if (referenceInput && sanitizeReference().length !== 4) {
           event.preventDefault();
           referenceInput.focus();
+          return;
         }
+
+        const amount = parseAmount(amountInput);
+        const debitMovement = isDebitMovement();
+        const commission = debitMovement && commissionEnabled() ? parseAmount(commissionAmountInput) : 0;
+        const total = amount + commission;
+        const projected = available - total;
+
+        if (!debitMovement || !(total > 0) || projected >= 0) return;
+
+        event.preventDefault();
+
+        const projectedLabel = formatAmount(projected);
+        const warningText = `La cuenta quedara con saldo negativo: ${projectedLabel}. ¿Deseas registrar el movimiento de todas formas?`;
+
+        let confirmed = false;
+        if (window.Swal?.fire) {
+          const result = await window.Swal.fire({
+            icon: 'warning',
+            title: 'Saldo negativo detectado',
+            text: warningText,
+            showCancelButton: true,
+            confirmButtonText: 'Si, registrar',
+            cancelButtonText: 'Cancelar',
+            heightAuto: false,
+          });
+          confirmed = !!result.isConfirmed;
+        } else {
+          confirmed = window.confirm(warningText);
+        }
+
+        if (!confirmed) return;
+
+        if (allowNegativeInput) allowNegativeInput.value = '1';
+        paymentForm.submit();
       });
       modal.addEventListener('click', (event) => {
         if (event.target === modal) closeModal();

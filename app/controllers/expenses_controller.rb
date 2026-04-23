@@ -3,9 +3,23 @@ class ExpensesController < ApplicationController
   before_action :require_admin
   before_action :set_expense, only: %i[show edit update destroy]
   before_action :load_accounts, only: %i[new create]
+  before_action :load_expense_categories, only: %i[index new create edit update]
+
+  DEFAULT_EXPENSE_CATEGORIES = [
+    'Nomina',
+    'Alquiler',
+    'Servicios basicos',
+    'Impuestos y permisos',
+    'Logistica y transporte',
+    'Compras y suministros',
+    'Mantenimiento',
+    'Marketing y ventas',
+    'Tecnologia y software',
+    'Otros operativos'
+  ].freeze
 
   def index
-    expenses_scope = current_business.expenses.includes(:expense_payments)
+    expenses_scope = current_business.expenses.includes(:expense_payments, :expense_category)
 
     @fixed_expenses, @fixed_finalized_expenses = split_and_sort_expenses(
       expenses_scope.where(expense_type: 'fixed').to_a
@@ -102,7 +116,8 @@ class ExpensesController < ApplicationController
       :end_date,
       :occurrences_limit,
       :amount,
-      :currency
+      :currency,
+      :expense_category_id
     )
     # Procesar amount para convertirlo a número si viene con máscara
     permitted[:amount] = parse_decimal(permitted[:amount]) if permitted[:amount].present?
@@ -226,6 +241,19 @@ class ExpensesController < ApplicationController
     sorted_finalized = finalized.sort_by { |expense| expense.name.to_s.downcase }
 
     [sorted_active, sorted_finalized]
+  end
+
+  def load_expense_categories
+    ensure_default_expense_categories!
+    @expense_categories = current_business.expense_categories.order(:name)
+  end
+
+  def ensure_default_expense_categories!
+    return if current_business.expense_categories.exists?
+
+    DEFAULT_EXPENSE_CATEGORIES.each do |name|
+      current_business.expense_categories.create!(name: name)
+    end
   end
 
   def build_payment_equivalents(payments, target_currency)
