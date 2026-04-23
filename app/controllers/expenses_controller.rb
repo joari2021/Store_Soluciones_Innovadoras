@@ -290,10 +290,18 @@ class ExpensesController < ApplicationController
       entries << { kind: :finalized_expense, occurred_at: paid_at, expense: expense }
     end
 
-    payments = ExpensePayment
-               .includes(:account, :expense)
-               .where(expense_id: ids)
-               .order(occurred_at: :desc, id: :desc)
+    active_scheduled_ids = Array(active_expenses)
+                          .select { |expense| expense.frequency.to_s != 'once' && expense.next_due_on.present? }
+                          .map(&:id)
+
+    payments = if active_scheduled_ids.empty?
+                 ExpensePayment.none
+               else
+                 ExpensePayment
+                   .includes(:account, :expense)
+                   .where(expense_id: active_scheduled_ids)
+                   .order(occurred_at: :desc, id: :desc)
+               end
 
     if @filter_from.present?
       from_time = @filter_from.in_time_zone.beginning_of_day
