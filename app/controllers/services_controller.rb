@@ -1665,12 +1665,6 @@ class ServicesController < ApplicationController
             line_unit_usd = (line_total_usd / line_quantity).round(2)
 
             print_service = services_by_id[line['source_id'].to_i]
-            status_payload = pending_cost_status_for_printing_row(
-              settlement: settlement,
-              debt_line: debt_lines_by_id[line['line_id'].to_s],
-              line_amount_usd: line_total_usd
-            )
-
             parent_label = parent_service_name.presence || 'Servicio'
             print_label_raw = line['source_name'].to_s.strip.presence || 'Impresion fisica'
             print_label = pending_cost_child_service_display_name(
@@ -1694,14 +1688,15 @@ class ServicesController < ApplicationController
               sale_unit_price_usd: line_unit_usd,
               sale_total_usd: line_total_usd,
               agreed_price_usd: nil,
-              has_cost_structure: true,
-              cost_status: status_payload[:status],
-              cost_status_label: status_payload[:label],
-              cost_status_class: status_payload[:css_class],
-              pending_cost_usd: status_payload[:pending_usd],
+              has_cost_structure: false,
+              cost_status: nil,
+              cost_status_label: nil,
+              cost_status_class: nil,
+              pending_cost_usd: 0.to_d,
               service_beneficiary_name: parent_party_data[:beneficiary_name],
               service_responsible_name: parent_party_data[:responsible_name],
-              detail_debt_id: parent_debt&.id,
+              detail_debt_id: nil,
+              cost_status_hidden: true,
               search_text: [
                 print_label,
                 parent_label,
@@ -1809,7 +1804,6 @@ class ServicesController < ApplicationController
           classification: printing_row['classification']
         )
 
-        status_payload = pending_cost_status_metadata('no_cost', pending_usd: 0.to_d, total_usd: total_usd)
         parent_name_key = normalized_pending_cost_lookup_value(parent_label)
         parent_debt = (debts_by_service_id[parent_service.id]&.max_by(&:id) if parent_service&.id.present?)
         parent_debt ||= debts_by_service_name[parent_name_key]&.max_by(&:id)
@@ -1841,13 +1835,14 @@ class ServicesController < ApplicationController
           sale_total_usd: total_usd,
           agreed_price_usd: nil,
           has_cost_structure: false,
-          cost_status: status_payload[:status],
-          cost_status_label: status_payload[:label],
-          cost_status_class: status_payload[:css_class],
-          pending_cost_usd: status_payload[:pending_usd],
+          cost_status: nil,
+          cost_status_label: nil,
+          cost_status_class: nil,
+          pending_cost_usd: 0.to_d,
           service_beneficiary_name: parent_party_data[:beneficiary_name],
           service_responsible_name: parent_party_data[:responsible_name],
           detail_debt_id: nil,
+          cost_status_hidden: true,
           search_text: [
             source_name,
             parent_label,
