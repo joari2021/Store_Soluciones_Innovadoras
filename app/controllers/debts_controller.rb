@@ -47,11 +47,10 @@ class DebtsController < ApplicationController
     @payable_paid_debts = @payable_paid_debts.reject do |debt|
       hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
     end
-    @receivable_groups = build_cliente_groups(@receivable_debts, sort: :cliente_name_asc)
-    @receivable_groups = prioritize_cashea_group_first(@receivable_groups)
-    @payable_groups = build_payable_groups(@payable_debts)
+    @receivable_groups = build_cliente_groups(@receivable_debts, sort: :active_overdue_then_alpha)
+    @payable_groups = build_payable_groups(@payable_debts, sort: :active_overdue_then_alpha)
     @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts, sort: :paid_recent_desc)
-    @payable_paid_groups = build_payable_groups(@payable_paid_debts)
+    @payable_paid_groups = build_payable_groups(@payable_paid_debts, sort: :default)
     @receivable_group_totals = build_group_totals(@receivable_groups)
     @payable_group_totals = build_group_totals(@payable_groups)
     @receivable_paid_group_totals = build_group_totals(@receivable_paid_groups)
@@ -1897,6 +1896,16 @@ class DebtsController < ApplicationController
               .map { |cliente, cliente_debts| [cliente, sort_debts(cliente_debts)] }
 
     case sort
+    when :active_overdue_then_alpha
+      grouped.sort_by do |cliente, cliente_debts|
+        oldest_overdue_due_on = oldest_overdue_due_on_for_group(cliente_debts)
+        normalized_name = cliente&.name.to_s.strip.downcase
+        if oldest_overdue_due_on.present?
+          [0, oldest_overdue_due_on.jd, normalized_name]
+        else
+          [1, 0, normalized_name]
+        end
+      end
     when :cliente_name_asc
       grouped.sort_by do |cliente, _cliente_debts|
         [cliente&.name.to_s.downcase, cliente.present? ? 0 : 1]
@@ -1922,15 +1931,40 @@ class DebtsController < ApplicationController
     end
   end
 
-  def build_payable_groups(debts)
-    debts
-      .group_by { |debt| debt.counterparty_display_name.to_s.strip.presence || 'Sin acreedor' }
-      .map { |counterparty_name, grouped_debts| [counterparty_name, sort_debts(grouped_debts)] }
-      .sort_by do |counterparty_name, grouped_debts|
+  def build_payable_groups(debts, sort: :default)
+    grouped = debts
+              .group_by { |debt| debt.counterparty_display_name.to_s.strip.presence || 'Sin acreedor' }
+              .map { |counterparty_name, grouped_debts| [counterparty_name, sort_debts(grouped_debts)] }
+
+    case sort
+    when :active_overdue_then_alpha
+      grouped.sort_by do |counterparty_name, grouped_debts|
+        oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
+        normalized_name = counterparty_name.to_s.downcase
+        if oldest_overdue_due_on.present?
+          [0, oldest_overdue_due_on.jd, normalized_name]
+        else
+          [1, 0, normalized_name]
+        end
+      end
+    else
+      grouped.sort_by do |counterparty_name, grouped_debts|
         first_debt = grouped_debts.first
         first_key = first_debt ? debt_sort_key(first_debt) : [0, 0, 0, '', '']
         [first_key[0], first_key[1], counterparty_name.to_s.downcase]
       end
+    end
+  end
+
+  def oldest_overdue_due_on_for_group(debts)
+    today = Date.current
+
+    Array(debts)
+      .select { |debt| debt.balance.to_d > 0.01.to_d }
+      .map(&:due_on)
+      .compact
+      .select { |due_on| due_on < today }
+      .min
   end
 
   def debt_last_payment_at_for_index(debt)
