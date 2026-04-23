@@ -19,7 +19,12 @@ class ExpensesController < ApplicationController
   ].freeze
 
   def index
+    @filter_from = parse_filter_date(params[:from])
+    @filter_to = parse_filter_date(params[:to])
+    @filter_category_id = params[:expense_category_id].to_s.presence
+
     expenses_scope = current_business.expenses.includes(:expense_payments, :expense_category)
+    expenses_scope = apply_expense_filters(expenses_scope)
 
     @fixed_expenses, @fixed_finalized_expenses = split_and_sort_expenses(
       expenses_scope.where(expense_type: 'fixed').to_a
@@ -30,6 +35,8 @@ class ExpensesController < ApplicationController
 
     all_expenses = @fixed_expenses + @fixed_finalized_expenses + @variable_expenses + @variable_finalized_expenses
     @expense_amount_usd_bcv_by_id = build_expense_amount_usd_bcv_by_id(all_expenses)
+    @fixed_payment_history_cards = build_recurring_payment_history_cards(@fixed_expenses + @fixed_finalized_expenses)
+    @variable_payment_history_cards = build_recurring_payment_history_cards(@variable_expenses + @variable_finalized_expenses)
     @expenses_count = all_expenses.size
     @overdue_total = all_expenses.sum(&:overdue_count)
     @next_due_on = all_expenses.map(&:next_due_on).compact.min
@@ -247,6 +254,54 @@ class ExpensesController < ApplicationController
   def load_expense_categories
     ensure_default_expense_categories!
     @expense_categories = current_business.expense_categories.order(:name)
+  end
+
+  def apply_expense_filters(scope)
+    filtered = scope
+
+    if @filter_category_id.present?
+      filtered = filtered.where(expense_category_id: @filter_category_id.to_i)
+    end
+
+    if @filter_from.present?
+      filtered = filtered.where('COALESCE(expenses.start_date, DATE(expenses.created_at)) >= ?', @filter_from)
+    end
+
+    if @filter_to.present?
+      filtered = filtered.where('COALESCE(expenses.start_date, DATE(expenses.created_at)) <= ?', @filter_to)
+    end
+
+    filtered
+  end
+
+  def build_recurring_payment_history_cards(expenses)
+    ids = Array(expenses).select { |expense| expense.frequency.to_s != 'once' }.map(&:id)
+    return [] if ids.empty?
+
+    payments = ExpensePayment
+               .includes(:account, :expense)
+               .where(expense_id: ids)
+               .order(occurred_at: :desc, id: :desc)
+
+    if @filter_from.present?
+      from_time = @filter_from.in_time_zone.beginning_of_day
+      payments = payments.where('occurred_at >= ?', from_time)
+    end
+
+    if @filter_to.present?
+      to_time = @filter_to.in_time_zone.end_of_day
+      payments = payments.where('occurred_at <= ?', to_time)
+    end
+
+    payments.to_a
+  end
+
+  def parse_filter_date(value)
+    return nil if value.blank?
+
+    Date.parse(value.to_s)
+  rescue ArgumentError
+    nil
   end
 
   def ensure_default_expense_categories!
