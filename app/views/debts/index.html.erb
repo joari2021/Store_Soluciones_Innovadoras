@@ -105,6 +105,12 @@
                 <% is_usdt = currency.to_s.upcase == 'USDT' %>
                 <% is_cashea_cliente = current_user_admin? && cliente&.name.to_s.strip.casecmp('cashea').zero? %>
                 <% cashea_bg_style = is_cashea_cliente && @cashea_banner_url.present? ? "background-image: url('#{h(@cashea_banner_url)}'); background-size: cover; background-position: center;" : nil %>
+                <% oldest_overdue_due_on = debts_in_currency
+                                            .select { |debt| debt.balance.to_d > 0.01.to_d }
+                                            .map(&:due_on)
+                                            .compact
+                                            .select { |due_on| due_on < Date.current }
+                                            .min %>
                 <% group_key = [cliente.present? ? cliente.id : 'none', currency.to_s.upcase] %>
                 <% totals = @receivable_group_totals[group_key] || { display_total: 0.to_d, display_symbol: '$', badge_label: 'USD $', ves_total: 0.to_d } %>
                 <% grouped_debts_count = debts_in_currency.sum { |debt| debt.respond_to?(:card_debts_count) ? debt.card_debts_count.to_i : 1 } %>
@@ -114,6 +120,9 @@
                       <p class="text-xs font-semibold uppercase tracking-wider text-cyan-700">Cliente</p>
                       <h3 class="truncate text-sm font-bold text-slate-800"><%= cliente&.name.presence || 'Sin cliente' %></h3>
                       <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold <%= is_usdt ? 'bg-yellow-100 text-yellow-700' : 'bg-sky-100 text-sky-700' %>"><%= totals[:badge_label] %></span>
+                      <% if oldest_overdue_due_on.present? %>
+                        <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold bg-rose-100 text-rose-700">Vencida desde <%= oldest_overdue_due_on.strftime('%d/%m/%Y') %></span>
+                      <% end %>
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
@@ -258,11 +267,20 @@
             <div class="grid gap-4">
               <% @payable_groups.each do |counterparty_name, debts| %>
                 <% grouped_currencies = debts.map(&:currency).uniq %>
+                <% oldest_overdue_due_on = debts
+                                            .select { |debt| debt.balance.to_d > 0.01.to_d }
+                                            .map(&:due_on)
+                                            .compact
+                                            .select { |due_on| due_on < Date.current }
+                                            .min %>
                 <article class="rounded-2xl border border-amber-200 bg-white/90 p-4 shadow-sm" data-debt-reveal="true">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                       <p class="text-xs font-semibold uppercase tracking-wider text-amber-600">Acreedor</p>
                       <h3 class="truncate text-sm font-bold text-slate-800"><%= counterparty_name.presence || 'Sin acreedor' %></h3>
+                      <% if oldest_overdue_due_on.present? %>
+                        <span class="inline-block mt-1 rounded px-2 py-0.5 text-xs font-semibold bg-rose-100 text-rose-700">Vencida desde <%= oldest_overdue_due_on.strftime('%d/%m/%Y') %></span>
+                      <% end %>
                     </div>
                     <div class="text-right">
                       <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Deudas</p>
