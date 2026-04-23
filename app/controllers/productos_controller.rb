@@ -31,23 +31,37 @@ class ProductosController < ApplicationController
   end
 
   def create_from_global
-    global_product = GlobalProduct.find(params[:global_product_id])
+    selected_ids = Array(params[:global_product_ids]).map(&:to_i).select(&:positive?).uniq
+    selected_ids = [params[:global_product_id].to_i] if selected_ids.blank? && params[:global_product_id].present?
 
-    existing = current_business.productos.find_by(global_product_id: global_product.id)
-    if existing.present?
-      return redirect_to productos_path,
-                         alert: "Este producto global ya esta importado en este negocio (#{existing.descripcion})."
+    if selected_ids.blank?
+      return redirect_to import_from_global_productos_path,
+                         alert: 'Selecciona al menos un producto global para importar.'
     end
 
-    @producto = current_business.productos.new(build_local_product_payload_from_global(global_product))
+    imported_count = 0
 
     ActiveRecord::Base.transaction do
-      @producto.save!
-      source_image = source_image_for_global_product(global_product)
-      @producto.foto.attach(source_image.blob) if source_image.present?
+      GlobalProduct.where(id: selected_ids).find_each do |global_product|
+        next if current_business.productos.exists?(global_product_id: global_product.id)
+
+        producto = current_business.productos.new(build_local_product_payload_from_global(global_product))
+        producto.save!
+
+        source_image = source_image_for_global_product(global_product)
+        producto.foto.attach(source_image.blob) if source_image.present?
+
+        imported_count += 1
+      end
     end
 
-    redirect_to productos_path, notice: 'Producto importado desde catalogo global.'
+    if imported_count.positive?
+      message = imported_count == 1 ? 'Producto importado desde catalogo global.' : "Se importaron #{imported_count} productos desde catalogo global."
+      redirect_to productos_path, notice: message
+    else
+      redirect_to import_from_global_productos_path,
+                  alert: 'Los productos seleccionados ya estaban importados en este negocio.'
+    end
   rescue ActiveRecord::RecordInvalid => e
     redirect_to import_from_global_productos_path,
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
