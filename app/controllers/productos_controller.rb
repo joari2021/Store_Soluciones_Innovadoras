@@ -1274,12 +1274,13 @@ class ProductosController < ApplicationController
   end
 
   def calculate_inventory_global_totals
-    productos_scope = current_business.productos.includes(:stock_lots, :stock_lot_variations)
+    productos_scope = current_business.productos.includes(
+      :product_variations,
+      stock_lots: [:stock_lot_variations, :purchase_invoice_item],
+    )
 
     total_inventory_value_usd = productos_scope.sum do |producto|
-      producto.stock_lots.sum do |lot|
-        lot.unit_cost_usd.to_d * lot.quantity_remaining.to_d
-      end
+      inventory_value_usd_for_product(producto)
     end
 
     total_sale_value_usd = productos_scope.sum do |producto|
@@ -1290,6 +1291,72 @@ class ProductosController < ApplicationController
       inventory_value_usd: total_inventory_value_usd.round(2),
       sale_value_usd: total_sale_value_usd.round(2)
     }
+  end
+
+  # Keep global cards aligned with row totals shown in productos table.
+  def inventory_value_usd_for_product(producto)
+    variations = producto.product_variations.to_a
+    return 0.to_d if variations.empty?
+
+    variation_lookup_by_id = variations.index_by(&:id)
+    variation_lookup_by_description = variations.index_by { |variation| variation.description.to_s.strip.downcase }
+
+    total_value = 0.to_d
+
+    sorted_lots = producto.stock_lots.to_a.sort_by { |lot| [lot.purchased_at || lot.created_at, lot.created_at] }.reverse
+    sorted_lots.each do |lot|
+      item = lot.purchase_invoice_item
+      units_per_pack = item&.unid_x_pack.to_d
+      lot_variation_rows = lot.stock_lot_variations.to_a
+
+      if lot_variation_rows.any?
+        lot_variation_rows.each do |entry|
+          linked_variation = if entry.product_variation_id.present?
+                               variation_lookup_by_id[entry.product_variation_id]
+                             else
+                               variation_lookup_by_description[entry.variation_description.to_s.strip.downcase]
+                             end
+          linked_variation ||= variations.first if linked_variation.blank? && variations.one?
+          next unless linked_variation
+
+          quantity_remaining = entry.quantity_remaining.to_d
+          next unless quantity_remaining.positive?
+
+          total_value += lot.unit_cost_usd.to_d * quantity_remaining
+        end
+        next
+      end
+
+      legacy_rows = item&.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+      if legacy_rows.any?
+        legacy_rows.each do |entry|
+          legacy_variation_id = (entry['variation_id'] || entry[:variation_id]).presence
+          legacy_description = (entry['description'] || entry[:description]).to_s.strip.downcase
+          linked_variation = if legacy_variation_id.present?
+                               variation_lookup_by_id[legacy_variation_id.to_i]
+                             else
+                               variation_lookup_by_description[legacy_description]
+                             end
+          linked_variation ||= variations.first if linked_variation.blank? && variations.one?
+          next unless linked_variation
+
+          quantity = (entry['quantity'] || entry[:quantity]).to_d
+          next unless quantity.positive?
+
+          total_value += lot.unit_cost_usd.to_d * quantity
+        end
+        next
+      end
+
+      next unless variations.one?
+
+      lot_quantity_remaining_units = lot.quantity_remaining.to_d * (units_per_pack.positive? ? units_per_pack : 1)
+      next unless lot_quantity_remaining_units.positive?
+
+      total_value += lot.unit_cost_usd.to_d * lot_quantity_remaining_units
+    end
+
+    total_value
   end
 
   def below_target_margin_product_ids(scope)
