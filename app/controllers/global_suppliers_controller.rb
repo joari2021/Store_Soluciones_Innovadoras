@@ -27,6 +27,7 @@ class GlobalSuppliersController < ApplicationController
     @global_supplier.source_business ||= current_business
 
     if @global_supplier.save
+      enforce_default_exento_on_associations!(@global_supplier)
       redirect_to global_supplier_path(@global_supplier), notice: "Proveedor global creado."
     else
       render :new, status: :unprocessable_entity
@@ -38,6 +39,7 @@ class GlobalSuppliersController < ApplicationController
 
   def update
     if @global_supplier.update(global_supplier_params)
+      enforce_default_exento_on_associations!(@global_supplier)
       redirect_to global_supplier_path(@global_supplier), notice: "Proveedor global actualizado."
     else
       if product_associations_update?
@@ -69,6 +71,7 @@ class GlobalSuppliersController < ApplicationController
       else
         row.exento?
       end
+    resolved_exento = true if @global_supplier.default_exento?
 
     row.assign_attributes(
       costo_mayor: params[:costo_mayor],
@@ -134,5 +137,11 @@ class GlobalSuppliersController < ApplicationController
 
   def product_associations_update?
     params.dig(:global_supplier, :global_supplier_products_attributes).present?
+  end
+
+  def enforce_default_exento_on_associations!(supplier)
+    return unless supplier.default_exento?
+
+    supplier.global_supplier_products.update_all(exento: true)
   end
 end

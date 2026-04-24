@@ -279,9 +279,12 @@
           <% supplier_ref = if selected_global_supplier_id.present? && fi.object.producto&.global_product_id.present?
               GlobalSupplierProduct.find_by(global_supplier_id: selected_global_supplier_id, global_product_id: fi.object.producto.global_product_id)
             end %>
+          <% ref_exento = supplier_ref&.exento? %>
+          <% exento_activo = ref_exento unless fi.object.persisted? || ref_exento.nil? %>
           <% ref_costo_mayor = supplier_ref&.costo_mayor&.to_s('F') || '' %>
           <% ref_unid_x_pack = supplier_ref&.cantidad&.to_s('F') || '' %>
           <% ref_costo_menor = supplier_ref&.costo_menor&.to_s('F') || '' %>
+          <% ref_exento_value = supplier_ref.present? ? (supplier_ref.exento? ? 'true' : 'false') : '' %>
           <% has_supplier_ref = supplier_ref.present? %>
           <% overwrite_diff = false %>
           <% if has_supplier_ref %>
@@ -290,7 +293,8 @@
             <% comparable_costo_menor = unid_x_pack.to_d.positive? ? (comparable_costo_mayor / unid_x_pack.to_d) : costo_menor.to_d %>
             <% overwrite_diff = comparable_costo_mayor.round(2) != supplier_ref.costo_mayor.to_d.round(2) ||
                                 unid_x_pack.to_d.round(4) != supplier_ref.cantidad.to_d.round(4) ||
-                                comparable_costo_menor.round(2) != supplier_ref.costo_menor.to_d.round(2) %>
+                                comparable_costo_menor.round(2) != supplier_ref.costo_menor.to_d.round(2) ||
+                                exento_activo != supplier_ref.exento? %>
           <% end %>
           <tr class="factura-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= fi.object.producto_id %>" data-exento="<%= exento_activo ? 'true' : 'false' %>">
             <td class="px-4 py-3">
@@ -367,7 +371,7 @@
             <td class="px-4 py-3 table-number js-total-usd"><%= format_money(total_usd, unit: '$') %></td>
             <td class="px-4 py-3 table-number js-total-bs"><%= format_money(total_bs, unit: 'Bs') %></td>
           </tr>
-          <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= selected_global_supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>" data-single-variation-id="<%= single_variation&.[](:id) %>" data-single-variation-description="<%= single_variation&.[](:description) %>">
+          <tr class="factura-row-edit hidden bg-slate-50/40" data-row-key="<%= row_key %>" data-new-record="<%= fi.object.persisted? ? 'false' : 'true' %>" data-product-id="<%= fi.object.producto_id %>" data-ref-supplier-id="<%= selected_global_supplier_id %>" data-has-reference="<%= supplier_ref.present? ? 'true' : 'false' %>" data-ref-costo-mayor="<%= ref_costo_mayor %>" data-ref-unid-x-pack="<%= ref_unid_x_pack %>" data-ref-costo-menor="<%= ref_costo_menor %>" data-ref-exento="<%= ref_exento_value %>" data-variations="<%= ERB::Util.json_escape(product_variations_json) %>" data-single-variation-id="<%= single_variation&.[](:id) %>" data-single-variation-description="<%= single_variation&.[](:description) %>">
             <%= fi.hidden_field :_destroy, class: 'factura-item-destroy' %>
             <%= fi.hidden_field :producto_id %>
             <%= fi.hidden_field :product_name, value: product_name %>
@@ -817,7 +821,7 @@
       <td class="px-4 py-3 table-number js-total-usd">$ 0,00</td>
       <td class="px-4 py-3 table-number js-total-bs">Bs 0,00</td>
     </tr>
-    <tr class="factura-row-edit bg-slate-50/40" data-row-key="NEW_RECORD" data-new-record="true" data-product-id="PRODUCT_ID" data-ref-supplier-id="" data-has-reference="false" data-ref-costo-mayor="" data-ref-unid-x-pack="" data-ref-costo-menor="" data-variations="PRODUCT_VARIATIONS_JSON" data-single-variation-id="" data-single-variation-description="">
+    <tr class="factura-row-edit bg-slate-50/40" data-row-key="NEW_RECORD" data-new-record="true" data-product-id="PRODUCT_ID" data-ref-supplier-id="" data-has-reference="false" data-ref-costo-mayor="" data-ref-unid-x-pack="" data-ref-costo-menor="" data-ref-exento="" data-variations="PRODUCT_VARIATIONS_JSON" data-single-variation-id="" data-single-variation-description="">
       <td class="px-4 py-3">
         <div class="flex items-center gap-2">
           <button type="button" class="save-factura-row inline-flex items-center justify-center rounded-lg bg-emerald-50 p-2 text-emerald-600 hover:bg-emerald-100 transition-colors" data-row-key="NEW_RECORD" title="Guardar" aria-label="Guardar">
@@ -1501,7 +1505,8 @@
           costoMenorUsd: costoMenorUsdRounded,
           costoMenorBs: costoMenorUsdRounded * tasa,
           comparableCostoMayorUsd,
-          comparableCostoMenorUsd
+          comparableCostoMenorUsd,
+          exento: isExento
         };
       };
 
@@ -1509,6 +1514,8 @@
         const refCostoMayor = clampNonNegative(editRow.dataset.refCostoMayor || 0);
         const refUnidXPack = clampNonNegative(editRow.dataset.refUnidXPack || 0);
         const refCostoMenor = clampNonNegative(editRow.dataset.refCostoMenor || 0);
+        const refExentoRaw = String(editRow.dataset.refExento || '').toLowerCase();
+        const refExento = refExentoRaw === 'true' || refExentoRaw === '1';
         const refCostoMenorUsdRounded = roundValue(refCostoMenor, 2);
         const tasa = currentRate();
         return {
@@ -1516,7 +1523,8 @@
           costoMayorBs: roundValue(refCostoMayor * tasa, 2),
           unidXPack: roundValue(refUnidXPack, 4),
           costoMenorUsd: refCostoMenorUsdRounded,
-          costoMenorBs: refCostoMenorUsdRounded * tasa
+          costoMenorBs: refCostoMenorUsdRounded * tasa,
+          exento: refExento
         };
       };
 
@@ -1535,7 +1543,8 @@
 
         return currentValues.comparableCostoMayorUsd !== referenceValues.costoMayorUsd ||
           currentValues.unidXPack !== referenceValues.unidXPack ||
-          currentValues.comparableCostoMenorUsd !== referenceValues.costoMenorUsd;
+          currentValues.comparableCostoMenorUsd !== referenceValues.costoMenorUsd ||
+          currentValues.exento !== referenceValues.exento;
       };
 
       const rowSupplierDiffSummary = (editRow) => {
@@ -1555,6 +1564,10 @@
 
         if (currentValues.comparableCostoMenorUsd !== referenceValues.costoMenorUsd) {
           parts.push(`Costo menor: ${formatMoney(referenceValues.costoMenorUsd, '$')} -> ${formatMoney(currentValues.comparableCostoMenorUsd, '$')}`);
+        }
+
+        if (currentValues.exento !== referenceValues.exento) {
+          parts.push(`Fiscal: ${referenceValues.exento ? 'Exento' : 'IVA'} -> ${currentValues.exento ? 'Exento' : 'IVA'}`);
         }
 
         if (parts.length === 0) return '';
@@ -1913,7 +1926,8 @@
               producto_id: productoId,
               costo_mayor: costoMayor,
               cantidad: unidXPack,
-              costo_menor: costoMenor
+              costo_menor: costoMenor,
+              exento: currentValues.exento
             })
           });
 
@@ -1927,6 +1941,7 @@
           editRow.dataset.refCostoMayor = String(clampNonNegative(data.costo_mayor));
           editRow.dataset.refUnidXPack = String(clampNonNegative(data.cantidad));
           editRow.dataset.refCostoMenor = String(clampNonNegative(data.costo_menor));
+          editRow.dataset.refExento = String(data.exento === true || String(data.exento) === 'true' || String(data.exento) === '1');
 
           updateOverwriteButton(rowKey);
 
@@ -2041,6 +2056,7 @@
           editRow.dataset.refCostoMayor = String(costoMayor || 0);
           editRow.dataset.refUnidXPack = String(unidXPack || 0);
           editRow.dataset.refCostoMenor = String(initialCostoMenor || 0);
+          editRow.dataset.refExento = String(isExento);
 
           if (displayRow) {
             displayRow.dataset.productId = String(productId || '');

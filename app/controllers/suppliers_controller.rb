@@ -45,6 +45,7 @@ class SuppliersController < ApplicationController
 
   def update
     if @supplier.update(global_supplier_params)
+      enforce_default_exento_on_associations!(@supplier)
       redirect_to supplier_path(@supplier), notice: 'Proveedor actualizado.'
     else
       if product_associations_update?
@@ -85,6 +86,7 @@ class SuppliersController < ApplicationController
       else
         row.exento?
       end
+    resolved_exento = true if @supplier.default_exento?
 
     row.assign_attributes(
       costo_mayor: params[:costo_mayor],
@@ -192,5 +194,11 @@ class SuppliersController < ApplicationController
 
   def product_associations_update?
     params.dig(:global_supplier, :global_supplier_products_attributes).present?
+  end
+
+  def enforce_default_exento_on_associations!(supplier)
+    return unless supplier.default_exento?
+
+    supplier.global_supplier_products.update_all(exento: true)
   end
 end

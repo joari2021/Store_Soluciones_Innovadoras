@@ -196,10 +196,13 @@ class ProductosController < ApplicationController
                'productos.*',
                'global_supplier_products.costo_mayor AS supplier_costo_mayor',
                'global_supplier_products.costo_menor AS supplier_costo_menor',
-               'global_supplier_products.cantidad AS supplier_unid_x_pack'
+               'global_supplier_products.cantidad AS supplier_unid_x_pack',
+               'global_supplier_products.exento AS supplier_exento'
              )
 
       payload = rows.map do |row|
+        association_exento = ActiveModel::Type::Boolean.new.cast(row.attributes['supplier_exento'])
+
         {
           id: row.id,
           descripcion: row.descripcion,
@@ -207,7 +210,7 @@ class ProductosController < ApplicationController
           costo_mayor: row.attributes['supplier_costo_mayor'],
           costo_menor: row.attributes['supplier_costo_menor'],
           unid_x_pack: row.attributes['supplier_unid_x_pack'],
-          exento: row.respond_to?(:exento?) ? row.exento? : false,
+          exento: association_exento,
           variations: row.product_variations.order(:id).map do |variation|
             { id: variation.id, description: variation.description }
           end

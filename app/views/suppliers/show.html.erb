@@ -15,6 +15,7 @@
      end %>
   <% moneda_prioritaria_label = @supplier.pricing_currency_priority == 'bs' ? 'Bolivares (Bs)' : 'Dolar ($)' %>
   <% fiscal_default_label = @supplier.default_exento? ? 'Exento' : 'IVA (No exento)' %>
+  <% exento_locked = @supplier.default_exento? %>
   <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
     <div class="min-w-0">
       <p class="mb-2"><strong>RIF:</strong> <%= @supplier.rif %></p>
@@ -112,7 +113,12 @@
               <td class="px-4 py-3 text-center">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fiscal</label>
                 <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <%= gsp.check_box :exento, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
+                  <% if exento_locked %>
+                    <%= hidden_field_tag "#{gsp.object_name}[exento]", '1' %>
+                    <%= check_box_tag "#{gsp.object_name}[exento]", '1', true, disabled: true, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500 cursor-not-allowed opacity-60' %>
+                  <% else %>
+                    <%= gsp.check_box :exento, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
+                  <% end %>
                   Exento
                 </label>
               </td>
@@ -170,8 +176,8 @@
     <td class="px-4 py-3 text-center">
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fiscal</label>
       <label class="inline-flex items-center gap-2 text-sm text-slate-700">
-        <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][exento]" value="0">
-        <input type="checkbox" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][exento]" value="1" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500" CHECKED_EXENTO>
+        <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][exento]" value="EXENTO_HIDDEN_VALUE">
+        <input type="checkbox" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][exento]" value="1" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500" EXENTO_CHECKBOX_ATTRS>
         Exento
       </label>
     </td>
@@ -223,6 +229,7 @@
     const table = tbody?.closest('table');
     const tasa = Number(table?.dataset.tasaBcv || 0);
     const defaultExento = <%= @supplier.default_exento? ? 'true' : 'false' %>;
+    const defaultExentoLocked = defaultExento;
 
     if (!form || !tbody || !searchInput || !resultsBox || !template) return;
     if (tbody.dataset.bound === 'true') return;
@@ -358,7 +365,8 @@
       let html = template.innerHTML.replace(/NEW_RECORD/g, String(currentIndex));
       html = html.replace(/PRODUCT_ID/g, String(productId));
       html = html.replace(/PRODUCT_NAME/g, escapeHtml(productName));
-      html = html.replace(/CHECKED_EXENTO/g, defaultExento ? 'checked' : '');
+      html = html.replace(/EXENTO_HIDDEN_VALUE/g, defaultExentoLocked ? '1' : '0');
+      html = html.replace(/EXENTO_CHECKBOX_ATTRS/g, defaultExentoLocked ? 'checked disabled' : '');
       tbody.dataset.index = String(currentIndex + 1);
       tbody.insertAdjacentHTML('afterbegin', html);
       recalcRow(tbody.querySelector(`.supplier-row-edit[data-row-key="${currentIndex}"]`));
