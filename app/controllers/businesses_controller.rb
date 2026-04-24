@@ -1,6 +1,7 @@
 class BusinessesController < ApplicationController
-  before_action :require_admin
+  before_action :require_admin, except: %i[select]
   before_action :set_business, only: %i[edit update destroy select]
+  before_action :ensure_can_select_business!, only: %i[select]
 
   def index
     @businesses = Business.order(:name)
@@ -71,5 +72,12 @@ class BusinessesController < ApplicationController
       :banner,
       :hide_initial_inventory_button
     )
+  end
+
+  def ensure_can_select_business!
+    return if current_user_admin?
+    return if Current.user&.assigned_to_business?(@business)
+
+    deny_access('No tienes acceso al negocio seleccionado.')
   end
 end
