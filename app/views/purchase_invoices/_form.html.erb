@@ -437,6 +437,8 @@
         <% end %>
       </tbody>
       <tfoot class="bg-slate-50 border-t border-slate-200">
+        <% descuento_usd = factura.descuento_usd.to_d %>
+        <% descuento_bs = factura.descuento_bs.to_d %>
         <% totals_leading_colspan = if initial_inventory_mode
                                       8
                                     elsif intercompany_mode
@@ -462,6 +464,18 @@
             <td class="px-4 py-3 text-right font-bold text-slate-700">Exento</td>
             <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-exento-usd">$ 0,00</td>
             <td class="px-4 py-3 table-number font-extrabold text-slate-800" id="factura-exento-bs">Bs 0,00</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3" colspan="<%= totals_leading_colspan %>"></td>
+            <td class="px-4 py-3 text-right font-bold text-slate-700">Descuento</td>
+            <td class="px-4 py-3">
+              <%= f.hidden_field :descuento_usd, id: 'purchase_invoice_descuento_usd_raw', value: descuento_usd.to_s('F') %>
+              <input id="purchase_invoice_descuento_usd" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" value="<%= format_money(descuento_usd, unit: '$') %>" class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-right font-semibold text-slate-800 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+            </td>
+            <td class="px-4 py-3">
+              <%= f.hidden_field :descuento_bs, id: 'purchase_invoice_descuento_bs_raw', value: descuento_bs.to_s('F') %>
+              <input id="purchase_invoice_descuento_bs" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" value="<%= format_money(descuento_bs, unit: 'Bs') %>" class="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-right font-semibold text-slate-800 shadow-sm focus:border-sky-500 focus:ring-sky-500">
+            </td>
           </tr>
         <% end %>
         <tr>
@@ -927,6 +941,10 @@
       const supplierCurrencyPriorityValue = form.querySelector('#supplier-currency-priority-value');
       const tasaInput = form.querySelector('#purchase_invoice_tasa_dolar');
       const tasaInputRaw = form.querySelector('#purchase_invoice_tasa_dolar_raw');
+      const discountUsdInput = form.querySelector('#purchase_invoice_descuento_usd');
+      const discountBsInput = form.querySelector('#purchase_invoice_descuento_bs');
+      const discountUsdRawInput = form.querySelector('#purchase_invoice_descuento_usd_raw');
+      const discountBsRawInput = form.querySelector('#purchase_invoice_descuento_bs_raw');
       const tbody = form.querySelector('#factura-items');
       const template = scope.querySelector('#factura-item-template') || document.querySelector('#factura-item-template');
 
@@ -1109,6 +1127,45 @@
           return;
         }
         input.value = formatMoney(clampNonNegative(value), unit);
+      };
+
+      const writeDiscountValues = ({ usd, bs }) => {
+        const normalizedUsd = clampNonNegative(usd);
+        const normalizedBs = clampNonNegative(bs);
+
+        if (discountUsdRawInput) discountUsdRawInput.value = normalizedUsd.toFixed(8);
+        if (discountBsRawInput) discountBsRawInput.value = normalizedBs.toFixed(8);
+        setMaskedMoney(discountUsdInput, normalizedUsd, '$');
+        setMaskedMoney(discountBsInput, normalizedBs, 'Bs');
+      };
+
+      const normalizeDiscountFromInputs = ({ source = null, maxUsd = null, maxBs = null } = {}) => {
+        if (!discountUsdInput && !discountBsInput) {
+          return { usd: 0, bs: 0 };
+        }
+
+        const rate = currentRate();
+        const priority = currentSupplierPriority();
+        const usdInputValue = clampNonNegative(discountUsdInput?.value);
+        const bsInputValue = clampNonNegative(discountBsInput?.value);
+
+        let discountUsd = 0;
+        let discountBs = 0;
+
+        if (priority === 'bs') {
+          const discountBsFromSource = source === 'usd' ? (usdInputValue * rate) : bsInputValue;
+          discountBs = clampNonNegative(discountBsFromSource);
+          if (Number.isFinite(maxBs)) discountBs = Math.min(discountBs, maxBs);
+          discountUsd = rate > 0 ? (discountBs / rate) : 0;
+        } else {
+          const discountUsdFromSource = source === 'bs' ? (rate > 0 ? (bsInputValue / rate) : 0) : usdInputValue;
+          discountUsd = clampNonNegative(discountUsdFromSource);
+          if (Number.isFinite(maxUsd)) discountUsd = Math.min(discountUsd, maxUsd);
+          discountBs = discountUsd * rate;
+        }
+
+        writeDiscountValues({ usd: discountUsd, bs: discountBs });
+        return { usd: discountUsd, bs: discountBs };
       };
 
       const roundValue = (value, precision = 2) => {
@@ -1629,6 +1686,7 @@
 
           totalFinalUsdEl.textContent = formatMoney(totalUsd, '$');
           totalFinalBsEl.textContent = formatMoney(totalBs, 'Bs');
+          writeDiscountValues({ usd: 0, bs: 0 });
           return;
         }
 
@@ -1665,7 +1723,10 @@
 
         const ivaUsd = subtotalUsd * 0.16;
         const ivaBs = subtotalBs * 0.16;
-        const totalFinalBs = subtotalBs + ivaBs + exentoBs;
+        const grossTotalUsd = subtotalUsd + ivaUsd + exentoUsd;
+        const grossTotalBs = subtotalBs + ivaBs + exentoBs;
+        const discountValues = normalizeDiscountFromInputs({ maxUsd: grossTotalUsd, maxBs: grossTotalBs });
+        const totalFinalBs = grossTotalBs - discountValues.bs;
         const priority = currentSupplierPriority();
         const rate = currentRate();
         const subtotalUsdDisplay = priority === 'bs'
@@ -1679,7 +1740,7 @@
           : exentoUsd;
         const totalFinalUsd = priority === 'bs'
           ? (rate > 0 ? (totalFinalBs / rate) : 0)
-          : (subtotalUsd + ivaUsd + exentoUsd);
+          : (grossTotalUsd - discountValues.usd);
 
         subtotalUsdEl.textContent = formatMoney(subtotalUsdDisplay, '$');
         subtotalBsEl.textContent = formatMoney(subtotalBs, 'Bs');
@@ -2202,6 +2263,18 @@
       updateGrandTotals();
 
       form.addEventListener('input', (ev) => {
+        if (ev.target === discountUsdInput) {
+          normalizeDiscountFromInputs({ source: 'usd' });
+          updateGrandTotals();
+          return;
+        }
+
+        if (ev.target === discountBsInput) {
+          normalizeDiscountFromInputs({ source: 'bs' });
+          updateGrandTotals();
+          return;
+        }
+
         const row = ev.target && ev.target.closest ? ev.target.closest('.factura-row-edit') : null;
         if (!row) return;
           if (ev.target.classList.contains('row-variation-qty') || ev.target.classList.contains('row-variation-select')) {
@@ -2236,6 +2309,18 @@
       }, { passive: false });
 
       form.addEventListener('blur', (ev) => {
+        if (ev.target === discountUsdInput) {
+          normalizeDiscountFromInputs({ source: 'usd' });
+          updateGrandTotals();
+          return;
+        }
+
+        if (ev.target === discountBsInput) {
+          normalizeDiscountFromInputs({ source: 'bs' });
+          updateGrandTotals();
+          return;
+        }
+
         if (!ev.target || !ev.target.classList || !ev.target.classList.contains('row-costo-mayor-bs')) return;
         const row = ev.target.closest('.factura-row-edit');
         if (!row) return;
@@ -2279,6 +2364,7 @@
 
         form.addEventListener('submit', (ev) => {
         syncRawRateInput();
+        normalizeDiscountFromInputs();
           tbody.querySelectorAll('.factura-row-edit').forEach((row) => {
             commitVariationEditor(row);
             recalcEditRow(row);
@@ -2291,6 +2377,7 @@
       if (tasaInput) {
         const onRateChange = () => {
           syncRawRateInput();
+          normalizeDiscountFromInputs();
           tbody.querySelectorAll('.factura-row-edit').forEach((row) => {
             recalcEditRow(row, { source: 'rate' });
             const rowKey = row.dataset.rowKey;

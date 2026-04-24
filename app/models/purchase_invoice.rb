@@ -86,6 +86,8 @@ class PurchaseInvoice < ApplicationRecord
                exento_bs: total_bs,
                iva_usd: 0.to_d,
                iva_bs: 0.to_d,
+               descuento_usd: 0.to_d,
+               descuento_bs: 0.to_d,
                total_usd: total_usd,
                total_bs: total_bs,
              }
@@ -111,8 +113,14 @@ class PurchaseInvoice < ApplicationRecord
 
     iva_usd = subtotal_usd * 0.16
     iva_bs = subtotal_bs * 0.16
-    total_usd = subtotal_usd + iva_usd + exento_usd
-    total_bs = subtotal_bs + iva_bs + exento_bs
+    gross_total_usd = subtotal_usd + iva_usd + exento_usd
+    gross_total_bs = subtotal_bs + iva_bs + exento_bs
+    discount_totals = normalized_discount_totals(
+      gross_total_usd: gross_total_usd,
+      gross_total_bs: gross_total_bs,
+    )
+    total_usd = gross_total_usd - discount_totals[:descuento_usd]
+    total_bs = gross_total_bs - discount_totals[:descuento_bs]
 
     {
       subtotal_usd: subtotal_usd,
@@ -121,6 +129,8 @@ class PurchaseInvoice < ApplicationRecord
       exento_bs: exento_bs,
       iva_usd: iva_usd,
       iva_bs: iva_bs,
+      descuento_usd: discount_totals[:descuento_usd],
+      descuento_bs: discount_totals[:descuento_bs],
       total_usd: total_usd,
       total_bs: total_bs,
     }
@@ -146,6 +156,32 @@ class PurchaseInvoice < ApplicationRecord
   def normalize_delivered
     self.delivered = true if delivered.nil?
     self.delivered = true if initial_inventory?
+  end
+
+  def normalized_discount_totals(gross_total_usd:, gross_total_bs:)
+    priority = supplier&.pricing_currency_priority.presence == 'bs' ? 'bs' : 'usd'
+    rate = tasa_dolar.to_d
+
+    discount_usd_input = descuento_usd.to_d
+    discount_bs_input = descuento_bs.to_d
+
+    if priority == 'bs'
+      discount_bs = [discount_bs_input, 0.to_d].max
+      discount_bs = [discount_bs, gross_total_bs].min
+      discount_usd = rate.positive? ? (discount_bs / rate) : 0.to_d
+    else
+      discount_usd = [discount_usd_input, 0.to_d].max
+      discount_usd = [discount_usd, gross_total_usd].min
+      discount_bs = discount_usd * rate
+    end
+
+    self.descuento_usd = discount_usd.round(4)
+    self.descuento_bs = discount_bs.round(4)
+
+    {
+      descuento_usd: self.descuento_usd.to_d,
+      descuento_bs: self.descuento_bs.to_d,
+    }
   end
 
   def prevent_undeliver_when_stock_consumed

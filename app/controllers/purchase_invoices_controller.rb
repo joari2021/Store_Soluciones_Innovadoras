@@ -471,6 +471,8 @@ class PurchaseInvoicesController < ApplicationController
       :source_business_id,
       :fecha_emision,
       :tasa_dolar,
+      :descuento_usd,
+      :descuento_bs,
       :delivered,
       :numero,
       :observaciones,
