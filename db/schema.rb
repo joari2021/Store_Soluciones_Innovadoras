@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_24_193000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_24_202000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -488,6 +488,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_193000) do
     t.jsonb "metadata", default: {}, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "exento", default: false, null: false
+    t.index ["exento"], name: "index_global_supplier_products_on_exento"
     t.index ["global_product_id"], name: "index_global_supplier_products_on_global_product_id"
     t.index ["global_supplier_id", "global_product_id"], name: "index_global_supplier_products_unique_pair", unique: true
     t.index ["global_supplier_id"], name: "index_global_supplier_products_on_global_supplier_id"

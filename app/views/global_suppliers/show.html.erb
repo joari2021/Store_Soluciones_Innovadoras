@@ -56,6 +56,7 @@
         <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
           <tr>
             <th class="px-4 py-3 text-left">Producto</th>
+            <th class="px-4 py-3 text-center">Fiscal</th>
             <th class="px-4 py-3 text-right">Costo Mayor $</th>
             <th class="px-4 py-3 text-right">Costo Mayor Bs</th>
             <th class="px-4 py-3 text-center">Unid x Pack</th>
@@ -73,6 +74,13 @@
             <% product_name = gsp.object.global_product&.display_name_with_presentation || gsp.object.global_product&.name || 'Producto global' %>
             <tr class="global-supplier-row-display hover:bg-sky-50/60" data-row-key="<%= row_key %>" data-product-id="<%= gsp.object.global_product_id %>">
               <td class="px-4 py-3 font-semibold text-slate-800"><%= product_name %></td>
+              <td class="px-4 py-3 text-center">
+                <% if gsp.object.exento? %>
+                  <span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Exento</span>
+                <% else %>
+                  <span class="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">IVA</span>
+                <% end %>
+              </td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_mayor, unit: '$') %></td>
               <td class="px-4 py-3 table-number"><%= format_money(costo_mayor * tasa, unit: 'Bs') %></td>
               <td class="px-4 py-3 text-center"><%= format_quantity(gsp.object.cantidad) %></td>
@@ -100,6 +108,13 @@
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
                 <input type="text" value="<%= product_name %>" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
+              </td>
+              <td class="px-4 py-3 text-center">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fiscal</label>
+                <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+                  <%= gsp.check_box :exento, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
+                  Exento
+                </label>
               </td>
               <td class="px-4 py-3">
                 <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
@@ -152,6 +167,14 @@
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Producto</label>
       <input type="text" value="PRODUCT_NAME" class="block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm" readonly>
     </td>
+    <td class="px-4 py-3 text-center">
+      <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Fiscal</label>
+      <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+        <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][exento]" value="0">
+        <input type="checkbox" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][exento]" value="1" class="rounded border-slate-300 text-sky-600 focus:ring-sky-500" CHECKED_EXENTO>
+        Exento
+      </label>
+    </td>
     <td class="px-4 py-3">
       <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Costo Mayor $</label>
       <input type="hidden" name="global_supplier[global_supplier_products_attributes][NEW_RECORD][costo_mayor]" value="0" class="row-costo-mayor-native">
@@ -199,6 +222,7 @@
     const template = document.getElementById('global-supplier-product-template-row');
     const table = tbody?.closest('table');
     const tasa = Number(table?.dataset.tasaBcv || 0);
+    const defaultExento = <%= @global_supplier.default_exento? ? 'true' : 'false' %>;
 
     if (!form || !tbody || !searchInput || !resultsBox || !template) return;
     if (tbody.dataset.bound === 'true') return;
@@ -334,6 +358,7 @@
       let html = template.innerHTML.replace(/NEW_RECORD/g, String(currentIndex));
       html = html.replace(/PRODUCT_ID/g, String(productId));
       html = html.replace(/PRODUCT_NAME/g, escapeHtml(productName));
+      html = html.replace(/CHECKED_EXENTO/g, defaultExento ? 'checked' : '');
       tbody.dataset.index = String(currentIndex + 1);
       tbody.insertAdjacentHTML('afterbegin', html);
       recalcRow(tbody.querySelector(`.global-supplier-row-edit[data-row-key="${currentIndex}"]`));

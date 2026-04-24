@@ -78,10 +78,19 @@ class SuppliersController < ApplicationController
       global_product_id: producto.global_product_id,
     )
 
+    resolved_exento = if params.key?(:exento)
+        ActiveModel::Type::Boolean.new.cast(params[:exento])
+      elsif row.new_record?
+        @supplier.default_exento?
+      else
+        row.exento?
+      end
+
     row.assign_attributes(
       costo_mayor: params[:costo_mayor],
       cantidad: params[:cantidad],
       costo_menor: params[:costo_menor],
+      exento: resolved_exento,
       active: true,
     )
 
@@ -91,6 +100,7 @@ class SuppliersController < ApplicationController
         costo_mayor: row.costo_mayor,
         cantidad: row.cantidad,
         costo_menor: row.costo_menor,
+        exento: row.exento,
       }
     else
       render json: { error: row.errors.full_messages.to_sentence }, status: :unprocessable_entity
@@ -147,6 +157,7 @@ class SuppliersController < ApplicationController
         costo_mayor
         cantidad
         costo_menor
+        exento
         _destroy
       ]
     )
