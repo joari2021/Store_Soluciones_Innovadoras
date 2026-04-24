@@ -414,6 +414,23 @@ class DebtPaymentsController < ApplicationController
     end
 
     if remaining_amount > 0.01.to_d
+      if residual_rounding_amount?(amount: remaining_amount, from_currency: payment_currency, to_currency: ordered_debts.last&.currency, occurred_on: occurred_on)
+        last_payment = payments.last
+
+        if last_payment.present?
+          last_payment.amount = (last_payment.amount.to_d + remaining_amount).round(2)
+
+          unless last_payment.valid?
+            last_payment.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
+            return nil
+          end
+
+          remaining_amount = 0.to_d
+        end
+      end
+    end
+
+    if remaining_amount > 0.01.to_d
       unless allow_overpayment
         @debt_payment.errors.add(:amount, "excede el saldo distribuible del grupo de deudas")
         return nil
@@ -459,6 +476,20 @@ class DebtPaymentsController < ApplicationController
     payments.drop(1).each do |payment|
       payment.skip_account_movement = true
     end
+  end
+
+  def residual_rounding_amount?(amount:, from_currency:, to_currency:, occurred_on:)
+    return false unless amount.to_d.positive?
+    return false if to_currency.blank?
+
+    conversion = CurrencyConverter.convert(
+      amount: amount,
+      from_currency: from_currency,
+      to_currency: to_currency,
+      on_date: occurred_on,
+    )
+
+    conversion.present? && conversion[:amount].to_d <= 0
   end
 
   def total_balance_in_payment_currency(debts, payment_currency, occurred_on)
