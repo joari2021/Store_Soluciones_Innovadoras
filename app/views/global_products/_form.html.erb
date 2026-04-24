@@ -11,6 +11,7 @@
 <% selected_profit_margin_preset_id = profit_margin_presets.find { |preset| preset.percentage.to_d == global_product.fixed_margin_percentage.to_d }&.id %>
 <% global_suppliers_for_product = Array(local_assigns[:global_suppliers_for_product]) %>
 <% cheapest_supplier_cost_unit = local_assigns[:cheapest_supplier_cost_unit] %>
+<% show_suggested_price_badge = modal_mode && global_product.persisted? %>
 <%= form_with(model: global_product, local: true, html: { class: "space-y-4", multipart: true }) do |f| %>
   <%= hidden_field_tag :query_text, query_text if query_text.present? %>
   <%= hidden_field_tag :category_name, category_name if category_name.present? %>
@@ -141,6 +142,11 @@
                        autocomplete: "off",
                        placeholder: "$ 0,00",
                        data: { money_mask: true, money_symbol: "$" } %>
+      <% if show_suggested_price_badge %>
+        <div id="global_product_suggested_price_badge" class="mt-2 rounded-lg border px-3 py-2 text-xs font-semibold border-amber-200 bg-amber-50 text-amber-700">
+          Debes seleccionar el porcentaje fijo de ganancia para ver el precio sugerido.
+        </div>
+      <% end %>
     </div>
     <div>
       <label class="text-xs font-bold text-slate-400 uppercase tracking-wider">Precio Venta (Bs)</label>
@@ -175,4 +181,89 @@
       <%= f.submit submit_label, class: "modal-submit inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 cursor-pointer" %>
     <% end %>
   </div>
+<% end %>
+<% if show_suggested_price_badge %>
+  <script>
+    (function() {
+      const costInput = document.getElementById("global_product_cost_unit_visual");
+      const marginInput = document.getElementById("global_product_fixed_margin_percentage");
+      const salePriceInput = document.getElementById("global_product_sale_price_usd");
+      const badge = document.getElementById("global_product_suggested_price_badge");
+      if (!costInput || !marginInput || !salePriceInput || !badge) return;
+
+      const RED_CLASSES = ["border-red-200", "bg-red-50", "text-red-700"];
+      const GREEN_CLASSES = ["border-emerald-200", "bg-emerald-50", "text-emerald-700"];
+      const WARNING_CLASSES = ["border-amber-200", "bg-amber-50", "text-amber-700"];
+
+      function toDecimal(rawValue) {
+        if (rawValue === null || rawValue === undefined) return null;
+        let value = String(rawValue).trim();
+        if (!value) return null;
+        value = value.replace(/[^0-9,.-]/g, "");
+        if (!value) return null;
+
+        const lastComma = value.lastIndexOf(",");
+        const lastDot = value.lastIndexOf(".");
+
+        if (lastComma > lastDot) {
+          value = value.replace(/\./g, "").replace(",", ".");
+        } else if (lastDot > lastComma) {
+          value = value.replace(/,/g, "");
+        } else {
+          value = value.replace(",", ".");
+        }
+
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+
+      function formatUsd(value) {
+        return "$ " + value.toLocaleString("es-VE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+      }
+
+      function setBadgeStyle(classSet) {
+        badge.classList.remove(...RED_CLASSES, ...GREEN_CLASSES, ...WARNING_CLASSES);
+        badge.classList.add(...classSet);
+      }
+
+      function refreshSuggestedBadge() {
+        const unitCost = toDecimal(costInput.value);
+        const fixedMarginPercentage = toDecimal(marginInput.value);
+        const salePrice = toDecimal(salePriceInput.value) || 0;
+
+        if (fixedMarginPercentage === null) {
+          setBadgeStyle(WARNING_CLASSES);
+          badge.textContent = "Debes seleccionar el porcentaje fijo de ganancia para ver el precio sugerido.";
+          return;
+        }
+
+        if (unitCost === null || unitCost <= 0) {
+          setBadgeStyle(WARNING_CLASSES);
+          badge.textContent = "No hay costo unitario disponible para calcular el precio sugerido.";
+          return;
+        }
+
+        const suggestedPrice = unitCost * (1 + (fixedMarginPercentage / 100));
+        const suggestedLabel = formatUsd(suggestedPrice);
+        const saleLabel = formatUsd(salePrice);
+
+        if (suggestedPrice > salePrice) {
+          setBadgeStyle(RED_CLASSES);
+        } else {
+          setBadgeStyle(GREEN_CLASSES);
+        }
+
+        badge.textContent = "Precio sugerido: " + suggestedLabel + " (venta actual: " + saleLabel + ")";
+      }
+
+      marginInput.addEventListener("change", refreshSuggestedBadge);
+      marginInput.addEventListener("input", refreshSuggestedBadge);
+      salePriceInput.addEventListener("change", refreshSuggestedBadge);
+      salePriceInput.addEventListener("input", refreshSuggestedBadge);
+      refreshSuggestedBadge();
+    })();
+  </script>
 <% end %>
