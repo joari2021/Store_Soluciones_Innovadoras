@@ -46,10 +46,12 @@ class DebtPaymentsController < ApplicationController
   def create
     account = @accounts.find { |item| item.id == debt_payment_params[:account_id].to_i }
     payment_currency = account&.currency
-    amount = parse_decimal(debt_payment_params[:amount])
+    requested_amount = parse_decimal(debt_payment_params[:amount])
+    amount = requested_amount
     submitted_occurred_on = parse_payment_date(debt_payment_params[:occurred_at])
     occurred_on = resolved_occurred_on_for_current_user(debt_payment_params[:occurred_at])
     allow_overpayment = @debt.receivable? || overpayment_allowed?
+    partial_balance_applied = false
 
     @debt_payment = @debt.debt_payments.new(
       account: account,
@@ -114,8 +116,16 @@ class DebtPaymentsController < ApplicationController
     end
 
     if @debt.payable? && amount.to_d.positive? && amount.to_d > account.balance.to_d
-      @debt_payment.errors.add(:base, account.insufficient_balance_message(amount))
-      return handle_payment_form_error
+      available_balance = account.balance.to_d.round(2)
+
+      if available_balance.positive?
+        amount = available_balance
+        @debt_payment.amount = amount
+        partial_balance_applied = true
+      else
+        @debt_payment.errors.add(:base, account.insufficient_balance_message(amount))
+        return handle_payment_form_error
+      end
     end
 
     return handle_payment_form_error unless @debt_payment.valid?
@@ -148,6 +158,13 @@ class DebtPaymentsController < ApplicationController
       symbol = Account::CURRENCIES.dig(payment_currency, :symbol) || payment_currency
       overpayment_label = helpers.number_to_currency(overpayment_amount, unit: "#{symbol} ")
       notice = "#{notice} Sobregiro registrado por #{overpayment_label}."
+    end
+
+    if partial_balance_applied
+      symbol = Account::CURRENCIES.dig(payment_currency, :symbol) || payment_currency
+      applied_label = helpers.number_to_currency(amount, unit: "#{symbol} ")
+      requested_label = helpers.number_to_currency(requested_amount, unit: "#{symbol} ")
+      notice = "#{notice} Se registro un abono por #{applied_label} usando el saldo disponible de la cuenta en lugar del monto solicitado de #{requested_label}."
     end
 
     if ActiveModel::Type::Boolean.new.cast(params[:only_active]) && active_group_debts_after_payment.empty?
