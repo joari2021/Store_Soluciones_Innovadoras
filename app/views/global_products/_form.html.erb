@@ -12,7 +12,8 @@
 <% global_suppliers_for_product = Array(local_assigns[:global_suppliers_for_product]) %>
 <% cheapest_supplier_cost_unit = local_assigns[:cheapest_supplier_cost_unit] %>
 <% show_suggested_price_badge = modal_mode && global_product.persisted? %>
-<%= form_with(model: global_product, local: true, html: { class: "space-y-4", multipart: true }) do |f| %>
+<% bcv_rate = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : 0.to_d %>
+<%= form_with(model: global_product, local: true, html: { class: "space-y-4", multipart: true, data: { global_product_bcv_rate: bcv_rate.to_s('F') } }) do |f| %>
   <%= hidden_field_tag :query_text, query_text if query_text.present? %>
   <%= hidden_field_tag :category_name, category_name if category_name.present? %>
   <%= hidden_field_tag :below_target_margin, below_target_margin if below_target_margin.present? %>
@@ -267,3 +268,69 @@
     })();
   </script>
 <% end %>
+<script>
+  (function() {
+    const form = document.querySelector("form[data-global-product-bcv-rate]");
+    const salePriceUsdInput = document.getElementById("global_product_sale_price_usd");
+    const salePriceBsInput = document.getElementById("global_product_price_bs_visual");
+    if (!form || !salePriceUsdInput || !salePriceBsInput) return;
+
+    if (form.dataset.globalProductPriceSyncBound === "true") return;
+    form.dataset.globalProductPriceSyncBound = "true";
+
+    const bcvRate = Number.parseFloat(form.dataset.globalProductBcvRate || "0") || 0;
+
+    function parseMoneyInput(input) {
+      if (!input) return 0;
+      if (window.MoneyInputMask?.parseValue) {
+        return Number(window.MoneyInputMask.parseValue(input) || 0);
+      }
+
+      const compact = String(input.value || "")
+        .replace(/\s/g, "")
+        .replace(/[^\d.,-]/g, "");
+
+      let normalized = compact;
+      if (compact.includes(",")) {
+        normalized = compact.replace(/\./g, "").replace(",", ".");
+      } else if (/^\d{1,3}(\.\d{3})+$/.test(compact)) {
+        normalized = compact.replace(/\./g, "");
+      }
+
+      const parsed = Number.parseFloat(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function setMoneyInput(input, value) {
+      const safe = Number.isFinite(Number(value)) ? Math.max(Number(value), 0) : 0;
+
+      if (window.MoneyInputMask?.setValue) {
+        const symbol = input.dataset.moneySymbol || "Bs";
+        window.MoneyInputMask.setValue(input, safe, symbol);
+        return;
+      }
+
+      input.value = safe.toLocaleString("es-VE", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+
+    function refreshBsFromUsd() {
+      const usdValue = parseMoneyInput(salePriceUsdInput);
+      const bsValue = bcvRate > 0 ? usdValue * bcvRate : 0;
+      setMoneyInput(salePriceBsInput, bsValue);
+    }
+
+    salePriceUsdInput.addEventListener("input", refreshBsFromUsd);
+    salePriceUsdInput.addEventListener("change", refreshBsFromUsd);
+    salePriceUsdInput.addEventListener("blur", refreshBsFromUsd);
+
+    form.addEventListener("submit", () => {
+      const normalizedUsd = parseMoneyInput(salePriceUsdInput);
+      salePriceUsdInput.value = normalizedUsd.toFixed(2);
+    });
+
+    refreshBsFromUsd();
+  })();
+</script>

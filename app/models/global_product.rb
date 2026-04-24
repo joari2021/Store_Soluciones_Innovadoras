@@ -72,9 +72,18 @@ class GlobalProduct < ApplicationRecord
     return nil if raw.blank?
     return raw.to_d if raw.is_a?(Numeric)
 
-    cleaned = raw.to_s.strip.gsub(/[\s]/, "")
-    cleaned = cleaned.delete(".").tr(",", ".") if cleaned.include?(",")
-    BigDecimal(cleaned)
+    compact = raw.to_s.strip.gsub(/\s+/, '').gsub(/[^\d,.-]/, '')
+    return nil if compact.blank?
+
+    normalized = if compact.include?(',')
+                   compact.delete('.').tr(',', '.')
+                 elsif compact.count('.') > 1 && compact.split('.').drop(1).all? { |group| group.length == 3 }
+                   compact.delete('.')
+                 else
+                   compact
+                 end
+
+    BigDecimal(normalized)
   rescue ArgumentError
     nil
   end
