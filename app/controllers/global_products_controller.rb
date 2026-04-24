@@ -271,7 +271,13 @@ class GlobalProductsController < ApplicationController
 
   def render_modal_form(global_product:, submit_label:, modal_mode:, query_text:, category_name:, below_target_margin:, status: :ok)
     global_suppliers_for_product = global_suppliers_for_product(global_product)
-    cheapest_supplier_cost_unit = cheapest_supplier_cost_unit(global_suppliers_for_product)
+    pack_related_global_product = related_pack_global_product_for(global_product)
+    pack_related_suppliers_for_product = global_suppliers_for_product(pack_related_global_product)
+    pack_supplier_unit_rows = pack_supplier_rows_as_unit_cost(
+      pack_product: pack_related_global_product,
+      pack_supplier_rows: pack_related_suppliers_for_product,
+    )
+    cheapest_supplier_cost_unit = cheapest_supplier_cost_unit(global_suppliers_for_product, pack_supplier_unit_rows)
 
     frame_html = view_context.turbo_frame_tag("modal-global-products") do
       view_context.render(
@@ -284,6 +290,8 @@ class GlobalProductsController < ApplicationController
           category_name: category_name,
           below_target_margin: below_target_margin,
           global_suppliers_for_product: global_suppliers_for_product,
+          pack_related_global_product: pack_related_global_product,
+          pack_related_suppliers_for_product: pack_related_suppliers_for_product,
           cheapest_supplier_cost_unit: cheapest_supplier_cost_unit,
         },
       )
@@ -303,11 +311,45 @@ class GlobalProductsController < ApplicationController
       .order(Arel.sql("LOWER(global_suppliers.name) ASC"))
   end
 
-  def cheapest_supplier_cost_unit(global_supplier_rows)
-    Array(global_supplier_rows)
+  def cheapest_supplier_cost_unit(global_supplier_rows, pack_supplier_unit_rows = [])
+    direct_unit_costs = Array(global_supplier_rows)
       .filter_map { |row| row.costo_menor.to_d if row.costo_menor.present? }
       .select(&:positive?)
-      .min
+
+    pack_unit_costs = Array(pack_supplier_unit_rows)
+      .filter_map { |row| row[:unit_cost].to_d if row[:unit_cost].present? }
+      .select(&:positive?)
+
+    (direct_unit_costs + pack_unit_costs).min
+  end
+
+  def related_pack_global_product_for(global_product)
+    return nil unless global_product&.persisted?
+
+    normalized_name = global_product.name.to_s.strip
+    return nil if normalized_name.blank?
+
+    GlobalProduct
+      .where("LOWER(TRIM(global_products.name)) = ?", normalized_name.downcase)
+      .where(presentation: GlobalProduct.presentations[:pack])
+      .where.not(id: global_product.id)
+      .order(:id)
+      .first
+  end
+
+  def pack_supplier_rows_as_unit_cost(pack_product:, pack_supplier_rows:)
+    units_per_pack = pack_product&.cant_presentation.to_d
+    return [] unless units_per_pack.positive?
+
+    Array(pack_supplier_rows).filter_map do |row|
+      base_cost = row.costo_menor.to_d
+      next unless base_cost.positive?
+
+      {
+        supplier_row: row,
+        unit_cost: (base_cost / units_per_pack),
+      }
+    end
   end
 
   def filter_by_below_target_margin(scope)

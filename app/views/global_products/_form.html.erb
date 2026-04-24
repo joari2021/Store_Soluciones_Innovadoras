@@ -10,6 +10,8 @@
 <% profit_margin_presets = Array(@profit_margin_presets_for_select) %>
 <% selected_profit_margin_preset_id = profit_margin_presets.find { |preset| preset.percentage.to_d == global_product.fixed_margin_percentage.to_d }&.id %>
 <% global_suppliers_for_product = Array(local_assigns[:global_suppliers_for_product]) %>
+<% pack_related_global_product = local_assigns[:pack_related_global_product] %>
+<% pack_related_suppliers_for_product = Array(local_assigns[:pack_related_suppliers_for_product]) %>
 <% cheapest_supplier_cost_unit = local_assigns[:cheapest_supplier_cost_unit] %>
 <% show_suggested_price_badge = modal_mode && global_product.persisted? %>
 <% bcv_rate = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : 0.to_d %>
@@ -154,6 +156,31 @@
       <input type="text" name="global_product_price_bs_visual" id="global_product_price_bs_visual" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="Bs" class="w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:outline-none" placeholder="Bs 0,00" readonly>
     </div>
   </div>
+  <% if modal_mode && global_product.persisted? && pack_related_global_product.present? %>
+    <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
+    <div class="mt-2">
+      <h6 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Producto por Pack</h6>
+      <div class="mt-3 space-y-3">
+        <% if pack_related_suppliers_for_product.any? %>
+          <% pack_related_suppliers_for_product.each do |sp| %>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
+              <div class="flex items-center justify-between">
+                <div class="text-sm font-bold text-slate-700"><%= pack_related_global_product.display_name_with_presentation %></div>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-4 text-sm text-slate-600">
+                <div><span class="font-semibold">Proveedor:</span> <%= sp.global_supplier&.name || 'Proveedor global' %></div>
+                <div><span class="font-semibold">Unid por pack:</span> <%= format_quantity(pack_related_global_product.cant_presentation, precision: 0) %></div>
+                <div><span class="font-semibold">Costo mayor:</span> <%= format_money(sp.costo_mayor, unit: '$') %></div>
+                <div><span class="font-semibold">Costo menor:</span> <%= format_money(sp.costo_menor, unit: '$') %></div>
+              </div>
+            </div>
+          <% end %>
+        <% else %>
+          <div class="text-sm text-slate-500">El producto por pack existe pero no tiene proveedores globales activos.</div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
   <hr class="my-4 border-t-2 border-slate-200 rounded-xl">
   <div class="mt-2">
     <h6 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Proveedores globales</h6>
