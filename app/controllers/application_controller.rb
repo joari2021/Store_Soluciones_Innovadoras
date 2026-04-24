@@ -37,11 +37,12 @@ class ApplicationController < ActionController::Base
                           Business.order(:name)
                         elsif Current.user.present?
                           assignment_ids = Current.user.business_user_assignments.active.select(:business_id)
-                          fallback_id = Current.user.business_id
-                          if fallback_id.present?
-                            Business.where(id: assignment_ids).or(Business.where(id: fallback_id)).order(:name)
-                          else
+                          if Current.user.business_user_assignments.active.exists?
                             Business.where(id: assignment_ids).order(:name)
+                          elsif Current.user.business_id.present?
+                            Business.where(id: Current.user.business_id).order(:name)
+                          else
+                            Business.none
                           end
                         else
                           Business.order(:name)
