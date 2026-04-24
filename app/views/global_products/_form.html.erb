@@ -248,16 +248,17 @@
         }
 
         const suggestedPrice = unitCost * (1 + (fixedMarginPercentage / 100));
-        const suggestedLabel = formatUsd(suggestedPrice);
-        const saleLabel = formatUsd(salePrice);
+        const roundedSuggestedPrice = Math.round(suggestedPrice * 100) / 100;
+        const roundedSalePrice = Math.round(salePrice * 100) / 100;
+        const suggestedLabel = formatUsd(roundedSuggestedPrice);
 
-        if (suggestedPrice > salePrice) {
+        if (roundedSalePrice < roundedSuggestedPrice) {
           setBadgeStyle(RED_CLASSES);
         } else {
           setBadgeStyle(GREEN_CLASSES);
         }
 
-        badge.textContent = "Precio sugerido: " + suggestedLabel + " (venta actual: " + saleLabel + ")";
+        badge.textContent = "Precio sugerido: " + suggestedLabel;
       }
 
       marginInput.addEventListener("change", refreshSuggestedBadge);
