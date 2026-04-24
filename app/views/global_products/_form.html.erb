@@ -12,6 +12,7 @@
 <% global_suppliers_for_product = Array(local_assigns[:global_suppliers_for_product]) %>
 <% pack_related_global_product = local_assigns[:pack_related_global_product] %>
 <% pack_related_suppliers_for_product = Array(local_assigns[:pack_related_suppliers_for_product]) %>
+<% pack_supplier_unit_rows = Array(local_assigns[:pack_supplier_unit_rows]) %>
 <% cheapest_supplier_cost_unit = local_assigns[:cheapest_supplier_cost_unit] %>
 <% show_suggested_price_badge = modal_mode && global_product.persisted? %>
 <% bcv_rate = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : 0.to_d %>
@@ -163,6 +164,8 @@
       <div class="mt-3 space-y-3">
         <% if pack_related_suppliers_for_product.any? %>
           <% pack_related_suppliers_for_product.each do |sp| %>
+            <% pack_unit_row = pack_supplier_unit_rows.find { |row| row[:supplier_row]&.id == sp.id } %>
+            <% unit_cost_from_pack = pack_unit_row ? pack_unit_row[:unit_cost].to_d : 0.to_d %>
             <div class="rounded-2xl border border-slate-200 bg-slate-50/40 p-4">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-bold text-slate-700"><%= pack_related_global_product.display_name_with_presentation %></div>
@@ -170,8 +173,8 @@
               <div class="mt-3 grid grid-cols-2 gap-4 text-sm text-slate-600">
                 <div><span class="font-semibold">Proveedor:</span> <%= sp.global_supplier&.name || 'Proveedor global' %></div>
                 <div><span class="font-semibold">Unid por pack:</span> <%= format_quantity(pack_related_global_product.cant_presentation, precision: 0) %></div>
-                <div><span class="font-semibold">Costo mayor:</span> <%= format_money(sp.costo_mayor, unit: '$') %></div>
-                <div><span class="font-semibold">Costo menor:</span> <%= format_money(sp.costo_menor, unit: '$') %></div>
+                <div><span class="font-semibold">Costo pack:</span> <%= format_money(sp.costo_menor, unit: '$') %></div>
+                <div><span class="font-semibold">Costo menor:</span> <%= unit_cost_from_pack.positive? ? format_money(unit_cost_from_pack, unit: '$') : '-' %></div>
               </div>
             </div>
           <% end %>
@@ -275,11 +278,9 @@
         }
 
         const suggestedPrice = unitCost * (1 + (fixedMarginPercentage / 100));
-        const roundedSuggestedPrice = Math.round(suggestedPrice * 100) / 100;
-        const roundedSalePrice = Math.round(salePrice * 100) / 100;
-        const suggestedLabel = formatUsd(roundedSuggestedPrice);
+        const suggestedLabel = formatUsd(suggestedPrice);
 
-        if (roundedSalePrice < roundedSuggestedPrice) {
+        if (salePrice + Number.EPSILON < suggestedPrice) {
           setBadgeStyle(RED_CLASSES);
         } else {
           setBadgeStyle(GREEN_CLASSES);

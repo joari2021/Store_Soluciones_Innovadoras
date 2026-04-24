@@ -292,6 +292,7 @@ class GlobalProductsController < ApplicationController
           global_suppliers_for_product: global_suppliers_for_product,
           pack_related_global_product: pack_related_global_product,
           pack_related_suppliers_for_product: pack_related_suppliers_for_product,
+          pack_supplier_unit_rows: pack_supplier_unit_rows,
           cheapest_supplier_cost_unit: cheapest_supplier_cost_unit,
         },
       )
