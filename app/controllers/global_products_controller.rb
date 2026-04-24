@@ -148,6 +148,7 @@ class GlobalProductsController < ApplicationController
             locals: {
               product: @global_product,
               row_class: "bg-white",
+              flash_row: true,
               query_text: params[:query_text],
               selected_category: params[:category_name],
               below_target_margin_filter: ActiveModel::Type::Boolean.new.cast(params[:below_target_margin]),

@@ -114,10 +114,31 @@
     const getTableShell = () => document.querySelector('[data-global-products-table-shell="true"]');
     const getLoadingOverlay = () => document.querySelector('[data-global-products-table-loading="true"]');
     const getPagination = () => document.querySelector('[data-global-products-pagination="true"]');
+    const getTbody = () => document.getElementById('global_products_tbody');
     const getSearchForm = () => root.querySelector('form[action="/global/productos"]');
     const getSearchInput = () => document.getElementById('global_products_query_text');
 
     let loadingPage = false;
+    let rowFlashObserver;
+
+    const settleFlashedRow = (row) => {
+      if (!(row instanceof HTMLTableRowElement)) return;
+      if (row.dataset.rowFlashHandled === 'true') return;
+      row.dataset.rowFlashHandled = 'true';
+
+      const baseClass = (row.dataset.rowBaseClass || 'bg-white').trim();
+
+      setTimeout(() => {
+        row.classList.remove('bg-emerald-100', 'bg-white', 'bg-slate-50/50');
+        baseClass.split(/\s+/).filter(Boolean).forEach((token) => row.classList.add(token));
+        row.removeAttribute('data-row-flash');
+      }, 1200);
+    };
+
+    const processFlashedRows = (scope = document) => {
+      if (!scope?.querySelectorAll) return;
+      scope.querySelectorAll('tr[data-row-flash="true"]').forEach((row) => settleFlashedRow(row));
+    };
 
     const setLoadingState = (isLoading) => {
       const tableShell = getTableShell();
@@ -268,9 +289,33 @@
     };
 
     let paginationObserver;
+    const observeRowFlash = () => {
+      if (rowFlashObserver) rowFlashObserver.disconnect();
+
+      const tbody = getTbody();
+      if (!tbody) return;
+
+      rowFlashObserver = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          mutation.addedNodes.forEach((node) => {
+            if (!(node instanceof HTMLElement)) return;
+            if (node.matches?.('tr[data-row-flash="true"]')) {
+              settleFlashedRow(node);
+            } else {
+              processFlashedRows(node);
+            }
+          });
+        });
+      });
+
+      rowFlashObserver.observe(tbody, { childList: true });
+      processFlashedRows(tbody);
+    };
+
     const observePagination = () => {
       if (paginationObserver) paginationObserver.disconnect();
       const pagination = getPagination();
+      observeRowFlash();
       if (!pagination) return;
 
       paginationObserver = new IntersectionObserver((entries) => {
