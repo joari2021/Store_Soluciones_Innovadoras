@@ -1,0 +1,5 @@
+<% total = (local_assigns[:count] || @below_target_margin_total_count).to_i %>
+<span id="global-products-below-target-badge"
+      class="<%= total.positive? ? 'inline-flex' : 'hidden' %> items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
+  <%= total %>
+</span>

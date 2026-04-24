@@ -73,9 +73,7 @@
         <div class="w-full md:w-[14rem]">
           <label for="global_products_below_target_margin" class="flex items-center gap-2 text-sm font-medium text-slate-700">
             <span>Filtro precio objetivo</span>
-            <span id="global-products-below-target-badge" class="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
-              <%= @below_target_margin_total_count.to_i %>
-            </span>
+            <%= render partial: 'global_products/below_target_badge', locals: { count: @below_target_margin_total_count } %>
           </label>
           <%= select_tag :below_target_margin,
                          options_for_select([

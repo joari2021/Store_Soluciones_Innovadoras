@@ -141,6 +141,14 @@ class GlobalProductsController < ApplicationController
       GlobalCatalog::SyncGlobalProductTaxonomyService.new(@global_product).call
 
       if request.headers["Turbo-Frame"].present?
+        below_target_badge = view_context.turbo_stream.replace(
+          "global-products-below-target-badge",
+          view_context.render(
+            partial: "global_products/below_target_badge",
+            locals: { count: calculate_below_target_margin_total_count },
+          ),
+        )
+
         replace_row = view_context.turbo_stream.replace(
           view_context.dom_id(@global_product, :global_row),
           view_context.render(
@@ -156,7 +164,7 @@ class GlobalProductsController < ApplicationController
           ),
         )
         clear_frame = view_context.turbo_stream.update("modal-global-products", "")
-        render turbo_stream: [replace_row, clear_frame]
+        render turbo_stream: [below_target_badge, replace_row, clear_frame]
       else
         redirect_to global_products_path, notice: "Producto global actualizado."
       end
