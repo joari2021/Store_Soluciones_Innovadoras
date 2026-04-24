@@ -22,6 +22,11 @@
   </td>
   <td class="px-6 py-4 font-semibold text-slate-800"><%= product.display_name_with_presentation %></td>
   <td class="px-6 py-4"><%= product.category_name.presence || '-' %></td>
+  <td class="px-6 py-4 text-right">
+    <% fixed_margin = product.fixed_margin_percentage %>
+    <%= fixed_margin.present? ? "#{format_quantity(fixed_margin)}%" : '-' %>
+  </td>
+  <td class="px-6 py-4 text-right"><%= format_money(product.sale_price_usd.to_d, unit: '$') %></td>
   <td class="px-6 py-4 text-right"><%= product.productos.size %></td>
   <td class="px-6 py-4 text-right"><%= product.global_supplier_products.size %></td>
   <td class="px-6 py-4 text-right">
