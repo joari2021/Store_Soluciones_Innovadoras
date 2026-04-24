@@ -14,6 +14,25 @@ class GlobalSuppliersController < ApplicationController
     load_global_supplier_products
   end
 
+  def new
+    @global_supplier = GlobalSupplier.new(
+      pricing_currency_priority: "usd",
+      active: true,
+      source_business: current_business,
+    )
+  end
+
+  def create
+    @global_supplier = GlobalSupplier.new(global_supplier_params)
+    @global_supplier.source_business ||= current_business
+
+    if @global_supplier.save
+      redirect_to global_supplier_path(@global_supplier), notice: "Proveedor global creado."
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
+
   def edit
   end
 

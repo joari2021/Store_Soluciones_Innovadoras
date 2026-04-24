@@ -6,6 +6,9 @@
         <p class="mt-1 text-sm text-slate-500">Maestro central de proveedores compartidos.</p>
       </div>
       <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+        <%= link_to new_global_supplier_path, class: "inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800" do %>
+          Nuevo proveedor global
+        <% end %>
         <%= link_to global_products_path, class: "inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" do %>
           Productos globales
         <% end %>
@@ -50,7 +53,10 @@
   <% else %>
     <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
       <h3 class="text-base font-semibold text-slate-700">No hay proveedores globales registrados</h3>
-      <p class="mt-1 text-sm text-slate-500">Ejecuta el backfill o crea registros en la siguiente fase.</p>
+      <p class="mt-1 text-sm text-slate-500">Puedes crear el primero desde este modulo.</p>
+      <div class="mt-4">
+        <%= link_to "Crear proveedor global", new_global_supplier_path, class: "inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800" %>
+      </div>
     </div>
   <% end %>
 </div>

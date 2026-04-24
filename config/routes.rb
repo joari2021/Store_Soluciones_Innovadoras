@@ -52,7 +52,7 @@ Rails.application.routes.draw do
   end
   resources :global_categories, path: 'global/categorias', only: %i[index create edit update destroy]
   resources :global_profit_margin_presets, path: 'global/porcentajes-ganancia', only: %i[index create edit update destroy]
-  resources :global_suppliers, path: 'global/proveedores', only: %i[index show edit update] do
+  resources :global_suppliers, path: 'global/proveedores', only: %i[index show new create edit update] do
     member do
       patch :overwrite_product_values
     end
