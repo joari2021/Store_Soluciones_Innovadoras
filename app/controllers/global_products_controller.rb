@@ -141,18 +141,21 @@ class GlobalProductsController < ApplicationController
       GlobalCatalog::SyncGlobalProductTaxonomyService.new(@global_product).call
 
       if request.headers["Turbo-Frame"].present?
-        prepare_index_state(
-          query_text: params[:query_text],
-          category_name: params[:category_name],
-          below_target_margin: params[:below_target_margin],
-        )
-
-        refresh_results = view_context.turbo_stream.update(
-          "global-products-results",
-          view_context.render(partial: "global_products/index_results")
+        replace_row = view_context.turbo_stream.replace(
+          view_context.dom_id(@global_product, :global_row),
+          view_context.render(
+            partial: "global_products/table_row",
+            locals: {
+              product: @global_product,
+              row_class: "bg-white",
+              query_text: params[:query_text],
+              selected_category: params[:category_name],
+              below_target_margin_filter: ActiveModel::Type::Boolean.new.cast(params[:below_target_margin]),
+            },
+          ),
         )
         clear_frame = view_context.turbo_stream.update("modal-global-products", "")
-        render turbo_stream: [refresh_results, clear_frame]
+        render turbo_stream: [replace_row, clear_frame]
       else
         redirect_to global_products_path, notice: "Producto global actualizado."
       end
