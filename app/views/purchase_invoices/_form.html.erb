@@ -489,6 +489,11 @@
                     <path d="M5.25 3A2.25 2.25 0 0 0 3 5.25v13.5A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V8.56a2.25 2.25 0 0 0-.66-1.59l-2.31-2.31A2.25 2.25 0 0 0 16.44 4H5.25Zm6 2.25a.75.75 0 0 1 1.5 0V9a.75.75 0 0 1-1.5 0V5.25ZM6.75 14.25A2.25 2.25 0 0 1 9 12h6a2.25 2.25 0 0 1 2.25 2.25V18h-10.5v-3.75Z" />
                   </svg>
                 </button>
+                <button type="button" id="factura-discount-cancel-btn" class="inline-flex items-center justify-center rounded-lg bg-slate-100 p-1.5 text-slate-600 hover:bg-slate-200 transition-colors" title="Cancelar descuento" aria-label="Cancelar descuento">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                    <path fill-rule="evenodd" d="M5.47 5.47a.75.75 0 0 1 1.06 0L12 10.94l5.47-5.47a.75.75 0 1 1 1.06 1.06L13.06 12l5.47 5.47a.75.75 0 1 1-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 0 1-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" />
+                  </svg>
+                </button>
                 <span>Descuento</span>
               </div>
             </td>
@@ -973,6 +978,7 @@
       const discountRowEdit = form.querySelector('#factura-discount-row-edit');
       const discountUsdDisplayEl = form.querySelector('#factura-descuento-usd-display');
       const discountBsDisplayEl = form.querySelector('#factura-descuento-bs-display');
+      let discountEditSnapshot = null;
       const tbody = form.querySelector('#factura-items');
       const template = scope.querySelector('#factura-item-template') || document.querySelector('#factura-item-template');
 
@@ -1200,6 +1206,13 @@
 
       const setDiscountEditMode = (editing) => {
         if (!discountRowDisplay || !discountRowEdit) return;
+
+        if (editing) {
+          discountEditSnapshot = {
+            usd: clampNonNegative(discountUsdRawInput?.value),
+            bs: clampNonNegative(discountBsRawInput?.value)
+          };
+        }
 
         discountRowDisplay.classList.toggle('hidden', editing);
         discountRowEdit.classList.toggle('hidden', !editing);
@@ -2448,6 +2461,16 @@
         const discountSaveBtn = ev.target && ev.target.closest ? ev.target.closest('#factura-discount-save-btn') : null;
         if (discountSaveBtn) {
           normalizeDiscountFromInputs();
+          updateGrandTotals();
+          setDiscountEditMode(false);
+          return;
+        }
+
+        const discountCancelBtn = ev.target && ev.target.closest ? ev.target.closest('#factura-discount-cancel-btn') : null;
+        if (discountCancelBtn) {
+          if (discountEditSnapshot) {
+            writeDiscountValues(discountEditSnapshot);
+          }
           updateGrandTotals();
           setDiscountEditMode(false);
           return;
