@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_23_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_24_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -139,6 +139,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_23_000000) do
     t.datetime "updated_at", null: false
     t.string "client"
     t.index ["saime_user_id"], name: "index_appointments_on_saime_user_id"
+  end
+
+  create_table "business_user_assignments", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "user_id", null: false
+    t.string "authorization_level", default: "standard_staff", null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "user_id"], name: "idx_business_user_assignments_unique", unique: true
+    t.index ["business_id"], name: "index_business_user_assignments_on_business_id"
+    t.index ["user_id", "active"], name: "idx_business_user_assignments_user_active"
+    t.index ["user_id"], name: "index_business_user_assignments_on_user_id"
   end
 
   create_table "businesses", force: :cascade do |t|
@@ -1071,6 +1084,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_23_000000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "appointments", "saime_users"
+  add_foreign_key "business_user_assignments", "businesses"
+  add_foreign_key "business_user_assignments", "users"
   add_foreign_key "cambio_efectivos", "businesses"
   add_foreign_key "cambio_efectivos", "cash_shifts"
   add_foreign_key "cambio_efectivos", "users"
