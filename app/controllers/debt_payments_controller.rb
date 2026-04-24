@@ -49,7 +49,7 @@ class DebtPaymentsController < ApplicationController
     amount = parse_decimal(debt_payment_params[:amount])
     submitted_occurred_on = parse_payment_date(debt_payment_params[:occurred_at])
     occurred_on = resolved_occurred_on_for_current_user(debt_payment_params[:occurred_at])
-    allow_overpayment = overpayment_allowed?
+    allow_overpayment = @debt.receivable? || overpayment_allowed?
 
     @debt_payment = @debt.debt_payments.new(
       account: account,
@@ -122,11 +122,6 @@ class DebtPaymentsController < ApplicationController
 
     total_pending = total_balance_in_payment_currency(@grouped_debts, payment_currency, occurred_on)
     overpayment_amount = [amount.to_d - total_pending, 0.to_d].max.round(2)
-
-    if overpayment_amount > 0.01.to_d && !allow_overpayment
-      @debt_payment.errors.add(:amount, "excede el saldo pendiente total del grupo de deudas")
-      return handle_payment_form_error
-    end
 
     payments_to_persist = build_grouped_payments(
       account: account,
