@@ -18,6 +18,7 @@ class GlobalProduct < ApplicationRecord
   validates :name, presence: true
   validates :presentation, presence: true
   validates :cant_presentation, numericality: { only_integer: true, greater_than: 0 }
+  validate :required_metadata_on_create, on: :create
 
   def presentation_display_suffix
     return "(unidad)" if unidad?
@@ -76,5 +77,10 @@ class GlobalProduct < ApplicationRecord
     BigDecimal(cleaned)
   rescue ArgumentError
     nil
+  end
+
+  def required_metadata_on_create
+    errors.add(:category_name, "debe estar asignada") if category_name.blank?
+    errors.add(:fixed_margin_percentage, "debe estar seleccionado") if fixed_margin_percentage.blank?
   end
 end
