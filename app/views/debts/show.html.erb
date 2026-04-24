@@ -1079,8 +1079,9 @@
 
                 if (registerPaymentDateInput) {
                   registerPaymentDateInput.addEventListener("change", () => {
-                    resetRegisterPaymentForm({ preserveDate: true });
                     filterRegisterPaymentAccountsByDate();
+                    syncRegisterPaymentByAccount();
+                    updateRegisterPaymentAmount();
                     updateRegisterPaymentEquivalentBsByDate();
                   });
                 }
