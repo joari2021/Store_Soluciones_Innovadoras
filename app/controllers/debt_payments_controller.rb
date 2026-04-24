@@ -405,6 +405,11 @@ class DebtPaymentsController < ApplicationController
       )
 
       unless payment.valid?
+        if zero_converted_amount_error?(payment) && absorb_rounding_into_previous_payment(payments, allocation)
+          remaining_amount = (remaining_amount - allocation).round(2)
+          next
+        end
+
         payment.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
         return nil
       end
@@ -448,6 +453,12 @@ class DebtPaymentsController < ApplicationController
       )
 
       unless overpayment.valid?
+        if zero_converted_amount_error?(overpayment) && absorb_rounding_into_previous_payment(payments, remaining_amount)
+          remaining_amount = 0.to_d
+          assign_grouped_movement_flags(payments, amount)
+          return payments
+        end
+
         overpayment.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
         return nil
       end
@@ -490,6 +501,24 @@ class DebtPaymentsController < ApplicationController
     )
 
     conversion.present? && conversion[:amount].to_d <= 0
+  end
+
+  def zero_converted_amount_error?(payment)
+    payment.errors.attribute_names.include?(:amount_in_debt_currency) &&
+      payment.errors.where(:amount_in_debt_currency).any? do |error|
+        error.type == :greater_than || error.message.to_s.include?("mayor que 0")
+      end
+  end
+
+  def absorb_rounding_into_previous_payment(payments, extra_amount)
+    last_payment = payments.last
+    return false if last_payment.blank?
+
+    last_payment.amount = (last_payment.amount.to_d + extra_amount.to_d).round(2)
+    return true if last_payment.valid?
+
+    last_payment.amount = (last_payment.amount.to_d - extra_amount.to_d).round(2)
+    false
   end
 
   def total_balance_in_payment_currency(debts, payment_currency, occurred_on)
