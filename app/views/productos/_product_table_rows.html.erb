@@ -158,7 +158,7 @@
   <td class="px-6 py-4 text-right whitespace-nowrap font-semibold text-slate-700">
     <% if product_display_safety_stock.positive? %>
       <% product_safety_badge_class = product_row_below_safety_stock ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-slate-100 text-slate-800' %>
-      <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold <%= product_safety_badge_class %>">
+      <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-light <%= product_safety_badge_class %>">
         <%= format_quantity(product_display_safety_stock, precision: 0) %>
       </span>
     <% else %>
@@ -228,7 +228,7 @@
       <% if variation_safety_stock.positive? %>
         <% variation_safety_low = total_variation_quantity < variation_safety_stock %>
         <% variation_safety_badge_class = variation_safety_low ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-300 bg-slate-100 text-slate-800' %>
-        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold <%= variation_safety_badge_class %>">
+        <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-light <%= variation_safety_badge_class %>">
           <%= format_quantity(variation_safety_stock, precision: 0) %>
         </span>
       <% else %>
