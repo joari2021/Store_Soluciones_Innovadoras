@@ -2,6 +2,7 @@ class Cliente < ApplicationRecord
   DOCUMENT_TYPES = %w[V E J G].freeze
 
   belongs_to :business
+  belongs_to :user, optional: true
   has_many :ventas, dependent: :nullify
   has_many :debts, foreign_key: :cliente_id, dependent: :nullify
 

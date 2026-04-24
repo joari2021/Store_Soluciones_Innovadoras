@@ -56,7 +56,11 @@ class User < ApplicationRecord
   def role_key(business = Current.business)
     return 'administrator' if admin?
 
-    assignment_level = assignment_for_business(business)&.authorization_level.to_s
+    assignment = assignment_for_business(business)
+    assignment_customer_level = assignment&.customer_access_level.to_s
+    return 'customer' if %w[customer customer_vip].include?(assignment_customer_level)
+
+    assignment_level = assignment&.authorization_level.to_s
     return assignment_level if %w[manager standard_staff].include?(assignment_level)
 
     if has_attribute?(:authorization_level)
@@ -67,9 +71,29 @@ class User < ApplicationRecord
     'standard_staff'
   end
 
+  def customer_access_level(business = Current.business)
+    assignment = assignment_for_business(business)
+    return 'none' if assignment.blank?
+
+    level = assignment.customer_access_level.to_s
+    return level if BusinessUserAssignment::CUSTOMER_ACCESS_LEVELS.include?(level)
+
+    'none'
+  end
+
+  def customer_mode?(business = Current.business)
+    return false if admin?
+    %w[customer customer_vip].include?(customer_access_level(business))
+  end
+
+  def customer_vip_mode?(business = Current.business)
+    customer_mode?(business) && customer_access_level(business) == 'customer_vip'
+  end
+
   def role_label(business = Current.business)
     return female? ? 'Administradora' : 'Administrador' if admin?
     return female? ? 'Encargada' : 'Encargado' if manager?(business)
+    return 'Cliente' if customer_mode?(business)
 
     'Personal estandar'
   end
@@ -95,6 +119,10 @@ class User < ApplicationRecord
     return false unless active_for_business?(Current.business)
     return true if admin?
 
+    if customer_mode?(Current.business)
+      return %i[ventas historial_ventas].include?(module_key.to_sym)
+    end
+
     case module_key.to_sym
     when :ventas, :historial_ventas, :productos, :deudas, :services, :rates, :clientes, :cash_shifts
       true
@@ -108,6 +136,8 @@ class User < ApplicationRecord
   def can_manage_action?(action_key)
     return false unless active_for_business?(Current.business)
     return true if admin?
+
+    return false if customer_mode?(Current.business)
 
     allowed_actions = %i[manage_clients create_debt register_debt_payment update_rates]
     allowed_actions << :manage_cash_shifts if manager?(Current.business)

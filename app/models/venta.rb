@@ -13,6 +13,7 @@ class Venta < ApplicationRecord
 
   STATUSES = {
     "draft" => "Borrador",
+    "order_pending_approval" => "Pedido pendiente por aprobar",
     "paid" => "Pagada",
     "void" => "Anulada",
   }.freeze

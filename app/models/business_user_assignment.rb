@@ -1,10 +1,14 @@
 class BusinessUserAssignment < ApplicationRecord
   AUTHORIZATION_LEVELS = %w[administrator manager standard_staff].freeze
+  CUSTOMER_ACCESS_LEVELS = %w[none customer customer_vip].freeze
 
   belongs_to :business
   belongs_to :user
 
+  before_validation :apply_defaults
+
   validates :authorization_level, presence: true, inclusion: { in: AUTHORIZATION_LEVELS }
+  validates :customer_access_level, presence: true, inclusion: { in: CUSTOMER_ACCESS_LEVELS }
   validates :user_id, uniqueness: { scope: :business_id }
 
   scope :active, -> { where(active: true) }
@@ -16,5 +20,23 @@ class BusinessUserAssignment < ApplicationRecord
 
   def standard_staff?
     authorization_level == 'standard_staff'
+  end
+
+  def customer?
+    customer_access_level == 'customer'
+  end
+
+  def customer_vip?
+    customer_access_level == 'customer_vip'
+  end
+
+  def customer_access?
+    customer? || customer_vip?
+  end
+
+  private
+
+  def apply_defaults
+    self.customer_access_level = 'none' if customer_access_level.blank?
   end
 end

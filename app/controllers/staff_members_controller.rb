@@ -143,6 +143,17 @@ class StaffMembersController < ApplicationController
     existing&.authorization_level.presence || 'standard_staff'
   end
 
+  def assignment_customer_access_for(business_id)
+    access_map = params.dig(:user, :business_customer_access)
+    level = access_map.is_a?(ActionController::Parameters) || access_map.is_a?(Hash) ? access_map[business_id.to_s] : nil
+    level = level.to_s
+
+    return level if BusinessUserAssignment::CUSTOMER_ACCESS_LEVELS.include?(level)
+
+    existing = @staff_member.business_user_assignments.find { |assignment| assignment.business_id == business_id }
+    existing&.customer_access_level.presence || 'none'
+  end
+
   def sync_business_assignments!(user)
     if user.admin?
       user.business_user_assignments.destroy_all
@@ -157,6 +168,7 @@ class StaffMembersController < ApplicationController
     ids.each do |business_id|
       assignment = user.business_user_assignments.find_or_initialize_by(business_id: business_id)
       assignment.authorization_level = assignment_role_for(business_id)
+      assignment.customer_access_level = assignment_customer_access_for(business_id)
       assignment.active = user.active?
       assignment.save!
     end

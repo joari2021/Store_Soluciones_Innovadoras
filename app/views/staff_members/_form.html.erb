@@ -3,6 +3,7 @@
 <% form_method = @staff_member.new_record? ? :post : :patch %>
 <% password_error_present = @staff_member.errors[:password].any? || @staff_member.errors[:password_confirmation].any? %>
 <% assignment_roles = @staff_member.business_user_assignments.each_with_object({}) { |assignment, hash| hash[assignment.business_id] = assignment.authorization_level } %>
+<% assignment_customer_access = @staff_member.business_user_assignments.each_with_object({}) { |assignment, hash| hash[assignment.business_id] = assignment.customer_access_level } %>
 <% selected_business_ids = assignment_roles.keys.presence || [@business.id] %>
 <%= form_with model: @staff_member, url: form_url, method: form_method, class: 'space-y-5' do |form| %>
   <% if @staff_member.errors.any? %>
@@ -48,13 +49,14 @@
         <% @businesses.each do |business_option| %>
           <% checked = selected_business_ids.include?(business_option.id) %>
           <% role_value = assignment_roles[business_option.id].presence || selected_level %>
-          <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[1fr_220px] md:items-center">
+          <% customer_access_value = assignment_customer_access[business_option.id].presence || 'none' %>
+          <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[1fr_220px_220px] md:items-center">
             <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
               <%= check_box_tag 'user[assignment_business_ids][]',
                                 business_option.id,
                                 checked,
                                 class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500',
-                                data: { assignment_toggle: true, assignment_target: "role_#{business_option.id}" } %>
+                                data: { assignment_toggle: true, assignment_target: "role_#{business_option.id}", assignment_customer_target: "customer_access_#{business_option.id}" } %>
               <span><%= business_option.name %></span>
             </label>
             <%= select_tag "user[business_roles][#{business_option.id}]",
@@ -62,6 +64,11 @@
                            class: "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500 #{checked ? '' : 'opacity-50'}",
                            disabled: !checked,
                            id: "role_#{business_option.id}" %>
+            <%= select_tag "user[business_customer_access][#{business_option.id}]",
+                           options_for_select([['Sin modo cliente', 'none'], ['Cliente', 'customer'], ['Cliente VIP', 'customer_vip']], BusinessUserAssignment::CUSTOMER_ACCESS_LEVELS.include?(customer_access_value) ? customer_access_value : 'none'),
+                           class: "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500 #{checked ? '' : 'opacity-50'}",
+                           disabled: !checked,
+                           id: "customer_access_#{business_option.id}" %>
           </div>
         <% end %>
       </div>
@@ -140,6 +147,7 @@
     wrapper.querySelectorAll('[data-assignment-toggle="true"]').forEach((checkbox) => {
       checkbox.addEventListener('change', () => {
         const targetId = checkbox.dataset.assignmentTarget;
+        const customerTargetId = checkbox.dataset.assignmentCustomerTarget;
         if (!targetId) return;
 
         const select = document.getElementById(targetId);
@@ -147,6 +155,12 @@
 
         select.disabled = !checkbox.checked;
         select.classList.toggle('opacity-50', !checkbox.checked);
+
+        if (!customerTargetId) return;
+        const customerSelect = document.getElementById(customerTargetId);
+        if (!customerSelect) return;
+        customerSelect.disabled = !checkbox.checked;
+        customerSelect.classList.toggle('opacity-50', !checkbox.checked);
       });
     });
   })();

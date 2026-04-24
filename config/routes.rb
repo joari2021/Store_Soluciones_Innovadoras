@@ -101,6 +101,7 @@ Rails.application.routes.draw do
     member do
       get :resumen_modal
       get :delivery_note, path: 'nota-entrega'
+      patch :approve_order, path: 'aprobar-pedido'
       get :borrador, path: 'borrador'
       delete :destroy_borrador, path: 'borrador'
     end

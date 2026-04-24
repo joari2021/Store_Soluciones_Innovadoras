@@ -3,7 +3,8 @@ module Authorization
 
   included do
     helper_method :current_user_admin?, :current_user_standard_staff?, :current_user_manager?, :can_access_module?,
-                  :can_manage_action?, :current_user_role_label
+                  :can_manage_action?, :current_user_role_label, :current_user_customer_mode?,
+                  :current_user_customer_vip_mode?
 
     private
 
@@ -49,5 +50,13 @@ module Authorization
 
   def current_user_role_label
     Current.user&.role_label.to_s
+  end
+
+  def current_user_customer_mode?
+    Current.user&.customer_mode?(Current.business)
+  end
+
+  def current_user_customer_vip_mode?
+    Current.user&.customer_vip_mode?(Current.business)
   end
 end

@@ -5,7 +5,7 @@ class VentasController < ApplicationController
 
   before_action :require_business
   before_action -> { require_module_access!(:ventas) }
-  before_action :set_venta, only: %i[destroy]
+  before_action :set_venta, only: %i[destroy approve_order]
   before_action :authorize_destroy_sale!, only: %i[destroy]
   before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft borrador destroy_borrador]
 
@@ -166,6 +166,8 @@ class VentasController < ApplicationController
   end
 
   def drafts
+    return render json: { drafts: [], can_view_all_drafts: false, can_charge_sale: current_user_can_charge_sale_realtime? } if customer_sales_mode?
+
     render json: {
       drafts: drafts_payload,
       can_view_all_drafts: current_user_can_view_all_drafts?,
@@ -204,6 +206,8 @@ class VentasController < ApplicationController
   end
 
   def show_draft
+    return render json: { error: "Los usuarios cliente no pueden usar borradores." }, status: :forbidden if customer_sales_mode?
+
     render json: {
       draft: draft_summary_payload(@draft_venta).merge(
         state: draft_state_payload(@draft_venta),
@@ -215,14 +219,20 @@ class VentasController < ApplicationController
   end
 
   def save_draft
+    return render json: { error: "Los usuarios cliente no pueden guardar borradores." }, status: :forbidden if customer_sales_mode?
+
     persist_draft
   end
 
   def update_draft
+    return render json: { error: "Los usuarios cliente no pueden editar borradores." }, status: :forbidden if customer_sales_mode?
+
     persist_draft(existing_draft: @draft_venta)
   end
 
   def destroy_draft
+    return render json: { error: "Los usuarios cliente no pueden eliminar borradores." }, status: :forbidden if customer_sales_mode?
+
     destroy_draft_record!(@draft_venta)
 
     render json: {
@@ -235,12 +245,19 @@ class VentasController < ApplicationController
   end
 
   def borradores
+    if customer_sales_mode?
+      @drafts = Venta.none
+      return
+    end
+
     @drafts = draft_scope_for_current_user
       .includes(:cliente, :user, :venta_items)
       .order(updated_at: :desc)
   end
 
   def borrador
+    return redirect_to ventas_path, alert: "Los usuarios cliente no pueden acceder a borradores." if customer_sales_mode?
+
     @draft = @draft_venta
     @draft_items = @draft
       .venta_items
@@ -249,6 +266,8 @@ class VentasController < ApplicationController
   end
 
   def destroy_borrador
+    return redirect_to ventas_path, alert: "Los usuarios cliente no pueden eliminar borradores." if customer_sales_mode?
+
     destroy_draft_record!(@draft_venta)
 
     redirect_to borradores_ventas_path, notice: "Borrador eliminado correctamente."
@@ -259,7 +278,8 @@ class VentasController < ApplicationController
   def historial
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
-    filtered_scope = apply_historial_filters(current_business.ventas)
+    base_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    filtered_scope = apply_historial_filters(base_scope)
 
     @total_sales = filtered_scope.count
     @sales_with_client = filtered_scope.where.not(cliente_id: nil).count
@@ -287,7 +307,8 @@ class VentasController < ApplicationController
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
     @producto_query = params[:producto_query].to_s.strip.presence
-    filtered_sales = apply_historial_filters(current_business.ventas, include_client_filter: false)
+    base_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    filtered_sales = apply_historial_filters(base_scope, include_client_filter: false)
 
     sold_items_scope = VentaItem
       .joins(:venta)
@@ -329,8 +350,9 @@ class VentasController < ApplicationController
   end
 
   def show
-    @venta = current_business
-      .ventas
+    ventas_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+
+    @venta = ventas_scope
       .includes(:cliente, :user, :cashier_user, venta_items: %i[producto product_variation], venta_payments: :account)
       .find(params[:id])
 
@@ -342,8 +364,9 @@ class VentasController < ApplicationController
   end
 
   def delivery_note
-    @venta = current_business
-      .ventas
+    ventas_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+
+    @venta = ventas_scope
       .includes(:cliente, :user, :cashier_user, venta_items: %i[producto product_variation])
       .find(params[:id])
 
@@ -363,7 +386,8 @@ class VentasController < ApplicationController
   end
 
   def resumen_modal
-    venta = current_business.ventas.includes(:cliente, :venta_items).find_by(id: params[:id])
+    ventas_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    venta = ventas_scope.includes(:cliente, :venta_items).find_by(id: params[:id])
 
     if venta.nil?
       render html: "<p class='text-sm text-rose-600'>No se encontró la venta solicitada.</p>".html_safe, status: :not_found
@@ -389,10 +413,61 @@ class VentasController < ApplicationController
                 alert: e.message.presence || "No se pudo eliminar la venta."
   end
 
+  def approve_order
+    unless can_approve_customer_order?
+      return render json: { error: "No tienes permisos para aprobar pedidos." }, status: :forbidden if request.format.json?
+
+      return redirect_to historial_ventas_path, alert: "No tienes permisos para aprobar pedidos."
+    end
+
+    unless @venta.status == "order_pending_approval"
+      return render json: { error: "Solo puedes aprobar pedidos pendientes." }, status: :unprocessable_entity if request.format.json?
+
+      return redirect_to venta_path(@venta), alert: "Solo puedes aprobar pedidos pendientes."
+    end
+
+    Venta.transaction do
+      apply_account_movements_for_approved_order!(@venta)
+      create_pending_credit_debt_for_approved_order!(@venta)
+      @venta.venta_payments.where(pending_validation: true).update_all(pending_validation: false)
+
+      notes_payload = parse_notes_payload(@venta.notes)
+      customer_order = notes_payload["customer_order"].is_a?(Hash) ? notes_payload["customer_order"] : {}
+      customer_order["status"] = "approved"
+      customer_order["approved_by_user_id"] = Current.user&.id
+      customer_order["approved_at"] = Time.current.iso8601
+      notes_payload["customer_order"] = customer_order
+      notes_payload.delete("pending_credit_request")
+
+      @venta.update!(status: "paid", notes: serialize_notes_payload(notes_payload))
+    end
+
+    if request.format.json?
+      render json: { success: true, id: @venta.id, status: @venta.status }, status: :ok
+    else
+      redirect_to venta_path(@venta), notice: "Pedido aprobado correctamente."
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    if request.format.json?
+      render json: { error: e.message }, status: :unprocessable_entity
+    else
+      redirect_to venta_path(@venta), alert: e.message
+    end
+  end
+
   def sale_deletable_by_current_user?(sale)
     return true if current_user_admin?
 
     return false if sale.blank?
+
+    if customer_sales_mode?
+      return false unless sale.user_id == Current.user&.id
+      return false unless sale.status == "order_pending_approval"
+
+      in_payments = sale.venta_payments.select { |payment| payment.payment_kind == "in" }
+      return in_payments.sum { |payment| payment.amount_original.to_d } <= 0.to_d
+    end
+
     return false unless sale.cash_shift&.open?
 
     sale.user_id == Current.user&.id
@@ -428,7 +503,14 @@ class VentasController < ApplicationController
 
   def create
     payload = venta_params
+    customer_mode = customer_sales_mode?
+    customer_vip_mode = customer_sales_vip_mode?
+
     draft_id = payload[:draft_id].presence
+    if customer_mode && draft_id.present?
+      return render json: { error: "Los usuarios cliente no pueden facturar desde borradores." }, status: :forbidden
+    end
+
     source_draft = nil
     if draft_id
       source_draft = draft_scope_for_current_user
@@ -451,8 +533,11 @@ class VentasController < ApplicationController
       else
         []
       end
+    change_entries = [] if customer_mode
     credit_sale = normalize_credit_sale_payload(payload[:credit_sale])
+    credit_sale = { enabled: false, due_on: nil } if customer_mode
     checkout_discount = normalize_checkout_discount_payload(payload[:checkout_discount])
+    checkout_discount = { enabled: false, amount: 0.to_d, reason: nil } if customer_mode
     credit_sale_due_on = parse_payment_date(credit_sale[:due_on])
     service_cost_payment_entries = Array(payload[:service_cost_payments])
     if credit_sale[:due_on].present? && credit_sale_due_on.blank?
@@ -466,13 +551,14 @@ class VentasController < ApplicationController
     end
 
     open_cash_shift = current_business.cash_shifts.open.first
-    if open_cash_shift.blank?
+    if open_cash_shift.blank? && !customer_mode
       return render json: { error: "Debes abrir un turno antes de facturar." },
                     status: :unprocessable_entity
     end
 
     vat_mode = payload[:vat_mode].to_s
     vat_mode = "none" unless Venta::VAT_MODES.key?(vat_mode)
+    vat_mode = "none" if customer_mode
     vat_rate = parse_decimal(payload[:vat_rate], default: 0.16).round(2)
     tasa_dolar = parse_decimal(payload[:tasa_dolar], default: TasaCambio.latest_value("Dolar BCV")).round(2)
     base_currency = normalize_currency(payload[:base_currency], default: "USD")
@@ -492,7 +578,12 @@ class VentasController < ApplicationController
       cashier_user: cashier_user,
     )
 
-    if payload[:cliente_id].present?
+    if customer_mode
+      venta.cliente = ensure_customer_cliente_for_current_user!
+      if venta.cliente.blank?
+        return render json: { error: "No se pudo asociar el cliente del usuario para este negocio." }, status: :unprocessable_entity
+      end
+    elsif payload[:cliente_id].present?
       cliente = current_business.clientes.find_by(id: payload[:cliente_id])
       venta.cliente = cliente if cliente
     end
@@ -748,12 +839,21 @@ class VentasController < ApplicationController
 
     payment_rows = []
     bank_payment_keys_in_request = {}
+    customer_primary_bank = customer_mode ? current_business.accounts.find_by(account_type: "bank_account", is_primary: true) : nil
+    if customer_mode && customer_primary_bank.blank?
+      return render json: { error: "No existe una cuenta bancaria principal configurada para este negocio." }, status: :unprocessable_entity
+    end
+
     payments.each do |payment|
       raw_amount = parse_decimal(payment[:amount], default: 0)
       next unless raw_amount.positive?
 
       account = current_business.accounts.find_by(id: payment[:account_id])
       return render json: { error: "Cuenta de pago no encontrada." }, status: :unprocessable_entity if account.nil?
+
+      if customer_mode && account.id != customer_primary_bank.id
+        return render json: { error: "Solo puedes pagar con la cuenta bancaria principal del negocio." }, status: :unprocessable_entity
+      end
 
       if account.account_type == "cash_box" && account.cash_role == "cash_deposit"
         return render json: { error: "No puedes registrar ventas en cuentas de deposito." },
@@ -836,6 +936,7 @@ class VentasController < ApplicationController
         reference: reference.presence,
         payment_date: payment_date,
         payment_kind: "in",
+        pending_validation: customer_mode,
       }
     end
 
@@ -883,6 +984,7 @@ class VentasController < ApplicationController
         currency: change_currency,
         reference: change_reference.presence,
         payment_kind: "out",
+        pending_validation: customer_mode,
       }
     end
 
@@ -933,9 +1035,13 @@ class VentasController < ApplicationController
 
     remaining_credit_amount = delta < -tolerance ? delta.abs.round(2) : 0.to_d
 
-    if remaining_credit_amount.positive? && !credit_sale[:enabled]
+    if remaining_credit_amount.positive? && !credit_sale[:enabled] && !customer_vip_mode
       return render json: { error: "Falta por cancelar #{remaining_credit_amount} #{comparison_currency}." },
                     status: :unprocessable_entity
+    end
+
+    if customer_mode && remaining_credit_amount.positive? && !customer_vip_mode
+      return render json: { error: "Tu perfil cliente no permite dejar saldo pendiente por cobrar." }, status: :unprocessable_entity
     end
 
     if remaining_credit_amount.positive? && venta.cliente.blank?
@@ -957,7 +1063,7 @@ class VentasController < ApplicationController
       return render json: { error: "Debes registrar al menos un metodo de pago." }, status: :unprocessable_entity
     end
 
-    venta.status = "paid"
+    venta.status = customer_mode ? "order_pending_approval" : "paid"
 
     begin
       Venta.transaction do
@@ -1000,6 +1106,13 @@ class VentasController < ApplicationController
         )
         discount_payload = service_item_discounts_payload_for_sale(venta: venta, service_item_rows: service_item_rows)
         notes_payload["service_item_discounts"] = discount_payload if discount_payload.present?
+        if customer_mode
+          notes_payload["customer_order"] = {
+            "requested_by_user_id" => Current.user&.id,
+            "customer_access_level" => Current.user&.customer_access_level(current_business),
+            "status" => "pending_approval",
+          }
+        end
         if checkout_discount[:enabled]
           notes_payload["checkout_discount"] = {
             "amount" => checkout_discount[:amount].to_d.round(2).to_f,
@@ -1009,68 +1122,79 @@ class VentasController < ApplicationController
         else
           notes_payload.delete("checkout_discount")
         end
+        if customer_mode && remaining_credit_amount.positive?
+          notes_payload["pending_credit_request"] = {
+            "amount" => remaining_credit_amount.to_d.round(2).to_f,
+            "currency" => comparison_currency,
+            "due_on" => credit_sale_due_on&.iso8601,
+          }
+        else
+          notes_payload.delete("pending_credit_request")
+        end
         venta.update!(notes: serialize_notes_payload(notes_payload))
 
-        payment_rows.each do |row|
-          account = current_business.accounts.find_by(id: row[:account_id])
-          next unless account
-          supports_movement_reference = AccountMovement.column_names.include?("reference")
-          movement_occurred_at = account_movement_occurred_at_from_payment_date(row[:payment_date])
+        unless customer_mode
+          payment_rows.each do |row|
+            account = current_business.accounts.find_by(id: row[:account_id])
+            next unless account
+            supports_movement_reference = AccountMovement.column_names.include?("reference")
+            movement_occurred_at = account_movement_occurred_at_from_payment_date(row[:payment_date])
 
-          movement_attrs = {
-            movement_kind: "income",
-            amount: row[:amount_original].to_d,
-            description: build_movement_description(venta, row, "Ingreso"),
-            occurred_at: movement_occurred_at,
-          }
-          if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
-            movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
+            movement_attrs = {
+              movement_kind: "income",
+              amount: row[:amount_original].to_d,
+              description: build_movement_description(venta, row, "Ingreso"),
+              occurred_at: movement_occurred_at,
+            }
+            if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
+              movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
+            end
+
+            if supports_movement_reference && row[:reference].present?
+              movement_attrs[:reference] = row[:reference].presence
+            end
+
+            account.account_movements.create!(movement_attrs)
           end
 
-          if supports_movement_reference && row[:reference].present?
-            movement_attrs[:reference] = row[:reference].presence
+          change_rows.each do |row|
+            account = current_business.accounts.find_by(id: row[:account_id])
+            next unless account
+            supports_movement_reference = AccountMovement.column_names.include?("reference")
+
+            movement_attrs = {
+              movement_kind: "expense",
+              amount: row[:amount_original].to_d,
+              description: build_movement_description(venta, row, "Vuelto"),
+              occurred_at: Time.current,
+            }
+            if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
+              movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
+            end
+
+            if supports_movement_reference && row[:reference].present?
+              movement_attrs[:reference] = row[:reference].presence
+            end
+
+            account.account_movements.create!(movement_attrs)
+
+            next unless account.account_type == "bank_account" && row[:payment_method] == "mobile"
+
+            commission_amount = (row[:amount_original].to_d * 0.003).round(2)
+            next unless commission_amount.positive?
+
+            commission_attrs = {
+              movement_kind: "expense",
+              amount: commission_amount,
+              description: build_movement_description(venta, row, "Comision pago movil"),
+              occurred_at: movement_occurred_at,
+              payment_method: normalize_account_movement_method("mobile"),
+            }
+            if supports_movement_reference && row[:reference].present?
+              commission_attrs[:reference] = row[:reference].presence
+            end
+            account.account_movements.create!(commission_attrs)
           end
-
-          account.account_movements.create!(movement_attrs)
-        end
-
-        change_rows.each do |row|
-          account = current_business.accounts.find_by(id: row[:account_id])
-          next unless account
-          supports_movement_reference = AccountMovement.column_names.include?("reference")
-
-          movement_attrs = {
-            movement_kind: "expense",
-            amount: row[:amount_original].to_d,
-            description: build_movement_description(venta, row, "Vuelto"),
-            occurred_at: Time.current,
-          }
-          if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
-            movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
-          end
-
-          if supports_movement_reference && row[:reference].present?
-            movement_attrs[:reference] = row[:reference].presence
-          end
-
-          account.account_movements.create!(movement_attrs)
-
-          next unless account.account_type == "bank_account" && row[:payment_method] == "mobile"
-
-          commission_amount = (row[:amount_original].to_d * 0.003).round(2)
-          next unless commission_amount.positive?
-
-          commission_attrs = {
-            movement_kind: "expense",
-            amount: commission_amount,
-            description: build_movement_description(venta, row, "Comision pago movil"),
-            occurred_at: movement_occurred_at,
-            payment_method: normalize_account_movement_method("mobile"),
-          }
-          if supports_movement_reference && row[:reference].present?
-            commission_attrs[:reference] = row[:reference].presence
-          end
-          account.account_movements.create!(commission_attrs)
         end
 
         register_service_cost_settlements_for_sale!(
@@ -1078,7 +1202,7 @@ class VentasController < ApplicationController
           settlements: service_cost_settlements,
         )
 
-        if remaining_credit_amount.positive?
+        if remaining_credit_amount.positive? && !customer_mode
           debt_amount_usd = convert_payment_to_currency(
             remaining_credit_amount,
             comparison_currency,
@@ -1114,8 +1238,9 @@ class VentasController < ApplicationController
   private
 
   def set_venta
-    @venta = current_business
-      .ventas
+    scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+
+    @venta = scope
       .includes(venta_items: %i[producto product_variation])
       .find(params[:id])
   end
@@ -1138,6 +1263,106 @@ class VentasController < ApplicationController
       format.html { redirect_to borradores_ventas_path, alert: "El borrador no existe o ya fue eliminado." }
       format.any { head :not_found }
     end
+  end
+
+  def customer_sales_mode?
+    Current.user&.customer_mode?(current_business)
+  end
+
+  def customer_sales_vip_mode?
+    Current.user&.customer_vip_mode?(current_business)
+  end
+
+  def ensure_customer_cliente_for_current_user!
+    return nil if Current.user.blank? || current_business.blank?
+
+    existing = current_business.clientes.find_by(user_id: Current.user.id)
+    return existing if existing.present?
+
+    base_name = Current.user.display_name.to_s.strip.presence || Current.user.username.to_s
+    document_number = "USR#{Current.user.id}"
+
+    current_business.clientes.create!(
+      user_id: Current.user.id,
+      document_type: "V",
+      document_number: document_number,
+      name: "Cliente #{base_name}",
+      phone: "0000000000",
+    )
+  rescue ActiveRecord::RecordInvalid
+    current_business.clientes.find_by(user_id: Current.user.id)
+  end
+
+  def can_approve_customer_order?
+    current_user_admin? || current_user_manager?
+  end
+
+  def apply_account_movements_for_approved_order!(venta)
+    sale_rows = venta.venta_payments.where(payment_kind: "in")
+    change_rows = venta.venta_payments.where(payment_kind: "out")
+
+    sale_rows.find_each do |row|
+      account = current_business.accounts.find_by(id: row.account_id)
+      next unless account
+
+      supports_movement_reference = AccountMovement.column_names.include?("reference")
+      movement_occurred_at = account_movement_occurred_at_from_payment_date(row.payment_date)
+
+      movement_attrs = {
+        movement_kind: "income",
+        amount: row.amount_original.to_d,
+        description: build_movement_description(venta, row, "Ingreso"),
+        occurred_at: movement_occurred_at,
+      }
+      if account.account_type == "bank_account" && %w[transfer mobile].include?(row.payment_method)
+        movement_attrs[:payment_method] = normalize_account_movement_method(row.payment_method)
+      end
+      movement_attrs[:reference] = row.reference.presence if supports_movement_reference && row.reference.present?
+
+      account.account_movements.create!(movement_attrs)
+    end
+
+    change_rows.find_each do |row|
+      account = current_business.accounts.find_by(id: row.account_id)
+      next unless account
+
+      supports_movement_reference = AccountMovement.column_names.include?("reference")
+      movement_attrs = {
+        movement_kind: "expense",
+        amount: row.amount_original.to_d,
+        description: build_movement_description(venta, row, "Vuelto"),
+        occurred_at: Time.current,
+      }
+      if account.account_type == "bank_account" && %w[transfer mobile].include?(row.payment_method)
+        movement_attrs[:payment_method] = normalize_account_movement_method(row.payment_method)
+      end
+      movement_attrs[:reference] = row.reference.presence if supports_movement_reference && row.reference.present?
+      account.account_movements.create!(movement_attrs)
+    end
+  end
+
+  def create_pending_credit_debt_for_approved_order!(venta)
+    notes_payload = parse_notes_payload(venta.notes)
+    payload = notes_payload["pending_credit_request"]
+    return unless payload.is_a?(Hash)
+
+    amount = parse_decimal(payload["amount"], default: 0)
+    currency = payload["currency"].to_s.upcase
+    due_on = parse_payment_date(payload["due_on"])
+    return unless amount.positive? && %w[USD VES].include?(currency)
+
+    debt_amount_usd = convert_payment_to_currency(amount, currency, "USD", venta.tasa_dolar)
+    if debt_amount_usd.nil?
+      venta.errors.add(:base, "No se pudo convertir el saldo pendiente a USD para generar la deuda.")
+      raise ActiveRecord::RecordInvalid.new(venta)
+    end
+
+    create_receivable_debt_for_sale!(
+      venta: venta,
+      amount: debt_amount_usd,
+      currency: "USD",
+      due_on: due_on,
+    )
   end
 
   def authorize_destroy_sale!
@@ -2101,6 +2326,8 @@ class VentasController < ApplicationController
   end
 
   def drafts_payload
+    return [] if customer_sales_mode?
+
     draft_scope_for_current_user
       .includes(:cliente, :venta_items)
       .order(updated_at: :desc)
@@ -2110,6 +2337,8 @@ class VentasController < ApplicationController
   end
 
   def draft_scope_for_current_user
+    return current_business.ventas.none if customer_sales_mode?
+
     scope = current_business.ventas.where(status: "draft")
     return scope if current_user_can_view_all_drafts?
 
@@ -2118,6 +2347,7 @@ class VentasController < ApplicationController
 
   def current_user_can_view_all_drafts?
     return true if current_user_admin?
+    return false if customer_sales_mode?
 
     active_cashier_id = current_open_shift_active_cashier_id
     active_cashier_id.present? && active_cashier_id == Current.user&.id
@@ -2125,6 +2355,7 @@ class VentasController < ApplicationController
 
   def current_user_can_charge_sale_realtime?
     return true if current_user_admin?
+    return true if customer_sales_mode?
 
     active_cashier_id = current_open_shift_active_cashier_id
     active_cashier_id.present? && active_cashier_id == Current.user&.id

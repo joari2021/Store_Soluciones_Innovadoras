@@ -15,6 +15,9 @@ class ApplicationController < ActionController::Base
     return unless request.format.html? || request.format.turbo_stream?
 
     @latest_tasas = TasaCambio.latest_distinct_by_description.to_a
+    if Current.user&.customer_mode?(Current.business)
+      @latest_tasas.select! { |rate| %w[Dolar\ BCV Euro\ BCV].include?(rate.description.to_s) }
+    end
     tasas_by_description = @latest_tasas.index_by(&:description)
 
     dolar_bcv = tasas_by_description['Dolar BCV']

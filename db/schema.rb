@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_24_123000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_24_193000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -148,8 +148,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_123000) do
     t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "customer_access_level", default: "none", null: false
     t.index ["business_id", "user_id"], name: "idx_business_user_assignments_unique", unique: true
     t.index ["business_id"], name: "index_business_user_assignments_on_business_id"
+    t.index ["customer_access_level"], name: "index_business_user_assignments_on_customer_access_level"
     t.index ["user_id", "active"], name: "idx_business_user_assignments_user_active"
     t.index ["user_id"], name: "index_business_user_assignments_on_user_id"
   end
@@ -233,9 +235,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_123000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "benefits_config", default: {}, null: false
+    t.bigint "user_id"
     t.index ["business_id", "document_type", "document_number"], name: "index_clientes_on_business_doc"
+    t.index ["business_id", "user_id"], name: "index_clientes_on_business_id_and_user_id", unique: true, where: "(user_id IS NOT NULL)"
     t.index ["business_id"], name: "index_clientes_on_business_id"
     t.index ["name"], name: "index_clientes_on_name"
+    t.index ["user_id"], name: "index_clientes_on_user_id"
   end
 
   create_table "debt_payments", force: :cascade do |t|
@@ -1025,11 +1030,13 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_123000) do
     t.string "reference"
     t.string "payment_kind", default: "in", null: false
     t.date "payment_date"
+    t.boolean "pending_validation", default: false, null: false
     t.index ["account_id", "reference", "payment_date"], name: "index_venta_payments_on_account_reference_payment_date"
     t.index ["account_id"], name: "index_venta_payments_on_account_id"
     t.index ["currency"], name: "index_venta_payments_on_currency"
     t.index ["payment_kind"], name: "index_venta_payments_on_payment_kind"
     t.index ["payment_method"], name: "index_venta_payments_on_payment_method"
+    t.index ["pending_validation"], name: "index_venta_payments_on_pending_validation"
     t.index ["venta_id"], name: "index_venta_payments_on_venta_id"
   end
 
@@ -1095,6 +1102,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_123000) do
   add_foreign_key "cash_shifts", "users", column: "opened_by_id"
   add_foreign_key "categorias", "businesses"
   add_foreign_key "clientes", "businesses"
+  add_foreign_key "clientes", "users"
   add_foreign_key "debt_payments", "accounts"
   add_foreign_key "debt_payments", "debts"
   add_foreign_key "debts", "accounts", column: "mirror_account_id"
