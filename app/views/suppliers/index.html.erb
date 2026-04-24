@@ -5,6 +5,11 @@
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Proveedores</h1>
         <p class="mt-1 text-sm text-slate-500">Vista por negocio usando proveedores globales filtrados por tus productos locales.</p>
       </div>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+        <%= link_to global_suppliers_path, class: 'inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' do %>
+          Proveedores globales
+        <% end %>
+      </div>
     </div>
   </div>
   <% if @suppliers.any? %>
