@@ -448,9 +448,14 @@ class CashShiftsController < ApplicationController
   end
 
   def fallback_manager_cashier_for_shift
-    current_business
-      .users
-      .where(active: true, authorization_level: "manager")
+    User
+      .joins(:business_user_assignments)
+      .where(business_user_assignments: {
+               business_id: current_business.id,
+               active: true,
+               authorization_level: 'manager'
+             })
+      .where(active: true)
       .order(Arel.sql("LOWER(COALESCE(full_name, username)) ASC"))
       .first
   end

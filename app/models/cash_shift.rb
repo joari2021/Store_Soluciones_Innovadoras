@@ -93,17 +93,17 @@ class CashShift < ApplicationRecord
   def active_cashier_is_eligible
     return if active_cashier.blank?
 
-    if active_cashier.business_id != business_id
+    unless active_cashier.assigned_to_business?(business)
       errors.add(:active_cashier, 'debe pertenecer al mismo negocio del turno.')
       return
     end
 
-    unless active_cashier.admin? || active_cashier.manager?
+    unless active_cashier.admin? || active_cashier.manager?(business)
       errors.add(:active_cashier, 'debe ser administrador o encargado.')
       return
     end
 
-    return if active_cashier.active?
+    return if active_cashier.active_for_business?(business)
 
     errors.add(:active_cashier, 'debe estar activo para cobrar.')
   end

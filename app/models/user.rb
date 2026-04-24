@@ -10,6 +10,8 @@ class User < ApplicationRecord
   }.freeze
 
   belongs_to :business, optional: true
+  has_many :business_user_assignments, dependent: :destroy
+  has_many :assigned_businesses, through: :business_user_assignments, source: :business
   has_many :ventas, dependent: :nullify
   has_many :opened_cash_shifts, class_name: 'CashShift', foreign_key: :opened_by_id, inverse_of: :opened_by,
                                 dependent: :restrict_with_error
@@ -43,16 +45,19 @@ class User < ApplicationRecord
   before_validation :normalize_sex_value, if: :supports_sex?
   before_save :downcase_attributes
 
-  def standard_staff?
-    role_key == 'standard_staff'
+  def standard_staff?(business = Current.business)
+    role_key(business) == 'standard_staff'
   end
 
-  def manager?
-    role_key == 'manager'
+  def manager?(business = Current.business)
+    role_key(business) == 'manager'
   end
 
-  def role_key
+  def role_key(business = Current.business)
     return 'administrator' if admin?
+
+    assignment_level = assignment_for_business(business)&.authorization_level.to_s
+    return assignment_level if %w[manager standard_staff].include?(assignment_level)
 
     if has_attribute?(:authorization_level)
       level = self[:authorization_level].to_s
@@ -62,9 +67,9 @@ class User < ApplicationRecord
     'standard_staff'
   end
 
-  def role_label
+  def role_label(business = Current.business)
     return female? ? 'Administradora' : 'Administrador' if admin?
-    return female? ? 'Encargada' : 'Encargado' if manager?
+    return female? ? 'Encargada' : 'Encargado' if manager?(business)
 
     'Personal estandar'
   end
@@ -87,7 +92,7 @@ class User < ApplicationRecord
   end
 
   def can_access_module?(module_key)
-    return false unless active?
+    return false unless active_for_business?(Current.business)
     return true if admin?
 
     case module_key.to_sym
@@ -101,13 +106,39 @@ class User < ApplicationRecord
   end
 
   def can_manage_action?(action_key)
-    return false unless active?
+    return false unless active_for_business?(Current.business)
     return true if admin?
 
     allowed_actions = %i[manage_clients create_debt register_debt_payment update_rates]
-    allowed_actions << :manage_cash_shifts if manager?
+    allowed_actions << :manage_cash_shifts if manager?(Current.business)
 
     allowed_actions.include?(action_key.to_sym)
+  end
+
+  def assignment_for_business(business)
+    business_id = business.is_a?(Business) ? business.id : business
+    return nil if business_id.blank?
+
+    if business_user_assignments.loaded?
+      business_user_assignments.find { |assignment| assignment.business_id == business_id.to_i }
+    else
+      business_user_assignments.find_by(business_id: business_id)
+    end
+  end
+
+  def assigned_to_business?(business)
+    return true if admin?
+
+    assignment = assignment_for_business(business)
+    assignment.present? && assignment.active?
+  end
+
+  def active_for_business?(business)
+    return false unless active?
+    return true if admin?
+
+    assignment = assignment_for_business(business)
+    assignment.present? && assignment.active?
   end
 
   private

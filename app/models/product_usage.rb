@@ -30,7 +30,8 @@ class ProductUsage < ApplicationRecord
       errors.add(:product_variation, 'no pertenece al negocio actual')
     end
 
-    return unless user.present? && user.business_id != business_id
+      return unless user.present?
+      return if user.assigned_to_business?(business_id)
 
     errors.add(:user, 'no pertenece al negocio actual')
   end

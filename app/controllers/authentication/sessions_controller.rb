@@ -13,7 +13,12 @@ class Authentication::SessionsController < ApplicationController
 
     if @user&.active? && @user.authenticate(params[:password])
       session[:user_id] = @user.id
-      session[:business_id] = @user.business_id if @user.business_id.present?
+      initial_business_id = if @user.admin?
+                              @user.business_id
+                            else
+                              @user.business_user_assignments.active.order(:business_id).limit(1).pick(:business_id) || @user.business_id
+                            end
+      session[:business_id] = initial_business_id if initial_business_id.present?
       session[:last_seen_at] = Time.current.to_i
       redirect_to ventas_path, notice: "Haz iniciado sesion correctamente"
     elsif @user.present? && !@user.active?

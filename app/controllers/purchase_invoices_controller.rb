@@ -543,8 +543,9 @@ class PurchaseInvoicesController < ApplicationController
 
     scope = if Current.user&.admin?
               Business.all
-            elsif Current.user&.business_id.present?
-              Business.where(id: Current.user.business_id)
+            elsif Current.user.present?
+              assignment_ids = Current.user.business_user_assignments.active.select(:business_id)
+              Business.where(id: assignment_ids)
             else
               Business.none
             end

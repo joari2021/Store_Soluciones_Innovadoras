@@ -252,6 +252,8 @@ class Business < ApplicationRecord
   has_many :purchase_invoices, class_name: 'PurchaseInvoice', foreign_key: :business_id, dependent: :destroy
   has_many :clientes, dependent: :destroy
   has_many :users, dependent: :nullify
+  has_many :business_user_assignments, dependent: :destroy
+  has_many :assigned_users, through: :business_user_assignments, source: :user
   has_many :ventas, dependent: :destroy
   has_many :venta_payments, through: :ventas
   has_many :cash_shifts, dependent: :destroy

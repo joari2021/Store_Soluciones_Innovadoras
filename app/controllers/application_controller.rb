@@ -36,7 +36,13 @@ class ApplicationController < ActionController::Base
     scoped_businesses = if Current.user&.admin?
                           Business.order(:name)
                         elsif Current.user.present?
-                          Business.where(id: Current.user.business_id).order(:name)
+                          assignment_ids = Current.user.business_user_assignments.active.select(:business_id)
+                          fallback_id = Current.user.business_id
+                          if fallback_id.present?
+                            Business.where(id: assignment_ids).or(Business.where(id: fallback_id)).order(:name)
+                          else
+                            Business.where(id: assignment_ids).order(:name)
+                          end
                         else
                           Business.order(:name)
                         end
@@ -48,8 +54,10 @@ class ApplicationController < ActionController::Base
                         end
     @current_business ||= @businesses.first
 
-    if Current.user&.standard_staff? && Current.user&.business_id.present?
-      @current_business = @businesses.find { |business| business.id == Current.user.business_id } || @current_business
+    if Current.user.present? && !Current.user.admin?
+      unless Current.user.assigned_to_business?(@current_business)
+        @current_business = @businesses.find { |business| Current.user.assigned_to_business?(business) } || @current_business
+      end
     end
 
     session[:business_id] = @current_business&.id

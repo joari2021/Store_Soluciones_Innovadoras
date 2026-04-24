@@ -2,6 +2,8 @@
 <% form_url = @staff_member.new_record? ? business_staff_members_path(@business) : business_staff_member_path(@business, @staff_member) %>
 <% form_method = @staff_member.new_record? ? :post : :patch %>
 <% password_error_present = @staff_member.errors[:password].any? || @staff_member.errors[:password_confirmation].any? %>
+<% assignment_roles = @staff_member.business_user_assignments.each_with_object({}) { |assignment, hash| hash[assignment.business_id] = assignment.authorization_level } %>
+<% selected_business_ids = assignment_roles.keys.presence || [@business.id] %>
 <%= form_with model: @staff_member, url: form_url, method: form_method, class: 'space-y-5' do |form| %>
   <% if @staff_member.errors.any? %>
     <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
@@ -39,6 +41,31 @@
                      options_for_select([['Administrador', 'administrator'], ['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], selected_level),
                      id: 'user_authorization_level',
                      class: 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500' %>
+    </div>
+    <div class="space-y-2 md:col-span-2">
+      <p class="text-sm font-semibold text-slate-700">Negocios asignados</p>
+      <div class="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4" data-business-assignments="true">
+        <% @businesses.each do |business_option| %>
+          <% checked = selected_business_ids.include?(business_option.id) %>
+          <% role_value = assignment_roles[business_option.id].presence || selected_level %>
+          <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[1fr_220px] md:items-center">
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+              <%= check_box_tag 'user[assignment_business_ids][]',
+                                business_option.id,
+                                checked,
+                                class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500',
+                                data: { assignment_toggle: true, assignment_target: "role_#{business_option.id}" } %>
+              <span><%= business_option.name %></span>
+            </label>
+            <%= select_tag "user[business_roles][#{business_option.id}]",
+                           options_for_select([['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], %w[manager standard_staff].include?(role_value) ? role_value : 'standard_staff'),
+                           class: "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500 #{checked ? '' : 'opacity-50'}",
+                           disabled: !checked,
+                           id: "role_#{business_option.id}" %>
+          </div>
+        <% end %>
+      </div>
+      <p class="text-xs text-slate-500">Administrador opera en todos los negocios. Para encargado o personal estandar, selecciona al menos un negocio y su rol en cada uno.</p>
     </div>
     <div class="flex items-end">
       <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
@@ -104,3 +131,23 @@
     <%= form.submit (@staff_member.new_record? ? 'Crear usuario' : 'Guardar cambios'), class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-slate-200 hover:bg-slate-800' %>
   </div>
 <% end %>
+<script>
+  (() => {
+    const wrapper = document.querySelector('[data-business-assignments="true"]');
+    if (!wrapper || wrapper.dataset.bound === '1') return;
+    wrapper.dataset.bound = '1';
+
+    wrapper.querySelectorAll('[data-assignment-toggle="true"]').forEach((checkbox) => {
+      checkbox.addEventListener('change', () => {
+        const targetId = checkbox.dataset.assignmentTarget;
+        if (!targetId) return;
+
+        const select = document.getElementById(targetId);
+        if (!select) return;
+
+        select.disabled = !checkbox.checked;
+        select.classList.toggle('opacity-50', !checkbox.checked);
+      });
+    });
+  })();
+</script>
