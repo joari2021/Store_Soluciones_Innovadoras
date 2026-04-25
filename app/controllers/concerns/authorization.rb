@@ -53,10 +53,12 @@ module Authorization
   end
 
   def current_user_customer_mode?
-    Current.user&.customer_mode?(Current.business)
+    business = respond_to?(:current_business, true) ? send(:current_business) : Current.business
+    Current.user&.customer_mode?(business)
   end
 
   def current_user_customer_vip_mode?
-    Current.user&.customer_vip_mode?(Current.business)
+    business = respond_to?(:current_business, true) ? send(:current_business) : Current.business
+    Current.user&.customer_vip_mode?(business)
   end
 end

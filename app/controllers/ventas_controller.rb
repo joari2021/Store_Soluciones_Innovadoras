@@ -30,6 +30,7 @@ class VentasController < ApplicationController
                                 .order(:name)
     @open_cash_shift = current_open_shift_for_sales || current_business.cash_shifts.open.includes(:opened_by, :active_cashier).first
     @active_cashier = @open_cash_shift&.active_cashier
+    @customer_pos_mode = customer_sales_mode?
     @can_charge_sale = current_user_can_charge_sale_realtime?
     @can_view_all_drafts = current_user_can_view_all_drafts?
     @last_closed_cash_shift = current_business.cash_shifts.closed.first
@@ -424,6 +425,26 @@ class VentasController < ApplicationController
       return render json: { error: "Solo puedes aprobar pedidos pendientes." }, status: :unprocessable_entity if request.format.json?
 
       return redirect_to venta_path(@venta), alert: "Solo puedes aprobar pedidos pendientes."
+    end
+
+    notes_payload = parse_notes_payload(@venta.notes)
+    customer_order = notes_payload["customer_order"].is_a?(Hash) ? notes_payload["customer_order"] : {}
+    requester_level = customer_order["customer_access_level"].to_s
+    vip_order = requester_level == "customer_vip"
+
+    unless vip_order
+      comparison_currency = @venta.base_currency.to_s.upcase == "VES" ? "VES" : "USD"
+      total_due = total_due_in_currency(@venta, comparison_currency, @venta.tasa_dolar)
+      paid_total = @venta.venta_payments.where(payment_kind: "in").sum do |row|
+        convert_payment_to_currency(row.amount_original.to_d, row.currency, comparison_currency, @venta.tasa_dolar).to_d
+      end
+
+      if (total_due - paid_total).round(2).positive?
+        message = "Este pedido tiene saldo pendiente. Solo los clientes VIP permiten aprobar con deuda."
+        return render json: { error: message }, status: :unprocessable_entity if request.format.json?
+
+        return redirect_to venta_path(@venta), alert: message
+      end
     end
 
     Venta.transaction do
@@ -1118,7 +1139,7 @@ class VentasController < ApplicationController
         else
           notes_payload.delete("checkout_discount")
         end
-        if customer_mode && remaining_credit_amount.positive?
+        if customer_mode && customer_vip_mode && remaining_credit_amount.positive?
           notes_payload["pending_credit_request"] = {
             "amount" => remaining_credit_amount.to_d.round(2).to_f,
             "currency" => comparison_currency,
@@ -1262,11 +1283,19 @@ class VentasController < ApplicationController
   end
 
   def customer_sales_mode?
-    Current.user&.customer_mode?(current_business)
+    return false if Current.user.blank? || current_business.blank?
+    return false if Current.user.admin?
+
+    assignment = Current.user.assignment_for_business(current_business)
+    assignment.present? && assignment.active? && %w[customer customer_vip].include?(assignment.customer_access_level.to_s)
   end
 
   def customer_sales_vip_mode?
-    Current.user&.customer_vip_mode?(current_business)
+    return false if Current.user.blank? || current_business.blank?
+    return false if Current.user.admin?
+
+    assignment = Current.user.assignment_for_business(current_business)
+    assignment.present? && assignment.active? && assignment.customer_access_level.to_s == "customer_vip"
   end
 
   def ensure_customer_cliente_for_current_user!

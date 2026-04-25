@@ -2,7 +2,7 @@
 <% product_categories = @product_categories || [] %>
 <% service_systems = @service_systems || [] %>
 <% can_use_cash_exchange = current_user_admin? || current_user_manager? %>
-<% customer_pos_mode = current_user_customer_mode? || current_user_customer_vip_mode? %>
+<% customer_pos_mode = @customer_pos_mode == true %>
 <div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>">
   <script>
     (() => {
@@ -7362,6 +7362,7 @@
 
         const payload = {
           draft_id: activeDraftId,
+          customer_order_mode: isCustomerPosMode,
           vat_mode: getVatMode(),
           vat_rate: vatRate,
           tasa_dolar: bcvRate,
