@@ -793,6 +793,7 @@
       };
 
       const fetchActiveCashierStatus = async () => {
+        if (isCustomerPosMode) return null;
         if (!hasOpenCashShift || !openCashShiftId || openCashShiftId <= 0) return null;
         const response = await fetch(`/cierres-turno/${openCashShiftId}/active_cashier_status?t=${Date.now()}`, {
           headers: { Accept: 'application/json' },
@@ -823,6 +824,7 @@
       let cashierPollIntervalId = null;
 
       const startCashierPolling = () => {
+        if (isCustomerPosMode) return;
         if (!hasOpenCashShift || openCashShiftId <= 0) return;
         if (cashierPollIntervalId) window.clearInterval(cashierPollIntervalId);
 
@@ -7725,12 +7727,14 @@
       const payButton = document.getElementById('ventas-pay-button');
       if (payButton) {
         payButton.addEventListener('click', async () => {
-          await fetchActiveCashierStatus().catch(() => null);
+          if (!isCustomerPosMode) {
+            await fetchActiveCashierStatus().catch(() => null);
+          }
 
           const isActiveCashierUser = activeCashierId > 0 && currentUserId > 0 && activeCashierId === currentUserId;
           const hasDifferentActiveCashier = activeCashierId > 0 && currentUserId > 0 && activeCashierId !== currentUserId;
 
-          if (hasDifferentActiveCashier) {
+          if (!isCustomerPosMode && hasDifferentActiveCashier) {
             if (window.Swal) {
               const cashierRole = activeCashierRoleLabel || 'Cajero activo';
               const cashierName = activeCashierName || 'Personal asignado';
@@ -7775,7 +7779,7 @@
             return;
           }
 
-          if (!isActiveCashierUser && !canChargeSale) {
+          if (!isCustomerPosMode && !isActiveCashierUser && !canChargeSale) {
             if (window.Swal) {
               const cashierRole = activeCashierRoleLabel || 'Sin cargo asignado';
               const cashierName = activeCashierName || 'Sin cajero activo';
@@ -7794,7 +7798,7 @@
 
           const checkoutBaseCurrency = getSelectedBaseCurrency();
           applyBaseCurrencySelection(checkoutBaseCurrency, { syncInputs: true, syncCart: true, render: false });
-          if (!hasOpenCashShift) {
+          if (!isCustomerPosMode && !hasOpenCashShift) {
             if (window.Swal) {
               window.Swal.fire({
                 icon: 'warning',
@@ -7815,6 +7819,17 @@
                 heightAuto: false,
               });
             }
+            return;
+          }
+
+          if (isCustomerPosMode) {
+            const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
+            if (!checkoutDecisionsReady) return;
+
+            const servicePartiesReady = await ensureServicePartiesForCheckout();
+            if (!servicePartiesReady) return;
+
+            submitVenta([], [], null, checkoutBaseCurrency, null, null);
             return;
           }
 

@@ -1035,21 +1035,17 @@ class VentasController < ApplicationController
 
     remaining_credit_amount = delta < -tolerance ? delta.abs.round(2) : 0.to_d
 
-    if remaining_credit_amount.positive? && !credit_sale[:enabled] && !customer_vip_mode
+    if remaining_credit_amount.positive? && !credit_sale[:enabled] && !customer_vip_mode && !customer_mode
       return render json: { error: "Falta por cancelar #{remaining_credit_amount} #{comparison_currency}." },
                     status: :unprocessable_entity
     end
 
-    if customer_mode && remaining_credit_amount.positive? && !customer_vip_mode
-      return render json: { error: "Tu perfil cliente no permite dejar saldo pendiente por cobrar." }, status: :unprocessable_entity
-    end
-
-    if remaining_credit_amount.positive? && venta.cliente.blank?
+    if remaining_credit_amount.positive? && venta.cliente.blank? && !customer_mode
       return render json: { error: "Debes seleccionar un cliente para registrar saldo en deuda por cobrar." },
                     status: :unprocessable_entity
     end
 
-    if remaining_credit_amount.positive? && venta.cliente.present? && venta.cliente.phone.to_s.strip.blank?
+    if remaining_credit_amount.positive? && venta.cliente.present? && venta.cliente.phone.to_s.strip.blank? && !customer_mode
       return render json: { error: "El cliente registrado no posee numero de telefono, ese dato es obligatorio." },
                     status: :unprocessable_entity
     end
@@ -1059,7 +1055,7 @@ class VentasController < ApplicationController
     payment_rows.each { |row| venta.venta_payments.build(row) }
     change_rows.each { |row| venta.venta_payments.build(row) }
 
-    if payment_rows.empty? && !remaining_credit_amount.positive?
+    if payment_rows.empty? && !remaining_credit_amount.positive? && !customer_mode
       return render json: { error: "Debes registrar al menos un metodo de pago." }, status: :unprocessable_entity
     end
 
