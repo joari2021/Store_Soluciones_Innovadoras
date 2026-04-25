@@ -2,7 +2,8 @@
 <% product_categories = @product_categories || [] %>
 <% service_systems = @service_systems || [] %>
 <% can_use_cash_exchange = current_user_admin? || current_user_manager? %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>">
+<% customer_pos_mode = current_user_customer_mode? || current_user_customer_vip_mode? %>
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -500,7 +501,7 @@
               <i data-lucide="receipt" class="h-4 w-4"></i>
             </span>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">Panel de cobro</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400"><%= customer_pos_mode ? 'Panel de pedido' : 'Panel de cobro' %></p>
               <p class="text-base font-bold text-slate-800">Orden actual</p>
             </div>
           </div>
@@ -512,45 +513,49 @@
           <div class="ventas-theme-payment-panel rounded-3xl bg-gradient-to-br from-slate-900 via-sky-900 to-cyan-700 p-5 text-white shadow-lg shadow-sky-200/40">
             <div class="flex items-start justify-between gap-3">
               <div>
-                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-100/80">Panel de cobro</p>
+                <p class="text-xs font-semibold uppercase tracking-[0.24em] text-sky-100/80"><%= customer_pos_mode ? 'Panel de pedido' : 'Panel de cobro' %></p>
                 <h2 class="mt-2 flex items-center gap-2 text-xl font-bold">
                   <i data-lucide="receipt" class="h-5 w-5 text-sky-200"></i>
                   Orden actual
                 </h2>
-                <p class="mt-1 text-sm text-sky-100/80">Resumen din&aacute;mico de la orden y sus pagos.</p>
+                <p class="mt-1 text-sm text-sky-100/80"><%= customer_pos_mode ? 'Resumen dinamico de la orden para registrar el pedido.' : 'Resumen din&aacute;mico de la orden y sus pagos.' %></p>
               </div>
               <span class="rounded-full bg-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white ring-1 ring-white/15">Nueva</span>
             </div>
           </div>
           <div class="mt-4 space-y-3">
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <button id="ventas-save-draft-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
-                <i data-lucide="save" class="h-4 w-4"></i>
-                Guardar borrador
-              </button>
+            <div class="grid grid-cols-1 gap-2 <%= customer_pos_mode ? '' : 'sm:grid-cols-2' %>">
+              <% unless customer_pos_mode %>
+                <button id="ventas-save-draft-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
+                  <i data-lucide="save" class="h-4 w-4"></i>
+                  Guardar borrador
+                </button>
+              <% end %>
               <button id="ventas-clear-panel-button" type="button" class="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50" disabled>
                 <i data-lucide="trash-2" class="h-4 w-4"></i>
                 Vaciar panel
               </button>
             </div>
-            <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-              <div class="flex items-center justify-between gap-2">
-                <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Borradores</p>
-                <span id="ventas-drafts-count" class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">0</span>
+            <% unless customer_pos_mode %>
+              <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Borradores</p>
+                  <span id="ventas-drafts-count" class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">0</span>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button id="ventas-drafts-ready-filter" type="button" class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100 transition-colors hover:bg-sky-100">
+                    <i data-lucide="check-check" class="h-3.5 w-3.5"></i>
+                    Listos
+                  </button>
+                  <button id="ventas-drafts-pending-filter" type="button" class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
+                    <i data-lucide="list-filter" class="h-3.5 w-3.5"></i>
+                    No listos
+                  </button>
+                </div>
+                <div id="ventas-drafts-list" class="mt-2 flex flex-wrap gap-2"></div>
+                <p id="ventas-drafts-empty" class="mt-2 text-xs text-slate-500">No hay borradores guardados.</p>
               </div>
-              <div class="mt-2 flex flex-wrap gap-2">
-                <button id="ventas-drafts-ready-filter" type="button" class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 ring-1 ring-sky-100 transition-colors hover:bg-sky-100">
-                  <i data-lucide="check-check" class="h-3.5 w-3.5"></i>
-                  Listos
-                </button>
-                <button id="ventas-drafts-pending-filter" type="button" class="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-colors hover:bg-emerald-100">
-                  <i data-lucide="list-filter" class="h-3.5 w-3.5"></i>
-                  No listos
-                </button>
-              </div>
-              <div id="ventas-drafts-list" class="mt-2 flex flex-wrap gap-2"></div>
-              <p id="ventas-drafts-empty" class="mt-2 text-xs text-slate-500">No hay borradores guardados.</p>
-            </div>
+            <% end %>
           </div>
           <% bcv_display = @tasa_dolar_bcv.is_a?(Numeric) ? format_money(@tasa_dolar_bcv, unit: 'Bs ') : @tasa_dolar_bcv.to_s %>
           <div class="mt-4 rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-4 space-y-3">
@@ -574,29 +579,36 @@
           <div class="mt-4 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente</p>
-              <span class="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-100">Opcional</span>
+              <span class="rounded-full bg-cyan-50 px-2.5 py-1 text-[11px] font-semibold text-cyan-700 ring-1 ring-cyan-100"><%= customer_pos_mode ? 'Fijo' : 'Opcional' %></span>
             </div>
-            <div class="relative mt-2">
-              <input id="ventas-client-search" type="text" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500" placeholder="Buscar cliente">
-              <div id="ventas-client-results" class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
-                <button type="button" id="ventas-client-add" class="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50">
-                  <i data-lucide="user-plus" class="h-4 w-4"></i>
-                  Agregar cliente
+            <% if customer_pos_mode %>
+              <div class="mt-2 rounded-2xl border border-cyan-200 bg-cyan-50/70 px-3 py-3 text-sm text-cyan-800">
+                El cliente se asigna automaticamente segun tu usuario.
+              </div>
+              <p id="ventas-client-empty" class="mt-3 text-xs text-slate-500">Se usara tu cliente asociado al confirmar el pedido.</p>
+            <% else %>
+              <div class="relative mt-2">
+                <input id="ventas-client-search" type="text" class="w-full rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:bg-white focus:ring-sky-500" placeholder="Buscar cliente">
+                <div id="ventas-client-results" class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                  <button type="button" id="ventas-client-add" class="flex w-full items-center gap-2 border-b border-slate-100 px-3 py-3 text-left text-sm font-semibold text-sky-700 hover:bg-sky-50">
+                    <i data-lucide="user-plus" class="h-4 w-4"></i>
+                    Agregar cliente
+                  </button>
+                  <div id="ventas-client-list" class="max-h-48 overflow-y-auto"></div>
+                </div>
+              </div>
+              <div id="ventas-client-selected" class="mt-3 hidden items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
+                <div>
+                  <p class="text-xs text-slate-500">Cliente seleccionado</p>
+                  <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
+                  <span id="ventas-client-benefits-badge" class="mt-1 hidden inline-flex items-center rounded-full bg-pink-100 px-2.5 py-0.5 text-[11px] font-semibold text-pink-700">Cliente con beneficios</span>
+                </div>
+                <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
+                  <i data-lucide="x" class="h-4 w-4"></i>
                 </button>
-                <div id="ventas-client-list" class="max-h-48 overflow-y-auto"></div>
               </div>
-            </div>
-            <div id="ventas-client-selected" class="mt-3 hidden items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-              <div>
-                <p class="text-xs text-slate-500">Cliente seleccionado</p>
-                <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
-                <span id="ventas-client-benefits-badge" class="mt-1 hidden inline-flex items-center rounded-full bg-pink-100 px-2.5 py-0.5 text-[11px] font-semibold text-pink-700">Cliente con beneficios</span>
-              </div>
-              <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
-                <i data-lucide="x" class="h-4 w-4"></i>
-              </button>
-            </div>
-            <p id="ventas-client-empty" class="mt-3 text-xs text-slate-500">Cliente general</p>
+              <p id="ventas-client-empty" class="mt-3 text-xs text-slate-500">Cliente general</p>
+            <% end %>
           </div>
           <div class="mt-4 rounded-3xl border border-slate-200 bg-slate-50/60 p-4">
             <div class="mb-3 flex items-center justify-between gap-2">
@@ -664,7 +676,7 @@
             </div>
           </div>
           <button id="ventas-pay-button" type="button" class="ventas-theme-pay-button mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-700 px-4 py-4 font-bold text-white shadow-xl shadow-sky-200 transition-all hover:from-slate-800 hover:to-sky-600 active:scale-[0.98]">
-            <span>Lista cobro</span>
+            <span><%= customer_pos_mode ? 'Registrar pedido' : 'Lista cobro' %></span>
             <i data-lucide="arrow-right" class="w-4 h-4"></i>
           </button>
         </div>
@@ -688,6 +700,7 @@
       let openCashShiftId = Number(root.dataset.openShiftId || 0);
       let canChargeSale = root.dataset.canChargeSale === 'true';
       let canViewAllDrafts = root.dataset.canViewAllDrafts === 'true';
+      const isCustomerPosMode = root.dataset.customerPosMode === 'true';
       const canUseCashExchange = root.dataset.canUseCashExchange === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
       let activeCashierId = Number(root.dataset.activeCashierId || 0);
@@ -1929,9 +1942,9 @@
 
         const openPaymentModal = (initialState = null) => {
           window.Swal.fire({
-            title: 'Registrar pago',
+            title: isCustomerPosMode ? 'Confirmar pedido' : 'Registrar pago',
             html: paymentHtml,
-            confirmButtonText: 'Confirmar',
+            confirmButtonText: isCustomerPosMode ? 'Registrar pedido' : 'Confirmar',
             cancelButtonText: 'Cancelar',
             showCancelButton: true,
             allowOutsideClick: false,
@@ -8530,9 +8543,9 @@
 
           const openPaymentModal = (initialState = null) => {
             window.Swal.fire({
-              title: 'Registrar pago',
+              title: isCustomerPosMode ? 'Confirmar pedido' : 'Registrar pago',
               html: paymentHtml,
-              confirmButtonText: 'Confirmar',
+              confirmButtonText: isCustomerPosMode ? 'Registrar pedido' : 'Confirmar',
               cancelButtonText: 'Cancelar',
               showCancelButton: true,
               allowOutsideClick: false,
