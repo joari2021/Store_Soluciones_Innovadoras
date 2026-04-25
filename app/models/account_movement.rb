@@ -10,6 +10,7 @@ class AccountMovement < ApplicationRecord
     "third_party_transfer" => "Transferencia a tercero",
     "interbank_transfer" => "Transferencia a otro banco",
     "mobile_payment" => "Pago movil",
+    "debit_card" => "Tarjeta de debito",
     "settlement" => "Liquidacion",
   }.freeze
 

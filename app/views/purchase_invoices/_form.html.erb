@@ -517,8 +517,14 @@
     </table>
   </div>
   <% unless initial_inventory_mode %>
-    <% if factura.new_record? %>
-      <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '' }] %>
+    <% if factura.new_record? || action_name.in?(%w[edit update]) %>
+      <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '', payment_method: '', include_commission: false, commission_amount: '', reference: '' }] %>
+      <% payment_method_options = [
+           ['Transferencia a tercero', 'third_party_transfer'],
+           ['Transferencia a otro banco', 'interbank_transfer'],
+           ['Pago movil', 'mobile_payment'],
+           ['Tarjeta de debito', 'debit_card']
+         ] %>
       <% if intercompany_mode && payment_rows.size > 1 %>
         <% filtered_payment_rows = payment_rows.reject do |row| %>
           <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
@@ -531,7 +537,9 @@
         <% payment_rows = filtered_payment_rows.presence || payment_rows %>
       <% end %>
       <% payment_account_options = Array(@bs_accounts).map do |account| %>
-        <% ["#{account.name_with_cash_role} (Saldo: #{format_money(account.balance, unit: 'Bs')})", account.id, { 'data-balance' => account.balance.to_d.to_s('F') }] %>
+        <% account_currency = account.currency.to_s.presence || 'VES' %>
+        <% account_symbol = account_currency == 'VES' ? 'Bs' : account_currency %>
+        <% ["#{account.name_with_cash_role} (Saldo: #{format_money(account.balance, unit: account_symbol)})", account.id, { 'data-balance' => account.balance.to_d.to_s('F'), 'data-currency' => account_currency, 'data-account-type' => account.account_type.to_s }] %>
       <% end %>
       <% selected_source_accounts = if intercompany_selected_source_business_id.to_i > 0
                                       Business.find_by(id: intercompany_selected_source_business_id)&.accounts
@@ -573,7 +581,13 @@
             <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
             <% row_source_account_id = row[:source_account_id].presence || row['source_account_id'].presence %>
             <% row_amount_value = row[:amount].presence || row['amount'].presence || 'Bs 0,00' %>
-            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 <%= intercompany_mode ? 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_220px_auto]' %> md:items-end"
+            <% row_payment_method = row[:payment_method].presence || row['payment_method'].presence %>
+            <% row_include_commission = ActiveModel::Type::Boolean.new.cast(row[:include_commission].presence || row['include_commission'].presence) %>
+            <% row_commission_amount = row[:commission_amount].presence || row['commission_amount'].presence || '' %>
+            <% row_reference = row[:reference].presence || row['reference'].presence || '' %>
+            <% commission_supported = %w[interbank_transfer mobile_payment].include?(row_payment_method.to_s) %>
+            <% reference_hidden = row_payment_method.to_s == 'debit_card' %>
+            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 <%= intercompany_mode ? 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_minmax(0,1fr)_auto]' : 'md:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)_auto]' %> md:items-end"
                data-invoice-payment-row="true"
                data-invoice-payment-index="<%= index %>">
               <div>
@@ -612,6 +626,53 @@
                                    money_symbol: 'Bs',
                                    invoice_payment_amount: true
                                  } %>
+              </div>
+              <div class="grid gap-2 md:grid-cols-2">
+                <div class="md:col-span-2">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Metodo de pago</label>
+                  <%= select_tag "invoice_payments[#{index}][payment_method]",
+                               options_for_select(payment_method_options, row_payment_method),
+                               include_blank: 'Selecciona metodo',
+                               class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                               data: { invoice_payment_method: true } %>
+                </div>
+                <div class="md:col-span-2 <%= reference_hidden ? 'hidden' : '' %>" data-invoice-payment-reference-wrapper="true">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Referencia (4 digitos)</label>
+                  <%= text_field_tag "invoice_payments[#{index}][reference]",
+                                   row_reference,
+                                   inputmode: 'numeric',
+                                   autocomplete: 'off',
+                                   maxlength: 4,
+                                   minlength: 4,
+                                   pattern: '[0-9]{4}',
+                                   placeholder: '0000',
+                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                                   data: { invoice_payment_reference: true } %>
+                </div>
+                <div class="md:col-span-2 <%= commission_supported ? '' : 'hidden' %>" data-invoice-payment-commission-wrapper="true">
+                  <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <%= check_box_tag "invoice_payments[#{index}][include_commission]",
+                                    '1',
+                                    row_include_commission,
+                                    class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500',
+                                    data: { invoice_payment_commission_toggle: true } %>
+                    Incluir comision (0,30%)
+                  </label>
+                </div>
+                <div class="md:col-span-2 <%= commission_supported && row_include_commission ? '' : 'hidden' %>" data-invoice-payment-commission-input-wrapper="true">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Comision</label>
+                  <%= text_field_tag "invoice_payments[#{index}][commission_amount]",
+                                   row_commission_amount,
+                                   inputmode: 'decimal',
+                                   autocomplete: 'off',
+                                   placeholder: 'Bs 0,00',
+                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                                   data: {
+                                     money_mask: true,
+                                     money_symbol: 'Bs',
+                                     invoice_payment_commission_input: true
+                                   } %>
+                </div>
               </div>
               <button type="button"
                     class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
@@ -659,7 +720,7 @@
                data: { invoice_pending_due_on: true } %>
           </div>
           <template id="invoice-payment-row-template">
-            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 <%= intercompany_mode ? 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_auto]' : 'md:grid-cols-[minmax(0,1fr)_220px_auto]' %> md:items-end"
+            <div class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3 <%= intercompany_mode ? 'md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_220px_minmax(0,1fr)_auto]' : 'md:grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)_auto]' %> md:items-end"
              data-invoice-payment-row="true"
              data-invoice-payment-index="__INDEX__">
               <div>
@@ -698,6 +759,53 @@
                                  money_symbol: 'Bs',
                                  invoice_payment_amount: true
                                } %>
+              </div>
+              <div class="grid gap-2 md:grid-cols-2">
+                <div class="md:col-span-2">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Metodo de pago</label>
+                  <%= select_tag 'invoice_payments[__INDEX__][payment_method]',
+                               options_for_select(payment_method_options),
+                               include_blank: 'Selecciona metodo',
+                               class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                               data: { invoice_payment_method: true } %>
+                </div>
+                <div class="md:col-span-2" data-invoice-payment-reference-wrapper="true">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Referencia (4 digitos)</label>
+                  <%= text_field_tag 'invoice_payments[__INDEX__][reference]',
+                                   '',
+                                   inputmode: 'numeric',
+                                   autocomplete: 'off',
+                                   maxlength: 4,
+                                   minlength: 4,
+                                   pattern: '[0-9]{4}',
+                                   placeholder: '0000',
+                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                                   data: { invoice_payment_reference: true } %>
+                </div>
+                <div class="md:col-span-2 hidden" data-invoice-payment-commission-wrapper="true">
+                  <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <%= check_box_tag 'invoice_payments[__INDEX__][include_commission]',
+                                    '1',
+                                    false,
+                                    class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500',
+                                    data: { invoice_payment_commission_toggle: true } %>
+                    Incluir comision (0,30%)
+                  </label>
+                </div>
+                <div class="md:col-span-2 hidden" data-invoice-payment-commission-input-wrapper="true">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Comision</label>
+                  <%= text_field_tag 'invoice_payments[__INDEX__][commission_amount]',
+                                   '',
+                                   inputmode: 'decimal',
+                                   autocomplete: 'off',
+                                   placeholder: 'Bs 0,00',
+                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                                   data: {
+                                     money_mask: true,
+                                     money_symbol: 'Bs',
+                                     invoice_payment_commission_input: true
+                                   } %>
+                </div>
               </div>
               <button type="button"
                   class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
@@ -2698,6 +2806,16 @@
         return parseNumber(input.value);
       };
 
+      const paymentMethodSupportsCommission = (method) => ['interbank_transfer', 'mobile_payment'].includes(String(method || '').trim());
+      const paymentMethodHidesReference = (method) => String(method || '').trim() === 'debit_card';
+
+      const moneySymbolForCurrency = (currency) => {
+        const normalized = String(currency || '').trim().toUpperCase();
+        if (normalized === 'VES' || normalized === 'BS') return 'Bs';
+        if (normalized) return normalized;
+        return 'Bs';
+      };
+
       const invoiceTotalBs = () => {
         const totalCell = form.querySelector('#factura-total-final-bs');
         return parseNumber(totalCell?.textContent || totalCell?.innerText || '0');
@@ -2708,11 +2826,21 @@
           const accountInput = row.querySelector('[data-invoice-payment-account="true"]');
           const sourceAccountInput = row.querySelector('[data-invoice-payment-source-account="true"]');
           const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
+          const methodInput = row.querySelector('[data-invoice-payment-method="true"]');
+          const referenceInput = row.querySelector('[data-invoice-payment-reference="true"]');
+          const commissionToggle = row.querySelector('[data-invoice-payment-commission-toggle="true"]');
+          const commissionInput = row.querySelector('[data-invoice-payment-commission-input="true"]');
           const accountId = String(accountInput?.value || '').trim();
           const sourceAccountId = String(sourceAccountInput?.value || '').trim();
           const amount = parseMoneyInputValue(amountInput);
+          const paymentMethod = String(methodInput?.value || '').trim();
+          const reference = String(referenceInput?.value || '').replace(/\D/g, '').slice(0, 4);
+          const includeCommission = Boolean(commissionToggle?.checked);
+          const commissionAmount = parseMoneyInputValue(commissionInput);
           const selectedOption = accountInput?.selectedOptions?.[0];
           const balance = parseNumber(selectedOption?.dataset?.balance || '0');
+          const currency = String(selectedOption?.dataset?.currency || 'VES').trim().toUpperCase() || 'VES';
+          const accountType = String(selectedOption?.dataset?.accountType || '').trim();
           const accountLabelRaw = String(selectedOption?.textContent || '').trim();
           const accountLabel = accountLabelRaw.split(' (Saldo:')[0] || accountLabelRaw || 'Cuenta';
 
@@ -2728,9 +2856,19 @@
             accountId,
             sourceAccountId,
             amount,
+            paymentMethod,
+            reference,
+            includeCommission,
+            commissionAmount,
+            currency,
+            accountType,
             balance,
             accountLabel,
-            sourceAccountLabel
+            sourceAccountLabel,
+            methodInput,
+            referenceInput,
+            commissionToggle,
+            commissionInput
           };
         });
       };
@@ -2744,12 +2882,73 @@
           const accountInput = row.querySelector('[data-invoice-payment-account="true"]');
           const sourceAccountInput = row.querySelector('[data-invoice-payment-source-account="true"]');
           const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
+          const methodInput = row.querySelector('[data-invoice-payment-method="true"]');
+          const referenceInput = row.querySelector('[data-invoice-payment-reference="true"]');
+          const commissionToggle = row.querySelector('[data-invoice-payment-commission-toggle="true"]');
+          const commissionInput = row.querySelector('[data-invoice-payment-commission-input="true"]');
           if (accountInput) accountInput.name = `invoice_payments[${index}][account_id]`;
           if (sourceAccountInput) sourceAccountInput.name = `invoice_payments[${index}][source_account_id]`;
           if (amountInput) amountInput.name = `invoice_payments[${index}][amount]`;
+          if (methodInput) methodInput.name = `invoice_payments[${index}][payment_method]`;
+          if (referenceInput) referenceInput.name = `invoice_payments[${index}][reference]`;
+          if (commissionToggle) commissionToggle.name = `invoice_payments[${index}][include_commission]`;
+          if (commissionInput) commissionInput.name = `invoice_payments[${index}][commission_amount]`;
         });
 
         form.dataset.invoicePaymentIndex = String(rows.length);
+      };
+
+      const syncRowPaymentDetails = (row, { recalculateCommission = false } = {}) => {
+        if (!row) return;
+
+        const accountInput = row.querySelector('[data-invoice-payment-account="true"]');
+        const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
+        const methodInput = row.querySelector('[data-invoice-payment-method="true"]');
+        const referenceWrapper = row.querySelector('[data-invoice-payment-reference-wrapper="true"]');
+        const referenceInput = row.querySelector('[data-invoice-payment-reference="true"]');
+        const commissionWrapper = row.querySelector('[data-invoice-payment-commission-wrapper="true"]');
+        const commissionToggle = row.querySelector('[data-invoice-payment-commission-toggle="true"]');
+        const commissionInputWrapper = row.querySelector('[data-invoice-payment-commission-input-wrapper="true"]');
+        const commissionInput = row.querySelector('[data-invoice-payment-commission-input="true"]');
+
+        const selectedOption = accountInput?.selectedOptions?.[0];
+        const currency = String(selectedOption?.dataset?.currency || 'VES').trim().toUpperCase() || 'VES';
+        const accountType = String(selectedOption?.dataset?.accountType || '').trim();
+        const symbol = moneySymbolForCurrency(currency);
+        const amount = parseMoneyInputValue(amountInput);
+        const method = String(methodInput?.value || '').trim();
+        const supportsCommission = paymentMethodSupportsCommission(method);
+        const hideReference = paymentMethodHidesReference(method);
+
+        if (referenceInput) {
+          const digits = String(referenceInput.value || '').replace(/\D/g, '').slice(0, 4);
+          if (referenceInput.value !== digits) referenceInput.value = digits;
+          referenceInput.required = accountType === 'bank_account' && !hideReference && method.length > 0;
+          if (hideReference) referenceInput.value = '';
+        }
+        if (referenceWrapper) referenceWrapper.classList.toggle('hidden', hideReference);
+
+        if (commissionWrapper) commissionWrapper.classList.toggle('hidden', !supportsCommission);
+        if (!supportsCommission && commissionToggle) {
+          commissionToggle.checked = false;
+        }
+
+        const commissionEnabled = supportsCommission && Boolean(commissionToggle?.checked);
+        if (commissionInputWrapper) commissionInputWrapper.classList.toggle('hidden', !commissionEnabled);
+        if (commissionInput) {
+          if (window.MoneyInputMask?.setValue && (recalculateCommission || commissionInput.value.trim() === '' || !commissionEnabled)) {
+            const nextAmount = commissionEnabled ? (amount * 0.003) : 0;
+            window.MoneyInputMask.setValue(commissionInput, nextAmount, symbol);
+          }
+          commissionInput.disabled = !commissionEnabled;
+          commissionInput.dataset.moneySymbol = symbol;
+        }
+      };
+
+      const syncAllRowsPaymentDetails = ({ recalculateCommission = false } = {}) => {
+        Array.from(rowsContainer.querySelectorAll('[data-invoice-payment-row="true"]')).forEach((row) => {
+          syncRowPaymentDetails(row, { recalculateCommission });
+        });
       };
 
       const syncPendingDueVisibility = () => {
@@ -2836,6 +3035,16 @@
             showWarning('Cuenta origen requerida', `Pago ${index + 1}: selecciona la cuenta a acreditar en negocio origen.`);
             return false;
           }
+
+          if (entry.accountType === 'bank_account' && !entry.paymentMethod) {
+            showWarning('Metodo requerido', `Pago ${index + 1}: selecciona el metodo de pago.`);
+            return false;
+          }
+
+          if (entry.accountType === 'bank_account' && !paymentMethodHidesReference(entry.paymentMethod) && !/^\d{4}$/.test(entry.reference)) {
+            showWarning('Referencia invalida', `Pago ${index + 1}: la referencia debe tener exactamente 4 digitos.`);
+            return false;
+          }
         }
 
         if (summary.pendingPositive > 0.01 && !markPending) {
@@ -2885,6 +3094,7 @@
         const addedRow = rowsContainer.querySelector('[data-invoice-payment-row="true"]:last-child');
         if (addedRow) {
           window.MoneyInputMask?.init(addedRow);
+          syncRowPaymentDetails(addedRow, { recalculateCommission: true });
         }
 
         syncSourceAccountOptions();
@@ -2984,8 +3194,15 @@
         if (rows.length <= 1) {
           const accountInput = row.querySelector('[data-invoice-payment-account="true"]');
           const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
+          const methodInput = row.querySelector('[data-invoice-payment-method="true"]');
+          const referenceInput = row.querySelector('[data-invoice-payment-reference="true"]');
+          const commissionToggle = row.querySelector('[data-invoice-payment-commission-toggle="true"]');
+          const commissionInput = row.querySelector('[data-invoice-payment-commission-input="true"]');
 
           if (accountInput) accountInput.value = '';
+          if (methodInput) methodInput.value = '';
+          if (referenceInput) referenceInput.value = '';
+          if (commissionToggle) commissionToggle.checked = false;
           if (amountInput) {
             if (window.MoneyInputMask?.setValue) {
               window.MoneyInputMask.setValue(amountInput, 0, 'Bs');
@@ -2993,6 +3210,15 @@
               amountInput.value = 'Bs 0,00';
             }
           }
+          if (commissionInput) {
+            if (window.MoneyInputMask?.setValue) {
+              window.MoneyInputMask.setValue(commissionInput, 0, 'Bs');
+            } else {
+              commissionInput.value = 'Bs 0,00';
+            }
+          }
+
+          syncRowPaymentDetails(row, { recalculateCommission: true });
 
           syncPaymentSummary();
           return;
@@ -3006,6 +3232,7 @@
       window.MoneyInputMask?.init(paymentsBlock);
       syncSourceAccountOptions();
       reindexRows();
+      syncAllRowsPaymentDetails({ recalculateCommission: true });
       syncPendingDueVisibility();
       syncPaymentSummary();
 
@@ -3043,10 +3270,12 @@
       });
 
       form.addEventListener('input', () => {
+        syncAllRowsPaymentDetails();
         syncPaymentSummary();
       });
 
       form.addEventListener('change', () => {
+        syncAllRowsPaymentDetails({ recalculateCommission: true });
         syncPaymentSummary();
       });
 

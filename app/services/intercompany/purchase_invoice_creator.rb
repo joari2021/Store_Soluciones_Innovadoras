@@ -401,7 +401,21 @@ module Intercompany
           description: description,
           occurred_at: occurred_at,
         }
-        attrs[:payment_method] = "transfer" if account.account_type == "bank_account"
+        if account.account_type == "bank_account"
+          attrs[:payment_method] = entry[:payment_method].presence || "third_party_transfer"
+        end
+
+        reference = entry[:reference].to_s.gsub(/\D/, "")
+        attrs[:reference] = reference if reference.match?(/\A\d{4}\z/)
+        attrs.delete(:reference) if attrs[:payment_method] == "debit_card"
+
+        if entry[:include_commission] == true && %w[interbank_transfer mobile_payment].include?(attrs[:payment_method])
+          commission_amount = entry[:commission_amount].to_d.round(2)
+          if commission_amount.positive? && AccountMovement.column_names.include?("commission_amount")
+            attrs[:commission_amount] = commission_amount
+          end
+        end
+
         account.account_movements.create!(attrs)
       end
     end

@@ -18,6 +18,8 @@ class PurchaseInvoicesController < ApplicationController
     true => 'border-emerald-200 bg-emerald-50 text-emerald-700',
     false => 'border-slate-300 bg-slate-100 text-slate-700'
   }.freeze
+  DIRECT_PAYMENT_METHODS = %w[third_party_transfer interbank_transfer mobile_payment debit_card].freeze
+  DIRECT_PAYMENT_METHODS_WITH_COMMISSION = %w[interbank_transfer mobile_payment].freeze
 
   helper_method :invoice_payment_status_filter_options,
                 :invoice_payment_status_for,
@@ -32,7 +34,7 @@ class PurchaseInvoicesController < ApplicationController
   before_action :ensure_purchase_invoice_columns_loaded
   before_action :set_purchase_invoice, only: %i[show edit update destroy]
   before_action :load_global_suppliers, only: %i[index new edit create update]
-  before_action :load_bs_accounts, only: %i[new create]
+  before_action :load_bs_accounts, only: %i[new create edit update]
   before_action :load_intercompany_options, only: %i[new create edit update]
   before_action :load_invoice_payment_summary, only: %i[show edit]
 
@@ -241,6 +243,7 @@ class PurchaseInvoicesController < ApplicationController
 
   def edit
     @purchase_invoice.purchase_invoice_items.build if @purchase_invoice.purchase_invoice_items.empty?
+    apply_invoice_payment_form_state(existing_invoice_payment_context(@purchase_invoice)) unless @purchase_invoice.initial_inventory?
   end
 
   def update
@@ -258,6 +261,7 @@ class PurchaseInvoicesController < ApplicationController
     if @purchase_invoice.update(update_attrs)
       unless @purchase_invoice.initial_inventory?
         payment_context = build_invoice_payment_context(@purchase_invoice)
+        sync_invoice_payment_movements!(@purchase_invoice, payments: payment_context[:payments]) if invoice_payment_rows_input_submitted?
         sync_pending_supplier_debt!(@purchase_invoice, payment_context)
         overpayment_warning = overpayment_warning_for(payment_context)
       end
@@ -271,7 +275,16 @@ class PurchaseInvoicesController < ApplicationController
       flash[:warning] = overpayment_warning if overpayment_warning.present?
       redirect_to purchase_invoices_path, notice: success_message
     else
-      load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
+      unless @purchase_invoice.initial_inventory?
+        apply_invoice_payment_form_state(
+          {
+            rows: invoice_payment_rows_for_form,
+            mark_pending_payment: ActiveModel::Type::Boolean.new.cast(params[:mark_pending_payment]),
+            pending_due_on_value: params[:pending_due_on].to_s.strip,
+          },
+        )
+        load_invoice_payment_summary
+      end
       render :edit, status: :unprocessable_entity
     end
   end
@@ -597,7 +610,25 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def default_invoice_payment_row
-    { account_id: '', source_account_id: '', amount: '' }
+    {
+      account_id: '',
+      source_account_id: '',
+      amount: '',
+      payment_method: '',
+      include_commission: false,
+      commission_amount: '',
+      reference: ''
+    }
+  end
+
+  def existing_invoice_payment_context(invoice)
+    existing_pending_debt = find_invoice_pending_debt(invoice)
+    {
+      rows: invoice_payment_rows_from_movements(invoice),
+      mark_pending_payment: existing_pending_debt.present?,
+      pending_due_on: existing_pending_debt&.due_on,
+      pending_due_on_value: normalized_filter_date_value('', existing_pending_debt&.due_on),
+    }
   end
 
   def apply_invoice_payment_form_state(context)
@@ -730,6 +761,12 @@ class PurchaseInvoicesController < ApplicationController
         next
       end
 
+      payment_method = row[:payment_method].to_s.strip
+      if payment_method.present? && !DIRECT_PAYMENT_METHODS.include?(payment_method)
+        invoice.errors.add(:base, "Pago #{row_number}: el método de pago no es válido.")
+        next
+      end
+
       account = accounts_by_id[row[:account_id].to_i]
       if account.blank?
         invoice.errors.add(:base, "Pago #{row_number}: la cuenta seleccionada no es válida.")
@@ -739,6 +776,27 @@ class PurchaseInvoicesController < ApplicationController
       if account.currency != 'VES'
         invoice.errors.add(:base, "Pago #{row_number}: la cuenta #{account.name} no está en Bs.")
         next
+      end
+
+      if account.account_type == 'bank_account' && payment_method.blank?
+        invoice.errors.add(:base, "Pago #{row_number}: selecciona un método de pago.")
+        next
+      end
+
+      reference = row[:reference].to_s.gsub(/\D/, '')
+      reference_required = payment_method.present? && payment_method != 'debit_card'
+      if reference_required && !reference.match?(/\A\d{4}\z/)
+        invoice.errors.add(:base, "Pago #{row_number}: la referencia debe tener exactamente 4 dígitos.")
+        next
+      end
+      reference = '' if payment_method == 'debit_card'
+
+      include_commission = row[:include_commission] == true && DIRECT_PAYMENT_METHODS_WITH_COMMISSION.include?(payment_method)
+      commission_amount = 0.to_d
+      if include_commission
+        entered_commission = row[:commission_amount].to_d.round(2)
+        auto_commission = (amount * 0.003).round(2)
+        commission_amount = entered_commission.positive? ? entered_commission : auto_commission
       end
 
       source_account = nil
@@ -760,7 +818,15 @@ class PurchaseInvoicesController < ApplicationController
         end
       end
 
-      { account: account, source_account: source_account, amount: amount }
+      {
+        account: account,
+        source_account: source_account,
+        amount: amount,
+        payment_method: payment_method,
+        reference: reference,
+        include_commission: include_commission,
+        commission_amount: commission_amount,
+      }
     end
   end
 
@@ -800,10 +866,28 @@ class PurchaseInvoicesController < ApplicationController
         occurred_at: occurred_at
       }
 
-      movement_attrs[:payment_method] = 'transfer' if entry[:account].account_type == 'bank_account'
+      if entry[:account].account_type == 'bank_account'
+        movement_attrs[:payment_method] = entry[:payment_method].presence || 'third_party_transfer'
+      end
+
+      reference = entry[:reference].to_s.gsub(/\D/, '')
+      movement_attrs[:reference] = reference if reference.match?(/\A\d{4}\z/)
+      movement_attrs.delete(:reference) if movement_attrs[:payment_method] == 'debit_card'
+
+      if entry[:include_commission] == true && movement_attrs[:payment_method].in?(DIRECT_PAYMENT_METHODS_WITH_COMMISSION)
+        commission_amount = entry[:commission_amount].to_d.round(2)
+        if commission_amount.positive? && AccountMovement.column_names.include?('commission_amount')
+          movement_attrs[:commission_amount] = commission_amount
+        end
+      end
 
       entry[:account].account_movements.create!(movement_attrs)
     end
+  end
+
+  def sync_invoice_payment_movements!(invoice, payments:)
+    invoice_payment_movements_scope(invoice).to_a.each(&:destroy!)
+    create_invoice_payment_movements!(invoice, payments)
   end
 
   def create_pending_supplier_debt!(invoice, payment_context)
@@ -884,7 +968,11 @@ class PurchaseInvoicesController < ApplicationController
       {
         account_id: row_value(row, :account_id).to_s.strip,
         source_account_id: row_value(row, :source_account_id).to_s.strip,
-        amount: row_value(row, :amount).to_s.strip
+        amount: row_value(row, :amount).to_s.strip,
+        payment_method: row_value(row, :payment_method).to_s.strip,
+        include_commission: ActiveModel::Type::Boolean.new.cast(row_value(row, :include_commission)),
+        commission_amount: row_value(row, :commission_amount).to_s.strip,
+        reference: row_value(row, :reference).to_s.strip,
       }
     end
 
@@ -901,9 +989,37 @@ class PurchaseInvoicesController < ApplicationController
       {
         account_id: account_id,
         source_account_id: row[:source_account_id].to_s.strip,
-        amount: amount
+        amount: amount,
+        payment_method: row[:payment_method].to_s.strip,
+        include_commission: ActiveModel::Type::Boolean.new.cast(row[:include_commission]),
+        commission_amount: parse_decimal(row[:commission_amount]),
+        reference: row[:reference].to_s.strip,
       }
     end
+  end
+
+  def invoice_payment_rows_from_movements(invoice)
+    movements = invoice_payment_movements_scope(invoice).to_a
+    return [default_invoice_payment_row] if movements.empty?
+
+    rows = movements.map do |movement|
+      stored_method = movement.payment_method.to_s
+      fallback_method = movement.account&.account_type == 'bank_account' ? 'third_party_transfer' : ''
+      normalized_method = DIRECT_PAYMENT_METHODS.include?(stored_method) ? stored_method : fallback_method
+      commission_amount = movement.has_attribute?(:commission_amount) ? movement.commission_amount.to_d.round(2) : 0.to_d
+
+      {
+        account_id: movement.account_id.to_s,
+        source_account_id: '',
+        amount: movement.amount.to_d.round(2).to_s('F'),
+        payment_method: normalized_method,
+        include_commission: commission_amount.positive?,
+        commission_amount: commission_amount.positive? ? commission_amount.to_s('F') : '',
+        reference: movement.reference.to_s,
+      }
+    end
+
+    rows.presence || [default_invoice_payment_row]
   end
 
   def raw_invoice_payment_rows
@@ -1441,7 +1557,20 @@ class PurchaseInvoicesController < ApplicationController
         description: outgoing_description,
         occurred_at: occurred_at,
       }
-      attrs[:payment_method] = 'transfer' if account.account_type == 'bank_account'
+      if account.account_type == 'bank_account'
+        attrs[:payment_method] = entry[:payment_method].presence || 'third_party_transfer'
+      end
+
+      reference = entry[:reference].to_s.gsub(/\D/, '')
+      attrs[:reference] = reference if reference.match?(/\A\d{4}\z/)
+      attrs.delete(:reference) if attrs[:payment_method] == 'debit_card'
+
+      if entry[:include_commission] == true && attrs[:payment_method].in?(DIRECT_PAYMENT_METHODS_WITH_COMMISSION)
+        commission_amount = entry[:commission_amount].to_d.round(2)
+        if commission_amount.positive? && AccountMovement.column_names.include?('commission_amount')
+          attrs[:commission_amount] = commission_amount
+        end
+      end
       account.account_movements.create!(attrs)
     end
 

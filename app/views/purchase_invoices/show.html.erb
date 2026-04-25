@@ -323,10 +323,14 @@
                                       end %>
               <div class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
+                  <% movement_reference = movement.reference.to_s.strip.presence %>
+                  <% movement_commission = movement.has_attribute?(:commission_amount) ? movement[:commission_amount].to_d.round(2) : 0.to_d %>
                   <p class="text-sm font-semibold text-slate-800"><%= movement.account.name %></p>
                   <p class="mt-1 text-xs text-slate-500">
                     <%= l(movement.occurred_at.to_date, format: '%d/%m/%Y') %>
                     · Método: <%= payment_method_label %>
+                    <%= " · Ref #{movement_reference}" if movement_reference.present? %>
+                    <%= " · Comisión #{format_money(movement_commission, unit: 'Bs')}" if movement_commission.positive? %>
                   </p>
                 </div>
                 <p class="text-sm font-extrabold text-emerald-700"><%= use_usd_summary ? format_money(payment_movements_usd_map[movement.id].to_d, unit: '$') : format_money(movement.amount.to_d, unit: 'Bs') %></p>
