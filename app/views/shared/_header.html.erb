@@ -94,6 +94,7 @@
                                      end %>
     <% if controller_name == 'ventas' && action_name == 'index' %>
       <% can_manage_cash_shifts = can_manage_action?(:manage_cash_shifts) %>
+      <% customer_sales_mode_header = Current.user&.customer_mode?(current_business) %>
       <% if @open_cash_shift.present? %>
         <span id="header-active-cashier-badge" data-cash-shift-id="<%= @open_cash_shift.id %>" class="hidden xl:inline-flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold <%= cashier_badge_class %>">
           <i data-lucide="user-check" class="h-4 w-4"></i>
@@ -117,26 +118,28 @@
           <span id="header-cashier-toggle-label"><%= admin_is_active_cashier ? 'Marcar salida de cajero' : 'Marcar entrada de cajero' %></span>
         <% end %>
       <% end %>
-      <% if @open_cash_shift.present? %>
-        <%= link_to cash_shift_path(@open_cash_shift), class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100' do %>
-          <i data-lucide="clock-3" class="h-4 w-4"></i>
-          <span class="hidden lg:inline">Turno #<%= @open_cash_shift.id %> abierto</span>
-          <span class="lg:hidden">Turno #<%= @open_cash_shift.id %></span>
+      <% unless customer_sales_mode_header %>
+        <% if @open_cash_shift.present? %>
+          <%= link_to cash_shift_path(@open_cash_shift), class: 'inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-emerald-100' do %>
+            <i data-lucide="clock-3" class="h-4 w-4"></i>
+            <span class="hidden lg:inline">Turno #<%= @open_cash_shift.id %> abierto</span>
+            <span class="lg:hidden">Turno #<%= @open_cash_shift.id %></span>
+          <% end %>
+        <% elsif can_manage_cash_shifts %>
+          <button type="button"
+                  id="ventas-open-cash-shift-trigger"
+                  data-create-url="<%= cash_shifts_path %>"
+                  data-opening-balances="<%= ERB::Util.json_escape((@open_shift_balance_checks_payload || []).to_json) %>"
+            data-last-closed-shift-url="<%= @last_closed_cash_shift.present? ? cash_shift_path(@last_closed_cash_shift) : '' %>"
+                  class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100">
+            <i data-lucide="play" class="h-4 w-4"></i>
+            <span class="hidden lg:inline">Abrir turno</span>
+          </button>
+        <% else %>
+          <span class="hidden lg:inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
+            Espera al encargado para abrir turno
+          </span>
         <% end %>
-      <% elsif can_manage_cash_shifts %>
-        <button type="button"
-                id="ventas-open-cash-shift-trigger"
-                data-create-url="<%= cash_shifts_path %>"
-                data-opening-balances="<%= ERB::Util.json_escape((@open_shift_balance_checks_payload || []).to_json) %>"
-          data-last-closed-shift-url="<%= @last_closed_cash_shift.present? ? cash_shift_path(@last_closed_cash_shift) : '' %>"
-                class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-amber-100">
-          <i data-lucide="play" class="h-4 w-4"></i>
-          <span class="hidden lg:inline">Abrir turno</span>
-        </button>
-      <% else %>
-        <span class="hidden lg:inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600">
-          Espera al encargado para abrir turno
-        </span>
       <% end %>
     <% end %>
     <% if Rails.env.development? && current_user_admin? %>
