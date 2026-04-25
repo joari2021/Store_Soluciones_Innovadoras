@@ -1,3 +1,4 @@
+<% selected_level = @staff_member.role_key %>
 <% form_url = @staff_member.new_record? ? business_staff_members_path(@business) : business_staff_member_path(@business, @staff_member) %>
 <% form_method = @staff_member.new_record? ? :post : :patch %>
 <% password_error_present = @staff_member.errors[:password].any? || @staff_member.errors[:password_confirmation].any? %>
@@ -34,6 +35,13 @@
                       options_for_select(User::SEX_OPTIONS.map { |value, label| [label, value] }, (@staff_member.sex_key if @staff_member.respond_to?(:sex_key))),
                       {},
                       class: 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500' %>
+    </div>
+    <div class="space-y-2">
+      <label for="user_authorization_level" class="text-sm font-semibold text-slate-700">Nivel de autorizacion</label>
+      <%= select_tag 'user[authorization_level]',
+                     options_for_select([['Administrador', 'administrator'], ['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], selected_level),
+                     id: 'user_authorization_level',
+                     class: 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500' %>
     </div>
     <div class="space-y-2 md:col-span-2">
       <p class="text-sm font-semibold text-slate-700">Negocios asignados</p>

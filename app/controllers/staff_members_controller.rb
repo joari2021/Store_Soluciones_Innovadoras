@@ -16,17 +16,17 @@ class StaffMembersController < ApplicationController
 
   def create
     @staff_member = User.new(staff_member_params)
-    normalize_global_authorization!(@staff_member)
+    apply_authorization_level(@staff_member)
 
     User.transaction do
       @staff_member.save!
       sync_business_assignments!(@staff_member)
     end
 
-    redirect_to business_staff_members_path(@business), notice: 'Usuario creado correctamente.'
+    redirect_to business_staff_members_path(@business), notice: "Usuario creado correctamente."
   rescue ActiveRecord::RecordInvalid
     if @staff_member.business_user_assignments.empty?
-      @staff_member.errors.add(:base, 'Debes asignar al menos un negocio al usuario.')
+      @staff_member.errors.add(:base, "Debes asignar al menos un negocio al usuario.")
     end
 
     render :new, status: :unprocessable_entity
@@ -37,17 +37,17 @@ class StaffMembersController < ApplicationController
 
   def update
     @staff_member.assign_attributes(staff_member_params)
-    normalize_global_authorization!(@staff_member)
+    apply_authorization_level(@staff_member)
 
     User.transaction do
       @staff_member.save!
       sync_business_assignments!(@staff_member)
     end
 
-    redirect_to business_staff_members_path(@business), notice: 'Usuario actualizado correctamente.'
+    redirect_to business_staff_members_path(@business), notice: "Usuario actualizado correctamente."
   rescue ActiveRecord::RecordInvalid
     if @staff_member.business_user_assignments.empty?
-      @staff_member.errors.add(:base, 'Debes asignar al menos un negocio al usuario.')
+      @staff_member.errors.add(:base, "Debes asignar al menos un negocio al usuario.")
     end
 
     render :edit, status: :unprocessable_entity
@@ -55,19 +55,19 @@ class StaffMembersController < ApplicationController
 
   def destroy
     if @staff_member.id == Current.user&.id
-      redirect_to business_staff_members_path(@business), alert: 'No puedes eliminar tu propio usuario activo.'
+      redirect_to business_staff_members_path(@business), alert: "No puedes eliminar tu propio usuario activo."
       return
     end
 
     if @staff_member.admin?
       if User.where(admin: true).where.not(id: @staff_member.id).none?
-        redirect_to business_staff_members_path(@business), alert: 'Debe existir al menos un administrador en el sistema.'
+        redirect_to business_staff_members_path(@business), alert: "Debe existir al menos un administrador en el sistema."
         return
       end
     end
 
     @staff_member.destroy
-    redirect_to business_staff_members_path(@business), notice: 'Usuario eliminado.'
+    redirect_to business_staff_members_path(@business), notice: "Usuario eliminado."
   end
 
   private
@@ -82,7 +82,7 @@ class StaffMembersController < ApplicationController
     return if @staff_member.admin?
     return if @staff_member.assigned_to_business?(@business)
 
-    redirect_to business_staff_members_path(@business), alert: 'Este usuario no esta asignado al negocio seleccionado.'
+    redirect_to business_staff_members_path(@business), alert: "Este usuario no esta asignado al negocio seleccionado."
   end
 
   def staff_member_params
@@ -98,18 +98,31 @@ class StaffMembersController < ApplicationController
     )
   end
 
-  def normalize_global_authorization!(user)
-    if user.admin?
+  def authorization_level_param
+    raw_level = params.dig(:user, :authorization_level).to_s
+    return raw_level if %w[administrator manager standard_staff].include?(raw_level)
+
+    @staff_member&.role_key.presence || "standard_staff"
+  end
+
+  def apply_authorization_level(user)
+    case authorization_level_param
+    when "administrator"
+      user.admin = true
       user.personal = false
       user.personal_saime = true if user.respond_to?(:personal_saime=)
-      user.authorization_level = 'administrator' if user.respond_to?(:authorization_level=)
-      return
+      user.authorization_level = "administrator" if user.respond_to?(:authorization_level=)
+    when "manager"
+      user.admin = false
+      user.personal = true
+      user.personal_saime = false if user.respond_to?(:personal_saime=)
+      user.authorization_level = "manager" if user.respond_to?(:authorization_level=)
+    else
+      user.admin = false
+      user.personal = true
+      user.personal_saime = false if user.respond_to?(:personal_saime=)
+      user.authorization_level = "standard_staff" if user.respond_to?(:authorization_level=)
     end
-
-    user.admin = false
-    user.personal = true
-    user.personal_saime = false if user.respond_to?(:personal_saime=)
-    user.authorization_level = 'standard_staff' if user.respond_to?(:authorization_level=)
   end
 
   def selected_assignment_business_ids
@@ -127,7 +140,7 @@ class StaffMembersController < ApplicationController
     return role if %w[none manager standard_staff].include?(role)
 
     existing = @staff_member.business_user_assignments.find { |assignment| assignment.business_id == business_id }
-    existing&.authorization_level.presence || 'none'
+    existing&.authorization_level.presence || "none"
   end
 
   def assignment_customer_access_for(business_id)
@@ -138,7 +151,7 @@ class StaffMembersController < ApplicationController
     return level if BusinessUserAssignment::CUSTOMER_ACCESS_LEVELS.include?(level)
 
     existing = @staff_member.business_user_assignments.find { |assignment| assignment.business_id == business_id }
-    existing&.customer_access_level.presence || 'none'
+    existing&.customer_access_level.presence || "none"
   end
 
   def sync_business_assignments!(user)
