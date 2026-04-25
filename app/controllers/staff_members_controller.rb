@@ -16,7 +16,7 @@ class StaffMembersController < ApplicationController
 
   def create
     @staff_member = User.new(staff_member_params)
-    apply_authorization_level(@staff_member)
+    normalize_global_authorization!(@staff_member)
 
     User.transaction do
       @staff_member.save!
@@ -37,7 +37,7 @@ class StaffMembersController < ApplicationController
 
   def update
     @staff_member.assign_attributes(staff_member_params)
-    apply_authorization_level(@staff_member)
+    normalize_global_authorization!(@staff_member)
 
     User.transaction do
       @staff_member.save!
@@ -98,31 +98,18 @@ class StaffMembersController < ApplicationController
     )
   end
 
-  def authorization_level_param
-    raw_level = params.dig(:user, :authorization_level).to_s
-    return raw_level if %w[administrator manager standard_staff].include?(raw_level)
-
-    @staff_member&.role_key.presence || 'standard_staff'
-  end
-
-  def apply_authorization_level(user)
-    case authorization_level_param
-    when 'administrator'
-      user.admin = true
+  def normalize_global_authorization!(user)
+    if user.admin?
       user.personal = false
       user.personal_saime = true if user.respond_to?(:personal_saime=)
       user.authorization_level = 'administrator' if user.respond_to?(:authorization_level=)
-    when 'manager'
-      user.admin = false
-      user.personal = true
-      user.personal_saime = false if user.respond_to?(:personal_saime=)
-      user.authorization_level = 'manager' if user.respond_to?(:authorization_level=)
-    else
-      user.admin = false
-      user.personal = true
-      user.personal_saime = false if user.respond_to?(:personal_saime=)
-      user.authorization_level = 'standard_staff' if user.respond_to?(:authorization_level=)
+      return
     end
+
+    user.admin = false
+    user.personal = true
+    user.personal_saime = false if user.respond_to?(:personal_saime=)
+    user.authorization_level = 'standard_staff' if user.respond_to?(:authorization_level=)
   end
 
   def selected_assignment_business_ids
