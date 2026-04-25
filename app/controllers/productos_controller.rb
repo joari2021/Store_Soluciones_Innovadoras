@@ -15,6 +15,7 @@ class ProductosController < ApplicationController
 
   def import_from_global
     @query_text = params[:query_text].to_s.strip
+    @selected_global_category = normalize_import_global_category(params[:global_category])
     @selected_global_product_ids = Array(params[:selected_global_product_ids]).map(&:to_i).select(&:positive?).uniq
     @imported_global_product_ids = current_business.productos.where.not(global_product_id: nil).pluck(:global_product_id)
 
@@ -23,11 +24,22 @@ class ProductosController < ApplicationController
                  .where.not(id: @imported_global_product_ids)
                  .order(Arel.sql('LOWER(global_products.name) ASC'))
 
+    @global_category_options = import_global_category_options_for(scope: base_scope)
+
+    filtered_scope = case @selected_global_category
+                     when 'uncategorized'
+                       base_scope.where("COALESCE(NULLIF(TRIM(global_products.metadata->>'category_name'), ''), '') = ''")
+                     when nil
+                       base_scope
+                     else
+                       base_scope.where("LOWER(TRIM(global_products.metadata->>'category_name')) = ?", @selected_global_category.downcase)
+                     end
+
     @global_products = if @query_text.present?
                          escaped = ActiveRecord::Base.sanitize_sql_like(@query_text.downcase)
-                         base_scope.where('LOWER(global_products.name) LIKE ?', "%#{escaped}%")
+                         filtered_scope.where('LOWER(global_products.name) LIKE ?', "%#{escaped}%")
                        else
-                         base_scope
+                         filtered_scope
                        end
 
     @selected_global_product_ids -= @imported_global_product_ids
@@ -1055,6 +1067,27 @@ class ProductosController < ApplicationController
     rescue ArgumentError
       nil
     end
+  end
+
+  def normalize_import_global_category(raw_value)
+    value = raw_value.to_s.strip
+    return nil if value.blank?
+    return 'uncategorized' if value == 'uncategorized'
+
+    value
+  end
+
+  def import_global_category_options_for(scope:)
+    category_names = scope
+                     .where("COALESCE(NULLIF(TRIM(global_products.metadata->>'category_name'), ''), '') <> ''")
+                     .pluck(Arel.sql("TRIM(global_products.metadata->>'category_name')"))
+                     .map(&:to_s)
+                     .map(&:strip)
+                     .reject(&:blank?)
+                     .uniq
+                     .sort_by(&:downcase)
+
+    [['Todas las categorias', ''], ['Sin categoria', 'uncategorized']] + category_names.map { |name| [name, name] }
   end
 
   def parse_unpack_decimal(raw_value)
