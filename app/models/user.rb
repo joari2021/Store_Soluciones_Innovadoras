@@ -61,7 +61,7 @@ class User < ApplicationRecord
     return 'customer' if %w[customer customer_vip].include?(assignment_customer_level)
 
     assignment_level = assignment&.authorization_level.to_s
-    return assignment_level if %w[none manager standard_staff].include?(assignment_level)
+    return assignment_level if %w[none administrator manager standard_staff].include?(assignment_level)
 
     'none'
   end
@@ -86,7 +86,7 @@ class User < ApplicationRecord
   end
 
   def role_label(business = Current.business)
-    return female? ? 'Administradora' : 'Administrador' if admin?
+    return female? ? 'Administradora' : 'Administrador' if admin? || role_key(business) == 'administrator'
     return 'Cliente' if customer_mode?(business)
     return female? ? 'Encargada' : 'Encargado' if manager?(business)
     return 'Sin cargo' if role_key(business) == 'none'
@@ -113,7 +113,7 @@ class User < ApplicationRecord
 
   def can_access_module?(module_key)
     return false unless active_for_business?(Current.business)
-    return true if admin?
+    return true if admin? || role_key(Current.business) == 'administrator'
 
     if customer_mode?(Current.business)
       return %i[ventas historial_ventas deudas].include?(module_key.to_sym)
@@ -131,7 +131,7 @@ class User < ApplicationRecord
 
   def can_manage_action?(action_key)
     return false unless active_for_business?(Current.business)
-    return true if admin?
+    return true if admin? || role_key(Current.business) == 'administrator'
 
     return false if customer_mode?(Current.business)
 

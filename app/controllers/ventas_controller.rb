@@ -524,8 +524,11 @@ class VentasController < ApplicationController
 
   def create
     payload = venta_params
-    customer_mode = customer_sales_mode?
-    customer_vip_mode = customer_sales_vip_mode?
+    requested_customer_order_mode = ActiveModel::Type::Boolean.new.cast(payload[:customer_order_mode])
+    assignment = Current.user&.assignment_for_business(current_business)
+    assignment_customer_level = assignment&.customer_access_level.to_s
+    customer_mode = customer_sales_mode? || (requested_customer_order_mode && !Current.user&.admin?) || %w[customer customer_vip].include?(assignment_customer_level)
+    customer_vip_mode = customer_sales_vip_mode? || assignment_customer_level == "customer_vip"
 
     draft_id = payload[:draft_id].presence
     if customer_mode && draft_id.present?
@@ -586,7 +589,7 @@ class VentasController < ApplicationController
     base_currency = "USD" unless Venta::BASE_CURRENCIES.key?(base_currency)
 
     seller_user = source_draft&.user || Current.user
-    cashier_user = Current.user
+    cashier_user = customer_mode ? nil : Current.user
 
     venta = current_business.ventas.new(
       status: "draft",
@@ -1126,7 +1129,7 @@ class VentasController < ApplicationController
         if customer_mode
           notes_payload["customer_order"] = {
             "requested_by_user_id" => Current.user&.id,
-            "customer_access_level" => Current.user&.customer_access_level(current_business),
+            "customer_access_level" => assignment_customer_level.presence || Current.user&.customer_access_level(current_business),
             "status" => "pending_approval",
           }
         end
@@ -2968,6 +2971,7 @@ class VentasController < ApplicationController
   def venta_params
     params.require(:venta).permit(
       :draft_id,
+      :customer_order_mode,
       :draft_visibility,
       :draft_checkout_status,
       :vat_mode,

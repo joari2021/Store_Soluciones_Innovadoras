@@ -69,7 +69,7 @@
               <span><%= business_option.name %></span>
             </label>
             <%= select_tag "user[business_roles][#{business_option.id}]",
-                           options_for_select([['Sin cargo', 'none'], ['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], %w[none manager standard_staff].include?(role_value) ? role_value : 'none'),
+                           options_for_select([['Sin cargo', 'none'], ['Administrador', 'administrator'], ['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], %w[none administrator manager standard_staff].include?(role_value) ? role_value : 'none'),
                            class: "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500 #{checked ? '' : 'opacity-50'}",
                            disabled: !checked,
                            id: "role_#{business_option.id}" %>

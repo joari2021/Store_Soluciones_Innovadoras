@@ -133,7 +133,7 @@ class StaffMembersController < ApplicationController
     role = role_map.is_a?(ActionController::Parameters) || role_map.is_a?(Hash) ? role_map[business_id.to_s] : nil
     role = role.to_s
 
-    return role if %w[none manager standard_staff].include?(role)
+    return role if %w[none administrator manager standard_staff].include?(role)
 
     existing = @staff_member.business_user_assignments.find { |assignment| assignment.business_id == business_id }
     existing&.authorization_level.presence || "none"

@@ -20,7 +20,7 @@ module Authorization
       deny_access
     end
 
-    def deny_access(message = 'Acceso denegado.')
+    def deny_access(message = "Acceso denegado.")
       respond_to do |format|
         format.html { redirect_to root_path, alert: message }
         format.json { render json: { error: message }, status: :forbidden }
@@ -29,7 +29,12 @@ module Authorization
   end
 
   def current_user_admin?
-    Current.user&.admin?
+    user = Current.user
+    return false unless user
+    return true if user.admin?
+
+    business = respond_to?(:current_business, true) ? send(:current_business) : Current.business
+    user.role_key(business) == "administrator"
   end
 
   def current_user_standard_staff?
