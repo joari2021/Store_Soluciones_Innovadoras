@@ -2838,11 +2838,6 @@
           }
         }
 
-        if (summary.overpaid > 0.01) {
-          showWarning('Monto excedido', 'El total pagado no puede exceder el total de la factura.');
-          return false;
-        }
-
         if (summary.pendingPositive > 0.01 && !markPending) {
           showWarning('Saldo pendiente', 'El pago no cubre el total. Marca "Pendiente por pagar" para guardar el saldo como deuda.');
           return false;

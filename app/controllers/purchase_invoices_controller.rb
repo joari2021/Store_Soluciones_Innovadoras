@@ -163,6 +163,7 @@ class PurchaseInvoicesController < ApplicationController
 
   def create
     payment_context = nil
+    overpayment_warning = nil
     @purchase_invoice = current_business.purchase_invoices.new
     purchase_attrs = purchase_invoice_params.to_h
     resolved_supplier_id = resolve_local_supplier_id_from_global(
@@ -221,8 +222,11 @@ class PurchaseInvoicesController < ApplicationController
         create_invoice_payment_movements!(@purchase_invoice, payment_context[:payments])
         create_pending_supplier_debt!(@purchase_invoice, payment_context)
       end
+
+      overpayment_warning = overpayment_warning_for(payment_context)
     end
 
+    flash[:warning] = overpayment_warning if overpayment_warning.present?
     redirect_to purchase_invoices_path, notice: 'Factura creada correctamente'
   rescue ActiveRecord::RecordInvalid => e
     if e.record&.respond_to?(:errors) && e.record.errors.any?
@@ -242,6 +246,7 @@ class PurchaseInvoicesController < ApplicationController
   def update
     return update_intercompany_invoice if @purchase_invoice.intercompany?
 
+    overpayment_warning = nil
     update_attrs = purchase_invoice_params.to_h
     resolved_supplier_id = resolve_local_supplier_id_from_global(
       global_supplier_id: update_attrs['global_supplier_id'],
@@ -254,6 +259,7 @@ class PurchaseInvoicesController < ApplicationController
       unless @purchase_invoice.initial_inventory?
         payment_context = build_invoice_payment_context(@purchase_invoice)
         sync_pending_supplier_debt!(@purchase_invoice, payment_context)
+        overpayment_warning = overpayment_warning_for(payment_context)
       end
 
       success_message = if @purchase_invoice.initial_inventory?
@@ -262,6 +268,7 @@ class PurchaseInvoicesController < ApplicationController
                           'Factura actualizada'
                         end
 
+      flash[:warning] = overpayment_warning if overpayment_warning.present?
       redirect_to purchase_invoices_path, notice: success_message
     else
       load_invoice_payment_summary unless @purchase_invoice.initial_inventory?
@@ -272,6 +279,7 @@ class PurchaseInvoicesController < ApplicationController
   def update_intercompany_invoice
     source_business = @purchase_invoice.source_business
     payment_context = nil
+    overpayment_warning = nil
     if source_business.blank?
       @purchase_invoice.errors.add(:base, 'La factura interempresa no tiene negocio origen válido.')
       log_intercompany_update_failure!(stage: 'missing_source_business')
@@ -385,6 +393,8 @@ class PurchaseInvoicesController < ApplicationController
                         'Factura actualizada'
                       end
 
+    overpayment_warning = overpayment_warning_for(payment_context)
+    flash[:warning] = overpayment_warning if overpayment_warning.present?
     redirect_to purchase_invoices_path, notice: success_message
   rescue ActiveRecord::RecordInvalid => e
     if e.record&.respond_to?(:errors) && e.record.errors.any?
@@ -659,10 +669,6 @@ class PurchaseInvoicesController < ApplicationController
       invoice.errors.add(:base, 'Debes registrar al menos un pago en Bs o marcar la factura como pendiente por pagar.')
     end
 
-    if total_paid_bs > (total_invoice_bs + 0.01.to_d)
-      invoice.errors.add(:base, 'El total pagado en Bs no puede exceder el total de la factura.')
-    end
-
     if pending_amount_bs.positive? && !mark_pending_payment
       invoice.errors.add(:base,
                          'El pago no cubre el total de la factura. Marca la opción pendiente por pagar para guardar el saldo.')
@@ -769,6 +775,17 @@ class PurchaseInvoicesController < ApplicationController
 
       messages << account.insufficient_balance_message(required_amount, available_balance: account.balance)
     end
+  end
+
+  def overpayment_warning_for(payment_context)
+    return nil if payment_context.blank?
+
+    total_paid_bs = payment_context[:total_paid_bs].to_d.round(2)
+    total_invoice_bs = payment_context[:total_invoice_bs].to_d.round(2)
+    return nil unless total_paid_bs > (total_invoice_bs + 0.01.to_d)
+
+    overpaid_bs = (total_paid_bs - total_invoice_bs).round(2)
+    "Advertencia: registraste un pago directo con exceso de #{helpers.number_to_currency(overpaid_bs, unit: 'Bs ', precision: 2)}."
   end
 
   def create_invoice_payment_movements!(invoice, payments)
