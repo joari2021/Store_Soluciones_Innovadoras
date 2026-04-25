@@ -1288,20 +1288,35 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def invoice_pending_debts_scope(invoice)
-    invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
-    escaped_reference = ActiveRecord::Base.sanitize_sql_like(invoice_reference)
-
     current_business.debts
                     .where(debt_kind: 'payable')
-                    .where(
-                      'description LIKE :tag OR description LIKE :legacy',
-                      tag: "%[FACTURA_COMPRA:#{invoice.id}]%",
-                      legacy: "Saldo pendiente factura #{escaped_reference}%"
-                    )
+                    .where('description LIKE ?', "%[FACTURA_COMPRA:#{invoice.id}]%")
   end
 
   def find_invoice_pending_debt(invoice)
-    invoice_pending_debts_scope(invoice).order(created_at: :desc).first
+    tagged_match = invoice_pending_debts_scope(invoice).order(created_at: :desc).first
+    return tagged_match if tagged_match.present?
+
+    legacy_invoice_pending_debts_scope(invoice).order(created_at: :desc).first
+  end
+
+  def legacy_invoice_pending_debts_scope(invoice)
+    invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
+    escaped_reference = ActiveRecord::Base.sanitize_sql_like(invoice_reference)
+    supplier_name = invoice.supplier_display_name.to_s.strip.downcase
+
+    scope = current_business.debts
+                           .where(debt_kind: 'payable')
+                           .where('description LIKE ?', "Saldo pendiente factura #{escaped_reference}%")
+                           .where('description NOT LIKE ?', '%[IC_MIRROR]%')
+                           .where('description NOT LIKE ?', '%[FACTURA_COMPRA_MIRROR:%')
+
+    return scope if supplier_name.blank?
+
+    scope.where(
+      'LOWER(TRIM(COALESCE(acreedor, \'\'))) = :supplier OR LOWER(TRIM(COALESCE(name, \'\'))) = :supplier',
+      supplier: supplier_name
+    )
   end
 
   def sync_intercompany_pending_debts!(invoice, source_business:, payment_context: nil)
