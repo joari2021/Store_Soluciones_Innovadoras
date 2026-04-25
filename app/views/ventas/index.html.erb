@@ -485,10 +485,12 @@
         </div>
       </div>
     </div>
-    <button id="ventas-cart-toggle" type="button" class="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-2xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-slate-800">
-      <i data-lucide="shopping-cart" class="h-5 w-5"></i>
-      <span id="ventas-cart-count" class="absolute -top-2 -right-2 hidden min-w-[1.7rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white shadow">0</span>
-    </button>
+    <% unless customer_pos_mode %>
+      <button id="ventas-cart-toggle" type="button" class="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-2xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-slate-800">
+        <i data-lucide="shopping-cart" class="h-5 w-5"></i>
+        <span id="ventas-cart-count" class="absolute -top-2 -right-2 hidden min-w-[1.7rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white shadow">0</span>
+      </button>
+    <% end %>
   </div>
 </section>
 <div id="ventas-cart-modal" class="fixed inset-0 z-50 pointer-events-none" aria-hidden="true">
@@ -5410,8 +5412,19 @@
 
       vatRenderReady = true;
 
+      const showCustomerCatalogOnlyAlert = () => {
+        if (!window.Swal) return;
+        window.Swal.fire({
+          icon: 'info',
+          title: 'Solo visualizacion por ahora',
+          text: 'Por el momento solo puede ver los productos y pronto podran hacer pedidos directamente.',
+          heightAuto: false,
+        });
+      };
+
       const setCartModalOpen = (isOpen) => {
         if (!cartModal || !cartBackdrop || !cartPanel) return;
+        if (isCustomerPosMode && isOpen) return;
 
         if (isOpen) {
           cartModal.classList.remove('pointer-events-none');
@@ -7562,6 +7575,10 @@
           const card = event.target.closest('.ventas-product-card');
           const productId = addButton?.dataset.productId || card?.dataset.productId;
           if (!productId) return;
+          if (isCustomerPosMode) {
+            showCustomerCatalogOnlyAlert();
+            return;
+          }
           if (!window.Swal) {
             addToCart(productId, null, 1);
             return;
@@ -7577,6 +7594,10 @@
           const card = event.target.closest('.ventas-service-card');
           const serviceId = addButton?.dataset.serviceId || card?.dataset.serviceId;
           if (!serviceId) return;
+          if (isCustomerPosMode) {
+            showCustomerCatalogOnlyAlert();
+            return;
+          }
 
           const service = servicesById.get(String(serviceId));
           if (!service) return;
