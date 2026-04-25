@@ -627,7 +627,7 @@
       updatesContainer.dataset.liveUpdatesBound = "true";
 
       const replaceProductRows = (productId, rowsHtml) => {
-        if (!productId || !rowsHtml) return;
+        if (!productId) return;
 
         const selectors = [
           `tr[data-product-row-id="${productId}"]`,
@@ -644,7 +644,7 @@
         oldRows.forEach((row) => row.remove());
 
         const parser = document.createElement("template");
-        parser.innerHTML = rowsHtml.trim();
+  parser.innerHTML = (rowsHtml || "").trim();
         const newRows = Array.from(parser.content.querySelectorAll("tr"));
         if (!newRows.length) return;
 

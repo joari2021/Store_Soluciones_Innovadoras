@@ -141,6 +141,7 @@ class GlobalProductsController < ApplicationController
       GlobalCatalog::SyncGlobalProductTaxonomyService.new(@global_product).call
 
       if request.headers["Turbo-Frame"].present?
+        render_row = global_product_matches_current_filters?(@global_product)
         below_target_badge = view_context.turbo_stream.replace(
           "global-products-below-target-badge",
           view_context.render(
@@ -149,22 +150,26 @@ class GlobalProductsController < ApplicationController
           ),
         )
 
-        replace_row = view_context.turbo_stream.replace(
-          view_context.dom_id(@global_product, :global_row),
-          view_context.render(
-            partial: "global_products/table_row",
-            locals: {
-              product: @global_product,
-              row_class: "bg-white",
-              flash_row: true,
-              query_text: params[:query_text],
-              selected_category: params[:category_name],
-              below_target_margin_filter: ActiveModel::Type::Boolean.new.cast(params[:below_target_margin]),
-            },
-          ),
-        )
+        row_stream = if render_row
+                       view_context.turbo_stream.replace(
+                         view_context.dom_id(@global_product, :global_row),
+                         view_context.render(
+                           partial: "global_products/table_row",
+                           locals: {
+                             product: @global_product,
+                             row_class: "bg-white",
+                             flash_row: true,
+                             query_text: params[:query_text],
+                             selected_category: params[:category_name],
+                             below_target_margin_filter: ActiveModel::Type::Boolean.new.cast(params[:below_target_margin]),
+                           },
+                         ),
+                       )
+                     else
+                       view_context.turbo_stream.remove(view_context.dom_id(@global_product, :global_row))
+                     end
         clear_frame = view_context.turbo_stream.update("modal-global-products", "")
-        render turbo_stream: [below_target_badge, replace_row, clear_frame]
+        render turbo_stream: [below_target_badge, row_stream, clear_frame]
       else
         redirect_to global_products_path, notice: "Producto global actualizado."
       end
@@ -363,6 +368,31 @@ class GlobalProductsController < ApplicationController
 
   def filter_by_below_target_margin(scope)
     scope.where(below_target_margin_condition_sql)
+  end
+
+  def global_product_matches_current_filters?(product)
+    scope = GlobalProduct.where(id: product.id)
+
+    query_text = params[:query_text].to_s.strip
+    selected_category = params[:category_name].to_s.strip
+    below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+
+    if query_text.present?
+      escaped = ActiveRecord::Base.sanitize_sql_like(query_text.downcase)
+      scope = scope.where("LOWER(global_products.name) LIKE ?", "%#{escaped}%")
+    end
+
+    if selected_category.present?
+      if selected_category == "Sin categoria"
+        scope = scope.where("COALESCE(NULLIF(TRIM(global_products.metadata->>'category_name'), ''), '') = ''")
+      else
+        scope = scope.where("LOWER(TRIM(global_products.metadata->>'category_name')) = ?", selected_category.downcase)
+      end
+    end
+
+    scope = filter_by_below_target_margin(scope) if below_target_margin_filter
+
+    scope.exists?
   end
 
   def calculate_below_target_margin_total_count

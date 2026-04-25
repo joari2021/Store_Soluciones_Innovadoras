@@ -445,10 +445,11 @@ class ProductosController < ApplicationController
 
     if @producto.update(update_attrs)
       if request.headers['Turbo-Frame'].present?
+        render_row = product_matches_current_filters?(@producto)
         row_payload = view_context.turbo_stream.append(
           'products-live-updates',
           partial: 'productos/row_update_payload',
-          locals: { producto: @producto }
+          locals: { producto: @producto, render_row: render_row }
         )
         low_stock_count = calculate_low_stock_total_count
         below_target_count = calculate_below_target_margin_total_count
@@ -1368,6 +1369,22 @@ class ProductosController < ApplicationController
     relation.includes(:profit_margin_preset, :stock_lots)
             .select(&:below_target_margin_for_highest_active_lot?)
             .map(&:id)
+  end
+
+  def product_matches_current_filters?(producto)
+    scope = current_business.productos.where(id: producto.id)
+
+    query_text = params[:query_text].to_s.strip
+    low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
+    below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+    category_id = params[:category_id].to_s.strip
+
+    scope = scope.whose_name_starts_with(query_text) if query_text.present?
+    scope = scope.where(categoria_id: category_id.to_i) if category_id.present?
+    scope = filter_by_low_stock(scope) if low_stock_filter
+    scope = filter_by_below_target_margin(scope) if below_target_margin_filter
+
+    scope.exists?
   end
 
   def low_stock_product_ids_for_scope(scope)

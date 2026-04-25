@@ -1,5 +1,7 @@
 <div data-product-row-update="true" data-product-id="<%= producto.id %>">
-  <template data-product-row-update-html>
-    <%= render partial: 'productos/product_table_rows', locals: { productos: [producto] } %>
-  </template>
+  <% if local_assigns.fetch(:render_row, true) %>
+    <template data-product-row-update-html>
+      <%= render partial: 'productos/product_table_rows', locals: { productos: [producto] } %>
+    </template>
+  <% end %>
 </div>

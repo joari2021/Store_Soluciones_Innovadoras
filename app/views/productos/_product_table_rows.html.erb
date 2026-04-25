@@ -1,6 +1,10 @@
 <% can_manage_products = can_manage_action?(:manage_products) %>
 <% can_view_sensitive_inventory = current_user_admin? %>
 <% table_total_columns = 5 + (can_view_sensitive_inventory ? 3 : 0) + (can_manage_products ? 1 : 0) %>
+<% query_text_value = params[:query_text].to_s.strip %>
+<% category_id_value = params[:category_id].to_s.strip %>
+<% low_stock_filter_active = ActiveModel::Type::Boolean.new.cast(params[:low_stock]) %>
+<% below_target_margin_filter_active = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin]) %>
 <% productos.each do |producto| %>
   <% variations = producto.product_variations.to_a.sort_by { |variation| variation.description.to_s.downcase } %>
   <% sorted_lots = producto.stock_lots.to_a.sort_by { |lot| [lot.purchased_at || lot.created_at, lot.created_at] }.reverse %>
@@ -185,7 +189,13 @@
   <% if can_manage_products %>
     <td class="px-6 py-4">
       <div class="flex justify-end gap-2">
-        <%= link_to edit_producto_path(producto), remote: true, method: :get, class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-sky-50 p-2 text-sky-600 transition-colors hover:bg-sky-100', data: { turbo_frame: 'modal-productos' }, onclick: "openModal('productModal')" do %>
+        <%= link_to edit_producto_path(
+              producto,
+              query_text: query_text_value.presence,
+              category_id: category_id_value.presence,
+              low_stock: (low_stock_filter_active ? '1' : nil),
+              below_target_margin: (below_target_margin_filter_active ? '1' : nil)
+            ), remote: true, method: :get, class: 'inline-flex cursor-pointer items-center justify-center rounded-lg bg-sky-50 p-2 text-sky-600 transition-colors hover:bg-sky-100', data: { turbo_frame: 'modal-productos' }, onclick: "openModal('productModal')" do %>
           <i data-lucide="edit-3" class="h-4 w-4"></i>
         <% end %>
         <%= button_to producto_path(producto),

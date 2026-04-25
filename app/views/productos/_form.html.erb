@@ -1,4 +1,12 @@
 <%= form_with(model: producto, data: { controller: "form-producto", 'form-producto-tasa-dolar-value' => (@tasa_dolar_bcv || 0), 'form-producto-persisted-value' => producto.persisted? }, html: { class: "space-y-4" }) do |form| %>
+  <% query_text_value = params[:query_text].to_s.strip %>
+  <% category_id_value = params[:category_id].to_s.strip %>
+  <% low_stock_filter_active = ActiveModel::Type::Boolean.new.cast(params[:low_stock]) %>
+  <% below_target_margin_filter_active = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin]) %>
+  <%= hidden_field_tag :query_text, query_text_value if query_text_value.present? %>
+  <%= hidden_field_tag :category_id, category_id_value if category_id_value.present? %>
+  <%= hidden_field_tag :low_stock, '1' if low_stock_filter_active %>
+  <%= hidden_field_tag :below_target_margin, '1' if below_target_margin_filter_active %>
   <% locked_by_global = producto.global_product_id.present? %>
   <% locked_hint = 'Este campo se edita en Productos Globales.' %>
   <% locked_field_class = 'cursor-not-allowed bg-slate-100 border-red-200 text-slate-500' %>
