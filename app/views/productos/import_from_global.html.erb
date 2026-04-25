@@ -70,21 +70,19 @@
               <th class="px-6 py-4 text-left font-bold">Imagen</th>
               <th class="px-6 py-4 text-left font-bold">Descripcion</th>
               <th class="px-6 py-4 text-left font-bold">Presentacion</th>
+              <th class="px-6 py-4 text-left font-bold">% Ganancia</th>
               <th class="px-6 py-4 text-left font-bold">Categoria global</th>
               <th class="px-6 py-4 text-left font-bold">Origen</th>
-              <th class="px-6 py-4 text-right font-bold">Estado</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
             <% @global_products.each_with_index do |global_product, index| %>
-              <% already_imported = @imported_global_product_ids.include?(global_product.id) %>
               <% presentation_label = global_product.presentation.to_s == 'pack' ? "Pack (#{global_product.cant_presentation} unid)" : 'Unidad' %>
+              <% margin_value = global_product.fixed_margin_percentage %>
+              <% margin_label = margin_value.present? ? "#{number_with_precision(margin_value, precision: 2, strip_insignificant_zeros: true)}%" : '-' %>
               <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
                 <td class="px-6 py-4 text-center">
-                  <% if already_imported %>
-                    <span class="text-xs font-semibold text-slate-400">-</span>
-                  <% else %>
-                    <input type="checkbox"
+                  <input type="checkbox"
                          name="global_product_ids[]"
                          value="<%= global_product.id %>"
                       <%= 'checked' if @selected_global_product_ids.include?(global_product.id) %>
@@ -92,7 +90,6 @@
                       data-global-product-id="<%= global_product.id %>"
                          data-action="change->global-import-selection#toggle"
                     data-global-import-selection-target="checkbox">
-                  <% end %>
                 </td>
                 <td class="px-6 py-4">
                   <div class="h-10 w-10 overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
@@ -105,19 +102,9 @@
                 </td>
                 <td class="px-6 py-4 font-semibold text-slate-800"><%= global_product.name %></td>
                 <td class="px-6 py-4"><%= presentation_label %></td>
+                <td class="px-6 py-4"><%= margin_label %></td>
                 <td class="px-6 py-4"><%= global_product.category_name.presence || '-' %></td>
                 <td class="px-6 py-4 text-slate-600"><%= global_product.source_business&.name || '-' %></td>
-                <td class="px-6 py-4 text-right">
-                  <% if already_imported %>
-                    <span class="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-                      Ya importado
-                    </span>
-                  <% else %>
-                    <span class="inline-flex items-center justify-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700">
-                      Disponible
-                    </span>
-                  <% end %>
-                </td>
               </tr>
             <% end %>
           </tbody>
