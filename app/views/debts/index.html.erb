@@ -426,21 +426,21 @@
           <select name="currency" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
             <% @group_setup_currency_options.each do |currency| %>
               <option value="<%= currency %>" <%= 'selected' if currency.to_s.upcase == 'USD' %>><%= currency %></option>
-            <% end %>
-          </select>
-        </div>
-        <div class="flex items-center gap-2 pt-1">
-          <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-            Continuar
-          </button>
-          <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-prepare-group-close="true">
-            Cancelar
-          </button>
-        </div>
-      <% end %>
+              <% end %>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 pt-1">
+            <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+              Continuar
+            </button>
+            <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-prepare-group-close="true">
+              Cancelar
+            </button>
+          </div>
+        <% end %>
+      </div>
     </div>
-  </div>
-<% end %>
+  <% end %>
   <script>
     (function () {
       const initDebtIndexTransition = () => {

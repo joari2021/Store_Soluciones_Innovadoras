@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_24_233000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_25_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -26,6 +26,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_24_233000) do
     t.bigint "account_settlement_id"
     t.bigint "cambio_efectivo_id"
     t.string "reference"
+    t.decimal "commission_amount", precision: 14, scale: 2
     t.index ["account_id", "occurred_at"], name: "index_account_movements_on_account_id_and_occurred_at"
     t.index ["account_id"], name: "index_account_movements_on_account_id"
     t.index ["account_settlement_id"], name: "index_account_movements_on_account_settlement_id"

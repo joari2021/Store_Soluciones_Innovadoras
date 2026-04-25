@@ -13,7 +13,7 @@ class GlobalProfitMarginPresetsController < ApplicationController
     @global_profit_margin_preset = GlobalProfitMarginPreset.new(global_profit_margin_preset_params)
 
     if @global_profit_margin_preset.save
-      redirect_to global_profit_margin_presets_path, notice: 'Porcentaje fijo global creado exitosamente.'
+      redirect_to global_profit_margin_presets_path, notice: "Porcentaje fijo global creado exitosamente."
     else
       @global_profit_margin_presets = GlobalProfitMarginPreset.order(:percentage)
       @global_product_counts_by_percentage = global_product_counts_by_percentage
@@ -29,7 +29,7 @@ class GlobalProfitMarginPresetsController < ApplicationController
 
     if @global_profit_margin_preset.update(global_profit_margin_preset_params)
       sync_global_products_fixed_margin(previous_percentage, @global_profit_margin_preset.percentage)
-      redirect_to global_profit_margin_presets_path, notice: 'Porcentaje fijo global actualizado exitosamente.'
+      redirect_to global_profit_margin_presets_path, notice: "Porcentaje fijo global actualizado exitosamente."
     else
       render :edit, status: :unprocessable_entity
     end
@@ -39,9 +39,9 @@ class GlobalProfitMarginPresetsController < ApplicationController
     clear_global_products_fixed_margin(@global_profit_margin_preset.percentage)
 
     if @global_profit_margin_preset.destroy
-      redirect_to global_profit_margin_presets_path, notice: 'Porcentaje fijo global eliminado exitosamente.'
+      redirect_to global_profit_margin_presets_path, notice: "Porcentaje fijo global eliminado exitosamente."
     else
-      message = @global_profit_margin_preset.errors.full_messages.to_sentence.presence || 'No se pudo eliminar el porcentaje fijo global.'
+      message = @global_profit_margin_preset.errors.full_messages.to_sentence.presence || "No se pudo eliminar el porcentaje fijo global."
       redirect_to global_profit_margin_presets_path, alert: message
     end
   end
@@ -100,12 +100,12 @@ class GlobalProfitMarginPresetsController < ApplicationController
     return nil if compact.blank?
 
     normalized = if compact.include?(",")
-                   compact.delete(".").tr(",", ".")
-                 elsif compact.count(".") > 1 && compact.split(".").drop(1).all? { |group| group.length == 3 }
-                   compact.delete(".")
-                 else
-                   compact
-                 end
+        compact.delete(".").tr(",", ".")
+      elsif compact.count(".") > 1 && compact.split(".").drop(1).all? { |group| group.length == 3 }
+        compact.delete(".")
+      else
+        compact
+      end
 
     BigDecimal(normalized)
   rescue ArgumentError

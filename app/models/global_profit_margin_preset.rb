@@ -19,12 +19,12 @@ class GlobalProfitMarginPreset < ApplicationRecord
     return nil if compact.blank?
 
     normalized = if compact.include?(",")
-                   compact.delete(".").tr(",", ".")
-                 elsif compact.count(".") > 1 && compact.split(".").drop(1).all? { |group| group.length == 3 }
-                   compact.delete(".")
-                 else
-                   compact
-                 end
+        compact.delete(".").tr(",", ".")
+      elsif compact.count(".") > 1 && compact.split(".").drop(1).all? { |group| group.length == 3 }
+        compact.delete(".")
+      else
+        compact
+      end
 
     BigDecimal(normalized)
   rescue ArgumentError
