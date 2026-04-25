@@ -7479,12 +7479,17 @@
 
           if (window.Swal) {
             const saleShowUrl = `/ventas/${encodeURIComponent(String(data.id || ''))}`;
+            const successTitle = isCustomerPosMode ? 'Pedido registrado' : 'Venta registrada';
+            const successText = isCustomerPosMode
+              ? 'El pedido fue realizado con exito. Debe ser aprobado por el encargado y tendra 24 horas para culminarlo. Sus productos han sido reservados.'
+              : 'La venta fue registrada correctamente.';
+            const successConfirmText = isCustomerPosMode ? 'Ver pedido' : 'Ver venta';
             const result = await window.Swal.fire({
               icon: 'success',
-              title: 'Venta registrada',
-              text: 'La venta fue registrada correctamente.',
+              title: successTitle,
+              text: successText,
               showCancelButton: true,
-              confirmButtonText: 'Ver venta',
+              confirmButtonText: successConfirmText,
               cancelButtonText: 'Cerrar',
               reverseButtons: true,
               heightAuto: false,
