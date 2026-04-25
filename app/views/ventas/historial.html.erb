@@ -12,6 +12,8 @@
 <% invoice_statuses_by_sale_id = @invoice_statuses_by_sale_id || {} %>
 <% default_invoice_status = { label: 'Pagada', badge_class: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' } %>
 <% historial_cash_exchanges = @historial_cash_exchanges || [] %>
+<% customer_history_restricted_ui = current_user_customer_mode? || current_user_customer_vip_mode? %>
+<% historial_filters_grid_class = customer_history_restricted_ui ? 'grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' : 'grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,14rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' %>
 <div class="space-y-6 fade-in">
   <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
@@ -26,13 +28,15 @@
         <p class="mt-2 max-w-xl text-sm leading-6 text-slate-600 md:text-base">Consulta operaciones, detecta rapido la moneda base de cada venta y navega al detalle con una lectura visual mucho mas clara.</p>
       </div>
       <div class="flex flex-wrap gap-2">
-        <%= link_to historial_productos_ventas_path(historial_query_params), class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 font-medium text-sky-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-sky-100 active:scale-95 md:w-auto" do %>
-          <i data-lucide="package-search" class="h-4 w-4"></i>
-          Productos vendidos
-        <% end %>
-        <%= link_to borradores_ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95 md:w-auto" do %>
-          <i data-lucide="files" class="h-4 w-4"></i>
-          Borradores
+        <% unless customer_history_restricted_ui %>
+          <%= link_to historial_productos_ventas_path(historial_query_params), class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 font-medium text-sky-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-sky-100 active:scale-95 md:w-auto" do %>
+            <i data-lucide="package-search" class="h-4 w-4"></i>
+            Productos vendidos
+          <% end %>
+          <%= link_to borradores_ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95 md:w-auto" do %>
+            <i data-lucide="files" class="h-4 w-4"></i>
+            Borradores
+          <% end %>
         <% end %>
         <%= link_to ventas_path, class: "inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-slate-800 active:scale-95 md:w-auto" do %>
           <i data-lucide="shopping-cart" class="h-4 w-4"></i>
@@ -41,23 +45,25 @@
       </div>
     </div>
     <div class="relative mt-6 rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm backdrop-blur">
-      <%= form_with url: historial_ventas_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,14rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' do %>
-        <div>
-          <label for="historial_cliente_query" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Cliente</label>
-          <%= text_field_tag :cliente_query,
-                             selected_cliente_query,
-                             id: 'historial_cliente_query',
-                             autocomplete: 'off',
-                             placeholder: 'Nombre, documento...',
-                             class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
-        </div>
-        <div>
-          <label for="historial_cash_shift_id" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Turno</label>
-          <%= select_tag :cash_shift_id,
-                         options_for_select(cash_shift_options, selected_cash_shift_id),
-                         id: 'historial_cash_shift_id',
-                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
-        </div>
+      <%= form_with url: historial_ventas_path, method: :get, local: true, class: historial_filters_grid_class do %>
+        <% unless customer_history_restricted_ui %>
+          <div>
+            <label for="historial_cliente_query" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Cliente</label>
+            <%= text_field_tag :cliente_query,
+                               selected_cliente_query,
+                               id: 'historial_cliente_query',
+                               autocomplete: 'off',
+                               placeholder: 'Nombre, documento...',
+                               class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          </div>
+          <div>
+            <label for="historial_cash_shift_id" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Turno</label>
+            <%= select_tag :cash_shift_id,
+                           options_for_select(cash_shift_options, selected_cash_shift_id),
+                           id: 'historial_cash_shift_id',
+                           class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          </div>
+        <% end %>
         <div>
           <label for="historial_fecha_desde" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Desde</label>
           <%= text_field_tag :fecha_desde,
@@ -82,39 +88,42 @@
         <% end %>
       <% end %>
     </div>
-    <div class="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ventas filtradas</p>
-        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= total_sales %></p>
-        <p class="mt-1 text-xs text-slate-500">Incluye paginas aun no cargadas</p>
+    <% unless customer_history_restricted_ui %>
+      <div class="relative mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Ventas filtradas</p>
+          <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= total_sales %></p>
+          <p class="mt-1 text-xs text-slate-500">Incluye paginas aun no cargadas</p>
+        </div>
+        <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Con cliente</p>
+          <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= sales_with_client %></p>
+          <p class="mt-1 text-xs text-slate-500">Aplicado al filtro activo</p>
+        </div>
+        <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total USD</p>
+          <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(total_usd, unit: '$') %></p>
+          <p class="mt-1 text-xs text-slate-500">Referencia del filtro activo</p>
+        </div>
+        <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total VES</p>
+          <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(total_ves, unit: 'Bs ') %></p>
+          <p class="mt-1 text-xs text-slate-500">Referencia del filtro activo</p>
+        </div>
       </div>
-      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Con cliente</p>
-        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= sales_with_client %></p>
-        <p class="mt-1 text-xs text-slate-500">Aplicado al filtro activo</p>
-      </div>
-      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total USD</p>
-        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(total_usd, unit: '$') %></p>
-        <p class="mt-1 text-xs text-slate-500">Referencia del filtro activo</p>
-      </div>
-      <div class="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur">
-        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Total VES</p>
-        <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= format_money(total_ves, unit: 'Bs ') %></p>
-        <p class="mt-1 text-xs text-slate-500">Referencia del filtro activo</p>
-      </div>
-    </div>
+    <% end %>
   </div>
-  <div class="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
-    <div class="flex items-center justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-6 py-4">
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Contexto de ventas</p>
-        <h2 class="mt-1 text-lg font-bold text-slate-800">Pasarela de cambios</h2>
+  <% unless customer_history_restricted_ui %>
+    <div class="overflow-hidden rounded-3xl border border-emerald-200 bg-white shadow-sm">
+      <div class="flex items-center justify-between gap-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 via-white to-teal-50 px-6 py-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Contexto de ventas</p>
+          <h2 class="mt-1 text-lg font-bold text-slate-800">Pasarela de cambios</h2>
+        </div>
+        <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100"><%= historial_cash_exchanges.size %> operaciones</span>
       </div>
-      <span class="inline-flex items-center rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-100"><%= historial_cash_exchanges.size %> operaciones</span>
-    </div>
-    <% if historial_cash_exchanges.any? %>
-      <div class="grid grid-cols-[minmax(0,0.55fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.45fr)] gap-3 border-b border-emerald-100 bg-emerald-50/70 px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
+      <% if historial_cash_exchanges.any? %>
+        <div class="grid grid-cols-[minmax(0,0.55fr)_minmax(0,0.7fr)_minmax(0,0.8fr)_minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,0.7fr)_minmax(0,0.45fr)] gap-3 border-b border-emerald-100 bg-emerald-50/70 px-6 py-4 text-xs font-bold uppercase tracking-wider text-slate-500">
         <div class="text-left">Operacion</div>
         <div class="text-left">Fecha</div>
         <div class="text-left">Facturo</div>
@@ -123,7 +132,7 @@
         <div class="text-center">Ganancia</div>
         <div class="text-right">Acciones</div>
       </div>
-      <div class="divide-y divide-slate-100">
+        <div class="divide-y divide-slate-100">
         <% historial_cash_exchanges.each_with_index do |exchange, index| %>
           <% can_delete_exchange = current_user_admin? || (exchange.cash_shift&.open? && exchange.user_id == Current.user&.id) %>
           <% gain = (exchange.monto_recibido.to_d - exchange.efectivo_vendido.to_d).round(2) %>
@@ -222,13 +231,14 @@
             </div>
           </div>
         <% end %>
-      </div>
-    <% else %>
-      <div class="px-6 py-8 text-center text-sm text-slate-500">
-        No hay operaciones de pasarela para el filtro seleccionado.
-      </div>
-    <% end %>
-  </div>
+        </div>
+      <% else %>
+        <div class="px-6 py-8 text-center text-sm text-slate-500">
+          No hay operaciones de pasarela para el filtro seleccionado.
+        </div>
+      <% end %>
+    </div>
+  <% end %>
   <% if @ventas.any? %>
     <div class="grid gap-4 md:hidden">
       <%= turbo_frame_tag "ventas-history-mobile-#{@pagy.page}", class: "contents" do %>
