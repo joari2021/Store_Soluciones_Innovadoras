@@ -1,5 +1,6 @@
 <% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
 <% payment_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
+<% customer_debt_view = current_user_customer_mode? %>
 <div class="space-y-6" data-controller="venta-modal">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -84,14 +85,16 @@
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Deudas asociadas</p>
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold text-slate-500"><%= @show_debt_rows.size %> deudas</span>
-        <button
-          type="button"
-          class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
-          data-add-debt-open="true"
-        >
-          <i data-lucide="plus" class="h-4 w-4"></i>
-          Agregar deuda
-        </button>
+        <% unless customer_debt_view %>
+          <button
+            type="button"
+            class="inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+            data-add-debt-open="true"
+          >
+            <i data-lucide="plus" class="h-4 w-4"></i>
+            Agregar deuda
+          </button>
+        <% end %>
       </div>
     </div>
     <% if @show_debt_rows.any? %>
@@ -164,6 +167,8 @@
                       >
                         <i data-lucide="info" class="h-4 w-4"></i>
                       </button>
+                    <% elsif customer_debt_view %>
+                      <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-400 ring-1 ring-slate-200">Lectura</span>
                     <% else %>
                       <% debt_entry = {
                            debt_id: debt.id,
@@ -222,7 +227,7 @@
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pagos registrados</p>
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold text-slate-500"><%= @payments.count %> pagos</span>
-        <% unless @debt.new_record? %>
+        <% unless @debt.new_record? || customer_debt_view %>
           <button
             type="button"
             class="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold shadow-sm <%= @can_register_group_payment ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-slate-200 text-slate-500 cursor-not-allowed' %>"
@@ -299,6 +304,7 @@
       <div data-venta-modal-target="content"></div>
     </div>
   </div>
+  <% unless customer_debt_view %>
   <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-register-payment-modal="true">
     <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
       <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-register-payment-close="true">&times;</button>
@@ -412,6 +418,7 @@
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
         <h3 class="text-lg font-bold text-slate-800" data-add-debt-title="true">Agregar deuda al registro</h3>
       </div>
+      <% end %>
       <%= form_with url: debts_path, method: :post, local: true, class: "space-y-4", data: { add_debt_form: true } do %>
         <%= hidden_field_tag "debt[debt_kind]", @debt.debt_kind %>
         <%= hidden_field_tag "debt[cliente_id]", @debt.cliente_id %>

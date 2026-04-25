@@ -2,6 +2,7 @@ class DebtPaymentsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
   before_action :ensure_can_register_debt_payment!, only: %i[new create]
+  before_action :ensure_can_destroy_debt_payment!, only: %i[destroy]
   before_action :set_debt
   before_action :load_accounts, only: %i[new create]
   before_action :load_intercompany_mirror_accounts, only: %i[new create]
@@ -168,8 +169,21 @@ class DebtPaymentsController < ApplicationController
     deny_access('Solo administrador o encargado pueden registrar cobros/pagos de deudas.')
   end
 
+  def ensure_can_destroy_debt_payment!
+    return if current_user_admin? || current_user_manager?
+
+    deny_access('Solo administrador o encargado pueden eliminar pagos de deudas.')
+  end
+
   def set_debt
-    current_debt = current_business.debts.excluding_service_cost_records.find(params[:debt_id])
+    scope = current_business.debts.excluding_service_cost_records
+
+    if current_user_customer_mode?
+      customer_cliente = current_business&.clientes&.find_by(user_id: Current.user&.id)
+      scope = customer_cliente.present? ? scope.where(debt_kind: 'receivable', cliente_id: customer_cliente.id) : scope.none
+    end
+
+    current_debt = scope.find(params[:debt_id])
     @debt = group_root_for(current_debt)
     @show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
     @show_group_token = params[:group_token].to_s.strip.presence || @debt.try(:group_token).to_s.strip.presence

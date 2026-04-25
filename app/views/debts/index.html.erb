@@ -1,14 +1,17 @@
 <div class="space-y-6">
+  <% customer_debt_view = current_user_customer_mode? %>
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Deudas</h1>
-        <p class="mt-1 text-sm text-slate-500">Controla cuentas por cobrar y por pagar en un solo lugar.</p>
+        <p class="mt-1 text-sm text-slate-500"><%= customer_debt_view ? 'Consulta unicamente las deudas asociadas a tu usuario.' : 'Controla cuentas por cobrar y por pagar en un solo lugar.' %></p>
       </div>
-      <button type="button" class="w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" data-prepare-group-open="true">
-        <i data-lucide="plus" class="h-5 w-5"></i>
-        Nueva deuda
-      </button>
+      <% unless customer_debt_view %>
+        <button type="button" class="w-full md:w-auto bg-slate-900 text-white px-6 py-3 rounded-2xl inline-flex items-center justify-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95 font-medium" data-prepare-group-open="true">
+          <i data-lucide="plus" class="h-5 w-5"></i>
+          Nueva deuda
+        </button>
+      <% end %>
     </div>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -18,8 +21,8 @@
           <i data-lucide="search" class="h-4 w-4"></i>
         </span>
         <%= form.text_field :q,
-                            value: @search_query,
-                            placeholder: "Buscar por cliente o acreedor",
+                value: @search_query,
+                placeholder: customer_debt_view ? "Buscar mis deudas" : "Buscar por cliente o acreedor",
                             class: "w-full rounded-xl border border-slate-200 bg-white py-2 pl-10 pr-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
       </div>
       <div class="flex flex-wrap items-center gap-2">
@@ -392,36 +395,37 @@
     </div>
   <% end %>
 </div>
-<div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-prepare-group-modal="true">
-  <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-    <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-prepare-group-close="true">&times;</button>
-    <div class="mb-4">
-      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
-      <h3 class="text-lg font-bold text-slate-800">Selecciona tipo y datos base</h3>
-      <p class="mt-1 text-xs text-slate-500">Para deudas por cobrar te enviaremos al grupo activo del cliente. Para deudas por pagar abriremos el formulario con campo acreedor.</p>
-    </div>
-    <%= form_with url: prepare_group_debts_path, method: :get, local: true, class: "space-y-4", data: { prepare_group_form: true } do %>
-      <div>
-        <label class="block text-xs font-semibold text-slate-500">Tipo</label>
-        <select name="debt_kind" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-prepare-group-kind="true" required>
-          <option value="receivable">Por cobrar</option>
-          <option value="payable">Por pagar</option>
-        </select>
+<% unless customer_debt_view %>
+  <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-prepare-group-modal="true">
+    <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+      <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-prepare-group-close="true">&times;</button>
+      <div class="mb-4">
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
+        <h3 class="text-lg font-bold text-slate-800">Selecciona tipo y datos base</h3>
+        <p class="mt-1 text-xs text-slate-500">Para deudas por cobrar te enviaremos al grupo activo del cliente. Para deudas por pagar abriremos el formulario con campo acreedor.</p>
       </div>
-      <div data-prepare-group-client-field="true">
-        <label class="block text-xs font-semibold text-slate-500">Cliente</label>
-        <select name="cliente_id" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
-          <option value="">Selecciona un cliente</option>
-          <% @group_setup_clientes.each do |cliente| %>
-            <option value="<%= cliente.id %>"><%= cliente.name %></option>
-          <% end %>
-        </select>
-      </div>
-      <div data-prepare-group-currency-field="true">
-        <label class="block text-xs font-semibold text-slate-500">Moneda</label>
-        <select name="currency" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
-          <% @group_setup_currency_options.each do |currency| %>
-            <option value="<%= currency %>" <%= 'selected' if currency.to_s.upcase == 'USD' %>><%= currency %></option>
+      <%= form_with url: prepare_group_debts_path, method: :get, local: true, class: "space-y-4", data: { prepare_group_form: true } do %>
+        <div>
+          <label class="block text-xs font-semibold text-slate-500">Tipo</label>
+          <select name="debt_kind" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-prepare-group-kind="true" required>
+            <option value="receivable">Por cobrar</option>
+            <option value="payable">Por pagar</option>
+          </select>
+        </div>
+        <div data-prepare-group-client-field="true">
+          <label class="block text-xs font-semibold text-slate-500">Cliente</label>
+          <select name="cliente_id" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+            <option value="">Selecciona un cliente</option>
+            <% @group_setup_clientes.each do |cliente| %>
+              <option value="<%= cliente.id %>"><%= cliente.name %></option>
+            <% end %>
+          </select>
+        </div>
+        <div data-prepare-group-currency-field="true">
+          <label class="block text-xs font-semibold text-slate-500">Moneda</label>
+          <select name="currency" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+            <% @group_setup_currency_options.each do |currency| %>
+              <option value="<%= currency %>" <%= 'selected' if currency.to_s.upcase == 'USD' %>><%= currency %></option>
             <% end %>
           </select>
         </div>
@@ -436,6 +440,7 @@
       <% end %>
     </div>
   </div>
+<% end %>
   <script>
     (function () {
       const initDebtIndexTransition = () => {

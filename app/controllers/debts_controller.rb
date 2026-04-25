@@ -12,11 +12,17 @@ class DebtsController < ApplicationController
 
   def index
     @search_query = params[:q].to_s.strip
+    @customer_debt_view = current_user_customer_mode?
 
     scope = current_business
             .debts
             .excluding_service_cost_records
           .includes(:cliente, :debt_payments, :venta)
+
+    if @customer_debt_view
+      customer_cliente = current_customer_cliente
+      scope = customer_cliente.present? ? scope.where(debt_kind: 'receivable', cliente_id: customer_cliente.id) : scope.none
+    end
 
     if @search_query.present?
       query = "%#{ActiveRecord::Base.sanitize_sql_like(@search_query)}%"
@@ -75,7 +81,7 @@ class DebtsController < ApplicationController
     @next_due_on = closest_due_on(pending_individual_debts)
     @search_pending_count = @debts.count
     @search_paid_count = @receivable_paid_count + @payable_paid_count
-    @group_setup_clientes = current_business.clientes.order(:name)
+    @group_setup_clientes = @customer_debt_view ? [] : current_business.clientes.order(:name)
     @group_setup_currency_options = allowed_group_currency_codes
     @cashea_banner_url = cashea_banner_url_for_admin
   end
@@ -588,7 +594,20 @@ class DebtsController < ApplicationController
   end
 
   def set_debt
-    @debt = current_business.debts.excluding_service_cost_records.find(params[:id])
+    scope = current_business.debts.excluding_service_cost_records
+
+    if current_user_customer_mode?
+      customer_cliente = current_customer_cliente
+      scope = customer_cliente.present? ? scope.where(debt_kind: 'receivable', cliente_id: customer_cliente.id) : scope.none
+    end
+
+    @debt = scope.find(params[:id])
+  end
+
+  def current_customer_cliente
+    return nil unless current_user_customer_mode?
+
+    current_business&.clientes&.find_by(user_id: Current.user&.id)
   end
 
   def load_parties

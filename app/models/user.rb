@@ -121,7 +121,7 @@ class User < ApplicationRecord
     return true if admin?
 
     if customer_mode?(Current.business)
-      return %i[ventas historial_ventas].include?(module_key.to_sym)
+      return %i[ventas historial_ventas deudas].include?(module_key.to_sym)
     end
 
     case module_key.to_sym
