@@ -2,7 +2,7 @@
 <% product_categories = @product_categories || [] %>
 <% service_systems = @service_systems || [] %>
 <% can_use_cash_exchange = current_user_admin? || current_user_manager? %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>">
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-catalog-readonly="<%= @customer_catalog_read_only ? 'true' : 'false' %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -363,7 +363,9 @@
               <% end %>
               <div class="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1.5 shadow-inner shadow-slate-100">
                 <button type="button" data-ventas-tab="products" class="ventas-tab rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-200">Productos</button>
-                <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Servicios</button>
+                <% unless @customer_catalog_read_only %>
+                  <button type="button" data-ventas-tab="services" class="ventas-tab rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600">Servicios</button>
+                <% end %>
               </div>
             </div>
           </div>
@@ -484,12 +486,15 @@
         </div>
       </div>
     </div>
-    <button id="ventas-cart-toggle" type="button" class="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-2xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-slate-800">
-      <i data-lucide="shopping-cart" class="h-5 w-5"></i>
-      <span id="ventas-cart-count" class="absolute -top-2 -right-2 hidden min-w-[1.7rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white shadow">0</span>
-    </button>
+    <% unless @customer_catalog_read_only %>
+      <button id="ventas-cart-toggle" type="button" class="fixed bottom-6 right-6 z-40 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-2xl shadow-slate-300 transition-all hover:-translate-y-0.5 hover:bg-slate-800">
+        <i data-lucide="shopping-cart" class="h-5 w-5"></i>
+        <span id="ventas-cart-count" class="absolute -top-2 -right-2 hidden min-w-[1.7rem] items-center justify-center rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white shadow">0</span>
+      </button>
+    <% end %>
   </div>
 </section>
+<% unless @customer_catalog_read_only %>
 <div id="ventas-cart-modal" class="fixed inset-0 z-50 pointer-events-none" aria-hidden="true">
   <div id="ventas-cart-backdrop" class="absolute inset-0 bg-slate-900/40 opacity-0 transition-opacity duration-300"></div>
   <div class="absolute right-0 top-0 h-full w-full max-w-xl translate-x-full transform transition-transform duration-300 ease-out" id="ventas-cart-panel">
@@ -671,6 +676,7 @@
     </div>
   </div>
 </div>
+<% end %>
 </div>
 </div>
 <script>
@@ -689,6 +695,7 @@
       let canChargeSale = root.dataset.canChargeSale === 'true';
       let canViewAllDrafts = root.dataset.canViewAllDrafts === 'true';
       const canUseCashExchange = root.dataset.canUseCashExchange === 'true';
+      const customerCatalogReadOnly = root.dataset.customerCatalogReadonly === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
       let activeCashierId = Number(root.dataset.activeCashierId || 0);
       let activeCashierName = String(root.dataset.activeCashierName || '').trim();
@@ -1162,6 +1169,24 @@
       const cartBackdrop = document.getElementById('ventas-cart-backdrop');
       const cartPanel = document.getElementById('ventas-cart-panel');
       const cartCloseButton = document.getElementById('ventas-cart-close');
+
+      const showCustomerCatalogReadOnlyAlert = () => {
+        const title = 'Solo visualizacion por ahora';
+        const text = 'Por ahora solo pueden ver los productos, pronto podra hacer pedidos directos.';
+
+        if (window.Swal) {
+          window.Swal.fire({
+            icon: 'info',
+            title,
+            text,
+            confirmButtonText: 'Entendido',
+            heightAuto: false,
+          });
+          return;
+        }
+
+        window.alert(text);
+      };
 
       const parseRate = (value) => {
         if (!value) return 0;
@@ -5432,6 +5457,11 @@
       }
 
       const addToCart = (productId, variationId, quantity) => {
+        if (customerCatalogReadOnly) {
+          showCustomerCatalogReadOnlyAlert();
+          return;
+        }
+
         const product = productsById.get(String(productId));
         if (!product) return;
 
@@ -7537,6 +7567,16 @@
       const productGrid = document.getElementById('ventas-product-grid');
       if (productGrid) {
         productGrid.addEventListener('click', (event) => {
+          if (customerCatalogReadOnly) {
+            const card = event.target.closest('.ventas-product-card');
+            const addButton = event.target.closest('.ventas-add-button');
+            if (card || addButton) {
+              event.preventDefault();
+              showCustomerCatalogReadOnlyAlert();
+            }
+            return;
+          }
+
           const addButton = event.target.closest('.ventas-add-button');
           const card = event.target.closest('.ventas-product-card');
           const productId = addButton?.dataset.productId || card?.dataset.productId;
