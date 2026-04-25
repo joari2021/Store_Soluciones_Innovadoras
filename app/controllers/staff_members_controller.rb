@@ -101,7 +101,7 @@ class StaffMembersController < ApplicationController
 
   def authorization_level_param
     raw_level = params.dig(:user, :authorization_level).to_s
-    return raw_level if %w[manager standard_staff].include?(raw_level)
+    return raw_level if raw_level == "administrator"
 
     "standard_staff"
   end
@@ -118,7 +118,7 @@ class StaffMembersController < ApplicationController
     user.admin = false
     user.personal = true
     user.personal_saime = false if user.respond_to?(:personal_saime=)
-    user.authorization_level = authorization_level_param if user.respond_to?(:authorization_level=)
+    user.authorization_level = "standard_staff" if user.respond_to?(:authorization_level=)
   end
 
   def selected_assignment_business_ids

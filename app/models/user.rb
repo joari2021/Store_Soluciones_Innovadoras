@@ -63,12 +63,7 @@ class User < ApplicationRecord
     assignment_level = assignment&.authorization_level.to_s
     return assignment_level if %w[none manager standard_staff].include?(assignment_level)
 
-    if has_attribute?(:authorization_level)
-      level = self[:authorization_level].to_s
-      return 'manager' if level == 'manager'
-    end
-
-    'standard_staff'
+    'none'
   end
 
   def customer_access_level(business = Current.business)
@@ -92,8 +87,8 @@ class User < ApplicationRecord
 
   def role_label(business = Current.business)
     return female? ? 'Administradora' : 'Administrador' if admin?
-    return female? ? 'Encargada' : 'Encargado' if manager?(business)
     return 'Cliente' if customer_mode?(business)
+    return female? ? 'Encargada' : 'Encargado' if manager?(business)
     return 'Sin cargo' if role_key(business) == 'none'
 
     'Personal estandar'
