@@ -61,7 +61,7 @@ class User < ApplicationRecord
     return 'customer' if %w[customer customer_vip].include?(assignment_customer_level)
 
     assignment_level = assignment&.authorization_level.to_s
-    return assignment_level if %w[manager standard_staff].include?(assignment_level)
+    return assignment_level if %w[none manager standard_staff].include?(assignment_level)
 
     if has_attribute?(:authorization_level)
       level = self[:authorization_level].to_s
@@ -94,6 +94,7 @@ class User < ApplicationRecord
     return female? ? 'Administradora' : 'Administrador' if admin?
     return female? ? 'Encargada' : 'Encargado' if manager?(business)
     return 'Cliente' if customer_mode?(business)
+    return 'Sin cargo' if role_key(business) == 'none'
 
     'Personal estandar'
   end

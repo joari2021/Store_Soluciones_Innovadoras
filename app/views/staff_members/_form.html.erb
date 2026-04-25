@@ -60,7 +60,7 @@
               <span><%= business_option.name %></span>
             </label>
             <%= select_tag "user[business_roles][#{business_option.id}]",
-                           options_for_select([['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], %w[manager standard_staff].include?(role_value) ? role_value : 'standard_staff'),
+                           options_for_select([['Sin cargo', 'none'], ['Encargado', 'manager'], ['Personal estandar', 'standard_staff']], %w[none manager standard_staff].include?(role_value) ? role_value : 'none'),
                            class: "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-sky-500 focus:ring-sky-500 #{checked ? '' : 'opacity-50'}",
                            disabled: !checked,
                            id: "role_#{business_option.id}" %>
@@ -72,7 +72,7 @@
           </div>
         <% end %>
       </div>
-      <p class="text-xs text-slate-500">Administrador opera en todos los negocios. Para encargado o personal estandar, selecciona al menos un negocio y su rol en cada uno.</p>
+      <p class="text-xs text-slate-500">Administrador opera en todos los negocios. Para usuarios no administradores, selecciona al menos un negocio y su cargo (incluye Sin cargo si solo usaras modo cliente).</p>
     </div>
     <div class="flex items-end">
       <label class="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
