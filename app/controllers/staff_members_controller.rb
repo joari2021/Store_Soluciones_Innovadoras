@@ -16,7 +16,7 @@ class StaffMembersController < ApplicationController
 
   def create
     @staff_member = User.new(staff_member_params)
-    apply_authorization_level(@staff_member)
+    apply_authorization_level(@staff_member, preserve_admin: false)
 
     User.transaction do
       @staff_member.save!
@@ -36,8 +36,9 @@ class StaffMembersController < ApplicationController
   end
 
   def update
+    was_admin = @staff_member.admin?
     @staff_member.assign_attributes(staff_member_params)
-    apply_authorization_level(@staff_member)
+    apply_authorization_level(@staff_member, preserve_admin: was_admin)
 
     User.transaction do
       @staff_member.save!
@@ -100,29 +101,24 @@ class StaffMembersController < ApplicationController
 
   def authorization_level_param
     raw_level = params.dig(:user, :authorization_level).to_s
-    return raw_level if %w[administrator manager standard_staff].include?(raw_level)
+    return raw_level if %w[manager standard_staff].include?(raw_level)
 
-    @staff_member&.role_key.presence || "standard_staff"
+    "standard_staff"
   end
 
-  def apply_authorization_level(user)
-    case authorization_level_param
-    when "administrator"
+  def apply_authorization_level(user, preserve_admin: false)
+    if preserve_admin
       user.admin = true
       user.personal = false
       user.personal_saime = true if user.respond_to?(:personal_saime=)
       user.authorization_level = "administrator" if user.respond_to?(:authorization_level=)
-    when "manager"
-      user.admin = false
-      user.personal = true
-      user.personal_saime = false if user.respond_to?(:personal_saime=)
-      user.authorization_level = "manager" if user.respond_to?(:authorization_level=)
-    else
-      user.admin = false
-      user.personal = true
-      user.personal_saime = false if user.respond_to?(:personal_saime=)
-      user.authorization_level = "standard_staff" if user.respond_to?(:authorization_level=)
+      return
     end
+
+    user.admin = false
+    user.personal = true
+    user.personal_saime = false if user.respond_to?(:personal_saime=)
+    user.authorization_level = authorization_level_param if user.respond_to?(:authorization_level=)
   end
 
   def selected_assignment_business_ids
