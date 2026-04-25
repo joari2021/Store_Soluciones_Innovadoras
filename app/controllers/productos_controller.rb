@@ -446,11 +446,27 @@ class ProductosController < ApplicationController
     if @producto.update(update_attrs)
       if request.headers['Turbo-Frame'].present?
         render_row = product_matches_current_filters?(@producto)
-        row_payload = view_context.turbo_stream.append(
-          'products-live-updates',
-          partial: 'productos/row_update_payload',
-          locals: { producto: @producto, render_row: render_row }
-        )
+        row_update_stream = if render_row
+                              view_context.turbo_stream.append(
+                                'products-live-updates',
+                                partial: 'productos/row_update_payload',
+                                locals: { producto: @producto, render_row: true }
+                              )
+                            else
+                              if current_filtered_products_count_for_live_update.zero?
+                                prepare_products_results_state_for_live_update
+                                view_context.turbo_stream.replace(
+                                  'products-results',
+                                  view_context.render(partial: 'productos/index_results')
+                                )
+                              else
+                                view_context.turbo_stream.append(
+                                  'products-live-updates',
+                                  partial: 'productos/row_update_payload',
+                                  locals: { producto: @producto, render_row: false }
+                                )
+                              end
+                            end
         low_stock_count = calculate_low_stock_total_count
         below_target_count = calculate_below_target_margin_total_count
         update_low_stock_badge_stream = view_context.turbo_stream.update(
@@ -467,7 +483,7 @@ class ProductosController < ApplicationController
           view_context.render(partial: 'shared/header_notifications')
         )
         clear_frame = view_context.turbo_stream.update('modal-productos', '')
-        render turbo_stream: [row_payload, update_low_stock_badge_stream, update_badge_stream, refresh_header_notifications_stream, clear_frame]
+        render turbo_stream: [row_update_stream, update_low_stock_badge_stream, update_badge_stream, refresh_header_notifications_stream, clear_frame]
       else
         redirect_to productos_path, notice: 'Producto actualizado exitosamente.'
       end
@@ -1385,6 +1401,40 @@ class ProductosController < ApplicationController
     scope = filter_by_below_target_margin(scope) if below_target_margin_filter
 
     scope.exists?
+  end
+
+  def current_filtered_products_count_for_live_update
+    filtered_scope_for_live_update.count
+  end
+
+  def prepare_products_results_state_for_live_update
+    @query_text = params[:query_text].to_s.strip
+    @low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
+    @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+    @categorias = current_business.categorias.order(nombre: :asc)
+    @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
+    @selected_categoria_id = @selected_categoria&.id
+    @product_counts_by_categoria_id = current_business.productos.group(:categoria_id).count
+
+    @has_productos = current_business.productos.exists?
+    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?
+    @matching_productos_count = current_filtered_products_count_for_live_update
+    @productos = []
+    @next_page = nil
+  end
+
+  def filtered_scope_for_live_update
+    scope = current_business.productos.order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+    query_text = params[:query_text].to_s.strip
+    low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
+    below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+    category_id = params[:category_id].to_s.strip
+
+    scope = scope.whose_name_starts_with(query_text) if query_text.present?
+    scope = scope.where(categoria_id: category_id.to_i) if category_id.present?
+    scope = filter_by_low_stock(scope) if low_stock_filter
+    scope = filter_by_below_target_margin(scope) if below_target_margin_filter
+    scope
   end
 
   def low_stock_product_ids_for_scope(scope)

@@ -166,7 +166,15 @@ class GlobalProductsController < ApplicationController
                          ),
                        )
                      else
-                       view_context.turbo_stream.remove(view_context.dom_id(@global_product, :global_row))
+                       if current_filtered_global_products_count_for_live_update.zero?
+                         prepare_global_products_results_state_for_live_update
+                         view_context.turbo_stream.replace(
+                           "global-products-results",
+                           view_context.render(partial: "global_products/index_results")
+                         )
+                       else
+                         view_context.turbo_stream.remove(view_context.dom_id(@global_product, :global_row))
+                       end
                      end
         clear_frame = view_context.turbo_stream.update("modal-global-products", "")
         render turbo_stream: [below_target_badge, row_stream, clear_frame]
@@ -393,6 +401,47 @@ class GlobalProductsController < ApplicationController
     scope = filter_by_below_target_margin(scope) if below_target_margin_filter
 
     scope.exists?
+  end
+
+  def current_filtered_global_products_count_for_live_update
+    filtered_global_scope_for_live_update.count
+  end
+
+  def prepare_global_products_results_state_for_live_update
+    @query_text = params[:query_text].to_s.strip
+    @selected_category = params[:category_name].to_s.strip.presence
+    @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+    @category_counts = global_category_counts
+    @category_options = @category_counts.keys.sort
+
+    @has_global_products = GlobalProduct.exists?
+    @filters_applied = @query_text.present? || @selected_category.present? || @below_target_margin_filter
+    @matching_global_products_count = current_filtered_global_products_count_for_live_update
+    @global_products = []
+    @next_page = nil
+  end
+
+  def filtered_global_scope_for_live_update
+    scope = GlobalProduct.order(Arel.sql("LOWER(global_products.name) ASC, global_products.id ASC"))
+    query_text = params[:query_text].to_s.strip
+    selected_category = params[:category_name].to_s.strip
+    below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+
+    if query_text.present?
+      escaped = ActiveRecord::Base.sanitize_sql_like(query_text.downcase)
+      scope = scope.where("LOWER(global_products.name) LIKE ?", "%#{escaped}%")
+    end
+
+    if selected_category.present?
+      if selected_category == "Sin categoria"
+        scope = scope.where("COALESCE(NULLIF(TRIM(global_products.metadata->>'category_name'), ''), '') = ''")
+      else
+        scope = scope.where("LOWER(TRIM(global_products.metadata->>'category_name')) = ?", selected_category.downcase)
+      end
+    end
+
+    scope = filter_by_below_target_margin(scope) if below_target_margin_filter
+    scope
   end
 
   def calculate_below_target_margin_total_count
