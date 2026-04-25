@@ -10,7 +10,6 @@ class VentasController < ApplicationController
   before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft borrador destroy_borrador]
 
   def index
-    @customer_catalog_read_only = customer_sales_mode?
     products_scope = ventas_products_scope
     @productos_total_count = products_scope.except(:includes, :order).count
     @productos = paginate_scope(products_scope, page: 1, items: POS_CATALOG_ITEMS_PER_PAGE)
