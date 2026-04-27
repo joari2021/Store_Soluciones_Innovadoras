@@ -3,7 +3,6 @@ class User < ApplicationRecord
 
   MIN_PASSWORD_LENGTH = 10
   PASSWORD_COMPLEXITY_REGEX = /\A(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+\z/.freeze
-  AUTHORIZATION_LEVELS = %w[administrator manager standard_staff].freeze
   SEX_OPTIONS = {
     'male' => 'Masculino',
     'female' => 'Femenino'
@@ -35,7 +34,6 @@ class User < ApplicationRecord
   validates :full_name, length: { maximum: 80 }, allow_blank: true
   validates :password, length: { minimum: MIN_PASSWORD_LENGTH }, if: :password_required?
   validate :password_complexity, if: :password_required?
-  validate :authorization_level_inclusion
   validates :sex, inclusion: { in: SEX_OPTIONS.keys }, if: :supports_sex?
 
   # añadir cuando se añada la funcion de que varios otros usuarios puedan crear peliculas para asi monitorear luego
@@ -173,28 +171,11 @@ class User < ApplicationRecord
     if admin?
       self.personal = false
       self.personal_saime = true if has_attribute?(:personal_saime) && personal_saime.nil?
-      self[:authorization_level] = 'administrator' if has_attribute?(:authorization_level)
       return
     end
 
     self.admin = false
     self.personal = true if has_attribute?(:personal) && personal.nil?
-    return unless has_attribute?(:authorization_level)
-
-    current_level = self[:authorization_level].to_s
-    self[:authorization_level] = 'standard_staff' if current_level.blank?
-    return if %w[standard_staff manager].include?(self[:authorization_level])
-
-    self[:authorization_level] = 'standard_staff'
-  end
-
-  def authorization_level_inclusion
-    return unless has_attribute?(:authorization_level)
-
-    level = self[:authorization_level].to_s
-    return if AUTHORIZATION_LEVELS.include?(level)
-
-    errors.add(:authorization_level, 'es invalido')
   end
 
   def password_required?

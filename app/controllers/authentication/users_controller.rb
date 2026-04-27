@@ -16,7 +16,6 @@ class Authentication::UsersController < ApplicationController
     @user.admin = true
     @user.personal = false
     @user.personal_saime = true if @user.respond_to?(:personal_saime=)
-    @user.authorization_level = 'administrator' if @user.respond_to?(:authorization_level=)
     @user.active = true if @user.respond_to?(:active=)
 
     if @user.save
