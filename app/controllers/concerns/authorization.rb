@@ -31,10 +31,7 @@ module Authorization
   def current_user_admin?
     user = Current.user
     return false unless user
-    return true if user.admin?
-
-    business = respond_to?(:current_business, true) ? send(:current_business) : Current.business
-    user.role_key(business) == "administrator"
+    user.admin?
   end
 
   def current_user_standard_staff?

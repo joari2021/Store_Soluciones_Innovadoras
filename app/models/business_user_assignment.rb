@@ -1,5 +1,5 @@
 class BusinessUserAssignment < ApplicationRecord
-  AUTHORIZATION_LEVELS = %w[administrator manager standard_staff none].freeze
+  AUTHORIZATION_LEVELS = %w[manager standard_staff none].freeze
   CUSTOMER_ACCESS_LEVELS = %w[none customer customer_vip].freeze
 
   belongs_to :business
@@ -42,5 +42,7 @@ class BusinessUserAssignment < ApplicationRecord
 
   def apply_defaults
     self.customer_access_level = 'none' if customer_access_level.blank?
+    self.authorization_level = 'standard_staff' if authorization_level.blank?
+    self.authorization_level = 'manager' if authorization_level == 'administrator'
   end
 end
