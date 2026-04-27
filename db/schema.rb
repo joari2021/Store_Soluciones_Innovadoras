@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_04_25_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_04_26_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -168,6 +168,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_04_25_100000) do
     t.string "rif"
     t.string "city"
     t.string "state"
+    t.boolean "customer_pos_restrictions_enabled", default: true, null: false
     t.index ["name"], name: "index_businesses_on_name"
     t.index ["theme_profile"], name: "index_businesses_on_theme_profile"
   end

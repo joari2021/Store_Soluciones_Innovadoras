@@ -527,8 +527,9 @@ class VentasController < ApplicationController
     requested_customer_order_mode = ActiveModel::Type::Boolean.new.cast(payload[:customer_order_mode])
     assignment = Current.user&.assignment_for_business(current_business)
     assignment_customer_level = assignment&.customer_access_level.to_s
-    customer_mode = customer_sales_mode? || (requested_customer_order_mode && !Current.user&.admin?) || %w[customer customer_vip].include?(assignment_customer_level)
-    customer_vip_mode = customer_sales_vip_mode? || assignment_customer_level == "customer_vip"
+    restrictions_enabled = customer_pos_restrictions_enabled?
+    customer_mode = customer_sales_mode? || (restrictions_enabled && requested_customer_order_mode && !Current.user&.admin?) || (restrictions_enabled && %w[customer customer_vip].include?(assignment_customer_level))
+    customer_vip_mode = customer_sales_vip_mode? || (restrictions_enabled && assignment_customer_level == "customer_vip")
 
     draft_id = payload[:draft_id].presence
     if customer_mode && draft_id.present?
@@ -1288,6 +1289,7 @@ class VentasController < ApplicationController
   def customer_sales_mode?
     return false if Current.user.blank? || current_business.blank?
     return false if Current.user.admin?
+    return false unless customer_pos_restrictions_enabled?
 
     assignment = Current.user.assignment_for_business(current_business)
     assignment.present? && assignment.active? && %w[customer customer_vip].include?(assignment.customer_access_level.to_s)
@@ -1296,9 +1298,16 @@ class VentasController < ApplicationController
   def customer_sales_vip_mode?
     return false if Current.user.blank? || current_business.blank?
     return false if Current.user.admin?
+    return false unless customer_pos_restrictions_enabled?
 
     assignment = Current.user.assignment_for_business(current_business)
     assignment.present? && assignment.active? && assignment.customer_access_level.to_s == "customer_vip"
+  end
+
+  def customer_pos_restrictions_enabled?
+    return false if current_business.blank?
+
+    current_business.customer_pos_restrictions_enabled?
   end
 
   def ensure_customer_cliente_for_current_user!

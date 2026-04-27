@@ -59,6 +59,16 @@
         </span>
       </label>
     </div>
+    <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      <label class="inline-flex cursor-pointer items-start gap-3 text-sm text-slate-700">
+        <%= f.check_box :customer_pos_restrictions_enabled,
+                        class: 'mt-0.5 h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
+        <span>
+          <span class="block font-semibold text-slate-800">Activar restricciones para usuarios cliente en Ventas</span>
+          <span class="mt-0.5 block text-xs text-slate-500">Si lo activas, en este negocio los usuarios cliente tendran bloqueo de funciones y UI reducida (por ejemplo, carrito y borradores). Si lo desactivas, se comportaran como modo normal.</span>
+        </span>
+      </label>
+    </div>
     <div class="grid gap-4 md:grid-cols-2">
       <div>
         <%= f.label :logo, 'Logo del negocio', class: 'block text-sm font-medium text-slate-700' %>

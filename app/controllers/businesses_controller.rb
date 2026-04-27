@@ -70,7 +70,8 @@ class BusinessesController < ApplicationController
       :rif,
       :logo,
       :banner,
-      :hide_initial_inventory_button
+      :hide_initial_inventory_button,
+      :customer_pos_restrictions_enabled
     )
   end
 
