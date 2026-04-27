@@ -279,7 +279,7 @@ class VentasController < ApplicationController
   def historial
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
-    base_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    base_scope = current_user_customer_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
     filtered_scope = apply_historial_filters(base_scope)
 
     @total_sales = filtered_scope.count
@@ -308,7 +308,7 @@ class VentasController < ApplicationController
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
     @producto_query = params[:producto_query].to_s.strip.presence
-    base_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    base_scope = current_user_customer_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
     filtered_sales = apply_historial_filters(base_scope, include_client_filter: false)
 
     sold_items_scope = VentaItem
