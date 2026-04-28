@@ -28,7 +28,7 @@
               <% is_current = current_business&.id == business.id %>
               <% item_classes = is_current ? 'bg-sky-50 text-sky-700' : 'text-slate-700 hover:bg-slate-50' %>
               <% if current_user_admin? || Current.user&.assigned_to_business?(business) %>
-                <%= button_to select_business_path(business), method: :post, form: { class: 'w-full' }, class: "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors cursor-pointer #{item_classes}" do %>
+                <%= button_to select_business_path(business), method: :post, form: { class: 'w-full', data: { turbo: false } }, class: "flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors cursor-pointer #{item_classes}", data: { turbo: false } do %>
                   <span class="flex h-8 w-8 items-center justify-center rounded-lg text-xs font-bold" style="<%= business.theme_preview_style %>">
                     <%= business.name.to_s.first&.upcase || 'N' %>
                   </span>
