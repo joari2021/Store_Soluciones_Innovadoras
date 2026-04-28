@@ -215,6 +215,11 @@ class DebtsController < ApplicationController
     shared_attrs = shared_debt_params
     @debt = current_business.debts.new(shared_attrs)
 
+    unless normalize_loan_entries_to_usd!(normalized_entries)
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
+      return
+    end
+
     if shared_attrs[:debt_kind] == 'receivable' && shared_attrs[:cliente_id].blank?
       @debt = current_business.debts.new(shared_attrs)
       @debt.errors.add(:base, 'Debes seleccionar un cliente para registrar la deuda.')
@@ -421,6 +426,11 @@ class DebtsController < ApplicationController
     @debt_entries_form = debt_entries_form_params
     normalized_entries = normalized_debt_entries
     shared_attrs = shared_debt_params
+
+    unless normalize_loan_entries_to_usd!(normalized_entries)
+      redirect_to debt_path(@debt), notice: @debt.errors.full_messages.to_sentence
+      return
+    end
 
     if normalized_entries.empty?
       @debt.errors.add(:base, 'Debes agregar al menos una deuda con monto, moneda y fecha de emision.')
@@ -700,6 +710,11 @@ class DebtsController < ApplicationController
     if entry.blank?
       @debt = editable_debt
       @debt.errors.add(:base, 'Debes completar los datos de la deuda para editarla.')
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence, fallback_debt: editable_debt)
+      return
+    end
+
+    unless normalize_loan_entries_to_usd!([entry])
       redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence, fallback_debt: editable_debt)
       return
     end
@@ -1168,7 +1183,8 @@ class DebtsController < ApplicationController
                       conversion = CurrencyConverter.convert(
                         amount: debt_amount,
                         from_currency: debt_currency,
-                        to_currency: account.currency
+                        to_currency: account.currency,
+                        on_date: entry[:issued_on] || Date.current
                       )
 
                       if conversion.blank? || conversion[:amount].to_d <= 0
@@ -1344,10 +1360,57 @@ class DebtsController < ApplicationController
     conversion = CurrencyConverter.convert(
       amount: entry[:amount].to_d,
       from_currency: entry[:currency],
-      to_currency: account.currency
+      to_currency: account.currency,
+      on_date: entry[:issued_on] || Date.current
     )
 
     conversion&.dig(:amount).to_d
+  end
+
+  def normalize_loan_entries_to_usd!(entries)
+    valid = true
+
+    Array(entries).each_with_index do |entry, index|
+      next unless entry[:loan_enabled]
+
+      currency = entry[:currency].to_s.strip.upcase
+      next unless blocked_group_currency?(currency)
+
+      issued_on = entry[:issued_on] || Date.current
+      input_amount = entry[:input_amount].to_d
+      input_currency = entry[:amount_input_currency].to_s.strip.upcase
+
+      if input_currency.blank?
+        input_currency = currency
+        entry[:amount_input_currency] = input_currency
+      end
+
+      # Preserve the original loan input for account movement registration.
+      if input_amount <= 0
+        input_amount = entry[:amount].to_d
+        entry[:input_amount] = input_amount
+      end
+
+      conversion = CurrencyConverter.convert(
+        amount: entry[:amount].to_d,
+        from_currency: currency,
+        to_currency: 'USD',
+        on_date: issued_on
+      )
+
+      converted_amount = conversion&.dig(:amount).to_d
+      if converted_amount <= 0
+        @debt.errors.add(:base,
+                         "Deuda #{index + 1}: no se pudo convertir el monto del prestamo en Bs a USD con la tasa de la fecha de emision.")
+        valid = false
+        next
+      end
+
+      entry[:amount] = converted_amount.round(2)
+      entry[:currency] = 'USD'
+    end
+
+    valid
   end
 
   def parse_decimal(value)
