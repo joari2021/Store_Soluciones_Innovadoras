@@ -561,10 +561,22 @@ class VentasController < ApplicationController
     credit_sale = { enabled: false, due_on: nil } if customer_mode
     checkout_discount = normalize_checkout_discount_payload(payload[:checkout_discount])
     checkout_discount = { enabled: false, amount: 0.to_d, reason: nil } if customer_mode
+    cashea_sale = normalize_cashea_sale_payload(payload[:cashea])
+    cashea_sale = { enabled: false, account_id: nil, initial_usd: 0.to_d, min_purchase_usd: 0.to_d, installments: [] } if customer_mode
     credit_sale_due_on = parse_payment_date(credit_sale[:due_on])
     service_cost_payment_entries = Array(payload[:service_cost_payments])
     if credit_sale[:due_on].present? && credit_sale_due_on.blank?
       return render json: { error: "La fecha de vencimiento del credito es invalida." },
+                    status: :unprocessable_entity
+    end
+
+    if cashea_sale[:enabled] && credit_sale[:enabled]
+      return render json: { error: "No puedes combinar saldo a credito y Cashea en la misma venta." },
+                    status: :unprocessable_entity
+    end
+
+    if cashea_sale[:enabled] && checkout_discount[:enabled]
+      return render json: { error: "No puedes aplicar descuento manual en una venta procesada con Cashea." },
                     status: :unprocessable_entity
     end
 
@@ -609,6 +621,16 @@ class VentasController < ApplicationController
     elsif payload[:cliente_id].present?
       cliente = current_business.clientes.find_by(id: payload[:cliente_id])
       venta.cliente = cliente if cliente
+    end
+
+    if cashea_sale[:enabled] && venta.cliente.blank?
+      return render json: { error: "Debes seleccionar un cliente para procesar una venta con Cashea." },
+                    status: :unprocessable_entity
+    end
+
+    if cashea_sale[:enabled] && venta.cliente.present? && venta.cliente.phone.to_s.strip.blank?
+      return render json: { error: "El cliente debe tener telefono para registrar cuotas Cashea." },
+                    status: :unprocessable_entity
     end
 
     client_benefits = normalized_client_benefits_config(venta.cliente)
@@ -1042,6 +1064,54 @@ class VentasController < ApplicationController
 
     total_due = (total_due - discount_amount).round(2)
     total_due = 0.to_d if total_due.negative?
+
+    total_due_for_payment = total_due
+    cashea_financed_usd = 0.to_d
+    if cashea_sale[:enabled]
+      cashea_account = current_business.accounts.find_by(id: cashea_sale[:account_id])
+      if cashea_account.blank? || cashea_account.account_type != "cashea"
+        return render json: { error: "La cuenta Cashea seleccionada no es valida." }, status: :unprocessable_entity
+      end
+
+      total_due_usd = convert_payment_to_currency(total_due, comparison_currency, "USD", tasa_dolar)
+      if total_due_usd.nil?
+        return render json: { error: "No se pudo convertir el total de la venta a USD para procesar Cashea." }, status: :unprocessable_entity
+      end
+
+      if cashea_sale[:min_purchase_usd].to_d.positive? && total_due_usd < cashea_sale[:min_purchase_usd].to_d
+        return render json: { error: "La venta no alcanza el minimo requerido para Cashea." }, status: :unprocessable_entity
+      end
+
+      initial_usd = cashea_sale[:initial_usd].to_d.round(2)
+      if initial_usd <= 0
+        return render json: { error: "Debes indicar un monto inicial Cashea mayor a 0." }, status: :unprocessable_entity
+      end
+
+      if initial_usd > total_due_usd
+        return render json: { error: "El inicial Cashea no puede superar el total de la venta." }, status: :unprocessable_entity
+      end
+
+      cashea_financed_usd = (total_due_usd - initial_usd).round(2)
+      installments_total_usd = cashea_sale[:installments].sum { |row| row[:amount_usd].to_d }.round(2)
+
+      if cashea_financed_usd.positive? && cashea_sale[:installments].empty?
+        return render json: { error: "Debes configurar las cuotas Cashea antes de continuar." }, status: :unprocessable_entity
+      end
+
+      if cashea_financed_usd.positive? && (installments_total_usd - cashea_financed_usd).abs > 0.01.to_d
+        return render json: { error: "La suma de cuotas Cashea no coincide con el saldo financiado." }, status: :unprocessable_entity
+      end
+
+      if cashea_financed_usd.positive? && cashea_sale[:installments].any? { |row| row[:due_on].blank? }
+        return render json: { error: "Cada cuota Cashea debe tener una fecha de vencimiento valida." }, status: :unprocessable_entity
+      end
+
+      total_due_for_payment = convert_payment_to_currency(initial_usd, "USD", comparison_currency, tasa_dolar)
+      if total_due_for_payment.nil?
+        return render json: { error: "No se pudo convertir el inicial Cashea a la moneda de cobro." }, status: :unprocessable_entity
+      end
+    end
+
     paid_total = 0.to_d
 
     payment_rows.each do |row|
@@ -1054,7 +1124,7 @@ class VentasController < ApplicationController
     end
 
     tolerance = 0.01
-    delta = (paid_total - total_due).round(2)
+    delta = (paid_total - total_due_for_payment).round(2)
 
     remaining_credit_amount = delta < -tolerance ? delta.abs.round(2) : 0.to_d
 
@@ -1141,6 +1211,23 @@ class VentasController < ApplicationController
         else
           notes_payload.delete("checkout_discount")
         end
+        if cashea_sale[:enabled]
+          notes_payload["cashea_sale"] = {
+            "enabled" => true,
+            "account_id" => cashea_sale[:account_id],
+            "initial_usd" => cashea_sale[:initial_usd].to_d.round(2).to_f,
+            "min_purchase_usd" => cashea_sale[:min_purchase_usd].to_d.round(2).to_f,
+            "financed_usd" => cashea_financed_usd.to_d.round(2).to_f,
+            "installments" => cashea_sale[:installments].map do |row|
+              {
+                "amount_usd" => row[:amount_usd].to_d.round(2).to_f,
+                "due_on" => row[:due_on]&.iso8601,
+              }
+            end,
+          }
+        else
+          notes_payload.delete("cashea_sale")
+        end
         if customer_mode && customer_vip_mode && remaining_credit_amount.positive?
           notes_payload["pending_credit_request"] = {
             "amount" => remaining_credit_amount.to_d.round(2).to_f,
@@ -1221,7 +1308,9 @@ class VentasController < ApplicationController
           settlements: service_cost_settlements,
         )
 
-        if remaining_credit_amount.positive? && !customer_mode
+        if cashea_sale[:enabled] && cashea_financed_usd.positive? && !customer_mode
+          create_cashea_installment_debts_for_sale!(venta: venta, cashea_sale: cashea_sale)
+        elsif remaining_credit_amount.positive? && !customer_mode
           debt_amount_usd = convert_payment_to_currency(
             remaining_credit_amount,
             comparison_currency,
@@ -3013,6 +3102,13 @@ class VentasController < ApplicationController
       change: %i[method amount account_id currency reference],
       credit_sale: %i[enabled due_on],
       checkout_discount: %i[enabled amount reason],
+      cashea: [
+        :enabled,
+        :account_id,
+        :initial_usd,
+        :min_purchase_usd,
+        { installments: %i[amount_usd due_on] },
+      ],
       totals: %i[taxable_subtotal_base exento_subtotal_base vat_base total_base],
       service_cost_payments: %i[
         service_id
@@ -4256,6 +4352,38 @@ class VentasController < ApplicationController
     }
   end
 
+  def normalize_cashea_sale_payload(raw_payload)
+    source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
+    enabled_value = source["enabled"] || source[:enabled]
+    account_id_value = source["account_id"] || source[:account_id]
+    initial_value = source["initial_usd"] || source[:initial_usd]
+    min_purchase_value = source["min_purchase_usd"] || source[:min_purchase_usd]
+    installments_value = source["installments"] || source[:installments]
+
+    installments = Array(installments_value).filter_map do |row|
+      next unless row.respond_to?(:to_h)
+
+      entry = row.to_h
+      amount_value = entry["amount_usd"] || entry[:amount_usd]
+      due_on_value = entry["due_on"] || entry[:due_on]
+      amount_usd = parse_decimal(amount_value, default: 0).to_d.round(2)
+      next unless amount_usd.positive?
+
+      {
+        amount_usd: amount_usd,
+        due_on: parse_payment_date(due_on_value),
+      }
+    end
+
+    {
+      enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
+      account_id: account_id_value.to_s.strip.presence&.to_i,
+      initial_usd: parse_decimal(initial_value, default: 0).to_d.round(2),
+      min_purchase_usd: parse_decimal(min_purchase_value, default: 0).to_d.round(2),
+      installments: installments,
+    }
+  end
+
   def normalize_checkout_discount_reason(raw_reason)
     normalized = raw_reason.to_s.strip.downcase
     allowed = %w[exoneracion_de_faltante oferta_por_compra]
@@ -4643,6 +4771,37 @@ class VentasController < ApplicationController
     end
 
     current_business.debts.create!(debt_attrs)
+  end
+
+  def create_cashea_installment_debts_for_sale!(venta:, cashea_sale:)
+    installments = Array(cashea_sale[:installments])
+    return if installments.empty?
+
+    issued_on = Time.use_zone("America/Caracas") { Time.zone.today }
+    group_token = if Debt.column_names.include?("group_token")
+        sale_debt_group_token_for(cliente_id: venta.cliente_id, currency: "USD")
+      end
+
+    installments.each_with_index do |installment, index|
+      amount = installment[:amount_usd].to_d.round(2)
+      next unless amount.positive?
+
+      debt_attrs = {
+        name: "Cuota Cashea #{index + 1} venta ##{venta.id}",
+        description: "Cuota Cashea #{index + 1} pendiente venta ##{venta.id} [VENTA:#{venta.id}] [CASHEA]",
+        debt_kind: "receivable",
+        amount: amount,
+        currency: "USD",
+        issued_on: issued_on,
+        due_on: installment[:due_on],
+        cliente: venta.cliente,
+        venta: venta,
+      }
+
+      debt_attrs[:group_token] = group_token if group_token.present?
+
+      current_business.debts.create!(debt_attrs)
+    end
   end
 
   def sale_debt_group_token_for(cliente_id:, currency:)
