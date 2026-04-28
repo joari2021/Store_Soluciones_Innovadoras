@@ -1285,25 +1285,11 @@ class VentasController < ApplicationController
   end
 
   def customer_sales_mode?
-    return false unless customer_pos_restrictions_enabled?
-    return false if Current.user.blank? || current_business.blank?
-    return false if Current.user.admin?
-
-    assignment = Current.user.assignment_for_business(current_business)
-    return false unless assignment&.active?
-
-    %w[customer customer_vip].include?(assignment.customer_access_level.to_s)
+    current_user_customer_mode?
   end
 
   def customer_sales_vip_mode?
-    return false unless customer_pos_restrictions_enabled?
-    return false if Current.user.blank? || current_business.blank?
-    return false if Current.user.admin?
-
-    assignment = Current.user.assignment_for_business(current_business)
-    return false unless assignment&.active?
-
-    assignment.customer_access_level.to_s == "customer_vip"
+    current_user_customer_vip_mode?
   end
 
   def customer_pos_restrictions_enabled?
