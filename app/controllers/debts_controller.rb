@@ -215,11 +215,6 @@ class DebtsController < ApplicationController
     shared_attrs = shared_debt_params
     @debt = current_business.debts.new(shared_attrs)
 
-    unless normalize_loan_entries_to_usd!(normalized_entries)
-      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
-      return
-    end
-
     if shared_attrs[:debt_kind] == 'receivable' && shared_attrs[:cliente_id].blank?
       @debt = current_business.debts.new(shared_attrs)
       @debt.errors.add(:base, 'Debes seleccionar un cliente para registrar la deuda.')
@@ -234,14 +229,17 @@ class DebtsController < ApplicationController
       return
     end
 
-    if normalized_entries.any? { |entry| blocked_group_currency?(entry[:currency]) }
+    if normalized_entries.any? { |entry| blocked_group_currency?(entry[:currency]) && !entry[:loan_enabled] }
       @debt = current_business.debts.new(shared_attrs)
       @debt.errors.add(:base, 'No puedes registrar deudas en VES ni en Unidad VI como moneda del grupo.')
       redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
       return
     end
 
-    if normalized_entries.any? { |entry| !allowed_group_currency_codes.include?(entry[:currency].to_s.upcase) }
+    if normalized_entries.any? do |entry|
+         currency_code = entry[:currency].to_s.upcase
+         !allowed_group_currency_codes.include?(currency_code) && !entry[:loan_enabled]
+       end
       @debt = current_business.debts.new(shared_attrs)
       @debt.errors.add(:base, 'La moneda seleccionada no tiene una tasa registrada disponible para registrar la deuda.')
       redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
@@ -250,6 +248,11 @@ class DebtsController < ApplicationController
 
     conversion_ok = convert_entry_amounts_to_group_currency!(normalized_entries)
     unless conversion_ok
+      redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
+      return
+    end
+
+    unless normalize_loan_entries_to_usd!(normalized_entries)
       redirect_to_show_or_index(notice: @debt.errors.full_messages.to_sentence)
       return
     end
