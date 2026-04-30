@@ -179,8 +179,8 @@ class DebtPaymentsController < ApplicationController
     scope = current_business.debts.excluding_service_cost_records
 
     if current_user_customer_mode?
-      customer_cliente = current_business&.clientes&.find_by(user_id: Current.user&.id)
-      scope = customer_cliente.present? ? scope.where(debt_kind: 'receivable', cliente_id: customer_cliente.id) : scope.none
+      customer_clientes = current_customer_clientes
+      scope = customer_clientes.exists? ? scope.where(debt_kind: 'receivable', cliente_id: customer_clientes.select(:id)) : scope.none
     end
 
     current_debt = scope.find(params[:debt_id])
@@ -226,6 +226,16 @@ class DebtPaymentsController < ApplicationController
       @using_inactive_accounts_for_intercompany = true
       @accounts = apply_payment_currency_filter(base_scope).order(:currency, :name).to_a
     end
+  end
+
+  def current_customer_clientes
+    return Cliente.none unless current_user_customer_mode?
+
+    user_name = Current.user&.full_name.to_s.strip
+    user_name = Current.user&.username.to_s.strip if user_name.blank?
+    return Cliente.none if user_name.blank?
+
+    current_business.clientes.where('LOWER(name) = ?', user_name.downcase)
   end
 
   def load_intercompany_mirror_accounts

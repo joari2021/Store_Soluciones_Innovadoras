@@ -20,8 +20,8 @@ class DebtsController < ApplicationController
           .includes(:cliente, :debt_payments, :venta)
 
     if @customer_debt_view
-      customer_cliente = current_customer_cliente
-      scope = customer_cliente.present? ? scope.where(debt_kind: 'receivable', cliente_id: customer_cliente.id) : scope.none
+      customer_clientes = current_customer_clientes
+      scope = customer_clientes.exists? ? scope.where(debt_kind: 'receivable', cliente_id: customer_clientes.select(:id)) : scope.none
     end
 
     if @search_query.present?
@@ -610,17 +610,21 @@ class DebtsController < ApplicationController
     scope = current_business.debts.excluding_service_cost_records
 
     if current_user_customer_mode?
-      customer_cliente = current_customer_cliente
-      scope = customer_cliente.present? ? scope.where(debt_kind: 'receivable', cliente_id: customer_cliente.id) : scope.none
+      customer_clientes = current_customer_clientes
+      scope = customer_clientes.exists? ? scope.where(debt_kind: 'receivable', cliente_id: customer_clientes.select(:id)) : scope.none
     end
 
     @debt = scope.find(params[:id])
   end
 
-  def current_customer_cliente
-    return nil unless current_user_customer_mode?
+  def current_customer_clientes
+    return Cliente.none unless current_user_customer_mode?
 
-    current_business&.clientes&.find_by(user_id: Current.user&.id)
+    user_name = Current.user&.full_name.to_s.strip
+    user_name = Current.user&.username.to_s.strip if user_name.blank?
+    return Cliente.none if user_name.blank?
+
+    current_business.clientes.where('LOWER(name) = ?', user_name.downcase)
   end
 
   def load_parties
