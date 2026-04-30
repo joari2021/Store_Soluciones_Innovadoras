@@ -279,7 +279,7 @@ class VentasController < ApplicationController
   def historial
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
-    base_scope = current_user_customer_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    base_scope = ventas_scope_for_current_user
     filtered_scope = apply_historial_filters(base_scope)
 
     @total_sales = filtered_scope.count
@@ -308,7 +308,7 @@ class VentasController < ApplicationController
     @cash_shifts_for_filter = current_business.cash_shifts.order(opened_at: :desc).limit(10)
 
     @producto_query = params[:producto_query].to_s.strip.presence
-    base_scope = current_user_customer_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    base_scope = ventas_scope_for_current_user
     filtered_sales = apply_historial_filters(base_scope, include_client_filter: false)
 
     sold_items_scope = VentaItem
@@ -351,7 +351,7 @@ class VentasController < ApplicationController
   end
 
   def show
-    ventas_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    ventas_scope = ventas_scope_for_current_user
 
     @venta = ventas_scope
       .includes(:cliente, :user, :cashier_user, venta_items: %i[producto product_variation], venta_payments: :account)
@@ -365,7 +365,7 @@ class VentasController < ApplicationController
   end
 
   def delivery_note
-    ventas_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    ventas_scope = ventas_scope_for_current_user
 
     @venta = ventas_scope
       .includes(:cliente, :user, :cashier_user, venta_items: %i[producto product_variation])
@@ -387,7 +387,7 @@ class VentasController < ApplicationController
   end
 
   def resumen_modal
-    ventas_scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    ventas_scope = ventas_scope_for_current_user
     venta = ventas_scope.includes(:cliente, :venta_items).find_by(id: params[:id])
 
     if venta.nil?
@@ -1346,7 +1346,7 @@ class VentasController < ApplicationController
   private
 
   def set_venta
-    scope = customer_sales_mode? ? current_business.ventas.where(user_id: Current.user&.id) : current_business.ventas
+    scope = ventas_scope_for_current_user
 
     @venta = scope
       .includes(venta_items: %i[producto product_variation])
@@ -1379,6 +1379,25 @@ class VentasController < ApplicationController
 
   def customer_sales_vip_mode?
     current_user_customer_vip_mode?
+  end
+
+  def customer_sales_clientes
+    return Cliente.none unless customer_sales_mode?
+
+    user_name = Current.user&.full_name.to_s.strip
+    user_name = Current.user&.username.to_s.strip if user_name.blank?
+    return Cliente.none if user_name.blank?
+
+    current_business.clientes.where('LOWER(name) = ?', user_name.downcase)
+  end
+
+  def ventas_scope_for_current_user
+    return current_business.ventas unless customer_sales_mode?
+
+    customer_clientes = customer_sales_clientes
+    return current_business.ventas.none unless customer_clientes.exists?
+
+    current_business.ventas.where(cliente_id: customer_clientes.select(:id))
   end
 
   def customer_pos_restrictions_enabled?
