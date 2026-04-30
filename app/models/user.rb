@@ -1,8 +1,5 @@
 class User < ApplicationRecord
   has_secure_password
-
-  MIN_PASSWORD_LENGTH = 10
-  PASSWORD_COMPLEXITY_REGEX = /\A(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).+\z/.freeze
   SEX_OPTIONS = {
     'male' => 'Masculino',
     'female' => 'Femenino'
@@ -32,8 +29,6 @@ class User < ApplicationRecord
                          message: :invalid
                        }
   validates :full_name, length: { maximum: 80 }, allow_blank: true
-  validates :password, length: { minimum: MIN_PASSWORD_LENGTH }, if: :password_required?
-  validate :password_complexity, if: :password_required?
   validates :sex, inclusion: { in: SEX_OPTIONS.keys }, if: :supports_sex?
 
   # añadir cuando se añada la funcion de que varios otros usuarios puedan crear peliculas para asi monitorear luego
@@ -188,17 +183,6 @@ class User < ApplicationRecord
 
     self.admin = false
     self.personal = true if has_attribute?(:personal) && personal.nil?
-  end
-
-  def password_required?
-    password_digest_changed? || password.present?
-  end
-
-  def password_complexity
-    return if password.blank?
-    return if password.match?(PASSWORD_COMPLEXITY_REGEX)
-
-    errors.add(:password, 'debe incluir mayusculas, minusculas, numeros y simbolos')
   end
 
   def downcase_attributes
