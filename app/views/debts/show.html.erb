@@ -418,7 +418,6 @@
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
         <h3 class="text-lg font-bold text-slate-800" data-add-debt-title="true">Agregar deuda al registro</h3>
       </div>
-      <% end %>
       <%= form_with url: debts_path, method: :post, local: true, class: "space-y-4", data: { add_debt_form: true } do %>
         <%= hidden_field_tag "debt[debt_kind]", @debt.debt_kind %>
         <%= hidden_field_tag "debt[cliente_id]", @debt.cliente_id %>
@@ -503,6 +502,7 @@
       <% end %>
     </div>
             </div>
+  <% end %>
             <script>
               (() => {
                 const root = document.querySelector("[data-controller='venta-modal']");
