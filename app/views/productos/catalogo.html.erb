@@ -3,12 +3,12 @@
 <% total_pages = @product_pairs.size %>
 <% base_params = request.query_parameters.except(:fullscreen) %>
 <% fullscreen_param = base_params.merge(fullscreen: 1) %>
-<div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000">
+<div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000" data-catalogo-fullscreen="<%= catalogo_fullscreen ? 'true' : 'false' %>">
   <div class="catalogo-shell__actions">
     <% if catalogo_fullscreen %>
-      <%= link_to 'Salir pantalla completa', catalogo_productos_path(base_params), class: 'catalogo-fullscreen-toggle' %>
+      <%= link_to 'Salir pantalla completa', catalogo_productos_path(base_params), class: 'catalogo-fullscreen-toggle', data: { catalogo_fullscreen_link: 'exit' } %>
     <% else %>
-      <%= link_to 'Pantalla completa', catalogo_productos_path(fullscreen_param), class: 'catalogo-fullscreen-toggle' %>
+      <%= link_to 'Pantalla completa', catalogo_productos_path(fullscreen_param), class: 'catalogo-fullscreen-toggle', data: { catalogo_fullscreen_link: 'enter' } %>
     <% end %>
   </div>
   <div class="catalogo-book" aria-live="polite">
@@ -33,6 +33,7 @@
     const pages = Array.from(root.querySelectorAll('[data-catalogo-page="true"]'));
     const totalPages = pages.length;
     const duration = Number.parseInt(root.dataset.catalogoDuration || '15000', 10);
+    const isFullscreenMode = root.dataset.catalogoFullscreen === 'true';
 
     if (!pages.length) return;
 
@@ -69,6 +70,49 @@
       if (totalPages <= 1) return;
       timer = window.setInterval(goNext, duration);
     };
+
+    const requestFullscreen = async () => {
+      if (document.fullscreenElement || !root.requestFullscreen) return;
+      try {
+        await root.requestFullscreen();
+      } catch (_error) {
+        // Ignore if the browser blocks fullscreen.
+      }
+    };
+
+    const exitFullscreen = async () => {
+      if (!document.fullscreenElement || !document.exitFullscreen) return;
+      try {
+        await document.exitFullscreen();
+      } catch (_error) {
+        // Ignore if the browser blocks fullscreen.
+      }
+    };
+
+    root.querySelectorAll('[data-catalogo-fullscreen-link]').forEach((link) => {
+      link.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const action = link.dataset.catalogoFullscreenLink;
+        const href = link.getAttribute('href');
+
+        if (action === 'enter') {
+          await requestFullscreen();
+        } else if (action === 'exit') {
+          await exitFullscreen();
+        }
+
+        if (href) {
+          window.location.href = href;
+        }
+      });
+    });
+
+    if (isFullscreenMode) {
+      const handleFirstClick = async () => {
+        await requestFullscreen();
+      };
+      root.addEventListener('click', handleFirstClick, { once: true });
+    }
 
     startAuto();
   })();
