@@ -70,6 +70,18 @@
             <input type="number" min="0" max="100" step="0.01" id="cliente-benefits-general-product-percent" name="cliente[general_product_discount_percent]" class="<%= editable_input %>" placeholder="0.00">
           </div>
         </div>
+        <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div class="md:col-span-2">
+            <label class="block text-xs font-semibold uppercase tracking-wide text-fuchsia-700">Precio a costo</label>
+            <p class="mt-1 text-xs text-fuchsia-600">Todos los productos se venden al costo del inventario.</p>
+          </div>
+          <div class="flex items-center">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" id="cliente-benefits-cost-pricing" class="h-4 w-4 rounded border-slate-300 text-fuchsia-600 focus:ring-fuchsia-500">
+              <span>Activar</span>
+            </label>
+          </div>
+        </div>
         <div class="mt-5 rounded-xl border border-fuchsia-200 bg-white p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-xs font-semibold uppercase tracking-wide text-fuchsia-700">Productos especificos</p>
@@ -135,6 +147,7 @@
 
       const hiddenInput = document.getElementById('cliente-benefits-config-json');
       const generalInput = document.getElementById('cliente-benefits-general-product-percent');
+      const costPricingInput = document.getElementById('cliente-benefits-cost-pricing');
       const productBody = document.getElementById('cliente-benefits-product-rules');
       const serviceBody = document.getElementById('cliente-benefits-service-rules');
       const addProductButton = document.getElementById('cliente-benefits-add-product-rule');
@@ -158,7 +171,7 @@
       const productOptions = parseOptions(root.dataset.benefitProducts);
       const serviceOptions = parseOptions(root.dataset.benefitServices);
 
-      if (!hiddenInput || !generalInput || !productBody || !serviceBody || !addProductButton || !addServiceButton) return;
+      if (!hiddenInput || !generalInput || !costPricingInput || !productBody || !serviceBody || !addProductButton || !addServiceButton) return;
 
       const toNumber = (value) => {
         const parsed = Number.parseFloat(String(value || '').replace(',', '.'));
@@ -355,6 +368,7 @@
       const buildPayload = () => {
         const payload = {
           general_product_discount_percent: clampPercent(generalInput.value),
+          cost_pricing_enabled: Boolean(costPricingInput.checked),
           product_rules: {},
           service_rules: {},
         };
@@ -388,6 +402,7 @@
       };
 
       generalInput.value = String(initial?.general_product_discount_percent || '');
+      costPricingInput.checked = Boolean(initial?.cost_pricing_enabled);
 
       if (initial?.product_rules && typeof initial.product_rules === 'object') {
         Object.entries(initial.product_rules).forEach(([productId, rule]) => {

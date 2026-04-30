@@ -96,8 +96,11 @@ class Cliente < ApplicationRecord
       hash[service_id] = value.round(2).to_f
     end
 
+    cost_pricing_enabled = ActiveModel::Type::Boolean.new.cast(payload["cost_pricing_enabled"])
+
     {
       "general_product_discount_percent" => general_discount.round(2).to_f,
+      "cost_pricing_enabled" => cost_pricing_enabled,
       "product_rules" => product_rules,
       "service_rules" => service_rules,
       "service_fixed_prices" => service_fixed_prices,
@@ -105,6 +108,7 @@ class Cliente < ApplicationRecord
   rescue JSON::ParserError
     {
       "general_product_discount_percent" => 0.0,
+      "cost_pricing_enabled" => false,
       "product_rules" => {},
       "service_rules" => {},
       "service_fixed_prices" => {},
@@ -124,6 +128,7 @@ class Cliente < ApplicationRecord
   def has_special_benefits?
     normalized = normalized_benefits_config
     normalized["general_product_discount_percent"].to_d.positive? ||
+      ActiveModel::Type::Boolean.new.cast(normalized["cost_pricing_enabled"]) ||
       normalized["product_rules"].is_a?(Hash) && normalized["product_rules"].any? ||
       normalized["service_rules"].is_a?(Hash) && normalized["service_rules"].any? ||
       normalized["service_fixed_prices"].is_a?(Hash) && normalized["service_fixed_prices"].any?

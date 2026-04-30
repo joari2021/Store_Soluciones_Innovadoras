@@ -2260,6 +2260,7 @@ class VentasController < ApplicationController
         id: producto.id,
         name: producto.descripcion.to_s,
         price_usd: producto.precio_venta_usd.to_f,
+        unit_cost_usd: producto.highest_active_lot_unit_cost_usd&.to_d&.round(4)&.to_f,
         exento: producto.respond_to?(:exento?) ? producto.exento? : false,
         available_total: total_units.to_f,
         variations: variations_payload,
@@ -2893,6 +2894,12 @@ class VentasController < ApplicationController
     return base_price unless benefits_config.is_a?(Hash)
 
     config = benefits_config.deep_stringify_keys
+    cost_pricing_enabled = ActiveModel::Type::Boolean.new.cast(config["cost_pricing_enabled"])
+    if cost_pricing_enabled
+      cost_price = product.highest_active_lot_unit_cost_usd
+      cost_price = cost_price.to_d if cost_price
+      return cost_price.round(2) if cost_price.to_d.positive?
+    end
     product_rules = config["product_rules"]
     specific_rule = product_rules.is_a?(Hash) ? product_rules[product.id.to_s] : nil
 

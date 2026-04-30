@@ -668,6 +668,13 @@
                 <span id="ventas-iva-bs" class="block text-xs text-slate-400">Bs 0,00</span>
               </span>
             </div>
+            <div id="ventas-sale-total-card" class="hidden flex justify-between rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-sm text-emerald-700">
+              <span>Total a precio de venta (productos)</span>
+              <span class="text-right">
+                <span id="ventas-sale-total-usd" class="block font-semibold text-emerald-700"><%= format_money(0, unit: '$') %></span>
+                <span id="ventas-sale-total-bs" class="block text-xs text-emerald-600">Bs 0,00</span>
+              </span>
+            </div>
             <div class="flex justify-between text-xl font-bold text-slate-800 pt-2">
               <span>Total</span>
               <span class="text-right">
@@ -957,6 +964,11 @@
 
       const normalizeClientBenefits = (rawBenefits) => {
         const source = rawBenefits && typeof rawBenefits === 'object' ? rawBenefits : {};
+        const rawCostPricing = source.cost_pricing_enabled;
+        const costPricingEnabled = rawCostPricing === true
+          || rawCostPricing === 1
+          || rawCostPricing === '1'
+          || String(rawCostPricing || '').trim().toLowerCase() === 'true';
         const productRulesRaw = source.product_rules && typeof source.product_rules === 'object'
           ? source.product_rules
           : {};
@@ -1015,6 +1027,7 @@
           general_product_discount_percent: Number.isFinite(generalDiscount)
             ? Math.max(0, Math.min(100, generalDiscount))
             : 0,
+          cost_pricing_enabled: costPricingEnabled,
           product_rules: productRules,
           service_rules: serviceRules,
         };
@@ -1025,8 +1038,15 @@
 
         const benefits = normalizeClientBenefits(client?.benefits || {});
         return benefits.general_product_discount_percent > 0
+          || benefits.cost_pricing_enabled
           || Object.keys(benefits.product_rules).length > 0
           || Object.keys(benefits.service_rules).length > 0;
+      };
+
+      const isCostPricingEnabled = (client) => {
+        if (!client) return false;
+        const benefits = normalizeClientBenefits(client?.benefits || {});
+        return Boolean(benefits.cost_pricing_enabled);
       };
 
       const resolveProductUnitPriceUsdForClient = (product, client) => {
@@ -1035,6 +1055,10 @@
         if (!client) return basePrice;
 
         const benefits = normalizeClientBenefits(client.benefits || {});
+        if (benefits.cost_pricing_enabled) {
+          const costPrice = Number(product?.unit_cost_usd || 0);
+          if (Number.isFinite(costPrice) && costPrice > 0) return roundTo(costPrice, 2);
+        }
         const productRule = benefits.product_rules[String(product.id)];
 
         if (productRule) {
@@ -4079,12 +4103,17 @@
       };
 
       const computeProductPricing = (product, item = {}) => {
+        const costPricingApplies = isCostPricingEnabled(selectedClient)
+          && Number.isFinite(Number(product?.unit_cost_usd || 0))
+          && Number(product?.unit_cost_usd || 0) > 0;
         let unitPriceUsd = resolveProductUnitPriceUsdForClient(product, selectedClient);
-        unitPriceUsd = applyScheduledDiscountRuleToUnitPriceUsd(
-          unitPriceUsd,
-          item.quantity,
-          product?.scheduled_discount_rules
-        );
+        if (!costPricingApplies) {
+          unitPriceUsd = applyScheduledDiscountRuleToUnitPriceUsd(
+            unitPriceUsd,
+            item.quantity,
+            product?.scheduled_discount_rules
+          );
+        }
         return computePricing(unitPriceUsd, item.quantity, { exento: Boolean(product?.exento) });
       };
 
@@ -4125,6 +4154,33 @@
           vatBase,
           totalBase,
         };
+      };
+
+      const calculateSalePriceTotalBase = () => {
+        let saleTotalBase = 0;
+
+        cart.forEach((item) => {
+          const itemType = item.itemType || 'product';
+          if (itemType !== 'product') return;
+
+          const product = productsById.get(String(item.productId));
+          if (!product) return;
+
+          const unitPriceUsd = Number(product?.price_usd || 0);
+          if (!(Number.isFinite(unitPriceUsd) && unitPriceUsd > 0)) return;
+
+          const quantity = Number(item.quantity || 0);
+          if (!(Number.isFinite(quantity) && quantity > 0)) return;
+
+          const lineUsd = unitPriceUsd * quantity;
+          const lineBase = baseCurrency === 'usd'
+            ? roundTo(lineUsd, 2)
+            : (bcvRate > 0 ? roundTo(lineUsd * bcvRate, 2) : 0);
+
+          saleTotalBase = roundTo(saleTotalBase + lineBase, 2);
+        });
+
+        return saleTotalBase;
       };
 
       const escapeHtml = (value) =>
@@ -5218,6 +5274,9 @@
         const exentoBase = totals.exentoSubtotalBase;
         const vatBase = totals.vatBase;
         const totalBase = totals.totalBase;
+        const saleTotalBase = calculateSalePriceTotalBase();
+        const costPricingEnabled = isCostPricingEnabled(selectedClient);
+        const saleTotalCard = document.getElementById('ventas-sale-total-card');
 
         const setText = (id, value) => {
           const el = document.getElementById(id);
@@ -5233,7 +5292,16 @@
         setText('ventas-total-usd', formatBaseMoney(totalBase));
         setText('ventas-total-bs', formatAltFromBase(totalBase));
 
-          const ivaLabel = document.getElementById('ventas-iva-label');
+        if (saleTotalCard) {
+          const showSaleTotal = costPricingEnabled && saleTotalBase > 0;
+          saleTotalCard.classList.toggle('hidden', !showSaleTotal);
+          if (showSaleTotal) {
+            setText('ventas-sale-total-usd', formatBaseMoney(saleTotalBase));
+            setText('ventas-sale-total-bs', formatAltFromBase(saleTotalBase));
+          }
+        }
+
+        const ivaLabel = document.getElementById('ventas-iva-label');
         if (ivaLabel) {
           ivaLabel.textContent = vatMode === 'none' ? 'IVA' : 'IVA 16%';
         }
