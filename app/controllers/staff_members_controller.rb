@@ -109,6 +109,8 @@ class StaffMembersController < ApplicationController
     role = role_map.is_a?(ActionController::Parameters) || role_map.is_a?(Hash) ? role_map[business_id.to_s] : nil
     role = role.to_s
 
+    return 'none' if role == 'catalog_viewer'
+
     return 'manager' if role == 'administrator'
     return role if %w[none manager standard_staff].include?(role)
 
@@ -120,6 +122,10 @@ class StaffMembersController < ApplicationController
   end
 
   def assignment_customer_access_for(business_id)
+    role_map = params.dig(:user, :business_roles)
+    role = role_map.is_a?(ActionController::Parameters) || role_map.is_a?(Hash) ? role_map[business_id.to_s] : nil
+    return 'catalog_viewer' if role.to_s == 'catalog_viewer'
+
     access_map = params.dig(:user, :business_customer_access)
     level = access_map.is_a?(ActionController::Parameters) || access_map.is_a?(Hash) ? access_map[business_id.to_s] : nil
     level = level.to_s
