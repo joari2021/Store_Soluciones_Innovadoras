@@ -125,8 +125,9 @@
 
 .catalogo-book {
   position: relative;
-  min-height: 60vh;
+  min-height: clamp(30rem, 62vh, 48rem);
   perspective: 1400px;
+  margin-top: 2rem;
 }
 
 .catalogo-page {
@@ -140,7 +141,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: 3rem;
+  padding: clamp(2rem, 3.2vw, 3rem);
   border-radius: 2.5rem;
   background: rgba(255, 255, 255, 0.7);
   border: 1px solid rgba(148, 163, 184, 0.2);
@@ -162,6 +163,10 @@
 .catalogo-page__content {
   position: relative;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2.5rem;
 }
 
 .catalogo-page__number {
@@ -174,8 +179,8 @@
 }
 
 .catalogo-card {
-  position: absolute;
-  width: min(52%, 520px);
+  position: relative;
+  width: min(48%, 520px);
   background: #0f172a;
   color: #fff;
   border-radius: 2rem;
@@ -184,14 +189,13 @@
 }
 
 .catalogo-card--top {
-  top: 0;
-  left: 0;
+  align-self: flex-start;
   background: linear-gradient(140deg, #0f172a 0%, #1e293b 45%, #0f766e 100%);
 }
 
 .catalogo-card--bottom {
-  bottom: 0;
-  right: 0;
+  align-self: flex-end;
+  margin-top: 1.5rem;
   background: linear-gradient(140deg, #111827 0%, #312e81 45%, #be123c 100%);
 }
 
@@ -297,7 +301,7 @@
 }
 
 .catalogo-progress {
-  margin-top: 2rem;
+  margin-top: 2.5rem;
   display: flex;
   align-items: center;
   gap: 1.5rem;
@@ -344,10 +348,8 @@
 
   .catalogo-card--bottom,
   .catalogo-card--top {
-    right: auto;
-    left: auto;
-    top: auto;
-    bottom: auto;
+    align-self: stretch;
+    margin-top: 0;
   }
 
   .catalogo-page__content {
