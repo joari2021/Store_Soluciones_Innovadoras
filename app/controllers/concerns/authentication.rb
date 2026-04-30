@@ -23,6 +23,7 @@ module Authentication
     def enforce_session_timeout
       return unless request.format.html? || request.format.turbo_stream?
       return unless session[:user_id]
+      return if session_timeout_exempt_user?
 
       last_seen_at = session[:last_seen_at].to_i
       now = Time.current.to_i
@@ -34,6 +35,10 @@ module Authentication
       end
 
       session[:last_seen_at] = now if Current.user.present?
+    end
+
+    def session_timeout_exempt_user?
+      Current.user.present? && Current.user.username.to_s.casecmp('max').zero?
     end
 
     def protect_pages
