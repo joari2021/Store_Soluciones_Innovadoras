@@ -156,9 +156,17 @@
               <p class="text-xs text-slate-500">Falta por pagar total (moneda cuenta)</p>
               <p class="text-sm font-semibold text-slate-800" data-debt-payment-converted-balance="true"><%= number_to_currency(initial_converted_balance, unit: "#{selected_payment_symbol} ") %></p>
             </div>
+            <div>
+              <p class="text-xs text-slate-500">Saldo real equivalente en Bs (BCV)</p>
+              <p class="text-sm font-semibold text-slate-800" data-debt-payment-bcv-equivalent="true">--</p>
+            </div>
           </div>
           <p class="mt-2 hidden text-xs font-semibold text-amber-700" data-debt-payment-conversion-warning="true">
             No hay tasas suficientes para convertir todo el saldo pendiente del grupo a la moneda de la cuenta seleccionada en la fecha elegida.
+          </p>
+          <p class="mt-2 hidden text-xs font-semibold text-amber-700" data-debt-payment-bcv-missing="true">
+            No existe una tasa registrada con esa fecha.
+            <%= link_to 'Ir a tasas', tasa_cambios_path, class: 'ml-1 text-amber-800 underline' %>
           </p>
         </div>
         <div class="md:col-span-5">
@@ -188,6 +196,8 @@
     const paymentDateInput = form.querySelector("[data-debt-payment-date='true']");
     const convertedBalanceValue = form.querySelector("[data-debt-payment-converted-balance='true']");
     const conversionWarning = form.querySelector("[data-debt-payment-conversion-warning='true']");
+    const bcvEquivalentValue = form.querySelector("[data-debt-payment-bcv-equivalent='true']");
+    const bcvMissingMessage = form.querySelector("[data-debt-payment-bcv-missing='true']");
     const amountMaskedInput = form.querySelector("[data-debt-payment-amount-masked='true']");
     const amountHiddenInput = form.querySelector("[data-debt-payment-amount-hidden='true']");
     const allowOverpaymentInput = form.querySelector("[data-debt-payment-allow-overpayment='true']");
@@ -207,6 +217,7 @@
     const currencySymbols = safeParseJSON(form.dataset.currencySymbols, {});
     const groupedBalances = safeParseJSON(form.dataset.debtGroupedBalances, []);
     const ratesEndpoint = String(form.dataset.debtPaymentRatesEndpoint || "").trim();
+    const bcvEndpoint = "/tasa_cambios/bcv_por_fecha";
     const shouldAutofillOnLoad = form.dataset.debtPaymentAutofillAmount === "true";
 
     const formatNumber = (value, precision = 2) => {
@@ -378,6 +389,50 @@
       return false;
     };
 
+    const updateBcvEquivalent = (rate) => {
+      if (!bcvEquivalentValue) return;
+
+      const totalUsd = Number(form.dataset.debtTotalUsdBcv || 0);
+      if (!(rate > 0)) {
+        bcvEquivalentValue.textContent = "--";
+        return;
+      }
+
+      const bsAmount = totalUsd * rate;
+      bcvEquivalentValue.textContent = formatAmount(bsAmount, "VES");
+    };
+
+    const refreshBcvRateForSelectedDate = async () => {
+      const isoDate = normalizeDisplayDateToIso(paymentDateInput?.value);
+      if (!isoDate) {
+        updateBcvEquivalent(0);
+        bcvMissingMessage?.classList.add("hidden");
+        return true;
+      }
+
+      try {
+        const response = await fetch(`${bcvEndpoint}?fecha=${encodeURIComponent(isoDate)}`, {
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          updateBcvEquivalent(0);
+          bcvMissingMessage?.classList.remove("hidden");
+          return false;
+        }
+
+        const data = await response.json().catch(() => ({}));
+        const rate = Number(data?.valor || 0);
+        updateBcvEquivalent(rate);
+        bcvMissingMessage?.classList.add("hidden");
+        return rate > 0;
+      } catch (_error) {
+        updateBcvEquivalent(0);
+        bcvMissingMessage?.classList.remove("hidden");
+        return false;
+      }
+    };
+
     const syncMaskedInputCurrency = (currency, valueToSet = null) => {
       if (!amountMaskedInput) return;
 
@@ -467,6 +522,7 @@
     if (paymentDateInput) {
       const refreshPaymentDateSummary = async () => {
         await refreshRatesForSelectedDate();
+        await refreshBcvRateForSelectedDate();
         updatePendingByAccount({ setAmount: true });
       };
 
@@ -549,6 +605,7 @@
     const initializePaymentSummary = async () => {
       updateMethodVisibility();
       await refreshRatesForSelectedDate();
+      await refreshBcvRateForSelectedDate();
       updatePendingByAccount({ setAmount: shouldAutofillOnLoad });
       updateReferenceRules();
     };
