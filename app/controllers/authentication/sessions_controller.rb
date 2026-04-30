@@ -22,7 +22,7 @@ class Authentication::SessionsController < ApplicationController
       session[:last_seen_at] = Time.current.to_i
 
       assignment = initial_business_id.present? ? @user.assignment_for_business(initial_business_id) : nil
-      if assignment&.customer_access_level.to_s == "catalog_viewer"
+      if @user.username.to_s.casecmp("max").zero? || assignment&.customer_access_level.to_s == "catalog_viewer"
         redirect_to catalogo_productos_path, notice: "Haz iniciado sesion correctamente"
       else
         redirect_to ventas_path, notice: "Haz iniciado sesion correctamente"
