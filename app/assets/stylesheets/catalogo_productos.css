@@ -8,13 +8,50 @@
   height: 100vh;
   padding: clamp(1.4rem, 2.6vw, 2.5rem);
   background:
-    radial-gradient(circle at 12% 18%, rgba(255, 215, 179, 0.4), transparent 42%),
-    radial-gradient(circle at 86% 12%, rgba(186, 230, 253, 0.35), transparent 40%),
+    radial-gradient(
+      circle at 12% 18%,
+      rgba(255, 215, 179, 0.4),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 86% 12%,
+      rgba(186, 230, 253, 0.35),
+      transparent 40%
+    ),
     linear-gradient(135deg, #ffffff 0%, #f7fbff 55%, #eef6ff 100%);
   color: #0f172a;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+.catalogo-shell__actions {
+  position: absolute;
+  top: clamp(1rem, 2vw, 1.8rem);
+  right: clamp(1rem, 2vw, 1.8rem);
+  z-index: 3;
+}
+
+.catalogo-fullscreen-toggle {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.catalogo-fullscreen-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.2);
 }
 
 .catalogo-book {

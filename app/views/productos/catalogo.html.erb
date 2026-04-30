@@ -1,7 +1,16 @@
 <% catalogo_fullscreen = @catalogo_fullscreen == true %>
 <% content_for :catalogo_fullscreen, '1' if catalogo_fullscreen %>
 <% total_pages = @product_pairs.size %>
+<% base_params = request.query_parameters.except(:fullscreen) %>
+<% fullscreen_param = base_params.merge(fullscreen: 1) %>
 <div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000">
+  <div class="catalogo-shell__actions">
+    <% if catalogo_fullscreen %>
+      <%= link_to 'Salir pantalla completa', catalogo_productos_path(base_params), class: 'catalogo-fullscreen-toggle' %>
+    <% else %>
+      <%= link_to 'Pantalla completa', catalogo_productos_path(fullscreen_param), class: 'catalogo-fullscreen-toggle' %>
+    <% end %>
+  </div>
   <div class="catalogo-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
       <% left_product = pair[0] %>
