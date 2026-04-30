@@ -113,14 +113,19 @@ class User < ApplicationRecord
   end
 
   def can_access_module?(module_key)
-    return false unless active_for_business?(Current.business)
+    effective_business = Current.business
+    if effective_business.blank? && !admin?
+      effective_business = business_user_assignments.active.order(:business_id).limit(1).pick(:business_id) || business_id
+    end
+
+    return false unless active_for_business?(effective_business)
     return true if admin?
 
-    if catalog_viewer_mode?(Current.business)
+    if catalog_viewer_mode?(effective_business)
       return module_key.to_sym == :catalogo
     end
 
-    if customer_mode?(Current.business)
+    if customer_mode?(effective_business)
       return %i[ventas historial_ventas deudas].include?(module_key.to_sym)
     end
 
@@ -128,7 +133,7 @@ class User < ApplicationRecord
     when :ventas, :historial_ventas, :productos, :deudas, :services, :rates, :clientes, :cash_shifts
       true
     when :accounts
-      manager?
+      manager?(effective_business)
     else
       false
     end

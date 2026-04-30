@@ -9,7 +9,8 @@ class Authentication::SessionsController < ApplicationController
   end
 
   def create
-    @user = User.find_by("email = :login OR username = :login", { login: params[:login] })
+    login = params[:login].to_s.strip.downcase
+    @user = User.find_by('LOWER(email) = :login OR LOWER(username) = :login', { login: login })
 
     if @user&.active? && @user.authenticate(params[:password])
       session[:user_id] = @user.id

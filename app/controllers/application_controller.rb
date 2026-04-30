@@ -238,7 +238,14 @@ class ApplicationController < ActionController::Base
 
   def default_authenticated_path(user = Current.user, business = Current.business)
     return new_session_path if user.blank?
-    return catalogo_productos_path if user.catalog_viewer_mode?(business)
+
+    effective_business = business.presence || Current.business.presence
+    if effective_business.blank? && !user.admin?
+      effective_business = user.business_user_assignments.active.order(:business_id).limit(1).pick(:business_id) ||
+                           user.business_id
+    end
+
+    return catalogo_productos_path if user.catalog_viewer_mode?(effective_business)
 
     ventas_path
   end
