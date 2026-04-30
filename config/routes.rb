@@ -19,6 +19,7 @@ Rails.application.routes.draw do
 
   resources :productos do
     collection do
+      get :catalogo
       get :import_from_global, path: 'importar-desde-global'
       post :create_from_global, path: 'importar-desde-global'
       get :search

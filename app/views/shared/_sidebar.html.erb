@@ -50,6 +50,12 @@
         <span class="sidebar-label">Productos</span>
       <% end %>
     <% end %>
+    <% if current_user_admin? %>
+      <%= link_to catalogo_productos_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Catalogo de productos' } do %>
+        <i data-lucide="book-open" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>
+        <span class="sidebar-label">Catalogo</span>
+      <% end %>
+    <% end %>
     <% if can_access_module?(:services) %>
       <%= link_to services_path, class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Servicios' } do %>
         <i data-lucide="zap" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>

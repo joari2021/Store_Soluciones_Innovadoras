@@ -120,6 +120,15 @@ class ProductosController < ApplicationController
     render json: paginated_productos_payload if request.format.json?
   end
 
+  def catalogo
+    @catalogo_fullscreen = ActiveModel::Type::Boolean.new.cast(params[:fullscreen])
+    @bcv_rate = TasaCambio.latest_value('Dolar BCV').to_d
+    @productos = current_business.productos
+                                 .includes(:categoria, foto_attachment: :blob)
+                                 .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+    @product_pairs = @productos.each_slice(2).to_a
+  end
+
   def search
     query = params[:q].to_s.strip
     supplier_id = params[:supplier_id].to_s.strip
