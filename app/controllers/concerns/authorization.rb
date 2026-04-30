@@ -15,6 +15,7 @@ module Authorization
     end
 
     def require_module_access!(module_key)
+      return if module_key.to_sym == :catalogo && catalogo_public_access?
       return if can_access_module?(module_key)
 
       deny_access

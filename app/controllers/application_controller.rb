@@ -250,6 +250,16 @@ class ApplicationController < ActionController::Base
     ventas_path
   end
 
+  def catalogo_public_access?
+    return false unless request.path == catalogo_productos_path
+
+    provided_key = params[:access_key].to_s
+    expected_key = ENV.fetch('CATALOGO_PUBLIC_KEY', '').to_s
+    return false if provided_key.blank? || expected_key.blank?
+
+    ActiveSupport::SecurityUtils.secure_compare(provided_key, expected_key)
+  end
+
   def closure_reference_day_start_caracas
     closure_reference_today_caracas.in_time_zone('America/Caracas').beginning_of_day
   end

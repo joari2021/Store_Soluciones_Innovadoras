@@ -42,6 +42,7 @@ module Authentication
     end
 
     def protect_pages
+      return if catalogo_public_access?
       redirect_to new_session_path, alert: "Debes iniciar Sesion" unless Current.user
     end
   end
