@@ -22,7 +22,7 @@ module Authorization
 
     def deny_access(message = "Acceso denegado.")
       respond_to do |format|
-        format.html { redirect_to root_path, alert: message }
+        format.html { redirect_to default_authenticated_path, alert: message }
         format.json { render json: { error: message }, status: :forbidden }
       end
     end

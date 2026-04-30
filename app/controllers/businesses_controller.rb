@@ -50,7 +50,7 @@ class BusinessesController < ApplicationController
   def select
     session[:business_id] = @business.id
     Current.business = @business if Current.is_a?(Class) && Current.respond_to?(:business=)
-    redirect_to ventas_path, notice: "Negocio seleccionado: #{@business.name}."
+    redirect_to default_authenticated_path(Current.user, @business), notice: "Negocio seleccionado: #{@business.name}."
   end
 
   private

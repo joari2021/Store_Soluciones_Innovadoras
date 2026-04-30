@@ -236,6 +236,13 @@ class ApplicationController < ActionController::Base
     Current.user
   end
 
+  def default_authenticated_path(user = Current.user, business = Current.business)
+    return new_session_path if user.blank?
+    return catalogo_productos_path if user.catalog_viewer_mode?(business)
+
+    ventas_path
+  end
+
   def closure_reference_day_start_caracas
     closure_reference_today_caracas.in_time_zone('America/Caracas').beginning_of_day
   end
@@ -253,5 +260,5 @@ class ApplicationController < ActionController::Base
 
     redirect_to new_business_path, alert: 'Crea un negocio para continuar.'
   end
-  helper_method :current_business, :current_user
+  helper_method :current_business, :current_user, :default_authenticated_path
 end

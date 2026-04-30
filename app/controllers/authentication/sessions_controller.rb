@@ -21,12 +21,7 @@ class Authentication::SessionsController < ApplicationController
       session[:business_id] = initial_business_id if initial_business_id.present?
       session[:last_seen_at] = Time.current.to_i
 
-      assignment = initial_business_id.present? ? @user.assignment_for_business(initial_business_id) : nil
-      if @user.username.to_s.casecmp("max").zero? || assignment&.customer_access_level.to_s == "catalog_viewer"
-        redirect_to catalogo_productos_path, notice: "Haz iniciado sesion correctamente"
-      else
-        redirect_to ventas_path, notice: "Haz iniciado sesion correctamente"
-      end
+      redirect_to default_authenticated_path(@user, initial_business_id), notice: "Haz iniciado sesion correctamente"
     elsif @user.present? && !@user.active?
       redirect_to new_session_path, alert: "Tu usuario esta inactivo. Contacta al administrador del negocio."
     else

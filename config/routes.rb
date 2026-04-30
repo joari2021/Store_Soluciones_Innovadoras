@@ -167,7 +167,7 @@ Rails.application.routes.draw do
   resources :juegos
   resources :animes
   resources :peliculas
-  root 'productos#index' # ← Esto define la ruta de inicio
+  root 'home#index'
 
   resources :saime_users do
     collection do
