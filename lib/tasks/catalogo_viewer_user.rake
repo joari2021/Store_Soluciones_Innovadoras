@@ -18,17 +18,11 @@ namespace :users do
     user.admin = false
     user.personal = false if user.respond_to?(:personal)
     user.business_id = business.id
-    user.password = password
-    user.password_confirmation = password
 
-    begin
-      user.save!
-    rescue ActiveRecord::RecordInvalid
-      user.password = nil
-      user.password_confirmation = nil
-      user.password_digest = BCrypt::Password.create(password)
-      user.save!(validate: false)
-    end
+    user.password = nil
+    user.password_confirmation = nil
+    user.password_digest = BCrypt::Password.create(password)
+    user.save!(validate: false)
 
     assignment = BusinessUserAssignment.find_or_initialize_by(user: user, business: business)
     assignment.authorization_level = "none"
