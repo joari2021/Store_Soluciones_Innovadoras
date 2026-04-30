@@ -5436,8 +5436,11 @@
 
           const pricing = computeProductPricing(product, item);
           const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizeVariationId(item.variationId));
-          const variationName = variation ? variation.name : 'Unica';
-          const displayName = `${product.name} ${variationName}`.trim();
+          const variationName = String(variation?.name || '').trim();
+          const isUnica = variationName.toLowerCase() === 'unica';
+          const displayName = variationName && !isUnica
+            ? `${product.name} ${variationName}`.trim()
+            : product.name;
           const exentoLabel = product.exento ? ' · Exento IVA' : '';
 
           return `
