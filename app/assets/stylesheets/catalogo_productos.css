@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Space+Grotesk:wght@400;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Space+Grotesk:wght@400;600&display=swap");
 
 .catalogo-fullscreen {
   overflow: hidden;
@@ -8,9 +8,21 @@
   min-height: 100vh;
   padding: 2.5rem clamp(1.5rem, 4vw, 3.5rem) 3.5rem;
   background:
-    radial-gradient(circle at 15% 20%, rgba(255, 200, 124, 0.22), transparent 40%),
-    radial-gradient(circle at 85% 12%, rgba(44, 215, 255, 0.2), transparent 40%),
-    radial-gradient(circle at 70% 75%, rgba(255, 155, 196, 0.2), transparent 40%),
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(255, 200, 124, 0.22),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 85% 12%,
+      rgba(44, 215, 255, 0.2),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 70% 75%,
+      rgba(255, 155, 196, 0.2),
+      transparent 40%
+    ),
     linear-gradient(135deg, #fff5ec 0%, #f2fbff 48%, #ffffff 100%);
   color: #0f172a;
 }
@@ -90,7 +102,9 @@
   color: #0f172a;
   font-weight: 600;
   font-size: 0.9rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .catalogo-btn:hover {
@@ -120,7 +134,9 @@
   inset: 0;
   opacity: 0;
   transform: translateY(30px) rotateY(12deg) scale(0.98);
-  transition: opacity 0.8s ease, transform 0.8s ease;
+  transition:
+    opacity 0.8s ease,
+    transform 0.8s ease;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -199,7 +215,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.25), transparent 70%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.25),
+    transparent 70%
+  );
   font-family: "Fraunces", serif;
   font-size: 3rem;
 }

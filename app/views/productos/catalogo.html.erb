@@ -35,7 +35,6 @@
       </div>
     </div>
   </div>
-
   <div class="catalogo-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
       <% left_product = pair[0] %>
@@ -49,7 +48,6 @@
       </section>
     <% end %>
   </div>
-
   <div class="catalogo-progress">
     <span class="catalogo-progress__label" data-catalogo-status="true">Pagina 1 de <%= total_pages %></span>
     <div class="catalogo-progress__bar">
@@ -57,7 +55,6 @@
     </div>
   </div>
 </div>
-
 <script>
   (() => {
     const root = document.querySelector('[data-catalogo-root="true"]');
