@@ -121,9 +121,8 @@ class User < ApplicationRecord
     return false unless active_for_business?(effective_business)
     return true if admin?
 
-    if catalog_viewer_mode?(effective_business)
-      return module_key.to_sym == :catalogo
-    end
+    # Bypass temporal para diagnostico: no restringir vistas por modulo a usuarios de catalogo.
+    return true if catalog_viewer_mode?(effective_business)
 
     if customer_mode?(effective_business)
       return %i[ventas historial_ventas deudas].include?(module_key.to_sym)
