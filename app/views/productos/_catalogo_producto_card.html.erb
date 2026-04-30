@@ -3,37 +3,52 @@
   <% bs_price = usd_price.positive? ? (usd_price * bcv_rate.to_d) : 0.to_d %>
   <% product_name = producto.display_name_with_presentation.presence || producto.descripcion.to_s %>
   <article class="catalogo-card catalogo-card--<%= position %>">
-    <div class="catalogo-card__media">
-      <% if producto.foto.attached? %>
-        <%= image_tag producto.foto, class: 'catalogo-card__image', alt: product_name %>
-      <% else %>
-        <div class="catalogo-card__image catalogo-card__image--placeholder">
-          <span><%= product_name.to_s.first&.upcase || 'P' %></span>
-        </div>
-      <% end %>
-      <span class="catalogo-card__pill">Disponible ahora</span>
-    </div>
-    <div class="catalogo-card__content">
-      <h2 class="catalogo-card__title"><%= product_name %></h2>
-      <p class="catalogo-card__subtitle"><%= producto.categoria&.nombre.presence || 'Categoria destacada' %></p>
-      <div class="catalogo-card__prices">
-        <div class="catalogo-price">
-          <span class="catalogo-price__label">USD</span>
-          <span class="catalogo-price__value"><%= number_to_currency(usd_price, unit: '$ ') %></span>
-        </div>
-        <div class="catalogo-price catalogo-price--bs">
-          <span class="catalogo-price__label">Bs</span>
-          <span class="catalogo-price__value"><%= number_to_currency(bs_price, unit: 'Bs ') %></span>
+    <div class="catalogo-card__layout">
+      <div class="catalogo-card__media">
+        <% if producto.foto.attached? %>
+          <%= image_tag producto.foto, class: 'catalogo-card__image', alt: product_name %>
+        <% else %>
+          <div class="catalogo-card__image catalogo-card__image--placeholder">
+            <span><%= product_name.to_s.first&.upcase || 'P' %></span>
+          </div>
+        <% end %>
+      </div>
+      <div class="catalogo-card__content">
+        <h2 class="catalogo-card__title"><%= product_name %></h2>
+        <div class="catalogo-card__prices">
+          <div class="catalogo-price">
+            <span class="catalogo-price__label">Precio $</span>
+            <span class="catalogo-price__value"><%= number_to_currency(usd_price, unit: '$ ') %></span>
+          </div>
+          <div class="catalogo-price catalogo-price--bs">
+            <span class="catalogo-price__label">Precio Bs</span>
+            <span class="catalogo-price__value"><%= number_to_currency(bs_price, unit: 'Bs ') %></span>
+          </div>
         </div>
       </div>
-      <p class="catalogo-card__copy">Marca presencia con precio competitivo y visibilidad inmediata en piso de venta.</p>
     </div>
   </article>
 <% else %>
   <article class="catalogo-card catalogo-card--empty catalogo-card--<%= position %>">
-    <div class="catalogo-card__content">
-      <h2 class="catalogo-card__title">Proxima historia</h2>
-      <p class="catalogo-card__subtitle">Espacio listo para destacar un nuevo lanzamiento.</p>
+    <div class="catalogo-card__layout">
+      <div class="catalogo-card__media">
+        <div class="catalogo-card__image catalogo-card__image--placeholder">
+          <span>N</span>
+        </div>
+      </div>
+      <div class="catalogo-card__content">
+        <h2 class="catalogo-card__title">Nuevo producto</h2>
+        <div class="catalogo-card__prices">
+          <div class="catalogo-price">
+            <span class="catalogo-price__label">Precio $</span>
+            <span class="catalogo-price__value">$ 0,00</span>
+          </div>
+          <div class="catalogo-price catalogo-price--bs">
+            <span class="catalogo-price__label">Precio Bs</span>
+            <span class="catalogo-price__value">Bs 0,00</span>
+          </div>
+        </div>
+      </div>
     </div>
   </article>
 <% end %>

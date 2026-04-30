@@ -1,40 +1,7 @@
 <% catalogo_fullscreen = @catalogo_fullscreen == true %>
 <% content_for :catalogo_fullscreen, '1' if catalogo_fullscreen %>
 <% total_pages = @product_pairs.size %>
-<% base_params = request.query_parameters.except(:fullscreen) %>
-<% fullscreen_param = base_params.merge(fullscreen: 1) %>
-<% exit_fullscreen_param = base_params %>
 <div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000">
-  <div class="catalogo-hero">
-    <div class="catalogo-hero__title">
-      <p class="catalogo-hero__kicker">Catalogo premium</p>
-      <h1>Impacto visual del inventario</h1>
-      <p class="catalogo-hero__subtitle">Una vitrina editorial pensada para impulsar valor percibido, rotacion y deseo.</p>
-    </div>
-    <div class="catalogo-hero__controls">
-      <div class="catalogo-hero__stat">
-        <span class="catalogo-hero__stat-label">Productos activos</span>
-        <span class="catalogo-hero__stat-value"><%= @productos.size %></span>
-      </div>
-      <div class="catalogo-hero__stat">
-        <span class="catalogo-hero__stat-label">Paginas</span>
-        <span class="catalogo-hero__stat-value"><%= total_pages %></span>
-      </div>
-      <div class="catalogo-hero__stat">
-        <span class="catalogo-hero__stat-label">Tasa BCV</span>
-        <span class="catalogo-hero__stat-value"><%= number_to_currency(@bcv_rate, unit: 'Bs ') %></span>
-      </div>
-      <div class="catalogo-hero__actions">
-        <button type="button" class="catalogo-btn" data-catalogo-prev="true">Anterior</button>
-        <button type="button" class="catalogo-btn catalogo-btn--primary" data-catalogo-next="true">Siguiente</button>
-        <% if catalogo_fullscreen %>
-          <%= link_to 'Salir pantalla completa', catalogo_productos_path(exit_fullscreen_param), class: 'catalogo-btn catalogo-btn--ghost' %>
-        <% else %>
-          <%= link_to 'Pantalla completa', catalogo_productos_path(fullscreen_param), class: 'catalogo-btn catalogo-btn--ghost' %>
-        <% end %>
-      </div>
-    </div>
-  </div>
   <div class="catalogo-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
       <% left_product = pair[0] %>
@@ -44,15 +11,8 @@
           <%= render partial: 'catalogo_producto_card', locals: { producto: left_product, position: 'top', bcv_rate: @bcv_rate } %>
           <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom', bcv_rate: @bcv_rate } %>
         </div>
-        <div class="catalogo-page__number">Pagina <%= index + 1 %> / <%= total_pages %></div>
       </section>
     <% end %>
-  </div>
-  <div class="catalogo-progress">
-    <span class="catalogo-progress__label" data-catalogo-status="true">Pagina 1 de <%= total_pages %></span>
-    <div class="catalogo-progress__bar">
-      <span class="catalogo-progress__fill" data-catalogo-progress="true"></span>
-    </div>
   </div>
 </div>
 <script>
@@ -62,10 +22,6 @@
     root.dataset.boundCatalogo = 'true';
 
     const pages = Array.from(root.querySelectorAll('[data-catalogo-page="true"]'));
-    const progressFill = root.querySelector('[data-catalogo-progress="true"]');
-    const statusLabel = root.querySelector('[data-catalogo-status="true"]');
-    const prevButton = root.querySelector('[data-catalogo-prev="true"]');
-    const nextButton = root.querySelector('[data-catalogo-next="true"]');
     const totalPages = pages.length;
     const duration = Number.parseInt(root.dataset.catalogoDuration || '15000', 10);
 
@@ -74,20 +30,12 @@
     let currentIndex = 0;
     let timer = null;
 
-    const updateProgress = () => {
-      if (!progressFill || !statusLabel) return;
-      const percent = totalPages > 1 ? ((currentIndex + 1) / totalPages) * 100 : 100;
-      progressFill.style.width = `${percent}%`;
-      statusLabel.textContent = `Pagina ${currentIndex + 1} de ${totalPages}`;
-    };
-
     const setActivePage = (nextIndex) => {
       pages.forEach((page, index) => {
         page.classList.toggle('is-active', index === nextIndex);
         page.classList.toggle('is-prev', index === currentIndex && index !== nextIndex);
       });
       currentIndex = nextIndex;
-      updateProgress();
     };
 
     const goNext = () => {
@@ -113,19 +61,6 @@
       timer = window.setInterval(goNext, duration);
     };
 
-    prevButton?.addEventListener('click', () => {
-      stopAuto();
-      goPrev();
-      startAuto();
-    });
-
-    nextButton?.addEventListener('click', () => {
-      stopAuto();
-      goNext();
-      startAuto();
-    });
-
-    updateProgress();
     startAuto();
   })();
 </script>

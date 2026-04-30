@@ -1,133 +1,26 @@
-@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Space+Grotesk:wght@400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Space+Grotesk:wght@500;700&display=swap");
 
 .catalogo-fullscreen {
   overflow: hidden;
 }
 
 .catalogo-shell {
-  min-height: 100vh;
-  padding: 2.5rem clamp(1.5rem, 4vw, 3.5rem) 3.5rem;
+  height: 100vh;
+  padding: clamp(1.4rem, 2.6vw, 2.5rem);
   background:
-    radial-gradient(
-      circle at 15% 20%,
-      rgba(255, 200, 124, 0.22),
-      transparent 40%
-    ),
-    radial-gradient(
-      circle at 85% 12%,
-      rgba(44, 215, 255, 0.2),
-      transparent 40%
-    ),
-    radial-gradient(
-      circle at 70% 75%,
-      rgba(255, 155, 196, 0.2),
-      transparent 40%
-    ),
-    linear-gradient(135deg, #fff5ec 0%, #f2fbff 48%, #ffffff 100%);
+    radial-gradient(circle at 12% 18%, rgba(255, 215, 179, 0.4), transparent 42%),
+    radial-gradient(circle at 86% 12%, rgba(186, 230, 253, 0.35), transparent 40%),
+    linear-gradient(135deg, #ffffff 0%, #f7fbff 55%, #eef6ff 100%);
   color: #0f172a;
-}
-
-.catalogo-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
-  gap: 2rem;
-  align-items: center;
-  margin-bottom: 2.5rem;
-}
-
-.catalogo-hero__kicker {
-  font-family: "Space Grotesk", sans-serif;
-  text-transform: uppercase;
-  letter-spacing: 0.4em;
-  font-size: 0.7rem;
-  color: #fb7185;
-  font-weight: 600;
-}
-
-.catalogo-hero__title h1 {
-  font-family: "Fraunces", serif;
-  font-size: clamp(2.4rem, 4vw, 3.6rem);
-  margin: 0.6rem 0 0.8rem;
-  color: #0f172a;
-}
-
-.catalogo-hero__subtitle {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 1rem;
-  color: rgba(15, 23, 42, 0.68);
-  max-width: 34rem;
-}
-
-.catalogo-hero__controls {
-  display: grid;
-  gap: 1.2rem;
-}
-
-.catalogo-hero__stat {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  border-radius: 1.2rem;
-  padding: 1rem 1.2rem;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
-}
-
-.catalogo-hero__stat-label {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 0.7rem;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: rgba(15, 23, 42, 0.5);
-}
-
-.catalogo-hero__stat-value {
-  display: block;
-  font-family: "Fraunces", serif;
-  font-size: 1.6rem;
-  color: #0f172a;
-  margin-top: 0.5rem;
-}
-
-.catalogo-hero__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.catalogo-btn {
-  font-family: "Space Grotesk", sans-serif;
-  padding: 0.7rem 1.4rem;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  background: rgba(255, 255, 255, 0.9);
-  color: #0f172a;
-  font-weight: 600;
-  font-size: 0.9rem;
-  transition:
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.catalogo-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.12);
-}
-
-.catalogo-btn--primary {
-  background: linear-gradient(120deg, #fb7185, #f97316);
-  color: #fff;
-  border-color: transparent;
-}
-
-.catalogo-btn--ghost {
-  background: rgba(15, 23, 42, 0.08);
-  border-color: transparent;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .catalogo-book {
   position: relative;
-  min-height: clamp(30rem, 62vh, 48rem);
+  flex: 1;
   perspective: 1400px;
-  margin-top: 2rem;
 }
 
 .catalogo-page {
@@ -141,12 +34,11 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  padding: clamp(2rem, 3.2vw, 3rem);
-  border-radius: 2.5rem;
-  background: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.18);
-  backdrop-filter: blur(18px);
+  padding: clamp(1.5rem, 2.6vw, 2.4rem);
+  border-radius: 1.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.12);
 }
 
 .catalogo-page.is-active {
@@ -166,47 +58,48 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 2.5rem;
-}
-
-.catalogo-page__number {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 0.8rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  color: rgba(15, 23, 42, 0.4);
-  text-align: right;
+  gap: clamp(1.5rem, 2.4vw, 2.2rem);
 }
 
 .catalogo-card {
   position: relative;
-  width: min(48%, 520px);
-  background: #0f172a;
-  color: #fff;
-  border-radius: 2rem;
+  width: min(64%, 720px);
+  background: #ffffff;
+  color: #0f172a;
+  border-radius: 1.6rem;
   overflow: hidden;
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.22);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.2);
 }
 
 .catalogo-card--top {
   align-self: flex-start;
-  background: linear-gradient(140deg, #0f172a 0%, #1e293b 45%, #0f766e 100%);
 }
 
 .catalogo-card--bottom {
   align-self: flex-end;
-  margin-top: 1.5rem;
-  background: linear-gradient(140deg, #111827 0%, #312e81 45%, #be123c 100%);
+  margin-top: 0;
 }
 
 .catalogo-card--empty {
-  background: linear-gradient(140deg, #f8fafc 0%, #e2e8f0 100%);
+  background: #f8fafc;
   color: #0f172a;
+}
+
+.catalogo-card__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 44%) minmax(0, 56%);
+  align-items: stretch;
+  min-height: clamp(11rem, 20vh, 15rem);
 }
 
 .catalogo-card__media {
   position: relative;
-  height: 180px;
+  min-height: 100%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .catalogo-card__image {
@@ -219,131 +112,72 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.25),
-    transparent 70%
-  );
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
   font-family: "Fraunces", serif;
-  font-size: 3rem;
-}
-
-.catalogo-card__pill {
-  position: absolute;
-  top: 1rem;
-  left: 1rem;
-  font-family: "Space Grotesk", sans-serif;
-  padding: 0.35rem 0.9rem;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.7);
-  font-size: 0.7rem;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  font-size: 3.2rem;
+  color: #1e293b;
 }
 
 .catalogo-card__content {
-  padding: 1.8rem;
+  padding: clamp(1.2rem, 2.4vw, 1.8rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
 }
 
 .catalogo-card__title {
   font-family: "Fraunces", serif;
-  font-size: 1.6rem;
-  margin: 0 0 0.4rem;
-}
-
-.catalogo-card__subtitle {
-  font-family: "Space Grotesk", sans-serif;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  margin-bottom: 1rem;
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
+  margin: 0;
+  color: #0f172a;
 }
 
 .catalogo-card__prices {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 
 .catalogo-price {
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 1rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: #0f172a;
+  border-radius: 0.9rem;
+  padding: 0.7rem 1rem;
+  border: 2px solid #ef4444;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 10rem;
+  color: #ffffff;
 }
 
 .catalogo-price--bs {
-  background: rgba(253, 224, 71, 0.2);
-  border-color: rgba(253, 224, 71, 0.3);
+  background: #1f2937;
+  border-color: #facc15;
   color: #fff7ed;
 }
 
 .catalogo-price__label {
   font-family: "Space Grotesk", sans-serif;
   font-size: 0.7rem;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+  opacity: 0.85;
 }
 
 .catalogo-price__value {
   font-family: "Fraunces", serif;
-  font-size: 1.2rem;
-}
-
-.catalogo-card__copy {
-  font-family: "Space Grotesk", sans-serif;
-  margin-top: 1.2rem;
-  font-size: 0.9rem;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.catalogo-progress {
-  margin-top: 2.5rem;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-}
-
-.catalogo-progress__label {
-  font-family: "Space Grotesk", sans-serif;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: rgba(15, 23, 42, 0.55);
-}
-
-.catalogo-progress__bar {
-  flex: 1;
-  height: 6px;
-  background: rgba(15, 23, 42, 0.1);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.catalogo-progress__fill {
-  display: block;
-  height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, #fb7185, #f97316);
-  transition: width 0.8s ease;
+  font-size: 1.3rem;
 }
 
 @media (max-width: 900px) {
-  .catalogo-hero {
-    grid-template-columns: 1fr;
-  }
-
   .catalogo-page {
-    padding: 2rem;
+    padding: 1.4rem;
   }
 
   .catalogo-card {
-    position: relative;
     width: 100%;
-    margin-bottom: 2rem;
   }
 
   .catalogo-card--bottom,
@@ -353,18 +187,20 @@
   }
 
   .catalogo-page__content {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
+  }
+
+  .catalogo-card__layout {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 640px) {
   .catalogo-shell {
-    padding: 1.5rem;
+    padding: 1.1rem;
   }
 
   .catalogo-card__title {
-    font-size: 1.3rem;
+    font-size: 1.2rem;
   }
 }
