@@ -56,6 +56,7 @@ class User < ApplicationRecord
 
     assignment = assignment_for_business(business)
     assignment_customer_level = assignment&.customer_access_level.to_s
+    return 'catalog_viewer' if assignment_customer_level == 'catalog_viewer'
     return 'customer' if %w[customer customer_vip].include?(assignment_customer_level)
 
     assignment_level = assignment&.authorization_level.to_s
@@ -75,6 +76,11 @@ class User < ApplicationRecord
     'none'
   end
 
+  def catalog_viewer_mode?(business = Current.business)
+    assignment = assignment_for_business(business)
+    assignment&.customer_access_level.to_s == 'catalog_viewer'
+  end
+
   def customer_mode?(business = Current.business)
     return false if admin?
     %w[customer customer_vip].include?(customer_access_level(business))
@@ -86,6 +92,7 @@ class User < ApplicationRecord
 
   def role_label(business = Current.business)
     return female? ? 'Administradora' : 'Administrador' if admin?
+    return 'Catalogo' if catalog_viewer_mode?(business)
     return 'Cliente' if customer_mode?(business)
     return female? ? 'Encargada' : 'Encargado' if manager?(business)
     return 'Sin cargo' if role_key(business) == 'none'
@@ -114,6 +121,10 @@ class User < ApplicationRecord
     return false unless active_for_business?(Current.business)
     return true if admin?
 
+    if catalog_viewer_mode?(Current.business)
+      return module_key.to_sym == :catalogo
+    end
+
     if customer_mode?(Current.business)
       return %i[ventas historial_ventas deudas].include?(module_key.to_sym)
     end
@@ -132,7 +143,7 @@ class User < ApplicationRecord
     return false unless active_for_business?(Current.business)
     return true if admin?
 
-    return false if customer_mode?(Current.business)
+    return false if customer_mode?(Current.business) || catalog_viewer_mode?(Current.business)
 
     allowed_actions = %i[manage_clients create_debt register_debt_payment update_rates]
     allowed_actions << :manage_cash_shifts if manager?(Current.business)

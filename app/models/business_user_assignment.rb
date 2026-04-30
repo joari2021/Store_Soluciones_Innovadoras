@@ -1,6 +1,6 @@
 class BusinessUserAssignment < ApplicationRecord
   AUTHORIZATION_LEVELS = %w[manager standard_staff none].freeze
-  CUSTOMER_ACCESS_LEVELS = %w[none customer customer_vip].freeze
+  CUSTOMER_ACCESS_LEVELS = %w[none customer customer_vip catalog_viewer].freeze
 
   belongs_to :business
   belongs_to :user
@@ -32,6 +32,10 @@ class BusinessUserAssignment < ApplicationRecord
 
   def customer_vip?
     customer_access_level == 'customer_vip'
+  end
+
+  def catalog_viewer?
+    customer_access_level == 'catalog_viewer'
   end
 
   def customer_access?

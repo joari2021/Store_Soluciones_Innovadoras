@@ -2,7 +2,8 @@ class ProductosController < ApplicationController
   PRODUCTS_PER_PAGE = 36
 
   before_action :require_business
-  before_action -> { require_module_access!(:productos) }, except: :search
+  before_action -> { require_module_access!(:productos) }, except: %i[search catalogo]
+  before_action -> { require_module_access!(:catalogo) }, only: :catalogo
   before_action :require_search_access!, only: :search
   before_action :set_producto, only: %i[show edit update destroy]
   before_action :set_pack_unwrap, only: %i[edit_unpack_history update_unpack_history destroy_unpack_history]
