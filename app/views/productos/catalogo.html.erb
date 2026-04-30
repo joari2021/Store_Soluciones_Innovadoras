@@ -96,9 +96,10 @@
         const href = link.getAttribute('href');
 
         if (action === 'enter') {
-          await requestFullscreen();
+          sessionStorage.setItem('catalogoFullscreenPending', 'true');
         } else if (action === 'exit') {
           await exitFullscreen();
+          sessionStorage.removeItem('catalogoFullscreenPending');
         }
 
         if (href) {
@@ -107,9 +108,10 @@
       });
     });
 
-    if (isFullscreenMode) {
+    if (isFullscreenMode && sessionStorage.getItem('catalogoFullscreenPending') === 'true') {
       const handleFirstClick = async () => {
         await requestFullscreen();
+        sessionStorage.removeItem('catalogoFullscreenPending');
       };
       root.addEventListener('click', handleFirstClick, { once: true });
     }
