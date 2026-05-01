@@ -1,0 +1,20 @@
+<div class="catalogo-selector">
+  <div class="catalogo-selector__header">
+    <p class="catalogo-selector__eyebrow">Catalogo publico</p>
+    <h1 class="catalogo-selector__title">Elige un negocio</h1>
+    <p class="catalogo-selector__subtitle">Selecciona el negocio que deseas mostrar en pantalla.</p>
+  </div>
+
+  <% if @catalog_businesses.present? %>
+    <div class="catalogo-selector__grid">
+      <% @catalog_businesses.each do |business| %>
+        <%= link_to catalogo_publico_path(business_id: business.id), class: 'catalogo-selector__card' do %>
+          <span class="catalogo-selector__name"><%= business.name %></span>
+          <span class="catalogo-selector__cta">Abrir catalogo</span>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="catalogo-selector__empty">No hay negocios disponibles para mostrar.</div>
+  <% end %>
+</div>

@@ -123,8 +123,19 @@ class ProductosController < ApplicationController
   end
 
   def catalogo
+    @catalog_businesses = Business.order(:name)
+
+    if params[:business_id].blank?
+      render :catalogo_selector, layout: 'catalogo_publico'
+      return
+    end
+
     @catalog_business = catalog_business
-    return head :not_found if @catalog_business.blank?
+    if @catalog_business.blank?
+      flash.now[:alert] = 'El negocio seleccionado no existe.'
+      render :catalogo_selector, layout: 'catalogo_publico', status: :not_found
+      return
+    end
 
     @catalogo_fullscreen = ActiveModel::Type::Boolean.new.cast(params[:fullscreen])
     @bcv_rate = TasaCambio.latest_value('Dolar BCV').to_d
@@ -797,13 +808,9 @@ class ProductosController < ApplicationController
   end
 
   def catalog_business
-    if params[:business_id].present?
-      Business.find_by(id: params[:business_id].to_i)
-    elsif current_business.present?
-      current_business
-    else
-      Business.order(:id).first
-    end
+    return nil if params[:business_id].blank?
+
+    Business.find_by(id: params[:business_id].to_i)
   end
 
   def find_accessible_source_business(raw_id)
