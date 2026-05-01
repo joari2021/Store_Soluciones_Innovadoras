@@ -5438,9 +5438,14 @@
           const variation = (product.variations || []).find((row) => normalizeVariationId(row.id) === normalizeVariationId(item.variationId));
           const variationName = String(variation?.name || '').trim();
           const isUnica = variationName.toLowerCase() === 'unica';
-          const displayName = variationName && !isUnica
+          const baseName = variationName && !isUnica
             ? `${product.name} ${variationName}`.trim()
             : product.name;
+          const isPack = String(product?.presentation || '').toLowerCase() === 'pack';
+          const presentationSuffix = String(product?.presentation_suffix || '').trim();
+          const displayName = isPack && presentationSuffix
+            ? `${baseName} ${presentationSuffix}`.trim()
+            : baseName;
           const exentoLabel = product.exento ? ' · Exento IVA' : '';
 
           return `

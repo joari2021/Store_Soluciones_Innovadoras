@@ -20,8 +20,7 @@ class DebtsController < ApplicationController
           .includes(:cliente, :debt_payments, :venta)
 
     if @customer_debt_view
-      customer_clientes = current_customer_clientes
-      scope = customer_clientes.exists? ? scope.where(debt_kind: 'receivable', cliente_id: customer_clientes.select(:id)) : scope.none
+      scope = scope.where(debt_kind: 'receivable')
     end
 
     if @search_query.present?

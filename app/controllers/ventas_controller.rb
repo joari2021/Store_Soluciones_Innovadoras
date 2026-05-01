@@ -2261,6 +2261,8 @@ class VentasController < ApplicationController
         name: producto.descripcion.to_s,
         price_usd: producto.precio_venta_usd.to_f,
         unit_cost_usd: producto.highest_active_lot_unit_cost_usd&.to_d&.round(4)&.to_f,
+        presentation: producto.presentation.to_s,
+        presentation_suffix: producto.presentation_display_suffix.to_s,
         exento: producto.respond_to?(:exento?) ? producto.exento? : false,
         available_total: total_units.to_f,
         variations: variations_payload,

@@ -179,8 +179,7 @@ class DebtPaymentsController < ApplicationController
     scope = current_business.debts.excluding_service_cost_records
 
     if current_user_customer_mode?
-      customer_clientes = current_customer_clientes
-      scope = customer_clientes.exists? ? scope.where(debt_kind: 'receivable', cliente_id: customer_clientes.select(:id)) : scope.none
+      scope = scope.where(debt_kind: 'receivable')
     end
 
     current_debt = scope.find(params[:debt_id])
