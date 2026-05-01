@@ -1,15 +1,16 @@
 class ProductosController < ApplicationController
   PRODUCTS_PER_PAGE = 36
 
-  before_action :require_business
+  skip_before_action :protect_pages, only: :catalogo
+
+  before_action :require_business, except: :catalogo
   before_action -> { require_module_access!(:productos) }, except: %i[search catalogo]
-  before_action -> { require_module_access!(:catalogo) }, only: :catalogo
   before_action :require_search_access!, only: :search
   before_action :set_producto, only: %i[show edit update destroy]
   before_action :set_pack_unwrap, only: %i[edit_unpack_history update_unpack_history destroy_unpack_history]
   before_action :require_admin, except: %i[index search unpack_packs process_unpack unpack_histories edit_unpack_history
                                            update_unpack_history destroy_unpack_history internal_usages create_internal_usage
-                                           destroy_internal_usage]
+                                           destroy_internal_usage catalogo]
   before_action :require_unpack_access!, only: %i[unpack_packs process_unpack unpack_histories edit_unpack_history
                                                   update_unpack_history destroy_unpack_history]
   before_action :require_internal_usage_access!, only: %i[internal_usages create_internal_usage destroy_internal_usage]
@@ -122,12 +123,17 @@ class ProductosController < ApplicationController
   end
 
   def catalogo
+    @catalog_business = catalog_business
+    return head :not_found if @catalog_business.blank?
+
     @catalogo_fullscreen = ActiveModel::Type::Boolean.new.cast(params[:fullscreen])
     @bcv_rate = TasaCambio.latest_value('Dolar BCV').to_d
-    @productos = current_business.productos
+    @productos = @catalog_business.productos
                                  .includes(:categoria, foto_attachment: :blob)
                                  .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
     @product_pairs = @productos.each_slice(2).to_a
+
+    render layout: 'catalogo_publico'
   end
 
   def search
@@ -788,6 +794,16 @@ class ProductosController < ApplicationController
     return if can_access_module?(:ventas)
 
     render json: { error: 'Acceso denegado.' }, status: :forbidden
+  end
+
+  def catalog_business
+    if params[:business_id].present?
+      Business.find_by(id: params[:business_id].to_i)
+    elsif current_business.present?
+      current_business
+    else
+      Business.order(:id).first
+    end
   end
 
   def find_accessible_source_business(raw_id)
