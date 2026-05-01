@@ -16,12 +16,10 @@
       <div class="catalogo-card__content">
         <h2 class="catalogo-card__title"><%= product_name %></h2>
         <div class="catalogo-card__prices">
-          <div class="catalogo-price">
-            <span class="catalogo-price__label">Precio $</span>
+          <div class="catalogo-price catalogo-price--usd">
             <span class="catalogo-price__value"><%= number_to_currency(usd_price, unit: '$ ') %></span>
           </div>
           <div class="catalogo-price catalogo-price--bs">
-            <span class="catalogo-price__label">Precio Bs</span>
             <span class="catalogo-price__value"><%= number_to_currency(bs_price, unit: 'Bs ') %></span>
           </div>
         </div>
@@ -39,12 +37,10 @@
       <div class="catalogo-card__content">
         <h2 class="catalogo-card__title">Nuevo producto</h2>
         <div class="catalogo-card__prices">
-          <div class="catalogo-price">
-            <span class="catalogo-price__label">Precio $</span>
+          <div class="catalogo-price catalogo-price--usd">
             <span class="catalogo-price__value">$ 0,00</span>
           </div>
           <div class="catalogo-price catalogo-price--bs">
-            <span class="catalogo-price__label">Precio Bs</span>
             <span class="catalogo-price__value">Bs 0,00</span>
           </div>
         </div>
