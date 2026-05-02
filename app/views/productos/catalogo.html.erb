@@ -1,14 +1,13 @@
 <% total_pages = @product_pairs.size %>
-<div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000">
-  <div class="catalogo-book" aria-live="polite">
+<div class="timer-bar" id="timer"></div>
+<div class="catalog-container" id="catalog" data-catalogo-root="true" data-catalogo-duration="15000">
+  <div class="catalog-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
       <% left_product = pair[0] %>
       <% right_product = pair[1] %>
-      <section class="catalogo-page <%= index.zero? ? 'is-active' : '' %>" data-catalogo-page="true" data-page-index="<%= index %>">
-        <div class="catalogo-page__content">
-          <%= render partial: 'catalogo_producto_card', locals: { producto: left_product, position: 'top', bcv_rate: @bcv_rate } %>
-          <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom', bcv_rate: @bcv_rate } %>
-        </div>
+      <section class="page <%= index.zero? ? 'active' : '' %>" data-catalogo-page="true" data-page-index="<%= index %>">
+        <%= render partial: 'catalogo_producto_card', locals: { producto: left_product, position: 'top-left', bcv_rate: @bcv_rate } %>
+        <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom-right', bcv_rate: @bcv_rate } %>
         <div class="catalogo-bcv-badge" aria-hidden="true">
           <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
         </div>
@@ -19,6 +18,7 @@
 <script>
   (() => {
     const root = document.querySelector('[data-catalogo-root="true"]');
+    const timerBar = document.getElementById('timer');
     if (!root || root.dataset.boundCatalogo === 'true') return;
     root.dataset.boundCatalogo = 'true';
 
@@ -33,8 +33,7 @@
 
     const setActivePage = (nextIndex) => {
       pages.forEach((page, index) => {
-        page.classList.toggle('is-active', index === nextIndex);
-        page.classList.toggle('is-prev', index === currentIndex && index !== nextIndex);
+        page.classList.toggle('active', index === nextIndex);
       });
       currentIndex = nextIndex;
     };
@@ -42,6 +41,7 @@
     const goNext = () => {
       const nextIndex = currentIndex + 1 >= totalPages ? 0 : currentIndex + 1;
       setActivePage(nextIndex);
+      startTimerBar();
     };
 
     const goPrev = () => {
@@ -51,15 +51,25 @@
 
     const stopAuto = () => {
       if (timer) {
-        window.clearInterval(timer);
+        window.clearTimeout(timer);
         timer = null;
       }
     };
 
+    const startTimerBar = () => {
+      if (!timerBar) return;
+      timerBar.style.transition = 'none';
+      timerBar.style.width = '0%';
+      void timerBar.offsetWidth;
+      timerBar.style.transition = `width ${duration}ms linear`;
+      timerBar.style.width = '100%';
+    };
+
     const startAuto = () => {
       stopAuto();
+      startTimerBar();
       if (totalPages <= 1) return;
-      timer = window.setInterval(goNext, duration);
+      timer = window.setTimeout(goNext, duration);
     };
 
     startAuto();
