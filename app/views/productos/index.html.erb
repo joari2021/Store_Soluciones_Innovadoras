@@ -85,6 +85,7 @@
       <% active_filter_params[:query_text] = @query_text if @query_text.present? %>
       <% active_filter_params[:low_stock] = 1 if @low_stock_filter %>
       <% active_filter_params[:below_target_margin] = 1 if @below_target_margin_filter %>
+      <% active_filter_params[:catalog_hidden] = 1 if @catalog_hidden_filter %>
       <div class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
         <div class="flex items-center justify-between gap-3">
           <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrar por categoria</p>
@@ -115,7 +116,7 @@
           <% end %>
         </div>
       </div>
-      <%= form_with url: productos_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,18rem)_minmax(0,14rem)_minmax(0,14rem)_auto_auto] md:items-end md:justify-start', data: { products_search_form: true } do %>
+      <%= form_with url: productos_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,18rem)_minmax(0,14rem)_minmax(0,14rem)_minmax(0,14rem)_auto_auto] md:items-end md:justify-start', data: { products_search_form: true } do %>
         <%= hidden_field_tag :category_id, @selected_categoria_id if @selected_categoria_id.present? %>
         <div class="w-full md:w-[18rem]">
           <label for="products_query_text" class="block text-sm font-medium text-slate-700">Buscar producto</label>
@@ -161,6 +162,17 @@
                          id: 'products_below_target_margin',
                          class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                          data: { products_below_target_margin_input: true } %>
+        </div>
+        <div class="w-full md:w-[14rem]">
+          <label for="products_catalog_hidden" class="block text-sm font-medium text-slate-700">Catalogo publico</label>
+          <%= select_tag :catalog_hidden,
+                         options_for_select([
+                           ['Todos', '0'],
+                           ['Solo ocultos en catalogo', '1']
+                         ], @catalog_hidden_filter ? '1' : '0'),
+                         id: 'products_catalog_hidden',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                         data: { products_catalog_hidden_input: true } %>
         </div>
         <button type="submit" data-products-submit="true" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70">
           Buscar
@@ -342,6 +354,7 @@
       const belowTargetMarginInput = scope.querySelector(
         "[data-products-below-target-margin-input='true']",
       );
+      const catalogHiddenInput = scope.querySelector("[data-products-catalog-hidden-input='true']");
       if (!form) return;
 
       const currentResultsContainer = () =>
@@ -566,11 +579,13 @@
           const nextQuery = targetUrl.searchParams.get("query_text") || "";
           const nextLowStock = targetUrl.searchParams.get("low_stock") === "1" ? "1" : "0";
           const nextBelowTarget = targetUrl.searchParams.get("below_target_margin") === "1" ? "1" : "0";
+          const nextCatalogHidden = targetUrl.searchParams.get("catalog_hidden") === "1" ? "1" : "0";
           const nextCategoryId = targetUrl.searchParams.get("category_id") || "";
 
           if (input) input.value = nextQuery;
           if (lowStockInput) lowStockInput.value = nextLowStock;
           if (belowTargetMarginInput) belowTargetMarginInput.value = nextBelowTarget;
+          if (catalogHiddenInput) catalogHiddenInput.value = nextCatalogHidden;
           setCategoryValue(nextCategoryId);
           updateCategoryChipState(nextCategoryId);
 
@@ -614,6 +629,13 @@
       ) {
         belowTargetMarginInput.dataset.changeBound = "true";
         belowTargetMarginInput.addEventListener("change", () => {
+          void submitSearch();
+        });
+      }
+
+      if (catalogHiddenInput && catalogHiddenInput.dataset.changeBound !== "true") {
+        catalogHiddenInput.dataset.changeBound = "true";
+        catalogHiddenInput.addEventListener("change", () => {
           void submitSearch();
         });
       }

@@ -88,6 +88,7 @@ class ProductosController < ApplicationController
     @query_text = params[:query_text].to_s.strip
     @low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
     @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+    @catalog_hidden_filter = ActiveModel::Type::Boolean.new.cast(params[:catalog_hidden])
     @categorias = current_business.categorias.order(nombre: :asc)
     @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
     @selected_categoria_id = @selected_categoria&.id
@@ -100,7 +101,7 @@ class ProductosController < ApplicationController
                    .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
 
     @has_productos = current_business.productos.exists?
-    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?
+    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @catalog_hidden_filter || @selected_categoria_id.present?
 
     filtered_scope = if @query_text.present?
                        base_scope.whose_name_starts_with(@query_text)
@@ -109,6 +110,7 @@ class ProductosController < ApplicationController
                      end
 
     filtered_scope = filtered_scope.where(categoria_id: @selected_categoria_id) if @selected_categoria_id.present?
+    filtered_scope = filtered_scope.where(show_in_catalog: false) if @catalog_hidden_filter && Producto.column_names.include?('show_in_catalog')
 
     filtered_scope = filter_by_low_stock(filtered_scope) if @low_stock_filter
     filtered_scope = filter_by_below_target_margin(filtered_scope) if @below_target_margin_filter
@@ -139,9 +141,12 @@ class ProductosController < ApplicationController
 
     @catalogo_fullscreen = ActiveModel::Type::Boolean.new.cast(params[:fullscreen])
     @bcv_rate = TasaCambio.latest_value('Dolar BCV').to_d
-    @productos = @catalog_business.productos
-                                 .includes(:categoria, foto_attachment: :blob)
-                                 .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+    base_scope = @catalog_business.productos
+                    .includes(:categoria, :stock_lot_variations, :stock_lots, foto_attachment: :blob)
+                    .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+
+    base_scope = base_scope.where(show_in_catalog: true) if Producto.column_names.include?('show_in_catalog')
+    @productos = base_scope.select { |producto| producto.total_quantity.to_d.positive? }
     @product_pairs = @productos.each_slice(2).to_a
 
     render layout: 'catalogo_publico'
@@ -996,6 +1001,7 @@ class ProductosController < ApplicationController
       :presentation,
       :cant_presentation,
       :allow_unpack,
+      :show_in_catalog,
       :general_safety_stock,
       :precio_venta_usd,
       :categoria_id,

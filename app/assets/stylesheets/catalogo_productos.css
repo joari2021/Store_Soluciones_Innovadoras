@@ -174,7 +174,9 @@
   height: 2px;
   transform: translateY(-1px);
   background: #f8ff3d;
-  box-shadow: 0 0 6px rgba(248, 255, 61, 0.95), 0 0 16px rgba(248, 255, 61, 0.8);
+  box-shadow:
+    0 0 6px rgba(248, 255, 61, 0.95),
+    0 0 16px rgba(248, 255, 61, 0.8);
   z-index: 2;
 }
 
@@ -223,7 +225,7 @@
 
 .product-name {
   font-family: "Montserrat", sans-serif;
-  font-size: clamp(2rem, 3.2vw, 3.2rem);
+  font-size: clamp(1.8rem, 2.85vw, 2.8rem);
   font-weight: 900;
   line-height: 0.92;
   color: #fff;
