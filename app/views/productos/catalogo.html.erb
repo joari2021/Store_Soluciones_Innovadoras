@@ -7,30 +7,32 @@
       <section class="page <%= index.zero? ? 'active' : '' %>" data-catalogo-page="true" data-page-index="<%= index %>">
         <%= render partial: 'catalogo_producto_card', locals: { producto: left_product, position: 'top-left', bcv_rate: @bcv_rate } %>
         <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom-right', bcv_rate: @bcv_rate } %>
-        <div class="catalogo-brand-badge">
-          <% if @catalog_business.logo.attached? %>
-            <div class="catalogo-brand-badge__logo-wrap">
-              <%= image_tag @catalog_business.logo,
-                            class: 'catalogo-brand-badge__logo',
-                            alt: "Logo de #{@catalog_business.name}" %>
-            </div>
-          <% end %>
-          <div class="catalogo-brand-badge__cashea-wrap">
-            <%= image_tag 'cashea compra.png', class: 'catalogo-brand-badge__cashea', alt: 'Compra con Cashea' %>
-          </div>
-        </div>
-        <div class="catalogo-bcv-badge" aria-hidden="true">
-          <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
-          <div class="catalogo-bcv-badge__meta">
-            <% usd_rate_value = @bcv_usd_rate&.valor.to_d %>
-            <% eur_rate_value = @bcv_eur_rate&.valor.to_d %>
-            <% bcv_reference_date = @bcv_usd_rate&.fecha_referencia || @bcv_eur_rate&.fecha_referencia %>
-            <p class="catalogo-bcv-rate catalogo-bcv-rate--usd"><%= number_with_precision(usd_rate_value, precision: 2, delimiter: '.', separator: ',') %></p>
-            <p class="catalogo-bcv-rate catalogo-bcv-rate--eur"><%= number_with_precision(eur_rate_value, precision: 2, delimiter: '.', separator: ',') %></p>
-            <p class="catalogo-bcv-date"><%= bcv_reference_date&.strftime('%d-%m-%y') %></p>
-          </div>
-        </div>
       </section>
+    <% end %>
+    <% if @product_pairs.any? %>
+      <div class="catalogo-brand-badge">
+        <% if @catalog_business.logo.attached? %>
+          <div class="catalogo-brand-badge__logo-wrap">
+            <%= image_tag @catalog_business.logo,
+                          class: 'catalogo-brand-badge__logo',
+                          alt: "Logo de #{@catalog_business.name}" %>
+          </div>
+        <% end %>
+        <div class="catalogo-brand-badge__cashea-wrap">
+          <%= image_tag 'cashea compra.png', class: 'catalogo-brand-badge__cashea', alt: 'Compra con Cashea' %>
+        </div>
+      </div>
+      <div class="catalogo-bcv-badge" aria-hidden="true">
+        <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
+        <div class="catalogo-bcv-badge__meta">
+          <% usd_rate_value = @bcv_usd_rate&.valor.to_d %>
+          <% eur_rate_value = @bcv_eur_rate&.valor.to_d %>
+          <% bcv_reference_date = @bcv_usd_rate&.fecha_referencia || @bcv_eur_rate&.fecha_referencia %>
+          <p class="catalogo-bcv-rate catalogo-bcv-rate--usd"><%= number_with_precision(usd_rate_value, precision: 2, delimiter: '.', separator: ',') %></p>
+          <p class="catalogo-bcv-rate catalogo-bcv-rate--eur"><%= number_with_precision(eur_rate_value, precision: 2, delimiter: '.', separator: ',') %></p>
+          <p class="catalogo-bcv-date"><%= bcv_reference_date&.strftime('%d-%m-%y') %></p>
+        </div>
+      </div>
     <% end %>
   </div>
 </div>
