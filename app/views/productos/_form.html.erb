@@ -83,7 +83,8 @@
       <%= form.select :presentation,
                       options_for_select([
                         ['Unidad', 'unidad'],
-                        ['Pack', 'pack']
+                        ['Pack', 'pack'],
+                        ['Kg', 'kg']
                       ], producto.presentation.to_s),
                       {},
                       class: "#{normal_field_class} #{locked_by_global ? locked_field_class : ''}",
@@ -94,7 +95,7 @@
       <%= form.hidden_field :presentation if locked_by_global %>
     </div>
     <div>
-      <%= form.label :cant_presentation, 'Unidades por pack', class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
+      <%= form.label :cant_presentation, 'Cantidad por presentacion', class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
       <%= form.number_field :cant_presentation,
                             min: 1,
                             step: 1,

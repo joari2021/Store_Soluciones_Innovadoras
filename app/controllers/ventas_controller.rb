@@ -2259,6 +2259,7 @@ class VentasController < ApplicationController
       {
         id: producto.id,
         name: producto.descripcion.to_s,
+        display_name: producto.display_name_with_presentation.to_s,
         price_usd: producto.precio_venta_usd.to_f,
         unit_cost_usd: producto.highest_active_lot_unit_cost_usd&.to_d&.round(4)&.to_f,
         presentation: producto.presentation.to_s,

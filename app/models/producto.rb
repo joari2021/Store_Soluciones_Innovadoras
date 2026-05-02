@@ -26,7 +26,7 @@ class Producto < ApplicationRecord
            dependent: :restrict_with_error,
            inverse_of: :unit_producto
 
-  enum :presentation, { unidad: 0, pack: 1 }, default: :unidad
+  enum :presentation, { unidad: 0, pack: 1, kg: 2 }, default: :unidad
 
   accepts_nested_attributes_for :product_variations, allow_destroy: true
 
@@ -68,6 +68,7 @@ class Producto < ApplicationRecord
 
   def presentation_display_suffix
     return '(unidad)' if unidad?
+    return '(1 kg)' if kg?
 
     "(pack de #{cant_presentation.to_i} unid)"
   end
@@ -169,7 +170,7 @@ class Producto < ApplicationRecord
   def normalize_presentation_values
     self.presentation = :unidad if presentation.blank?
     self.cant_presentation = 1 if cant_presentation.blank?
-    self.cant_presentation = 1 if unidad?
+    self.cant_presentation = 1 if unidad? || kg?
   end
 
   def normalize_general_safety_stock

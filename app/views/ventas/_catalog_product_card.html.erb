@@ -17,6 +17,7 @@
 <% visible_variations = available_variation_names.first(3) %>
 <% extra_count = [available_variation_names.size - visible_variations.size, 0].max %>
 <% product_query = ([producto.display_name_with_presentation] + variation_names).join(' ').downcase %>
+<% stock_precision = producto.kg? ? 3 : 0 %>
 <% stock_badge_class = if available_total <= 0
                          'bg-rose-100 text-rose-700 ring-1 ring-rose-200'
                        elsif available_total < 6
@@ -37,7 +38,7 @@
     <div class="flex items-start justify-between gap-2">
       <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold <%= stock_badge_class %>">
         <i data-lucide="activity" class="h-3 w-3"></i>
-        Disp: <span data-product-stock="<%= producto.id %>"><%= format_quantity(available_total, precision: 0) %></span>
+        Disp: <span data-product-stock="<%= producto.id %>"><%= format_quantity(available_total, precision: stock_precision) %></span>
       </span>
       <div class="flex items-center gap-1.5">
         <% if product_exento %>
