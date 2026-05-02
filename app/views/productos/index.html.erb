@@ -177,6 +177,18 @@
         <button type="submit" data-products-submit="true" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70">
           Buscar
         </button>
+        <% hidden_catalog_button_params = {
+             query_text: @query_text.presence,
+             low_stock: (@low_stock_filter ? 1 : 0),
+             below_target_margin: (@below_target_margin_filter ? 1 : 0),
+             category_id: @selected_categoria_id.presence,
+             catalog_hidden: 1
+           }.compact %>
+        <%= link_to productos_path(hidden_catalog_button_params),
+                    data: { products_ajax_link: true },
+                    class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-800 shadow-sm transition-colors hover:bg-amber-100' do %>
+          Ver ocultos catalogo
+        <% end %>
         <% if @filters_applied %>
           <%= link_to productos_path, data: { products_ajax_link: true, products_clear_link: true }, class: 'inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 disabled:pointer-events-none disabled:opacity-60' do %>
             Limpiar
