@@ -844,11 +844,21 @@ class VentasController < ApplicationController
     venta.valid?
     server_totals = calculated_sale_totals_for(venta)
 
+    has_fractional_product_quantity = items.any? do |entry|
+      item_hash = entry.respond_to?(:to_h) ? entry.to_h : {}
+      item_type = (item_hash[:item_type] || item_hash['item_type']).to_s
+      next false unless item_type == 'product'
+
+      quantity_value = parse_decimal(item_hash[:quantity] || item_hash['quantity'], default: 0)
+      quantity_value.positive? && quantity_value.frac.nonzero?
+    end
+    totals_tolerance = has_fractional_product_quantity ? 0.10.to_d : 0.05.to_d
+
     if client_totals.present?
       totals_mismatch_message = validate_client_totals_against_server(
         client_totals: client_totals,
         server_totals: server_totals,
-        tolerance: 0.05.to_d,
+        tolerance: totals_tolerance,
       )
       if totals_mismatch_message.present?
         return render json: { error: totals_mismatch_message }, status: :unprocessable_entity

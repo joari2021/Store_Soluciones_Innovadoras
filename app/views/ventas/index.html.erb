@@ -4878,7 +4878,7 @@
         const inCartPrintMaterial = getCartQuantityForPrintMaterialVariation(product.id, normalizedVariation);
         const syncedReservedPrintMaterial = syncedReservedQuantityForPrintMaterialVariation(product.id, normalizedVariation);
         const pendingPrintMaterialReservation = Math.max(0, inCartPrintMaterial - syncedReservedPrintMaterial);
-        return Math.max(0, baseAvailable - pendingReservation - pendingPrintMaterialReservation);
+        return clampProductQuantity(baseAvailable - pendingReservation - pendingPrintMaterialReservation, product);
       };
 
       const getAvailableTotal = (product) => {
@@ -4891,7 +4891,7 @@
         const syncedReservedPrintMaterial = syncedReservedQuantityForPrintMaterialProduct(product.id);
         const pendingPrintMaterialReservation = Math.max(0, inCartPrintMaterial - syncedReservedPrintMaterial);
 
-        return Math.max(0, baseTotal - pendingReservation - pendingPrintMaterialReservation);
+        return clampProductQuantity(baseTotal - pendingReservation - pendingPrintMaterialReservation, product);
       };
 
       const buildProductCardVariationsHtml = (product) => {
@@ -7329,7 +7329,11 @@
               const available = getRowAvailable(row);
               const parsed = parseProductQuantityInput(input.value, product);
               const safe = clampProductQuantity(parsed, product, available);
-              input.value = formatProductQuantityInputValue(safe, product);
+              if (isKgProduct && window.MoneyInputMask?.setValue) {
+                window.MoneyInputMask.setValue(input, safe, '');
+              } else {
+                input.value = formatProductQuantityInputValue(safe, product);
+              }
               updateAvailableLabel(row, available, safe);
               return safe;
             };
@@ -7349,7 +7353,11 @@
                   const current = normalizeQty(row, qtyInput);
                   const delta = button.dataset.qtyAction === 'increase' ? productQuantityStep(product) : -productQuantityStep(product);
                   const next = clampProductQuantity(current + delta, product, rowAvailable);
-                  qtyInput.value = formatProductQuantityInputValue(next, product);
+                  if (isKgProduct && window.MoneyInputMask?.setValue) {
+                    window.MoneyInputMask.setValue(qtyInput, next, '');
+                  } else {
+                    qtyInput.value = formatProductQuantityInputValue(next, product);
+                  }
                   normalizeQty(row, qtyInput);
                 });
               });
