@@ -889,6 +889,7 @@ class VentasController < ApplicationController
         client_totals: client_totals,
         server_totals: server_totals,
         tolerance: totals_tolerance,
+        has_fractional_product_quantity: has_fractional_product_quantity,
       )
       if totals_mismatch_message.present?
         return render json: { error: totals_mismatch_message }, status: :unprocessable_entity
@@ -4384,13 +4385,21 @@ class VentasController < ApplicationController
     }
   end
 
-  def validate_client_totals_against_server(client_totals:, server_totals:, tolerance:)
-    checks = {
-      taxable_subtotal_base: "subtotal gravado",
-      exento_subtotal_base: "subtotal exento",
-      vat_base: "IVA",
-      total_base: "total",
-    }
+  def validate_client_totals_against_server(client_totals:, server_totals:, tolerance:,
+                                            has_fractional_product_quantity: false)
+    checks = if has_fractional_product_quantity
+        {
+          vat_base: "IVA",
+          total_base: "total",
+        }
+      else
+        {
+          taxable_subtotal_base: "subtotal gravado",
+          exento_subtotal_base: "subtotal exento",
+          vat_base: "IVA",
+          total_base: "total",
+        }
+      end
 
     checks.each do |key, label|
       client_value = client_totals[key].to_d.round(2)
