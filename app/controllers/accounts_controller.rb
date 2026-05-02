@@ -817,6 +817,7 @@ class AccountsController < ApplicationController
       :cashea_line_mode,
       :cashea_cotidiana_installments,
       :cashea_min_purchase_usd,
+      :cashea_commission_percent,
       :theme_color,
       :active,
       :settlement_account_id,

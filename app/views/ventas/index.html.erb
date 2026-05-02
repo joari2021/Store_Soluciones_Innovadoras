@@ -7591,6 +7591,9 @@
             account_id: casheaSale.account_id,
             initial_usd: casheaSale.initial_usd,
             min_purchase_usd: casheaSale.min_purchase_usd,
+            commission_percent: casheaSale.commission_percent,
+            commission_amount_usd: casheaSale.commission_amount_usd,
+            total_with_commission_usd: casheaSale.total_with_commission_usd,
             installments: Array.isArray(casheaSale.installments) ? casheaSale.installments : [],
           };
         }
@@ -8068,6 +8071,13 @@
           const totalUsd = convertAmount(totalBase, baseCurrencyCode, 'USD');
           const casheaAccount = allPaymentAccounts.find((account) => String(account.account_type || '').toLowerCase() === 'cashea');
           const casheaMinPurchaseUsd = Number(casheaAccount?.cashea_min_purchase_usd || 0);
+          const casheaCommissionPercent = Number(casheaAccount?.cashea_commission_percent || 0);
+          const casheaCommissionUsd = Number.isFinite(totalUsd)
+            ? roundTo(Math.max(totalUsd, 0) * Math.max(casheaCommissionPercent, 0) / 100, 2)
+            : 0;
+          const casheaTotalUsd = Number.isFinite(totalUsd)
+            ? roundTo(Math.max(totalUsd, 0) + casheaCommissionUsd, 2)
+            : 0;
           const casheaInstallmentsCount = (() => {
             if (!casheaAccount) return 0;
             const lineMode = String(casheaAccount.cashea_line_mode || '').toLowerCase();
@@ -8145,7 +8155,8 @@
                       </div>
                       <div class="rounded-xl border border-emerald-200 bg-white px-3 py-2">
                         <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total de esta venta</p>
-                        <p class="text-sm font-extrabold text-emerald-700">$ ${formatNumber(totalUsd, 2)}</p>
+                        <p class="text-sm font-extrabold text-emerald-700">$ ${formatNumber(casheaTotalUsd, 2)}</p>
+                        <p class="text-[11px] font-semibold text-slate-500">Comision Cashea: ${formatNumber(casheaCommissionPercent, 2)}% ($ ${formatNumber(casheaCommissionUsd, 2)})</p>
                       </div>
                     </div>
                     <p class="pt-1 text-sm font-semibold text-slate-700">¿Deseas procesar esta venta con Cashea?</p>
@@ -8215,7 +8226,7 @@
                       <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto inicial (USD)</label>
                       <input id="cashea-initial-usd" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" />
                       <p id="cashea-initial-bs" class="mt-1 text-xs font-semibold text-slate-500">Equivalente Bs: ${formatMoney(0, 'Bs')}</p>
-                      <p id="cashea-financed-usd" class="mt-1 text-xs font-semibold text-slate-500">Saldo financiado estimado: $ ${formatNumber(totalUsd, 2)}</p>
+                      <p id="cashea-financed-usd" class="mt-1 text-xs font-semibold text-slate-500">Saldo financiado estimado: $ ${formatNumber(casheaTotalUsd, 2)}</p>
                     </div>
                     <div class="space-y-2">
                       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Configurar cuotas Cashea (${casheaInstallmentsCount})</p>
@@ -8244,7 +8255,7 @@
 
                   const updateInstallmentSuggestion = () => {
                     const initialUsd = roundTo(parseMoneyInput(usdInput), 2);
-                    const financedUsd = roundTo(Math.max(totalUsd - initialUsd, 0), 2);
+                    const financedUsd = roundTo(Math.max(casheaTotalUsd - initialUsd, 0), 2);
                     const count = installmentAmountInputs.length;
                     if (count <= 0) return;
 
@@ -8289,12 +8300,12 @@
                     return null;
                   }
 
-                  if (initialUsd > totalUsd) {
-                    window.Swal.showValidationMessage(`El inicial no puede superar el total de la venta ($ ${formatNumber(totalUsd, 2)}).`);
+                  if (initialUsd > casheaTotalUsd) {
+                    window.Swal.showValidationMessage(`El inicial no puede superar el total de la venta con comision ($ ${formatNumber(casheaTotalUsd, 2)}).`);
                     return null;
                   }
 
-                  const financedUsd = roundTo(Math.max(totalUsd - initialUsd, 0), 2);
+                  const financedUsd = roundTo(Math.max(casheaTotalUsd - initialUsd, 0), 2);
                   const installments = [];
                   const rows = Array.from(dialog.querySelectorAll('[data-cashea-installment-row]'));
 
@@ -8342,6 +8353,9 @@
                 account_id: casheaAccount.id,
                 initial_usd: askInitialResult.value.initialUsd,
                 min_purchase_usd: casheaMinPurchaseUsd,
+                commission_percent: roundTo(Math.max(casheaCommissionPercent, 0), 2),
+                commission_amount_usd: casheaCommissionUsd,
+                total_with_commission_usd: casheaTotalUsd,
                 installments: askInitialResult.value.installments || [],
               };
             }
@@ -8686,6 +8700,8 @@
           const casheaInfoHtml = selectedCasheaContext
             ? `<div class="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
                 Cobro Cashea activo. Este modal registra solo el inicial: <strong>${formatBaseMoney(modalTotalBase)}</strong>.
+                <br/>Total Cashea con comision: <strong>$ ${formatNumber(selectedCasheaContext.total_with_commission_usd || 0, 2)}</strong>.
+                <br/>Comision aplicada: <strong>${formatNumber(selectedCasheaContext.commission_percent || 0, 2)}%</strong> ($ ${formatNumber(selectedCasheaContext.commission_amount_usd || 0, 2)}).
                 <br/>Las cuotas pendientes se generaran automaticamente al registrar la venta.
               </div>`
             : '';
@@ -10025,6 +10041,9 @@
                     account_id: casheaEnabled ? selectedCasheaContext.account_id : null,
                     initial_usd: casheaEnabled ? selectedCasheaContext.initial_usd : 0,
                     min_purchase_usd: casheaEnabled ? selectedCasheaContext.min_purchase_usd : 0,
+                    commission_percent: casheaEnabled ? selectedCasheaContext.commission_percent : 0,
+                    commission_amount_usd: casheaEnabled ? selectedCasheaContext.commission_amount_usd : 0,
+                    total_with_commission_usd: casheaEnabled ? selectedCasheaContext.total_with_commission_usd : 0,
                     installments: casheaEnabled ? (selectedCasheaContext.installments || []) : [],
                   },
                   checkout_discount: {

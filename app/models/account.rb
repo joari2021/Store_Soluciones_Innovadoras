@@ -103,6 +103,8 @@ class Account < ApplicationRecord
   validates :cashea_line_mode, inclusion: { in: CASHEA_LINE_MODES.keys }
   validates :cashea_cotidiana_installments, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 24 }
   validates :cashea_min_purchase_usd, numericality: { greater_than_or_equal_to: 0 }
+  validates :cashea_commission_percent,
+            numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
   validates :shared_key, presence: true
   validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true, if: :supports_cash_role?
   validate :primary_requires_bank_account
@@ -441,6 +443,7 @@ class Account < ApplicationRecord
     self.cashea_line_mode = 'cotidiana' if cashea_line_mode.blank?
     self.cashea_cotidiana_installments = 1 if cashea_cotidiana_installments.to_i <= 0
     self.cashea_min_purchase_usd = cashea_min_purchase_usd.to_d.round(2)
+    self.cashea_commission_percent = cashea_commission_percent.to_d.round(2)
   end
 
   def clear_primary_for_non_bank

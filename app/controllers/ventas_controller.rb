@@ -72,6 +72,7 @@ class VentasController < ApplicationController
         cashea_line_mode: account.cashea_line_mode,
         cashea_cotidiana_installments: account.cashea_cotidiana_installments,
         cashea_min_purchase_usd: account.cashea_min_purchase_usd.to_d.to_f,
+        cashea_commission_percent: account.cashea_commission_percent.to_d.to_f,
         payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
         small_logo_url: (url_for(account.small_logo) if account.small_logo.attached?),
         logo_url: (url_for(account.logo) if account.logo.attached?),
@@ -562,7 +563,16 @@ class VentasController < ApplicationController
     checkout_discount = normalize_checkout_discount_payload(payload[:checkout_discount])
     checkout_discount = { enabled: false, amount: 0.to_d, reason: nil } if customer_mode
     cashea_sale = normalize_cashea_sale_payload(payload[:cashea])
-    cashea_sale = { enabled: false, account_id: nil, initial_usd: 0.to_d, min_purchase_usd: 0.to_d, installments: [] } if customer_mode
+    cashea_sale = {
+      enabled: false,
+      account_id: nil,
+      initial_usd: 0.to_d,
+      min_purchase_usd: 0.to_d,
+      commission_percent: 0.to_d,
+      commission_amount_usd: 0.to_d,
+      total_with_commission_usd: 0.to_d,
+      installments: [],
+    } if customer_mode
     credit_sale_due_on = parse_payment_date(credit_sale[:due_on])
     service_cost_payment_entries = Array(payload[:service_cost_payments])
     if credit_sale[:due_on].present? && credit_sale_due_on.blank?
@@ -1097,6 +1107,9 @@ class VentasController < ApplicationController
 
     total_due_for_payment = total_due
     cashea_financed_usd = 0.to_d
+    cashea_commission_percent = 0.to_d
+    cashea_commission_usd = 0.to_d
+    cashea_total_due_usd = 0.to_d
     if cashea_sale[:enabled]
       cashea_account = current_business.accounts.find_by(id: cashea_sale[:account_id])
       if cashea_account.blank? || cashea_account.account_type != "cashea"
@@ -1112,16 +1125,21 @@ class VentasController < ApplicationController
         return render json: { error: "La venta no alcanza el minimo requerido para Cashea." }, status: :unprocessable_entity
       end
 
+      cashea_commission_percent = cashea_account.cashea_commission_percent.to_d.round(2)
+      cashea_commission_percent = 0.to_d if cashea_commission_percent.negative?
+      cashea_commission_usd = ((total_due_usd * cashea_commission_percent) / 100).round(2)
+      cashea_total_due_usd = (total_due_usd + cashea_commission_usd).round(2)
+
       initial_usd = cashea_sale[:initial_usd].to_d.round(2)
       if initial_usd <= 0
         return render json: { error: "Debes indicar un monto inicial Cashea mayor a 0." }, status: :unprocessable_entity
       end
 
-      if initial_usd > total_due_usd
-        return render json: { error: "El inicial Cashea no puede superar el total de la venta." }, status: :unprocessable_entity
+      if initial_usd > cashea_total_due_usd
+        return render json: { error: "El inicial Cashea no puede superar el total de la venta con comision." }, status: :unprocessable_entity
       end
 
-      cashea_financed_usd = (total_due_usd - initial_usd).round(2)
+      cashea_financed_usd = (cashea_total_due_usd - initial_usd).round(2)
       installments_total_usd = cashea_sale[:installments].sum { |row| row[:amount_usd].to_d }.round(2)
 
       if cashea_financed_usd.positive? && cashea_sale[:installments].empty?
@@ -1247,6 +1265,9 @@ class VentasController < ApplicationController
             "account_id" => cashea_sale[:account_id],
             "initial_usd" => cashea_sale[:initial_usd].to_d.round(2).to_f,
             "min_purchase_usd" => cashea_sale[:min_purchase_usd].to_d.round(2).to_f,
+            "commission_percent" => cashea_commission_percent.to_d.round(2).to_f,
+            "commission_amount_usd" => cashea_commission_usd.to_d.round(2).to_f,
+            "total_with_commission_usd" => cashea_total_due_usd.to_d.round(2).to_f,
             "financed_usd" => cashea_financed_usd.to_d.round(2).to_f,
             "installments" => cashea_sale[:installments].map do |row|
               {
@@ -3185,6 +3206,9 @@ class VentasController < ApplicationController
         :account_id,
         :initial_usd,
         :min_purchase_usd,
+        :commission_percent,
+        :commission_amount_usd,
+        :total_with_commission_usd,
         { installments: %i[amount_usd due_on] },
       ],
       totals: %i[taxable_subtotal_base exento_subtotal_base vat_base total_base],
@@ -4436,6 +4460,9 @@ class VentasController < ApplicationController
     account_id_value = source["account_id"] || source[:account_id]
     initial_value = source["initial_usd"] || source[:initial_usd]
     min_purchase_value = source["min_purchase_usd"] || source[:min_purchase_usd]
+    commission_percent_value = source["commission_percent"] || source[:commission_percent]
+    commission_amount_value = source["commission_amount_usd"] || source[:commission_amount_usd]
+    total_with_commission_value = source["total_with_commission_usd"] || source[:total_with_commission_usd]
     installments_value = source["installments"] || source[:installments]
 
     installments = Array(installments_value).filter_map do |row|
@@ -4458,6 +4485,9 @@ class VentasController < ApplicationController
       account_id: account_id_value.to_s.strip.presence&.to_i,
       initial_usd: parse_decimal(initial_value, default: 0).to_d.round(2),
       min_purchase_usd: parse_decimal(min_purchase_value, default: 0).to_d.round(2),
+      commission_percent: parse_decimal(commission_percent_value, default: 0).to_d.round(2),
+      commission_amount_usd: parse_decimal(commission_amount_value, default: 0).to_d.round(2),
+      total_with_commission_usd: parse_decimal(total_with_commission_value, default: 0).to_d.round(2),
       installments: installments,
     }
   end
