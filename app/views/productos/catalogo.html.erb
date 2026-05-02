@@ -1,5 +1,4 @@
 <% total_pages = @product_pairs.size %>
-<div class="timer-bar" id="timer"></div>
 <div class="catalog-container" id="catalog" data-catalogo-root="true" data-catalogo-duration="15000">
   <div class="catalog-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
@@ -18,7 +17,6 @@
 <script>
   (() => {
     const root = document.querySelector('[data-catalogo-root="true"]');
-    const timerBar = document.getElementById('timer');
     if (!root || root.dataset.boundCatalogo === 'true') return;
     root.dataset.boundCatalogo = 'true';
 
@@ -32,21 +30,28 @@
     let timer = null;
 
     const setActivePage = (nextIndex) => {
-      pages.forEach((page, index) => {
-        page.classList.toggle('active', index === nextIndex);
-      });
+      if (nextIndex === currentIndex) return;
+
+      const currentPage = pages[currentIndex];
+      const nextPage = pages[nextIndex];
+
+      currentPage.classList.remove('active');
+      currentPage.classList.add('leaving');
+
+      nextPage.classList.remove('leaving');
+      nextPage.classList.add('active');
+
+      window.setTimeout(() => {
+        currentPage.classList.remove('leaving');
+      }, 950);
+
       currentIndex = nextIndex;
     };
 
     const goNext = () => {
       const nextIndex = currentIndex + 1 >= totalPages ? 0 : currentIndex + 1;
       setActivePage(nextIndex);
-      startTimerBar();
-    };
-
-    const goPrev = () => {
-      const nextIndex = currentIndex - 1 < 0 ? totalPages - 1 : currentIndex - 1;
-      setActivePage(nextIndex);
+      queueNext();
     };
 
     const stopAuto = () => {
@@ -56,20 +61,14 @@
       }
     };
 
-    const startTimerBar = () => {
-      if (!timerBar) return;
-      timerBar.style.transition = 'none';
-      timerBar.style.width = '0%';
-      void timerBar.offsetWidth;
-      timerBar.style.transition = `width ${duration}ms linear`;
-      timerBar.style.width = '100%';
+    const queueNext = () => {
+      stopAuto();
+      if (totalPages <= 1) return;
+      timer = window.setTimeout(goNext, duration);
     };
 
     const startAuto = () => {
-      stopAuto();
-      startTimerBar();
-      if (totalPages <= 1) return;
-      timer = window.setTimeout(goNext, duration);
+      queueNext();
     };
 
     startAuto();
