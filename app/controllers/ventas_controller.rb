@@ -650,7 +650,6 @@ class VentasController < ApplicationController
     items.each do |item|
       item_type = item[:item_type].to_s
       if item_type == "service" || item[:service_id].present?
-        service_id = item[:service_id]
         service = current_business
           .services
           .includes(:system_service,
@@ -1941,6 +1940,7 @@ class VentasController < ApplicationController
   end
 
   def delete_service_cost_debts_for_sale!(venta)
+    current
     current_business
       .debts
       .where(venta_id: venta.id, service_cost_pending: true)
@@ -3965,11 +3965,7 @@ class VentasController < ApplicationController
       end
     return 0.to_d unless reference_rate_bs.positive?
 
-    bcv_rate = tasa_dolar.to_d
-    bcv_rate = TasaCambio.latest_value("Dolar BCV").to_d unless bcv_rate.positive?
-    return 0.to_d unless bcv_rate.positive?
-
-    ((reference_amount_decimal * reference_rate_bs) / bcv_rate).round(2)
+    ((reference_amount_decimal * reference_rate_bs) / tasa_dolar.to_d).round(2)
   end
 
   def normalize_service_cost_lines_payload(lines)
