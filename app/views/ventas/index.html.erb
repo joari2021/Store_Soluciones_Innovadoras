@@ -7526,6 +7526,26 @@
             product_id: item.productId,
             variation_id: item.variationId,
             quantity: item.quantity,
+            unit_price_usd: (() => {
+              const product = productsById.get(String(item.productId));
+              if (!product) return null;
+              const pricing = computeProductPricing(product, item);
+              const unitBase = roundTo(Number(pricing?.unitDisplay) || 0, 2);
+              if (!(unitBase > 0)) return null;
+              if (selectedBaseCurrency === 'ves') {
+                if (!(bcvRate > 0)) return null;
+                return roundTo(unitBase / bcvRate, 6);
+              }
+              return roundTo(unitBase, 6);
+            })(),
+            unit_price_base_amount: (() => {
+              const product = productsById.get(String(item.productId));
+              if (!product) return null;
+              const pricing = computeProductPricing(product, item);
+              const unitBase = roundTo(Number(pricing?.unitDisplay) || 0, 2);
+              return unitBase > 0 ? unitBase : null;
+            })(),
+            unit_price_base_currency: selectedBaseCurrency === 'ves' ? 'VES' : 'USD',
           };
         });
 

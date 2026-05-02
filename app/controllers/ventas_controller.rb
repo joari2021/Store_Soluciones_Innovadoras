@@ -815,13 +815,33 @@ class VentasController < ApplicationController
       )
 
       unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
-      line_subtotal = (unit_price.to_d * quantity.to_d).round(2)
+
+      client_unit_base_currency = normalize_currency(item[:unit_price_base_currency], default: base_currency)
+      client_unit_base_amount = parse_decimal(item[:unit_price_base_amount], default: 0).round(2)
+      client_unit_price_usd = parse_decimal(item[:unit_price_usd], default: 0).round(6)
+
       product_unit_base_amount = 0.to_d
-      if base_currency == "VES" && tasa_dolar.to_d.positive?
-        product_unit_base_amount = (unit_price.to_d * tasa_dolar.to_d).round(2)
-      elsif base_currency == "USD"
-        product_unit_base_amount = unit_price.to_d.round(2)
+
+      if client_unit_base_amount.positive? && client_unit_base_currency == base_currency
+        product_unit_base_amount = client_unit_base_amount
+        if base_currency == "VES" && tasa_dolar.to_d.positive?
+          unit_price = (product_unit_base_amount / tasa_dolar.to_d).round(6)
+        elsif base_currency == "USD"
+          unit_price = product_unit_base_amount.round(6)
+        end
+      else
+        if client_unit_price_usd.positive?
+          unit_price = client_unit_price_usd
+        end
+
+        if base_currency == "VES" && tasa_dolar.to_d.positive?
+          product_unit_base_amount = (unit_price.to_d * tasa_dolar.to_d).round(2)
+        elsif base_currency == "USD"
+          product_unit_base_amount = unit_price.to_d.round(2)
+        end
       end
+
+      line_subtotal = (unit_price.to_d * quantity.to_d).round(2)
 
       product_item_attrs = {
         producto: product,
@@ -2131,11 +2151,30 @@ class VentasController < ApplicationController
           )
 
           unit_price /= (1 + vat_rate) if vat_mode == "included" && vat_rate.positive? && !product_exento
+
+          client_unit_base_currency = normalize_currency(item[:unit_price_base_currency], default: base_currency)
+          client_unit_base_amount = parse_decimal(item[:unit_price_base_amount], default: 0).round(2)
+          client_unit_price_usd = parse_decimal(item[:unit_price_usd], default: 0).round(6)
+
           product_unit_base_amount = 0.to_d
-          if base_currency == "VES" && tasa_dolar.to_d.positive?
-            product_unit_base_amount = (unit_price.to_d * tasa_dolar.to_d).round(2)
-          elsif base_currency == "USD"
-            product_unit_base_amount = unit_price.to_d.round(2)
+
+          if client_unit_base_amount.positive? && client_unit_base_currency == base_currency
+            product_unit_base_amount = client_unit_base_amount
+            if base_currency == "VES" && tasa_dolar.to_d.positive?
+              unit_price = (product_unit_base_amount / tasa_dolar.to_d).round(6)
+            elsif base_currency == "USD"
+              unit_price = product_unit_base_amount.round(6)
+            end
+          else
+            if client_unit_price_usd.positive?
+              unit_price = client_unit_price_usd
+            end
+
+            if base_currency == "VES" && tasa_dolar.to_d.positive?
+              product_unit_base_amount = (unit_price.to_d * tasa_dolar.to_d).round(2)
+            elsif base_currency == "USD"
+              product_unit_base_amount = unit_price.to_d.round(2)
+            end
           end
 
           draft_item_attrs = {
