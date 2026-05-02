@@ -268,7 +268,7 @@
 
 .catalogo-bcv-badge__image {
   width: auto;
-  height: clamp(210px, 28vh, 340px);
+  height: clamp(300px, 40vh, 520px);
   display: block;
   border-radius: 0.8rem;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
@@ -430,7 +430,7 @@
   }
 
   .catalogo-bcv-badge__image {
-    height: clamp(170px, 23vh, 250px);
+    height: clamp(230px, 33vh, 380px);
     width: auto;
   }
 
@@ -474,7 +474,7 @@
   }
 
   .catalogo-bcv-badge__image {
-    height: clamp(130px, 18vh, 180px);
+    height: clamp(175px, 25vh, 280px);
     width: auto;
   }
 
