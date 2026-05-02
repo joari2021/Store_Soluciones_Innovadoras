@@ -140,7 +140,9 @@ class ProductosController < ApplicationController
     end
 
     @catalogo_fullscreen = ActiveModel::Type::Boolean.new.cast(params[:fullscreen])
-    @bcv_rate = TasaCambio.latest_value('Dolar BCV').to_d
+    @bcv_usd_rate = TasaCambio.latest_for('Dolar BCV')
+    @bcv_eur_rate = TasaCambio.latest_for('Euro BCV')
+    @bcv_rate = @bcv_usd_rate&.valor.to_d
     base_scope = @catalog_business.productos
                     .includes(:categoria, :stock_lot_variations, :stock_lots, foto_attachment: :blob)
                     .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))

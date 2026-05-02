@@ -298,18 +298,18 @@
 }
 
 .catalogo-bcv-rate--usd {
-  left: 46%;
+  left: 49%;
   top: 40%;
 }
 
 .catalogo-bcv-rate--eur {
-  left: 46%;
+  left: 49%;
   top: 49%;
 }
 
 .catalogo-bcv-date {
   position: absolute;
-  left: 54%;
+  left: 58%;
   top: 59%;
   margin: 0;
   font-size: clamp(0.76rem, 1.2vw, 1.2rem);

@@ -10,9 +10,12 @@
         <div class="catalogo-bcv-badge" aria-hidden="true">
           <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
           <div class="catalogo-bcv-badge__meta">
-            <p class="catalogo-bcv-rate catalogo-bcv-rate--usd">484,54</p>
-            <p class="catalogo-bcv-rate catalogo-bcv-rate--eur">541,54</p>
-            <p class="catalogo-bcv-date">31-12-2026</p>
+            <% usd_rate_value = @bcv_usd_rate&.valor.to_d %>
+            <% eur_rate_value = @bcv_eur_rate&.valor.to_d %>
+            <% bcv_reference_date = @bcv_usd_rate&.fecha_referencia || @bcv_eur_rate&.fecha_referencia %>
+            <p class="catalogo-bcv-rate catalogo-bcv-rate--usd"><%= number_with_precision(usd_rate_value, precision: 2, delimiter: '.', separator: ',') %></p>
+            <p class="catalogo-bcv-rate catalogo-bcv-rate--eur"><%= number_with_precision(eur_rate_value, precision: 2, delimiter: '.', separator: ',') %></p>
+            <p class="catalogo-bcv-date"><%= bcv_reference_date&.strftime('%d-%m-%y') %></p>
           </div>
         </div>
       </section>
