@@ -1,22 +1,5 @@
-<% catalogo_fullscreen = @catalogo_fullscreen == true %>
-<% content_for :catalogo_fullscreen, '1' if catalogo_fullscreen %>
 <% total_pages = @product_pairs.size %>
-<% base_params = request.query_parameters.except(:fullscreen) %>
-<% base_params[:business_id] ||= @catalog_business&.id %>
-<% fullscreen_param = base_params.merge(fullscreen: 1) %>
-<div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000" data-catalogo-fullscreen="<%= catalogo_fullscreen ? 'true' : 'false' %>">
-  <div class="catalogo-shell__business">
-    <p class="catalogo-shell__business-label">Mostrando catalogo de</p>
-    <h1 class="catalogo-shell__business-name"><%= @catalog_business&.name %></h1>
-  </div>
-  <div class="catalogo-shell__actions">
-    <%= link_to 'Cambiar negocio', catalogo_publico_path, class: 'catalogo-fullscreen-toggle catalogo-fullscreen-toggle--secondary' %>
-    <% if catalogo_fullscreen %>
-      <%= link_to 'Salir pantalla completa', catalogo_publico_path(base_params), class: 'catalogo-fullscreen-toggle', data: { catalogo_fullscreen_link: 'exit' } %>
-    <% else %>
-      <%= link_to 'Pantalla completa', catalogo_publico_path(fullscreen_param), class: 'catalogo-fullscreen-toggle', data: { catalogo_fullscreen_link: 'enter' } %>
-    <% end %>
-  </div>
+<div class="catalogo-shell" data-catalogo-root="true" data-catalogo-duration="15000">
   <div class="catalogo-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
       <% left_product = pair[0] %>
@@ -39,7 +22,6 @@
     const pages = Array.from(root.querySelectorAll('[data-catalogo-page="true"]'));
     const totalPages = pages.length;
     const duration = Number.parseInt(root.dataset.catalogoDuration || '15000', 10);
-    const isFullscreenMode = root.dataset.catalogoFullscreen === 'true';
 
     if (!pages.length) return;
 
@@ -76,51 +58,6 @@
       if (totalPages <= 1) return;
       timer = window.setInterval(goNext, duration);
     };
-
-    const requestFullscreen = async () => {
-      if (document.fullscreenElement || !root.requestFullscreen) return;
-      try {
-        await root.requestFullscreen();
-      } catch (_error) {
-        // Ignore if the browser blocks fullscreen.
-      }
-    };
-
-    const exitFullscreen = async () => {
-      if (!document.fullscreenElement || !document.exitFullscreen) return;
-      try {
-        await document.exitFullscreen();
-      } catch (_error) {
-        // Ignore if the browser blocks fullscreen.
-      }
-    };
-
-    root.querySelectorAll('[data-catalogo-fullscreen-link]').forEach((link) => {
-      link.addEventListener('click', async (event) => {
-        event.preventDefault();
-        const action = link.dataset.catalogoFullscreenLink;
-        const href = link.getAttribute('href');
-
-        if (action === 'enter') {
-          sessionStorage.setItem('catalogoFullscreenPending', 'true');
-        } else if (action === 'exit') {
-          await exitFullscreen();
-          sessionStorage.removeItem('catalogoFullscreenPending');
-        }
-
-        if (href) {
-          window.location.href = href;
-        }
-      });
-    });
-
-    if (isFullscreenMode && sessionStorage.getItem('catalogoFullscreenPending') === 'true') {
-      const handleFirstClick = async () => {
-        await requestFullscreen();
-        sessionStorage.removeItem('catalogoFullscreenPending');
-      };
-      root.addEventListener('click', handleFirstClick, { once: true });
-    }
 
     startAuto();
   })();
