@@ -42,13 +42,19 @@ class VentaItem < ApplicationRecord
     self.subtotal_usd = round_decimal(unit_price_usd.to_d * quantity.to_d, 2)
   end
 
+
   def normalize_base_snapshot_fields
     currency = unit_price_base_currency.to_s.strip.upcase
     self.unit_price_base_currency = currency.presence
 
     return if unit_price_base_amount.blank?
 
-    self.unit_price_base_amount = round_decimal(unit_price_base_amount.to_d, 2)
+    # Si el producto es kg, conservar 3 decimales, si no 2
+    if producto&.kg?
+      self.unit_price_base_amount = round_decimal(unit_price_base_amount.to_d, 3)
+    else
+      self.unit_price_base_amount = round_decimal(unit_price_base_amount.to_d, 2)
+    end
   end
 
   def normalize_unit_price
