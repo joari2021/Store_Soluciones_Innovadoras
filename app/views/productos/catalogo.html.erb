@@ -9,6 +9,9 @@
           <%= render partial: 'catalogo_producto_card', locals: { producto: left_product, position: 'top', bcv_rate: @bcv_rate } %>
           <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom', bcv_rate: @bcv_rate } %>
         </div>
+        <div class="catalogo-bcv-badge" aria-hidden="true">
+          <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
+        </div>
       </section>
     <% end %>
   </div>

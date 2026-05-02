@@ -70,6 +70,25 @@
   gap: clamp(1.5rem, 2.4vw, 2.2rem);
 }
 
+.catalogo-bcv-badge {
+  position: absolute;
+  left: clamp(1.5rem, 2.6vw, 2.4rem);
+  bottom: clamp(1.2rem, 2.2vw, 2rem);
+  width: min(24vw, 460px);
+  min-width: 240px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.catalogo-bcv-badge__image {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 1rem;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.2);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 .catalogo-card {
   position: relative;
   width: min(78%, 980px);
@@ -315,6 +334,13 @@
   .catalogo-card__prices {
     flex-wrap: wrap;
   }
+
+  .catalogo-bcv-badge {
+    width: min(44vw, 320px);
+    min-width: 170px;
+    left: 1.2rem;
+    bottom: 1rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -324,5 +350,12 @@
 
   .catalogo-card__title {
     font-size: 1.2rem;
+  }
+
+  .catalogo-bcv-badge {
+    width: 44vw;
+    min-width: 130px;
+    left: 0.9rem;
+    bottom: 0.9rem;
   }
 }
