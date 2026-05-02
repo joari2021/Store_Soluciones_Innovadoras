@@ -156,7 +156,7 @@
 }
 
 .photo-frame__prices {
-  width: calc((100% - 38vh) * 0.8);
+  width: calc(100% - 38vh);
   min-width: 136px;
   display: flex;
   flex-direction: column;
@@ -429,7 +429,7 @@
   }
 
   .photo-frame__prices {
-    width: 35%;
+    width: 44%;
     min-width: 104px;
   }
 
@@ -472,7 +472,7 @@
   }
 
   .photo-frame__prices {
-    width: 37%;
+    width: 46%;
     min-width: 70px;
     gap: 8px;
   }
