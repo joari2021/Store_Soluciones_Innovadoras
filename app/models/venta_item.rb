@@ -49,12 +49,8 @@ class VentaItem < ApplicationRecord
 
     return if unit_price_base_amount.blank?
 
-    # Si el producto es kg, conservar 3 decimales, si no 2
-    if producto&.kg?
-      self.unit_price_base_amount = round_decimal(unit_price_base_amount.to_d, 3)
-    else
-      self.unit_price_base_amount = round_decimal(unit_price_base_amount.to_d, 2)
-    end
+    # Siempre redondear el precio unitario a 2 decimales (moneda)
+    self.unit_price_base_amount = round_decimal(unit_price_base_amount.to_d, 2)
   end
 
   def normalize_unit_price
