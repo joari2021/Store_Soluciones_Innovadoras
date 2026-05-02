@@ -35,27 +35,49 @@ const parseCurrencyNumber = (rawValue) => {
   return parsed < 0 ? 0 : parsed;
 };
 
-const formatMoney = (value, symbol) => {
+const clampDecimals = (value) => {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) return 2;
+  return Math.min(Math.max(parsed, 0), 6);
+};
+
+const getDecimals = (input) => clampDecimals(input?.dataset?.moneyDecimals);
+
+const getScale = (input) => 10 ** getDecimals(input);
+
+const formatMoney = (value, symbol, decimals = 2) => {
   const safeValue = Number.isFinite(Number(value))
     ? Math.max(Number(value), 0)
     : 0;
   const number = safeValue.toLocaleString(DEFAULT_LOCALE, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: clampDecimals(decimals),
+    maximumFractionDigits: clampDecimals(decimals),
   });
-  return `${symbol} ${number}`;
+
+  const cleanSymbol = String(symbol ?? "").trim();
+  return cleanSymbol ? `${cleanSymbol} ${number}` : number;
 };
 
 const getSymbol = (input, explicitSymbol) => {
-  if (explicitSymbol) return explicitSymbol;
-  return input?.dataset.moneySymbol || "$";
+  if (explicitSymbol !== undefined && explicitSymbol !== null)
+    return String(explicitSymbol);
+  if (!input) return "$";
+  return input.dataset.moneySymbol !== undefined
+    ? String(input.dataset.moneySymbol)
+    : "$";
 };
 
-const getCents = (input) => {
+const getUnits = (input) => {
   if (!input) return 0;
-  const fromData = Number.parseInt(input.dataset.moneyCents || "", 10);
+
+  const fromData = Number.parseInt(input.dataset.moneyUnits || "", 10);
   if (Number.isFinite(fromData)) return Math.max(fromData, 0);
-  return Math.round(parseCurrencyNumber(input.value) * 100);
+
+  const legacyCents = Number.parseInt(input.dataset.moneyCents || "", 10);
+  if (Number.isFinite(legacyCents) && getScale(input) === 100)
+    return Math.max(legacyCents, 0);
+
+  return Math.round(parseCurrencyNumber(input.value) * getScale(input));
 };
 
 const keepCaretAtEnd = (input) => {
@@ -67,12 +89,31 @@ const keepCaretAtEnd = (input) => {
 const setValue = (input, value, explicitSymbol) => {
   if (!input) return;
   const symbol = getSymbol(input, explicitSymbol);
+  const scale = getScale(input);
+  const decimals = getDecimals(input);
   const safeValue = Number.isFinite(Number(value))
     ? Math.max(Number(value), 0)
     : 0;
-  input.value = formatMoney(safeValue, symbol);
+
+  const safeUnits = Math.max(Math.round(safeValue * scale), 0);
+  const normalizedValue = safeUnits / scale;
+
+  input.value = formatMoney(normalizedValue, symbol, decimals);
   input.dataset.moneySymbol = symbol;
-  input.dataset.moneyCents = String(Math.round(safeValue * 100));
+  input.dataset.moneyUnits = String(safeUnits);
+
+  if (scale === 100) {
+    input.dataset.moneyCents = String(safeUnits);
+  } else {
+    delete input.dataset.moneyCents;
+  }
+};
+
+const setUnits = (input, units, explicitSymbol) => {
+  if (!input) return;
+  const scale = getScale(input);
+  const safeUnits = Math.max(Number.parseInt(units, 10) || 0, 0);
+  setValue(input, safeUnits / scale, explicitSymbol);
 };
 
 const setCents = (input, cents, explicitSymbol) => {
@@ -118,8 +159,9 @@ const handleMoneyKeydown = (event) => {
 
   if (isDigit) {
     event.preventDefault();
-    const nextCents = getCents(input) * 10 + Number.parseInt(key, 10);
-    setCents(input, nextCents);
+    event.stopPropagation();
+    const nextUnits = getUnits(input) * 10 + Number.parseInt(key, 10);
+    setUnits(input, nextUnits);
     emitMaskedInputEvent(input);
     keepCaretAtEnd(input);
     return;
@@ -127,8 +169,9 @@ const handleMoneyKeydown = (event) => {
 
   if (key === "Backspace") {
     event.preventDefault();
-    const nextCents = Math.floor(getCents(input) / 10);
-    setCents(input, nextCents);
+    event.stopPropagation();
+    const nextUnits = Math.floor(getUnits(input) / 10);
+    setUnits(input, nextUnits);
     emitMaskedInputEvent(input);
     keepCaretAtEnd(input);
     return;
@@ -136,7 +179,8 @@ const handleMoneyKeydown = (event) => {
 
   if (key === "Delete") {
     event.preventDefault();
-    setCents(input, 0);
+    event.stopPropagation();
+    setUnits(input, 0);
     emitMaskedInputEvent(input);
     keepCaretAtEnd(input);
     return;
@@ -144,12 +188,14 @@ const handleMoneyKeydown = (event) => {
 
   if (key === "," || key === ".") {
     event.preventDefault();
+    event.stopPropagation();
     keepCaretAtEnd(input);
     return;
   }
 
   if (key.length === 1) {
     event.preventDefault();
+    event.stopPropagation();
   }
 };
 
@@ -161,6 +207,7 @@ const handleMoneyPaste = (event) => {
   if (input.dataset.moneyMask !== "true") return;
 
   event.preventDefault();
+  event.stopPropagation();
   const pasted = event.clipboardData ? event.clipboardData.getData("text") : "";
   setValue(input, parseCurrencyNumber(pasted));
   emitMaskedInputEvent(input);
@@ -198,6 +245,7 @@ const bindMoneyMask = (root = document) => {
 const MoneyInputMask = {
   init: bindMoneyMask,
   setValue,
+  setUnits,
   setCents,
   parseValue,
   formatMoney,

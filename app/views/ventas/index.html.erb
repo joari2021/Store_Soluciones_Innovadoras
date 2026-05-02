@@ -1296,7 +1296,6 @@
       };
 
       const isKgPresentation = (product) => String(product?.presentation || '').trim().toLowerCase() === 'kg';
-      const KG_QUANTITY_SCALE = 1000;
       const productQuantityDigits = (product) => (isKgPresentation(product) ? 3 : 0);
       const productQuantityStep = (product) => (isKgPresentation(product) ? 0.001 : 1);
       const formatProductQuantity = (value, product) => formatNumber(value, productQuantityDigits(product));
@@ -1311,111 +1310,6 @@
         const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
         const parsed = Number.parseFloat(normalized);
         return Number.isFinite(parsed) ? parsed : 0;
-      };
-      const keepInputCaretAtEnd = (input) => {
-        if (!input || typeof input.setSelectionRange !== 'function') return;
-        const end = input.value.length;
-        input.setSelectionRange(end, end);
-      };
-      const maxKgUnitsForAvailable = (available) => {
-        const numeric = Number(available) || 0;
-        return Math.max(0, Math.floor(roundTo(Math.max(numeric, 0), 3) * KG_QUANTITY_SCALE));
-      };
-      const getKgQuantityUnits = (input) => {
-        if (!input) return 0;
-        const fromData = Number.parseInt(input.dataset.kgQuantityUnits || '', 10);
-        if (Number.isFinite(fromData)) return Math.max(0, fromData);
-        const parsed = parseLocalizedQuantity(input.value);
-        return Math.max(0, Math.round(roundTo(parsed, 3) * KG_QUANTITY_SCALE));
-      };
-      const setKgQuantityUnits = (input, units, maxUnits = Number.POSITIVE_INFINITY) => {
-        if (!input) return 0;
-
-        const normalizedMax = Number.isFinite(maxUnits) ? Math.max(0, Math.floor(maxUnits)) : Number.POSITIVE_INFINITY;
-        const safeUnits = Math.min(Math.max(0, Math.floor(Number(units) || 0)), normalizedMax);
-        const value = roundTo(safeUnits / KG_QUANTITY_SCALE, 3);
-
-        input.dataset.kgQuantityUnits = String(safeUnits);
-        input.value = formatNumber(value, 3);
-        keepInputCaretAtEnd(input);
-        return value;
-      };
-      const bindKgQuantityMask = (input, { maxUnitsProvider, onValueChange } = {}) => {
-        if (!input || input.dataset.kgMaskBound === 'true') return;
-        input.dataset.kgMaskBound = 'true';
-
-        const resolveMaxUnits = () => {
-          const rawMax = typeof maxUnitsProvider === 'function' ? maxUnitsProvider() : Number.POSITIVE_INFINITY;
-          return Number.isFinite(rawMax) ? Math.max(0, Math.floor(rawMax)) : Number.POSITIVE_INFINITY;
-        };
-
-        const applyUnits = (nextUnits) => {
-          const value = setKgQuantityUnits(input, nextUnits, resolveMaxUnits());
-          if (typeof onValueChange === 'function') onValueChange(value);
-          return value;
-        };
-
-        input.addEventListener('keydown', (event) => {
-          const key = event.key;
-          const isDigit = /^\d$/.test(key);
-          const allowedKeys = [
-            'Tab',
-            'Enter',
-            'ArrowLeft',
-            'ArrowRight',
-            'ArrowUp',
-            'ArrowDown',
-            'Home',
-            'End',
-          ];
-
-          if (allowedKeys.includes(key)) return;
-
-          if (isDigit) {
-            event.preventDefault();
-            const nextUnits = getKgQuantityUnits(input) * 10 + Number.parseInt(key, 10);
-            applyUnits(nextUnits);
-            return;
-          }
-
-          if (key === 'Backspace') {
-            event.preventDefault();
-            applyUnits(Math.floor(getKgQuantityUnits(input) / 10));
-            return;
-          }
-
-          if (key === 'Delete') {
-            event.preventDefault();
-            applyUnits(0);
-            return;
-          }
-
-          if (key === ',' || key === '.') {
-            event.preventDefault();
-            keepInputCaretAtEnd(input);
-            return;
-          }
-
-          if (key.length === 1) {
-            event.preventDefault();
-          }
-        });
-
-        input.addEventListener('paste', (event) => {
-          event.preventDefault();
-          const pasted = event.clipboardData ? event.clipboardData.getData('text') : '';
-          const parsed = roundTo(Math.max(0, parseLocalizedQuantity(pasted)), 3);
-          applyUnits(Math.round(parsed * KG_QUANTITY_SCALE));
-        });
-
-        input.addEventListener('focus', () => keepInputCaretAtEnd(input));
-        input.addEventListener('click', () => keepInputCaretAtEnd(input));
-
-        // Fallback for virtual keyboards that may bypass keydown.
-        input.addEventListener('input', () => {
-          const parsed = roundTo(Math.max(0, parseLocalizedQuantity(input.value)), 3);
-          applyUnits(Math.round(parsed * KG_QUANTITY_SCALE));
-        });
       };
       const parseProductQuantityInput = (rawValue, product) => {
         if (isKgPresentation(product)) return roundTo(Math.max(0, parseLocalizedQuantity(rawValue)), 3);
@@ -5145,11 +5039,7 @@
           if (!qtyInput) return;
 
           const selected = clampProductQuantity(parseProductQuantityInput(qtyInput.value, modalProduct), modalProduct, available);
-          if (isKgPresentation(modalProduct)) {
-            setKgQuantityUnits(qtyInput, Math.round(selected * KG_QUANTITY_SCALE), maxKgUnitsForAvailable(available));
-          } else {
-            qtyInput.value = formatProductQuantityInputValue(selected, modalProduct);
-          }
+          qtyInput.value = formatProductQuantityInputValue(selected, modalProduct);
 
           if (availableLabel) {
             const remaining = Math.max(0, available - selected);
@@ -7372,7 +7262,8 @@
             const controlsHtml = isKgProduct
               ? `
                 <div class="w-[5.75rem]">
-                  <input type="text" inputmode="decimal" value="0,000" ${disabled ? 'disabled' : ''}
+                  <input type="text" inputmode="decimal" autocomplete="off" value="0,000" ${disabled ? 'disabled' : ''}
+                    data-money-mask="true" data-money-symbol="" data-money-decimals="3"
                     class="w-full rounded-lg border px-2 py-1 text-center text-sm font-semibold ${inputClass}" data-variation-qty>
                 </div>
               `
@@ -7420,6 +7311,7 @@
           didOpen: () => {
             const dialog = window.Swal.getHtmlContainer();
             if (!dialog) return;
+            initMoneyMasks(dialog);
 
             const updateAvailableLabel = (row, available, selected) => {
               const label = row.querySelector('[data-variation-available-label]');
@@ -7435,15 +7327,9 @@
 
             const normalizeQty = (row, input) => {
               const available = getRowAvailable(row);
-              let safe;
-              if (isKgProduct) {
-                const parsedUnits = Math.round(clampProductQuantity(parseProductQuantityInput(input.value, product), product) * KG_QUANTITY_SCALE);
-                safe = setKgQuantityUnits(input, parsedUnits, maxKgUnitsForAvailable(available));
-              } else {
-                const parsed = parseProductQuantityInput(input.value, product);
-                safe = clampProductQuantity(parsed, product, available);
-                input.value = formatProductQuantityInputValue(safe, product);
-              }
+              const parsed = parseProductQuantityInput(input.value, product);
+              const safe = clampProductQuantity(parsed, product, available);
+              input.value = formatProductQuantityInputValue(safe, product);
               updateAvailableLabel(row, available, safe);
               return safe;
             };
@@ -7463,31 +7349,18 @@
                   const current = normalizeQty(row, qtyInput);
                   const delta = button.dataset.qtyAction === 'increase' ? productQuantityStep(product) : -productQuantityStep(product);
                   const next = clampProductQuantity(current + delta, product, rowAvailable);
-                  if (isKgProduct) {
-                    setKgQuantityUnits(qtyInput, Math.round(next * KG_QUANTITY_SCALE), maxKgUnitsForAvailable(rowAvailable));
-                  } else {
-                    qtyInput.value = formatProductQuantityInputValue(next, product);
-                  }
+                  qtyInput.value = formatProductQuantityInputValue(next, product);
                   normalizeQty(row, qtyInput);
                 });
               });
 
-              if (isKgProduct) {
-                bindKgQuantityMask(qtyInput, {
-                  maxUnitsProvider: () => maxKgUnitsForAvailable(getRowAvailable(row)),
-                  onValueChange: (value) => {
-                    updateAvailableLabel(row, getRowAvailable(row), value);
-                  },
-                });
-              } else {
-                qtyInput.addEventListener('input', () => {
-                  normalizeQty(row, qtyInput);
-                });
+              qtyInput.addEventListener('input', () => {
+                normalizeQty(row, qtyInput);
+              });
 
-                qtyInput.addEventListener('blur', () => {
-                  normalizeQty(row, qtyInput);
-                });
-              }
+              qtyInput.addEventListener('blur', () => {
+                normalizeQty(row, qtyInput);
+              });
             });
 
             sortVariationSelectionRows(dialog.querySelector('[data-variation-modal-list]'));
