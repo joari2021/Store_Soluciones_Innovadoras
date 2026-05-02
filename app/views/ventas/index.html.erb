@@ -5018,6 +5018,10 @@
         const dialog = window.Swal.getHtmlContainer();
         if (!dialog) return;
 
+        const focusedQtyInput = dialog.querySelector('[data-variation-qty]:focus');
+        const focusedVariationRow = focusedQtyInput?.closest('[data-variation-row]') || null;
+        const focusedVariationId = focusedVariationRow ? normalizeVariationId(focusedVariationRow.dataset.variationId || null) : null;
+
         const modalRoot = dialog.querySelector('[data-variation-modal-product-id]');
         if (!modalRoot) return;
 
@@ -5047,7 +5051,23 @@
           }
         });
 
-        sortVariationSelectionRows(rowsContainer || dialog);
+        const hasFocusedQty = focusedQtyInput instanceof HTMLInputElement;
+        if (!hasFocusedQty) {
+          sortVariationSelectionRows(rowsContainer || dialog);
+          return;
+        }
+
+        const targetSelector = focusedVariationId
+          ? `[data-variation-row][data-variation-id="${focusedVariationId}"] [data-variation-qty]`
+          : '[data-variation-row] [data-variation-qty]';
+        const targetInput = dialog.querySelector(targetSelector);
+        if (!(targetInput instanceof HTMLInputElement) || targetInput.disabled) return;
+
+        targetInput.focus({ preventScroll: true });
+        if (typeof targetInput.setSelectionRange === 'function') {
+          const end = targetInput.value.length;
+          targetInput.setSelectionRange(end, end);
+        }
       };
 
       const updateProductCardMeta = () => {
