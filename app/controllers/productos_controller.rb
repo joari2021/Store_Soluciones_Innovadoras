@@ -144,8 +144,9 @@ class ProductosController < ApplicationController
     @bcv_eur_rate = TasaCambio.latest_for('Euro BCV')
     @bcv_rate = @bcv_usd_rate&.valor.to_d
     base_scope = @catalog_business.productos
-                    .includes(:categoria, :stock_lot_variations, :stock_lots, foto_attachment: :blob)
-                    .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+            .left_joins(:categoria)
+            .includes(:categoria, :stock_lot_variations, :stock_lots, foto_attachment: :blob)
+            .order(Arel.sql("COALESCE(LOWER(categorias.nombre), '') ASC, LOWER(productos.descripcion) ASC, productos.id ASC"))
 
     base_scope = base_scope.where(show_in_catalog: true) if Producto.column_names.include?('show_in_catalog')
     @productos = base_scope.select { |producto| producto.total_quantity.to_d.positive? }
