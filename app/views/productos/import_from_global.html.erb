@@ -84,7 +84,14 @@
           </thead>
           <tbody class="divide-y divide-slate-100">
             <% @global_products.each_with_index do |global_product, index| %>
-              <% presentation_label = global_product.presentation.to_s == 'pack' ? "Pack (#{global_product.cant_presentation} unid)" : 'Unidad' %>
+              <% presentation_label = case global_product.presentation.to_s
+                                     when 'pack'
+                                       "Pack (#{global_product.cant_presentation} unid)"
+                                     when 'kg'
+                                       'Kg (1 kg)'
+                                     else
+                                       'Unidad'
+                                     end %>
               <% margin_value = global_product.fixed_margin_percentage %>
               <% margin_label = margin_value.present? ? "#{number_with_precision(margin_value, precision: 2, strip_insignificant_zeros: true)}%" : '-' %>
               <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">

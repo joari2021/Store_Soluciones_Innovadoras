@@ -81,12 +81,13 @@
                    options_for_select([
                      ["Unidad", "unidad"],
                      ["Pack", "pack"],
+                     ["Kg", "kg"],
                    ], global_product.presentation.to_s),
                    {},
                    class: "w-full mt-1 p-3 bg-slate-50 border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-sky-200 focus:border-sky-400 focus:outline-none transition-all" %>
     </div>
     <div>
-      <%= f.label :cant_presentation, "Unidades por pack", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
+      <%= f.label :cant_presentation, "Cantidad por presentacion", class: "text-xs font-bold text-slate-400 uppercase tracking-wider" %>
       <%= f.number_field :cant_presentation,
                          min: 1,
                          step: 1,

@@ -5,7 +5,7 @@ class GlobalProduct < ApplicationRecord
     sale_price_usd
   ].freeze
 
-  enum :presentation, { unidad: 0, pack: 1 }, default: :unidad
+  enum :presentation, { unidad: 0, pack: 1, kg: 2 }, default: :unidad
   has_one_attached :image
 
   has_many :global_supplier_products, dependent: :restrict_with_error
@@ -19,9 +19,11 @@ class GlobalProduct < ApplicationRecord
   validates :presentation, presence: true
   validates :cant_presentation, numericality: { only_integer: true, greater_than: 0 }
   validate :required_metadata_on_create, on: :create
+  before_validation :normalize_presentation_values
 
   def presentation_display_suffix
     return "(unidad)" if unidad?
+    return "(1 kg)" if kg?
 
     "(pack de #{cant_presentation.to_i} unids)"
   end
@@ -58,6 +60,12 @@ class GlobalProduct < ApplicationRecord
   end
 
   private
+
+  def normalize_presentation_values
+    self.presentation = :unidad if presentation.blank?
+    self.cant_presentation = 1 if cant_presentation.blank?
+    self.cant_presentation = 1 if unidad? || kg?
+  end
 
   def normalize_metadata_value(key, raw)
     return nil if raw.blank?
