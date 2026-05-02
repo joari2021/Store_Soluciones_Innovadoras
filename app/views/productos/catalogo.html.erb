@@ -7,6 +7,18 @@
       <section class="page <%= index.zero? ? 'active' : '' %>" data-catalogo-page="true" data-page-index="<%= index %>">
         <%= render partial: 'catalogo_producto_card', locals: { producto: left_product, position: 'top-left', bcv_rate: @bcv_rate } %>
         <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom-right', bcv_rate: @bcv_rate } %>
+        <div class="catalogo-brand-badge">
+          <% if @catalog_business.logo.attached? %>
+            <div class="catalogo-brand-badge__logo-wrap">
+              <%= image_tag @catalog_business.logo,
+                            class: 'catalogo-brand-badge__logo',
+                            alt: "Logo de #{@catalog_business.name}" %>
+            </div>
+          <% end %>
+          <div class="catalogo-brand-badge__cashea-wrap">
+            <%= image_tag 'cashea compra.png', class: 'catalogo-brand-badge__cashea', alt: 'Compra con Cashea' %>
+          </div>
+        </div>
         <div class="catalogo-bcv-badge" aria-hidden="true">
           <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
           <div class="catalogo-bcv-badge__meta">

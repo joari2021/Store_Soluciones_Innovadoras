@@ -260,6 +260,45 @@
   margin-top: 0.25rem;
 }
 
+.catalogo-brand-badge {
+  position: absolute;
+  top: 2.6%;
+  right: 2.2%;
+  width: clamp(170px, 16vw, 290px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: clamp(0.7rem, 1vw, 1rem);
+  z-index: 5;
+  pointer-events: none;
+}
+
+.catalogo-brand-badge__logo-wrap,
+.catalogo-brand-badge__cashea-wrap {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.catalogo-brand-badge__logo {
+  width: auto;
+  max-width: 82%;
+  max-height: clamp(84px, 12vh, 140px);
+  object-fit: contain;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.28));
+}
+
+.catalogo-brand-badge__cashea {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 1.1rem;
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.28);
+}
+
 .catalogo-bcv-badge {
   position: absolute;
   left: 2%;
@@ -429,6 +468,16 @@
     font-size: 3rem;
   }
 
+  .catalogo-brand-badge {
+    width: clamp(150px, 18vw, 230px);
+    top: 2.2%;
+    right: 1.8%;
+  }
+
+  .catalogo-brand-badge__logo {
+    max-height: clamp(68px, 9vh, 104px);
+  }
+
   .catalogo-bcv-badge {
     width: auto;
     min-width: 0;
@@ -469,6 +518,22 @@
 
   .top-left {
     margin-top: 20px;
+  }
+
+  .catalogo-brand-badge {
+    top: 14px;
+    right: 14px;
+    width: min(38vw, 170px);
+    gap: 0.55rem;
+  }
+
+  .catalogo-brand-badge__logo {
+    max-width: 78%;
+    max-height: 56px;
+  }
+
+  .catalogo-brand-badge__cashea {
+    border-radius: 0.9rem;
   }
 
   .catalogo-bcv-badge {
