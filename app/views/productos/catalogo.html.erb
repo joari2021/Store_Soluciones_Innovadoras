@@ -1,4 +1,5 @@
 <% total_pages = @product_pairs.size %>
+<% bcv_value = number_with_precision(@bcv_rate.to_d, precision: 2, delimiter: '.', separator: ',') %>
 <div class="catalog-container" id="catalog" data-catalogo-root="true" data-catalogo-duration="15000">
   <div class="catalog-book" aria-live="polite">
     <% @product_pairs.each_with_index do |pair, index| %>
@@ -9,6 +10,11 @@
         <%= render partial: 'catalogo_producto_card', locals: { producto: right_product, position: 'bottom-right', bcv_rate: @bcv_rate } %>
         <div class="catalogo-bcv-badge" aria-hidden="true">
           <%= image_tag 'precios-bcv.jpg', class: 'catalogo-bcv-badge__image', alt: '' %>
+          <div class="catalogo-bcv-badge__meta">
+            <p class="catalogo-bcv-rate catalogo-bcv-rate--usd">$ BCV: Bs <%= bcv_value %></p>
+            <p class="catalogo-bcv-rate catalogo-bcv-rate--eur">Euro BCV: Bs <%= bcv_value %></p>
+            <p class="catalogo-bcv-date">31-12-2026</p>
+          </div>
         </div>
       </section>
     <% end %>

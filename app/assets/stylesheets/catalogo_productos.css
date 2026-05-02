@@ -120,7 +120,7 @@
 }
 
 .bottom-right {
-  bottom: 5%;
+  bottom: 2%;
   right: 2%;
 }
 
@@ -132,13 +132,61 @@
   margin-bottom: 20px;
 }
 
-.photo-frame__inner {
-  background: #fff;
+.photo-frame__layout {
+  height: 38vh;
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.top-left .photo-frame__layout {
+  flex-direction: row;
+}
+
+.bottom-right .photo-frame__layout {
+  flex-direction: row-reverse;
+}
+
+.photo-frame__media {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.photo-frame__prices {
+  width: 40%;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.price-board-card {
+  flex: 1 1 0;
+  min-height: 0;
+  background: #111;
+  border: 3px solid #333;
+  border-radius: 8px;
+  padding: 0.75rem 0.7rem;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.price-board-card .currency-label {
+  font-size: clamp(0.75rem, 0.95vw, 0.95rem);
+}
+
+.price-board-card .price-val {
+  margin-top: 0.1rem;
+  font-size: clamp(1.35rem, 2.3vw, 2.25rem);
+  letter-spacing: -1px;
 }
 
 .product-photo {
   width: 100%;
-  height: 38vh;
+  height: 100%;
   object-fit: contain;
   background: #fff;
   display: block;
@@ -164,37 +212,6 @@
   margin: 0 0 15px;
 }
 
-.price-board {
-  background: #111;
-  padding: 1.5rem;
-  border-radius: 8px;
-  border: 4px solid #333;
-  box-shadow: 15px 15px 30px rgba(0, 0, 0, 0.6);
-}
-
-.price-board__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.price-group {
-  min-width: 0;
-  flex: 1 1 0;
-}
-
-.price-group--right {
-  text-align: right;
-}
-
-.price-divider {
-  width: 4px;
-  height: clamp(4rem, 9vh, 5.2rem);
-  background: rgba(255, 204, 0, 0.3);
-  border-radius: 999px;
-}
-
 .currency-label {
   font-family: "Oswald", sans-serif;
   font-size: clamp(0.9rem, 1.15vw, 1.1rem);
@@ -217,9 +234,9 @@
 .catalogo-bcv-badge {
   position: absolute;
   left: 2%;
-  bottom: 2%;
-  width: min(22vw, 360px);
-  min-width: 200px;
+  bottom: 1.2%;
+  width: min(16vw, 260px);
+  min-width: 140px;
   z-index: 4;
   pointer-events: none;
 }
@@ -231,6 +248,44 @@
   border-radius: 0.8rem;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.catalogo-bcv-badge__meta {
+  position: absolute;
+  inset: 0;
+  color: #0f172a;
+  font-family: "Oswald", sans-serif;
+  pointer-events: none;
+}
+
+.catalogo-bcv-rate {
+  position: absolute;
+  margin: 0;
+  font-size: clamp(0.38rem, 0.6vw, 0.6rem);
+  letter-spacing: 0.03em;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.9);
+}
+
+.catalogo-bcv-rate--usd {
+  left: 25%;
+  top: 36%;
+}
+
+.catalogo-bcv-rate--eur {
+  left: 25%;
+  top: 46%;
+}
+
+.catalogo-bcv-date {
+  position: absolute;
+  left: 39%;
+  top: 56.5%;
+  margin: 0;
+  font-size: clamp(0.36rem, 0.58vw, 0.58rem);
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(255, 255, 255, 0.9);
 }
 
 .catalogo-selector {
@@ -345,8 +400,13 @@
   }
 
   .catalogo-bcv-badge {
-    width: min(30vw, 280px);
-    min-width: 150px;
+    width: min(24vw, 220px);
+    min-width: 120px;
+  }
+
+  .photo-frame__prices {
+    width: 44%;
+    min-width: 130px;
   }
 }
 
@@ -364,7 +424,7 @@
   }
 
   .product-photo {
-    height: 280px;
+    height: 100%;
   }
 
   .top-left {
@@ -372,9 +432,31 @@
   }
 
   .catalogo-bcv-badge {
-    width: min(42vw, 220px);
-    min-width: 120px;
+    width: min(34vw, 170px);
+    min-width: 95px;
     left: 3%;
     bottom: 1%;
+  }
+
+  .photo-frame__layout {
+    height: 250px;
+  }
+
+  .photo-frame__prices {
+    width: 46%;
+    min-width: 88px;
+    gap: 8px;
+  }
+
+  .price-board-card {
+    padding: 0.45rem;
+  }
+
+  .price-board-card .currency-label {
+    font-size: 0.58rem;
+  }
+
+  .price-board-card .price-val {
+    font-size: 1rem;
   }
 }

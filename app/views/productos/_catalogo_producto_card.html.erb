@@ -4,53 +4,51 @@
   <% product_name = producto.display_name_with_presentation.presence || producto.descripcion.to_s %>
   <article class="product-card <%= position %>">
     <div class="photo-frame">
-      <div class="photo-frame__inner">
-        <% if producto.foto.attached? %>
-          <%= image_tag producto.foto, class: 'product-photo', alt: product_name %>
-        <% else %>
-          <div class="product-photo product-photo--placeholder">
-            <span><%= product_name.to_s.first&.upcase || 'P' %></span>
+      <div class="photo-frame__layout">
+        <div class="photo-frame__media">
+          <% if producto.foto.attached? %>
+            <%= image_tag producto.foto, class: 'product-photo', alt: product_name %>
+          <% else %>
+            <div class="product-photo product-photo--placeholder">
+              <span><%= product_name.to_s.first&.upcase || 'P' %></span>
+            </div>
+          <% end %>
+        </div>
+        <div class="photo-frame__prices" aria-label="Precios">
+          <div class="price-board-card">
+            <span class="currency-label">Precio Bs</span>
+            <div class="price-val"><%= number_to_currency(bs_price, unit: 'Bs ') %></div>
           </div>
-        <% end %>
+          <div class="price-board-card">
+            <span class="currency-label">Precio USD</span>
+            <div class="price-val"><%= number_to_currency(usd_price, unit: '$ ') %></div>
+          </div>
+        </div>
       </div>
     </div>
     <h2 class="product-name"><%= product_name %></h2>
-    <div class="price-board">
-      <div class="price-board__row">
-        <div class="price-group">
-          <span class="currency-label">Precio USD</span>
-          <div class="price-val"><%= number_to_currency(usd_price, unit: '$ ') %></div>
-        </div>
-        <div class="price-divider" aria-hidden="true"></div>
-        <div class="price-group price-group--right">
-          <span class="currency-label">Precio Bs</span>
-          <div class="price-val"><%= number_to_currency(bs_price, unit: 'Bs ') %></div>
-        </div>
-      </div>
-    </div>
   </article>
 <% else %>
   <article class="product-card <%= position %>">
     <div class="photo-frame">
-      <div class="photo-frame__inner">
-        <div class="product-photo product-photo--placeholder">
-          <span>N</span>
+      <div class="photo-frame__layout">
+        <div class="photo-frame__media">
+          <div class="product-photo product-photo--placeholder">
+            <span>N</span>
+          </div>
+        </div>
+        <div class="photo-frame__prices" aria-label="Precios">
+          <div class="price-board-card">
+            <span class="currency-label">Precio Bs</span>
+            <div class="price-val">Bs 0,00</div>
+          </div>
+          <div class="price-board-card">
+            <span class="currency-label">Precio USD</span>
+            <div class="price-val">$ 0,00</div>
+          </div>
         </div>
       </div>
     </div>
     <h2 class="product-name">Nuevo producto</h2>
-    <div class="price-board">
-      <div class="price-board__row">
-        <div class="price-group">
-          <span class="currency-label">Precio USD</span>
-          <div class="price-val">$ 0,00</div>
-        </div>
-        <div class="price-divider" aria-hidden="true"></div>
-        <div class="price-group price-group--right">
-          <span class="currency-label">Precio Bs</span>
-          <div class="price-val">Bs 0,00</div>
-        </div>
-      </div>
-    </div>
   </article>
 <% end %>
