@@ -1931,12 +1931,20 @@ class VentasController < ApplicationController
 
   def delete_account_movements_for_sale!(venta)
     pattern = "%[VENTA:#{venta.id}]%"
+    settlement_ids = []
 
     AccountMovement
       .joins(:account)
       .where(accounts: { business_id: current_business.id })
       .where("account_movements.description LIKE ?", pattern)
-      .find_each(&:destroy!)
+      .find_each do |movement|
+        settlement_ids << movement.account_settlement_id if movement.account_settlement_id.present?
+        movement.destroy!
+      end
+
+    settlement_ids.uniq.each do |settlement_id|
+      reconcile_sale_account_settlement_after_delete!(settlement_id)
+    end
   end
 
   def delete_service_cost_debts_for_sale!(venta)
@@ -1957,6 +1965,41 @@ class VentasController < ApplicationController
     debts_scope
       .where("description LIKE ?", pattern)
       .find_each(&:destroy!)
+  end
+
+  def reconcile_sale_account_settlement_after_delete!(settlement_id)
+    settlement = AccountSettlement.find_by(id: settlement_id)
+    return if settlement.blank?
+
+    source_scope = settlement.account_movements.where(account_id: settlement.account_id)
+    source_count = source_scope.count
+
+    settlement_result_scope = settlement.account_movements.where(payment_method: "settlement")
+
+    if source_count.zero?
+      settlement_result_scope.find_each(&:destroy!)
+      settlement.destroy!
+      return
+    end
+
+    attrs = {
+      total_amount: source_scope.sum(Arel.sql("CASE WHEN movement_kind = 'expense' THEN -amount ELSE amount END")).to_d.round(2),
+      movements_count: source_count,
+      period_start_at: source_scope.minimum(:occurred_at),
+      period_end_at: source_scope.maximum(:occurred_at),
+    }
+
+    if settlement.processed?
+      settlement_result_scope.find_each(&:destroy!)
+      attrs.merge!(
+        processed_at: nil,
+        settlement_date: nil,
+        credited_amount: nil,
+        commission_amount: nil,
+      )
+    end
+
+    settlement.update!(attrs)
   end
 
   def persist_draft(existing_draft: nil)
