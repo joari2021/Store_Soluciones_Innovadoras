@@ -1940,7 +1940,6 @@ class VentasController < ApplicationController
   end
 
   def delete_service_cost_debts_for_sale!(venta)
-    current
     current_business
       .debts
       .where(venta_id: venta.id, service_cost_pending: true)

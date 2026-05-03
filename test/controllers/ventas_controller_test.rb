@@ -177,6 +177,102 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert payload["products"].is_a?(Array)
   end
 
+  test "destroy removes paid sale with biopago movement linked to settlement" do
+    biopago_settlement_bank = @business.accounts.create!(
+      name: "Banco receptor biopago #{SecureRandom.hex(3)}",
+      account_type: "bank_account",
+      currency: "VES",
+      balance: 0,
+      active: true,
+      theme_color: "sky",
+      is_primary: true,
+    )
+    biopago_account = @business.accounts.create!(
+      name: "Biopago #{SecureRandom.hex(3)}",
+      account_type: "biopago",
+      currency: "VES",
+      balance: 0,
+      active: true,
+      theme_color: "emerald",
+      settlement_account: biopago_settlement_bank,
+    )
+    payment_date = Date.yesterday
+
+    post "/ventas/save_draft", params: { venta: draft_payload(quantity: 1) }, as: :json
+    draft = Venta.where(status: "draft").order(:id).last
+
+    assert_difference('Venta.where(status: "paid").count', 1) do
+      post "/ventas",
+           params: {
+             venta: {
+               draft_id: draft.id,
+               vat_mode: "none",
+               vat_rate: "0.16",
+               tasa_dolar: "40",
+               base_currency: "USD",
+               items: [
+                 {
+                   item_type: "product",
+                   product_id: @product.id,
+                   variation_id: @variation.id,
+                   quantity: "1",
+                   unit_price_usd: @product.precio_venta_usd.to_s,
+                 },
+               ],
+               payments: [
+                 {
+                   method: "biopago",
+                   amount: "400.00",
+                   account_id: biopago_account.id,
+                   currency: "VES",
+                   payment_date: payment_date.iso8601,
+                 },
+               ],
+             },
+           },
+           as: :json
+    end
+
+    assert_response :created
+
+    sale = Venta.where(status: "paid").order(:id).last
+    settlement = biopago_account.account_settlements.create!(
+      total_amount: 400,
+      movements_count: 1,
+      closed_at: payment_date.end_of_day,
+      period_start_at: payment_date.beginning_of_day,
+      period_end_at: payment_date.end_of_day,
+      settlement_account: biopago_settlement_bank,
+    )
+    sale_movement = biopago_account.account_movements.where("description LIKE ?", "%[VENTA:#{sale.id}]%").order(:id).last
+    sale_movement.update!(account_settlement: settlement)
+
+    @business.debts.create!(
+      name: "Costo servicio prueba venta ##{sale.id}",
+      description: "Costo pendiente prueba [VENTA:#{sale.id}] [SERVICE_COST]",
+      debt_kind: "payable",
+      amount: 3,
+      currency: "USD",
+      issued_on: payment_date,
+      venta: sale,
+      service_cost_pending: true,
+    )
+
+    assert_difference("Venta.count", -1) do
+      assert_difference("AccountMovement.count", -1) do
+        assert_difference("Debt.count", -1) do
+          delete "/ventas/#{sale.id}"
+        end
+      end
+    end
+
+    assert_redirected_to historial_ventas_path
+    assert_nil Venta.find_by(id: sale.id)
+    assert_equal 10.to_d, stock_remaining_units
+    assert_equal 0, biopago_account.account_movements.where("description LIKE ?", "%[VENTA:#{sale.id}]%").count
+    assert_equal 0, @business.debts.where(venta_id: sale.id, service_cost_pending: true).count
+  end
+
   test "create preserves tasa_dolar provided at checkout as sale base rate" do
     TasaCambio.create!(description: "Dolar BCV", valor: 70, fecha_referencia: Date.current)
 
