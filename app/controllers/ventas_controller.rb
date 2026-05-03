@@ -1971,6 +1971,8 @@ class VentasController < ApplicationController
     settlement = AccountSettlement.find_by(id: settlement_id)
     return if settlement.blank?
 
+    return if settlement.processed?
+
     source_scope = settlement.account_movements.where(account_id: settlement.account_id)
     source_count = source_scope.count
 
@@ -1988,16 +1990,6 @@ class VentasController < ApplicationController
       period_start_at: source_scope.minimum(:occurred_at),
       period_end_at: source_scope.maximum(:occurred_at),
     }
-
-    if settlement.processed?
-      settlement_result_scope.find_each(&:destroy!)
-      attrs.merge!(
-        processed_at: nil,
-        settlement_date: nil,
-        credited_amount: nil,
-        commission_amount: nil,
-      )
-    end
 
     settlement.update!(attrs)
   end

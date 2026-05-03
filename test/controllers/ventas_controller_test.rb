@@ -274,7 +274,7 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, @business.debts.where(venta_id: sale.id, service_cost_pending: true).count
   end
 
-  test "destroy removes processed biopago settlement movements tied only to deleted sale" do
+  test "destroy keeps processed biopago settlement totals unchanged" do
     biopago_settlement_bank = @business.accounts.create!(
       name: "Banco receptor biopago proc #{SecureRandom.hex(3)}",
       account_type: "bank_account",
@@ -365,16 +365,22 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     )
 
     assert_difference("Venta.count", -1) do
-      assert_difference("AccountMovement.count", -3) do
+      assert_difference("AccountMovement.count", -1) do
         delete "/ventas/#{sale.id}"
       end
     end
 
     assert_redirected_to historial_ventas_path
     assert_nil Venta.find_by(id: sale.id)
-    assert_nil AccountSettlement.find_by(id: settlement.id)
     assert_equal 0, biopago_account.account_movements.where(account_settlement_id: settlement.id).count
-    assert_equal 0, biopago_settlement_bank.account_movements.where(account_settlement_id: settlement.id).count
+    assert_equal 2, biopago_settlement_bank.account_movements.where(account_settlement_id: settlement.id).count
+
+    settlement.reload
+    assert settlement.processed?
+    assert_equal BigDecimal("400.0"), settlement.total_amount.to_d
+    assert_equal 1, settlement.movements_count
+    assert_equal BigDecimal("390.0"), settlement.credited_amount.to_d
+    assert_equal BigDecimal("10.0"), settlement.commission_amount.to_d
   end
 
   test "create preserves tasa_dolar provided at checkout as sale base rate" do
