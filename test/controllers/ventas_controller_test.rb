@@ -421,6 +421,54 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("455.0"), sale.total_bs.to_d
   end
 
+  test "create accepts fractional product quantity with totals payload" do
+    quantity = BigDecimal("0.298")
+    unit_base = BigDecimal("400.00")
+    line_total = (unit_base * quantity).round(2)
+
+    assert_difference('Venta.where(status: "paid").count', 1) do
+      post "/ventas", params: {
+        venta: {
+          vat_mode: "none",
+          vat_rate: "0.16",
+          tasa_dolar: "40",
+          base_currency: "VES",
+          totals: {
+            taxable_subtotal_base: line_total.to_s("F"),
+            exento_subtotal_base: "0",
+            vat_base: "0",
+            total_base: line_total.to_s("F"),
+          },
+          items: [
+            {
+              item_type: "product",
+              product_id: @product.id,
+              variation_id: @variation.id,
+              quantity: quantity.to_s("F"),
+              unit_price_usd: "10.0",
+              unit_price_base_amount: unit_base.to_s("F"),
+              unit_price_base_currency: "VES",
+            },
+          ],
+          payments: [
+            {
+              method: "cash",
+              amount: line_total.to_s("F"),
+              account_id: @cash_account.id,
+              currency: "VES",
+            },
+          ],
+        },
+      }, as: :json
+    end
+
+    assert_response :created
+
+    sale = Venta.where(status: "paid").order(:id).last
+    assert_equal line_total, sale.total_bs.to_d
+    assert_equal quantity, sale.venta_items.first.quantity.to_d
+  end
+
   test "create requires selected client when remaining balance is marked as credit" do
     assert_no_difference("Debt.count") do
       post "/ventas", params: {

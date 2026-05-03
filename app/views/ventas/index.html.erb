@@ -7439,7 +7439,6 @@
       const buildVentaPayload = (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null, casheaSale = null) => {
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
         applyBaseCurrencySelection(selectedBaseCurrency, { syncInputs: true, syncCart: true, render: false });
-        const currentTotals = calculateCartTotals();
         const items = Array.from(cart.entries()).map(([cartKey, item]) => {
           if (item.itemType === 'service') {
             const service = servicesById.get(String(item.serviceId));
@@ -7549,6 +7548,52 @@
           };
         });
 
+        const payloadTotals = (() => {
+          const vatMode = getVatMode();
+          const vatRateValue = Number(vatRate) || 0;
+          let taxableSubtotalBase = 0;
+          let exentoSubtotalBase = 0;
+
+          items.forEach((row) => {
+            const quantity = Number(row?.quantity) || 0;
+            if (!(Number.isFinite(quantity) && quantity > 0)) return;
+
+            const baseAmountRaw = Number(row?.unit_price_base_amount);
+            const usdAmountRaw = Number(row?.unit_price_usd);
+
+            const unitBase = Number.isFinite(baseAmountRaw) && baseAmountRaw > 0
+              ? roundTo(baseAmountRaw, 2)
+              : (selectedBaseCurrency === 'ves'
+                ? (bcvRate > 0 ? roundTo((Number.isFinite(usdAmountRaw) ? usdAmountRaw : 0) * bcvRate, 2) : 0)
+                : roundTo(Number.isFinite(usdAmountRaw) ? usdAmountRaw : 0, 2));
+
+            const lineBase = roundTo(unitBase * quantity, 2);
+            const itemType = String(row?.item_type || '').toLowerCase();
+
+            let isExento = false;
+            if (itemType === 'product') {
+              const product = productsById.get(String(row?.product_id || ''));
+              isExento = Boolean(product?.exento);
+            }
+
+            if (isExento) {
+              exentoSubtotalBase = roundTo(exentoSubtotalBase + lineBase, 2);
+            } else {
+              taxableSubtotalBase = roundTo(taxableSubtotalBase + lineBase, 2);
+            }
+          });
+
+          const vatBase = vatMode === 'none' ? 0 : roundTo(taxableSubtotalBase * vatRateValue, 2);
+          const totalBase = roundTo(taxableSubtotalBase + exentoSubtotalBase + vatBase, 2);
+
+          return {
+            taxableSubtotalBase,
+            exentoSubtotalBase,
+            vatBase,
+            totalBase,
+          };
+        })();
+
         const payload = {
           draft_id: activeDraftId,
           customer_order_mode: isCustomerPosMode,
@@ -7558,10 +7603,10 @@
           base_currency: selectedBaseCurrency === 'ves' ? 'VES' : 'USD',
           cliente_id: selectedClient ? selectedClient.id : null,
           totals: {
-            taxable_subtotal_base: currentTotals.taxableSubtotalBase,
-            exento_subtotal_base: currentTotals.exentoSubtotalBase,
-            vat_base: currentTotals.vatBase,
-            total_base: currentTotals.totalBase,
+            taxable_subtotal_base: payloadTotals.taxableSubtotalBase,
+            exento_subtotal_base: payloadTotals.exentoSubtotalBase,
+            vat_base: payloadTotals.vatBase,
+            total_base: payloadTotals.totalBase,
           },
           items: items,
           payments: payments || [],

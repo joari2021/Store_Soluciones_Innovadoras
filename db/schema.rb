@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_02_120500) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_03_170500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -371,7 +371,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_120500) do
     t.bigint "factura_id", null: false
     t.bigint "producto_id"
     t.decimal "costo_mayor", precision: 12, scale: 2
-    t.decimal "cantidad", precision: 12, scale: 2
+    t.decimal "cantidad", precision: 14, scale: 3, null: false
     t.decimal "costo_menor", precision: 12, scale: 2
     t.string "variacion_nombre"
     t.decimal "unid_x_pack", precision: 12, scale: 2
@@ -628,7 +628,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_120500) do
     t.bigint "producto_id", null: false
     t.bigint "product_variation_id", null: false
     t.bigint "user_id", null: false
-    t.decimal "quantity", precision: 14, scale: 2, null: false
+    t.decimal "quantity", precision: 14, scale: 3, null: false
     t.date "used_on", null: false
     t.text "notes"
     t.datetime "created_at", null: false
@@ -903,8 +903,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_120500) do
     t.bigint "stock_lot_id", null: false
     t.bigint "product_variation_id"
     t.string "variation_description", null: false
-    t.decimal "quantity_in", precision: 12, scale: 2, default: "0.0", null: false
-    t.decimal "quantity_remaining", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "quantity_in", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "quantity_remaining", precision: 12, scale: 3, default: "0.0", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["product_variation_id"], name: "index_stock_lot_variations_on_product_variation_id"
@@ -917,8 +917,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_120500) do
     t.bigint "factura_item_id"
     t.bigint "supplier_id"
     t.decimal "unit_cost_usd", precision: 12, scale: 2, default: "0.0", null: false
-    t.decimal "quantity_in", precision: 12, scale: 2, default: "0.0", null: false
-    t.decimal "quantity_remaining", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "quantity_in", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "quantity_remaining", precision: 12, scale: 3, default: "0.0", null: false
     t.datetime "purchased_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1009,7 +1009,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_02_120500) do
     t.bigint "product_variation_id"
     t.string "product_name"
     t.string "variation_name"
-    t.decimal "quantity", precision: 12, scale: 2, default: "0.0", null: false
+    t.decimal "quantity", precision: 12, scale: 3, default: "0.0", null: false
     t.decimal "unit_price_usd", precision: 14, scale: 2, default: "0.0", null: false
     t.decimal "subtotal_usd", precision: 14, scale: 2, default: "0.0", null: false
     t.datetime "created_at", null: false
