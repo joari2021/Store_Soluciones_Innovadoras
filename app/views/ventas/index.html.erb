@@ -7691,8 +7691,18 @@
           }
 
           if (!response.ok) {
-            const requestError = new Error(data.error || 'No se pudo registrar la venta.');
+            const requestId = String(response.headers?.get('X-Request-Id') || response.headers?.get('x-request-id') || '').trim();
+            const requestError = new Error(buildHttpErrorMessage({
+              fallbackMessage: 'No se pudo registrar la venta.',
+              response,
+              data,
+              extraDetails: [
+                requestId ? `request-id: ${requestId}` : '',
+                'ruta: /ventas',
+              ],
+            }));
             requestError.payload = data;
+            requestError.status = response.status;
             throw requestError;
           }
 
