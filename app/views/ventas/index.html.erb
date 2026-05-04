@@ -1415,7 +1415,15 @@
         if (service?.printing_type_service) {
           const baseUnitBs = Number(item?.selected_print_unit_price_bs);
           if (Number.isFinite(baseUnitBs) && baseUnitBs > 0) {
-            const resolvedUnitBs = roundTo(baseUnitBs, 2);
+            const rawPrintingDiscountPercent = Number(
+              item?.printing_discount_percent ?? resolvePrintVolumeDiscountPercent(service)
+            );
+            const printingDiscountPercent = Number.isFinite(rawPrintingDiscountPercent) && rawPrintingDiscountPercent > 0
+              ? Math.max(0, Math.min(100, rawPrintingDiscountPercent))
+              : 0;
+            const resolvedUnitBs = printingDiscountPercent > 0
+              ? roundTo(baseUnitBs * (1 - printingDiscountPercent / 100), 2)
+              : roundTo(baseUnitBs, 2);
             unitPriceUsd = bcvRate > 0 ? roundTo(resolvedUnitBs / bcvRate, 6) : unitPriceUsd;
             unitPriceBaseAmount = normalizedCurrency === 'ves'
               ? resolvedUnitBs

@@ -220,6 +220,76 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert_equal service.description, sale.venta_items.first.product_name
   end
 
+  test "create accepts printing service payload totals with volume discount" do
+    system_service = SystemService.create!(name: "Impresion #{SecureRandom.hex(2)}")
+    material_product, material_variation = create_product_with_stock!(available_units: 30, sale_price_usd: 1)
+    service = @business.services.create!(
+      description: "Copias B/N Carta #{SecureRandom.hex(3)}",
+      pricing_mode: "fixed",
+      currency_base_price: "Bs",
+      sale_price: 40,
+      available: true,
+      system_service: system_service,
+    )
+    service.service_print_volume_discounts.create!(min_quantity: 20, discount_percent: 10)
+
+    assert_difference('Venta.where(status: "paid").count', 1) do
+      post "/ventas", params: {
+        venta: {
+          vat_mode: "none",
+          vat_rate: "0.16",
+          tasa_dolar: "40",
+          base_currency: "VES",
+          totals: {
+            taxable_subtotal_base: "792.00",
+            exento_subtotal_base: "0.00",
+            vat_base: "0.00",
+            total_base: "792.00",
+          },
+          items: [
+            {
+              item_type: "service",
+              service_id: service.id,
+              quantity: "22",
+              unit_price_usd: "0.90",
+              unit_price_base_amount: "36.00",
+              unit_price_base_currency: "VES",
+              selected_print_unit_price_bs: "40.00",
+              printing_discount_percent: "10",
+              selected_print_material_rows: [
+                {
+                  product_id: material_product.id,
+                  variation_id: material_variation.id,
+                  label: material_product.descripcion,
+                  quantity: "1",
+                },
+              ],
+            },
+          ],
+          payments: [
+            {
+              method: "cash",
+              amount: "792.00",
+              account_id: @cash_account.id,
+              currency: "VES",
+            },
+          ],
+        },
+      }, as: :json
+    end
+
+    assert_response :created
+    sale = Venta.where(status: "paid").order(:id).last
+    assert_equal 22.to_d, sale.venta_items.sum(&:quantity).to_d
+    material_stock_remaining = StockLotVariation
+      .joins(:stock_lot)
+      .where(stock_lots: { producto_id: material_product.id }, product_variation_id: material_variation.id)
+      .sum(:quantity_remaining)
+      .to_d
+      .round(2)
+    assert_equal 8.to_d, material_stock_remaining
+  end
+
   test "destroy removes paid sale with biopago movement linked to settlement" do
     biopago_settlement_bank = @business.accounts.create!(
       name: "Banco receptor biopago #{SecureRandom.hex(3)}",
