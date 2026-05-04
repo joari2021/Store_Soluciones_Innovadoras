@@ -1412,6 +1412,26 @@
         let unitPriceUsd = Number(item?.unit_price_usd);
         let unitPriceBaseAmount = null;
 
+        const shouldUseFixedServicePrice = Boolean(service)
+          && service?.price_on_request !== true
+          && !isRecargaService(service)
+          && service?.printing_type_service !== true;
+
+        if (shouldUseFixedServicePrice) {
+          const serviceUnitUsd = Number(service?.price_usd);
+          const serviceUnitBs = Number(service?.price_bs);
+
+          if (Number.isFinite(serviceUnitUsd) && serviceUnitUsd > 0) {
+            unitPriceUsd = roundTo(serviceUnitUsd, 6);
+          }
+
+          if (targetCode === 'VES' && Number.isFinite(serviceUnitBs) && serviceUnitBs > 0) {
+            unitPriceBaseAmount = roundTo(serviceUnitBs, 2);
+          } else if (targetCode === 'USD' && Number.isFinite(serviceUnitUsd) && serviceUnitUsd > 0) {
+            unitPriceBaseAmount = roundTo(serviceUnitUsd, 2);
+          }
+        }
+
         if (service?.printing_type_service) {
           const baseUnitBs = Number(item?.selected_print_unit_price_bs);
           if (Number.isFinite(baseUnitBs) && baseUnitBs > 0) {
@@ -7668,7 +7688,23 @@
           return;
         }
 
-        const payload = buildVentaPayload(payments, change, creditSale, forcedBaseCurrency, checkoutDiscount, casheaSale);
+        const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
+
+        try {
+          await refreshCartServiceSnapshotsForCheckout(selectedBaseCurrency);
+        } catch (error) {
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'No se pudo actualizar el precio del servicio',
+              text: String(error?.message || 'Recarga la pagina y vuelve a intentar.'),
+              heightAuto: false,
+            });
+          }
+          return;
+        }
+
+        const payload = buildVentaPayload(payments, change, creditSale, selectedBaseCurrency, checkoutDiscount, casheaSale);
 
         if (window.Swal) {
           window.Swal.fire({
@@ -10955,9 +10991,12 @@
         return `Fallo en ${stageLabel} del borrador #${safeDraftId}. ${rawMessage}`;
       };
 
-      const fetchServicesSnapshot = async (serviceIds) => {
+      const fetchServicesSnapshot = async (serviceIds, options = {}) => {
         const ids = Array.from(new Set(serviceIds.map((value) => String(value).trim()).filter(Boolean)));
         if (ids.length === 0) return;
+
+        const fallbackMessage = String(options?.fallbackMessage || '').trim()
+          || 'No se pudieron cargar los servicios requeridos por el borrador.';
 
         const response = await fetch(`/ventas/services_snapshot?ids=${encodeURIComponent(ids.join(','))}`, {
           headers: {
@@ -10969,7 +11008,7 @@
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {
           throw new Error(buildHttpErrorMessage({
-            fallbackMessage: 'No se pudieron cargar los servicios requeridos por el borrador.',
+            fallbackMessage,
             response,
             data,
             extraDetails: [`servicios: ${ids.join(', ')}`],
@@ -10982,6 +11021,29 @@
         if (unresolvedIds.length > 0) {
           throw new Error(`El servidor respondio, pero no devolvio todos los servicios del borrador. Faltan IDs: ${unresolvedIds.join(', ')}`);
         }
+      };
+
+      const refreshCartServiceSnapshotsForCheckout = async (targetCurrency = null) => {
+        const serviceIds = [];
+
+        cart.forEach((item) => {
+          if ((item?.itemType || 'product') !== 'service') return;
+          const serviceId = String(item?.serviceId || '').trim();
+          if (!serviceId) return;
+          serviceIds.push(serviceId);
+        });
+
+        if (serviceIds.length === 0) return;
+
+        await fetchServicesSnapshot(serviceIds, {
+          fallbackMessage: 'No se pudieron actualizar los servicios antes de cobrar.',
+        });
+
+        const effectiveCurrency = String(targetCurrency || getSelectedBaseCurrency() || baseCurrency || '').toLowerCase() === 'ves'
+          ? 'ves'
+          : 'usd';
+
+        syncCartBaseCurrencySnapshots(effectiveCurrency);
       };
 
       const ensureServicesForDraft = async (draft) => {
