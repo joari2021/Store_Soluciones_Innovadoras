@@ -4438,6 +4438,10 @@ class VentasController < ApplicationController
       delta = (client_value - server_value).abs
       next unless delta > tolerance.to_d
 
+      # Log detallado del mismatch
+      request_id = request&.uuid || request.env["action_dispatch.request_id"] || "sin-request-id"
+      Rails.logger.warn("[VENTA_MISMATCH] request-id=#{request_id} key=#{key} label=#{label} client_value=#{client_value} server_value=#{server_value} delta=#{delta} tolerance=#{tolerance} client_totals=#{client_totals.inspect} server_totals=#{server_totals.inspect}")
+
       return "Los calculos del #{label} no coinciden con el servidor. Actualiza la orden y vuelve a cobrar."
     end
 
