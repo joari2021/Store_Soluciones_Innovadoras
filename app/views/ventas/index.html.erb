@@ -4097,9 +4097,27 @@
         let unitPriceUsd = 0;
         let unitPriceBaseVes = null;
         const usesBolivarReference = serviceUsesBolivarReference(service);
+        const normalizedReference = normalizeServiceReferenceName(service);
+        const itemBaseCurrency = normalizeCurrencyCode(item?.unit_price_base_currency);
+        const itemBaseAmount = Number(item?.unit_price_base_amount);
+        const shouldPreserveDirectBaseVes = baseCurrency === 'ves'
+          && normalizedReference !== 'Dolar BCV'
+          && !service?.printing_type_service
+          && !isRecargaService(service)
+          && itemBaseCurrency === 'VES'
+          && Number.isFinite(itemBaseAmount)
+          && itemBaseAmount > 0;
+
+        if (shouldPreserveDirectBaseVes) {
+          unitPriceBaseVes = roundTo(itemBaseAmount, 2);
+        }
+
         const clientServiceRule = resolveServiceRuleForClient(service, selectedClient);
         if (clientServiceRule?.mode === 'fixed' && Number(clientServiceRule.value) > 0) {
           unitPriceUsd = roundTo(Number(clientServiceRule.value), 6);
+          if (baseCurrency === 'ves' && bcvRate > 0) {
+            unitPriceBaseVes = roundTo(unitPriceUsd * bcvRate, 2);
+          }
         }
 
         const discountPercent = resolvePrintVolumeDiscountPercent(service);
@@ -4155,6 +4173,16 @@
           item.quantity,
           service?.scheduled_discount_rules
         );
+
+        if (baseCurrency === 'ves' && Number.isFinite(unitPriceBaseVes) && unitPriceBaseVes > 0) {
+          const discountedBaseVes = applyScheduledDiscountRuleToUnitPriceBase(
+            unitPriceBaseVes,
+            item.quantity,
+            service?.scheduled_discount_rules,
+            'VES'
+          );
+          return computePricingFromBaseAmount(discountedBaseVes, item.quantity, { exento: false });
+        }
 
         return computePricing(unitPriceUsd, item.quantity, { exento: false });
       };

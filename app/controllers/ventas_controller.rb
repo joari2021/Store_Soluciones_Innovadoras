@@ -735,7 +735,7 @@ class VentasController < ApplicationController
         service_discount_rules = active_discount_rules_by_target(:services)[service.id]
 
         base_unit_price_base_amount_for_schedule = unit_price_base_amount.to_d
-        if !base_unit_price_base_amount_for_schedule.positive? && service_uses_ves_reference_pricing?(service)
+        if !base_unit_price_base_amount_for_schedule.positive? && service_uses_direct_ves_pricing?(service)
           base_unit_price_base_amount_for_schedule = service.unit_price_bs(
             tasa_dolar: tasa_dolar,
             unidad_vi: parse_decimal(@unidad_VI, default: 0),
@@ -751,7 +751,7 @@ class VentasController < ApplicationController
         )
 
         unit_price_base_amount = 0.to_d
-        if base_currency == "VES" && service_uses_ves_reference_pricing?(service)
+        if base_currency == "VES" && service_uses_direct_ves_pricing?(service)
           unit_price_base_amount = apply_discount_schedule_to_unit_price_amount(
             base_unit_price_amount: base_unit_price_base_amount_for_schedule,
             quantity: quantity,
@@ -3167,6 +3167,15 @@ class VentasController < ApplicationController
 
     reference = service.currency_base_price.to_s.strip
     %W[#{Service::BOLIVAR_REFERENCE} Unidad\ VI].include?(reference)
+  end
+
+  def service_uses_direct_ves_pricing?(service)
+    return false if service.blank?
+
+    reference = service.currency_base_price.to_s.strip
+    return false if reference.blank?
+
+    reference != Service::DEFAULT_REFERENCE
   end
 
   def convert_discount_amount_to_currency(amount:, from_currency:, to_currency:, tasa_dolar:)
