@@ -177,6 +177,49 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert payload["products"].is_a?(Array)
   end
 
+  test "create registers a simple service sale" do
+    service = @business.services.create!(
+      description: "Servicio simple #{SecureRandom.hex(3)}",
+      pricing_mode: "to_agree",
+      currency_base_price: "Dolar BCV",
+      sale_price: 20,
+      available: true,
+      delivery_digital_enabled: true,
+    )
+
+    assert_difference('Venta.where(status: "paid").count', 1) do
+      post "/ventas", params: {
+        venta: {
+          vat_mode: "none",
+          vat_rate: "0.16",
+          tasa_dolar: "40",
+          base_currency: "USD",
+          items: [
+            {
+              item_type: "service",
+              service_id: service.id,
+              quantity: "1",
+              unit_price_usd: "20",
+            },
+          ],
+          payments: [
+            {
+              method: "cash",
+              amount: "800.00",
+              account_id: @cash_account.id,
+              currency: "VES",
+            },
+          ],
+        },
+      }, as: :json
+    end
+
+    assert_response :created
+    sale = Venta.where(status: "paid").order(:id).last
+    assert_equal 1, sale.venta_items.count
+    assert_equal service.description, sale.venta_items.first.product_name
+  end
+
   test "destroy removes paid sale with biopago movement linked to settlement" do
     biopago_settlement_bank = @business.accounts.create!(
       name: "Banco receptor biopago #{SecureRandom.hex(3)}",

@@ -650,6 +650,7 @@ class VentasController < ApplicationController
     items.each do |item|
       item_type = item[:item_type].to_s
       if item_type == "service" || item[:service_id].present?
+        service_id = item[:service_id]
         service = current_business
           .services
           .includes(:system_service,
