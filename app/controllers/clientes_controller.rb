@@ -11,6 +11,20 @@ class ClientesController < ApplicationController
 
   def show
     @ventas = @cliente.ventas.includes(:venta_items).order(created_at: :desc)
+
+    respond_to do |format|
+      format.html
+      format.json do
+        render json: {
+          id: @cliente.id,
+          name: @cliente.name,
+          document: @cliente.document_label,
+          phone: @cliente.phone.to_s,
+          has_benefits: @cliente.has_special_benefits?,
+          benefits: @cliente.normalized_benefits_config,
+        }
+      end
+    end
   end
 
   def new

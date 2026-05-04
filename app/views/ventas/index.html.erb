@@ -7681,6 +7681,20 @@
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
 
         try {
+          await refreshSelectedClientForCheckout();
+        } catch (error) {
+          if (window.Swal) {
+            window.Swal.fire({
+              icon: 'error',
+              title: 'No se pudo actualizar el cliente',
+              text: String(error?.message || 'Recarga la pagina y vuelve a intentar.'),
+              heightAuto: false,
+            });
+          }
+          return;
+        }
+
+        try {
           await refreshCartServiceSnapshotsForCheckout(selectedBaseCurrency);
         } catch (error) {
           if (window.Swal) {
@@ -11034,6 +11048,29 @@
           : 'usd';
 
         syncCartBaseCurrencySnapshots(effectiveCurrency);
+      };
+
+      const refreshSelectedClientForCheckout = async () => {
+        const selectedClientId = String(selectedClient?.id || '').trim();
+        if (!selectedClientId) return;
+
+        const response = await fetch(`/clientes/${encodeURIComponent(selectedClientId)}.json`, {
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin',
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo actualizar la informacion del cliente antes de cobrar.');
+        }
+
+        setSelectedClient({
+          id: data.id || selectedClientId,
+          name: data.name || selectedClient?.name || 'Cliente',
+          document: data.document || selectedClient?.document || '',
+          phone: data.phone || selectedClient?.phone || '',
+          benefits: parseClientBenefits(data.benefits || {}),
+        });
       };
 
       const ensureServicesForDraft = async (draft) => {
