@@ -1208,7 +1208,7 @@ class VentasController < ApplicationController
         if source_draft
           restore_stock_for_sale!(source_draft, strict: false)
           relabel_payall_draft_movements!(source_draft, venta)
-          source_draft.destroy!
+          purge_source_draft_sale!(source_draft)
         end
 
         venta.save!
@@ -1427,6 +1427,17 @@ class VentasController < ApplicationController
 
   def customer_sales_mode?
     current_user_customer_mode?
+  end
+
+  def purge_source_draft_sale!(draft_sale)
+    venta_id = draft_sale.id
+
+    # El borrador puede ser actualizado en paralelo por autosave; purgamos hijos por FK antes de borrar la venta.
+    VentaItem.where(venta_id: venta_id).delete_all
+    VentaPayment.where(venta_id: venta_id).delete_all
+    Debt.where(venta_id: venta_id).update_all(venta_id: nil)
+
+    Venta.where(id: venta_id).delete_all
   end
 
   def customer_sales_vip_mode?
