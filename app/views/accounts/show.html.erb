@@ -1,5 +1,6 @@
 <div class="space-y-6">
   <% movement_query_params = @movement_query_params || {} %>
+  <% can_verify_bank_movements = current_user_admin? && @account.account_type == 'bank_account' %>
   <% theme = @account.theme_config %>
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -214,6 +215,13 @@
           <%= link_to account_path(@account), class: 'inline-flex cursor-pointer items-center justify-center w-fit rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50' do %>
             Limpiar
           <% end %>
+          <% if can_verify_bank_movements %>
+            <button type="button"
+                    class="inline-flex cursor-pointer items-center justify-center w-fit rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition-colors hover:bg-amber-100"
+                    data-verify-range-trigger="true">
+              Verificar movimientos
+            </button>
+          <% end %>
         </div>
       <% end %>
     </div>
@@ -246,7 +254,10 @@
               <% amount_positive = signed_amount >= 0 %>
               <% highlighted_movement = @highlight_movement_id.present? && movement.id == @highlight_movement_id %>
               <% movement_source_link = account_movement_source_link_data(movement) %>
-              <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>">
+                <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
+                  data-movement-row="true"
+                  data-movement-id="<%= movement.id %>"
+                  data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>">
                 <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
                 <td class="px-5 py-3 text-xs text-slate-500"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
                 <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
@@ -262,6 +273,19 @@
                                 aria: { label: movement_source_link[:label] } do %>
                         <i data-lucide="eye" class="h-4 w-4"></i>
                       <% end %>
+                    <% end %>
+                    <% if can_verify_bank_movements %>
+                      <% movement_verified = movement.respond_to?(:verified) && movement.verified? %>
+                      <button type="button"
+                              class="js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border shadow-sm transition-colors <%= movement_verified ? 'border-amber-400 bg-amber-100 text-amber-700 hover:bg-amber-200' : 'border-slate-300 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700' %>"
+                              data-verify-toggle="true"
+                              data-movement-id="<%= movement.id %>"
+                              data-verified="<%= movement_verified ? 'true' : 'false' %>"
+                              data-tooltip="<%= movement_verified ? 'Quitar verificado' : 'Marcar verificado' %>"
+                              data-tooltip-side="left"
+                              aria-label="<%= movement_verified ? 'Quitar verificado' : 'Marcar verificado' %>">
+                        <i data-lucide="star" class="h-4 w-4 <%= movement_verified ? 'fill-current' : '' %>"></i>
+                      </button>
                     <% end %>
                     <% if current_user_admin? %>
                       <%= link_to edit_movement_time_account_path(@account, movement_id: movement.id),
@@ -332,6 +356,127 @@
     <% end %>
   </div>
 </div>
+<% if can_verify_bank_movements %>
+  <script>
+    (() => {
+      const verifyAllButton = document.querySelector('[data-verify-range-trigger="true"]');
+      const fromInput = document.getElementById('account_movement_filter_from');
+      const toInput = document.getElementById('account_movement_filter_to');
+      if (!verifyAllButton || !fromInput || !toInput) return;
+
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const accountId = <%= @account.id %>;
+
+      const endpointForToggle = (movementId) => `/cuentas/${accountId}/movimientos/${movementId}/toggle-verified`;
+      const endpointForRange = () => `/cuentas/${accountId}/movimientos/verificar-por-rango`;
+
+      const showNotice = (message, kind = 'success') => {
+        if (window.Swal?.fire) {
+          window.Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: kind,
+            title: message,
+            showConfirmButton: false,
+            timer: 2200,
+            timerProgressBar: true,
+          });
+          return;
+        }
+        window.alert(message);
+      };
+
+      const applyVerifiedState = (button, verified) => {
+        if (!button) return;
+        const row = button.closest('[data-movement-row="true"]');
+        button.dataset.verified = verified ? 'true' : 'false';
+        button.dataset.tooltip = verified ? 'Quitar verificado' : 'Marcar verificado';
+        button.setAttribute('aria-label', verified ? 'Quitar verificado' : 'Marcar verificado');
+
+        button.classList.remove('border-amber-400', 'bg-amber-100', 'text-amber-700', 'hover:bg-amber-200');
+        button.classList.remove('border-slate-300', 'bg-white', 'text-slate-500', 'hover:bg-slate-100', 'hover:text-slate-700');
+        if (verified) {
+          button.classList.add('border-amber-400', 'bg-amber-100', 'text-amber-700', 'hover:bg-amber-200');
+        } else {
+          button.classList.add('border-slate-300', 'bg-white', 'text-slate-500', 'hover:bg-slate-100', 'hover:text-slate-700');
+        }
+
+        const icon = button.querySelector('[data-lucide="star"]');
+        if (icon) icon.classList.toggle('fill-current', verified);
+        if (row) row.dataset.movementVerified = verified ? 'true' : 'false';
+      };
+
+      document.querySelectorAll('[data-verify-toggle="true"]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const movementId = button.dataset.movementId;
+          if (!movementId) return;
+
+          button.disabled = true;
+          try {
+            const response = await fetch(endpointForToggle(movementId), {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token,
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({}),
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              showNotice(data.error || 'No se pudo actualizar la verificacion.', 'error');
+              return;
+            }
+
+            applyVerifiedState(button, Boolean(data.verified));
+          } catch (_error) {
+            showNotice('No se pudo actualizar la verificacion.', 'error');
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+
+      verifyAllButton.addEventListener('click', async () => {
+        const fromValue = String(fromInput.value || '').trim();
+        const toValue = String(toInput.value || '').trim();
+        if (!fromValue || !toValue) {
+          showNotice('Selecciona un rango de fechas (desde y hasta) para verificar en lote.', 'warning');
+          return;
+        }
+
+        verifyAllButton.disabled = true;
+        try {
+          const response = await fetch(endpointForRange(), {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': token,
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({ fecha_desde: fromValue, fecha_hasta: toValue }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            showNotice(data.error || 'No se pudieron verificar los movimientos.', 'error');
+            return;
+          }
+
+          document.querySelectorAll('[data-verify-toggle="true"]').forEach((button) => {
+            applyVerifiedState(button, true);
+          });
+
+          const count = Number(data.updated_count || 0);
+          showNotice(`Movimientos verificados en rango: ${count}.`, 'success');
+        } catch (_error) {
+          showNotice('No se pudieron verificar los movimientos.', 'error');
+        } finally {
+          verifyAllButton.disabled = false;
+        }
+      });
+    })();
+  </script>
+<% end %>
 <% if current_user_admin? && !Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type) %>
   <div id="account-payment-modal"
        class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-900/45 p-4"

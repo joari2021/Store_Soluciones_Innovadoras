@@ -81,6 +81,8 @@ Rails.application.routes.draw do
       patch 'movimientos/:movement_id', action: :update_movement, as: :update_movement
       get 'movimientos/:movement_id/editar-hora', action: :edit_movement_time, as: :edit_movement_time
       patch 'movimientos/:movement_id/editar-hora', action: :update_movement_time, as: :update_movement_time
+      patch 'movimientos/:movement_id/toggle-verified', action: :toggle_movement_verified, as: :toggle_movement_verified
+      patch 'movimientos/verificar-por-rango', action: :verify_movements_by_range, as: :verify_movements_by_range
       delete 'movimientos/:movement_id', action: :destroy_movement, as: :destroy_movement
     end
     resources :account_settlements, path: 'cierres', only: %i[index show create update]

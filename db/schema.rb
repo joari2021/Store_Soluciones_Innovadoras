@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_03_170500) do
+ActiveRecord::Schema[7.1].define(version: 2026_05_05_113000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -27,6 +27,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_03_170500) do
     t.bigint "cambio_efectivo_id"
     t.string "reference"
     t.decimal "commission_amount", precision: 14, scale: 2
+    t.boolean "verified", default: false, null: false
     t.index ["account_id", "occurred_at"], name: "index_account_movements_on_account_id_and_occurred_at"
     t.index ["account_id"], name: "index_account_movements_on_account_id"
     t.index ["account_settlement_id"], name: "index_account_movements_on_account_settlement_id"
@@ -34,6 +35,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_03_170500) do
     t.index ["movement_kind"], name: "index_account_movements_on_movement_kind"
     t.index ["payment_method"], name: "index_account_movements_on_payment_method"
     t.index ["reference"], name: "index_account_movements_on_reference"
+    t.index ["verified"], name: "index_account_movements_on_verified"
   end
 
   create_table "account_settlements", force: :cascade do |t|

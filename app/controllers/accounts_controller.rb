@@ -3,16 +3,20 @@ class AccountsController < ApplicationController
   before_action -> { require_module_access!(:accounts) }
   before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment
                                        edit_movement update_movement destroy_movement
-                                       edit_movement_time update_movement_time]
+                                       edit_movement_time update_movement_time
+                                       toggle_movement_verified verify_movements_by_range]
   before_action :set_manual_movement, only: %i[edit_movement update_movement]
   before_action :set_movement_for_time_edit, only: %i[edit_movement_time update_movement_time]
+  before_action :set_movement_for_verified_toggle, only: %i[toggle_movement_verified]
   before_action :set_movement_for_destroy, only: %i[destroy_movement]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
   before_action :ensure_accounts_management_allowed!, only: %i[new create edit update destroy set_primary unset_primary
                                                                transfer register_payment edit_movement update_movement
-                                                               edit_movement_time update_movement_time destroy_movement]
+                                                               edit_movement_time update_movement_time
+                                                               toggle_movement_verified verify_movements_by_range
+                                                               destroy_movement]
 
   def index
     @accounts = accounts_visible_scope.with_attached_logo.order(name: :asc)
@@ -451,6 +455,51 @@ class AccountsController < ApplicationController
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
+  def toggle_movement_verified
+    unless bank_account_verification_enabled?
+      return render json: { error: "Esta accion solo esta disponible para cuentas bancarias." }, status: :forbidden
+    end
+
+    @movement.update!(verified: !@movement.verified?)
+
+    render json: {
+      id: @movement.id,
+      verified: @movement.verified?,
+      verified_label: @movement.verified? ? "Verificado" : "No verificado",
+    }, status: :ok
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record&.errors&.full_messages&.to_sentence.presence || e.message }, status: :unprocessable_entity
+  end
+
+  def verify_movements_by_range
+    unless bank_account_verification_enabled?
+      return render json: { error: "Esta accion solo esta disponible para cuentas bancarias." }, status: :forbidden
+    end
+
+    from_date = parse_filter_date(params[:fecha_desde])
+    to_date = parse_filter_date(params[:fecha_hasta])
+    if from_date.blank? || to_date.blank?
+      return render json: { error: "Debes seleccionar el rango completo de fechas." }, status: :unprocessable_entity
+    end
+
+    if from_date > to_date
+      from_date, to_date = to_date, from_date
+    end
+
+    scope = @account.account_movements.where(
+      occurred_at: from_date.in_time_zone("America/Caracas").beginning_of_day..
+                   to_date.in_time_zone("America/Caracas").end_of_day,
+    )
+
+    updated_count = scope.where(verified: false).update_all(verified: true, updated_at: Time.current)
+
+    render json: {
+      updated_count: updated_count,
+      from: from_date.strftime("%d-%m-%Y"),
+      to: to_date.strftime("%d-%m-%Y"),
+    }, status: :ok
+  end
+
   def destroy_movement
     movement_id = @movement.id
 
@@ -640,6 +689,17 @@ class AccountsController < ApplicationController
     return if @movement.present?
 
     redirect_to account_path(@account), alert: "No se encontro el movimiento seleccionado."
+  end
+
+  def set_movement_for_verified_toggle
+    @movement = @account.account_movements.find_by(id: params[:movement_id])
+    return if @movement.present?
+
+    render json: { error: "No se encontro el movimiento seleccionado." }, status: :not_found
+  end
+
+  def bank_account_verification_enabled?
+    @account.account_type == "bank_account"
   end
 
   def manual_account_movement_editable?(movement)
