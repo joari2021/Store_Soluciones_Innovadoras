@@ -2,15 +2,17 @@ class AccountsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:accounts) }
   before_action :set_account, only: %i[show edit update destroy set_primary unset_primary transfer register_payment
-                                       edit_movement update_movement destroy_movement]
+                                       edit_movement update_movement destroy_movement
+                                       edit_movement_time update_movement_time]
   before_action :set_manual_movement, only: %i[edit_movement update_movement]
+  before_action :set_movement_for_time_edit, only: %i[edit_movement_time update_movement_time]
   before_action :set_movement_for_destroy, only: %i[destroy_movement]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
   before_action :ensure_accounts_management_allowed!, only: %i[new create edit update destroy set_primary unset_primary
                                                                transfer register_payment edit_movement update_movement
-                                                               destroy_movement]
+                                                               edit_movement_time update_movement_time destroy_movement]
 
   def index
     @accounts = accounts_visible_scope.with_attached_logo.order(name: :asc)
@@ -416,6 +418,39 @@ class AccountsController < ApplicationController
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
+  def edit_movement_time
+    movement_time = @movement.occurred_at&.in_time_zone("America/Caracas") ||
+                    @movement.created_at&.in_time_zone("America/Caracas") ||
+                    Time.current.in_time_zone("America/Caracas")
+    @movement_date = movement_time.to_date
+    @movement_time_value = movement_time.strftime("%H:%M")
+  end
+
+  def update_movement_time
+    time_parts = parse_time_only(params[:movement_time])
+    if time_parts.blank?
+      return redirect_to edit_movement_time_account_path(@account, movement_id: @movement.id),
+                         alert: "Indica una hora valida en formato HH:MM."
+    end
+
+    base_time = @movement.occurred_at&.in_time_zone("America/Caracas") ||
+                @movement.created_at&.in_time_zone("America/Caracas") ||
+                Time.current.in_time_zone("America/Caracas")
+    updated_occurred_at = base_time.change(hour: time_parts[0], min: time_parts[1], sec: 0)
+
+    AccountMovement.transaction do
+      movement_time_update_targets(@movement).each do |row|
+        row.update!(occurred_at: updated_occurred_at)
+      end
+    end
+
+    redirect_to account_path(@account, movement_id: @movement.id),
+                notice: "Hora del movimiento actualizada correctamente."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_movement_time_account_path(@account, movement_id: @movement.id),
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+  end
+
   def destroy_movement
     movement_id = @movement.id
 
@@ -600,6 +635,13 @@ class AccountsController < ApplicationController
     redirect_to account_path(@account), alert: "No se encontro el movimiento seleccionado."
   end
 
+  def set_movement_for_time_edit
+    @movement = @account.account_movements.find_by(id: params[:movement_id])
+    return if @movement.present?
+
+    redirect_to account_path(@account), alert: "No se encontro el movimiento seleccionado."
+  end
+
   def manual_account_movement_editable?(movement)
     return false unless current_user_admin?
     return false if movement.blank?
@@ -738,6 +780,17 @@ class AccountsController < ApplicationController
       .where("description LIKE ?", "%[AM:#{incoming_movement.id}]%")
   end
 
+  def movement_time_update_targets(movement)
+    return [movement] unless transfer_main_movement?(movement)
+
+    counterpart = transfer_counterpart_for(movement)
+    incoming = movement.movement_kind == "income" ? movement : counterpart
+    incoming ||= counterpart if counterpart&.movement_kind == "income"
+    commissions = incoming.present? ? transfer_commissions_for_incoming(incoming).to_a : []
+
+    [movement, counterpart, *commissions].compact.uniq
+  end
+
   def transfer_main_movement?(movement)
     return false if movement.blank?
 
@@ -746,6 +799,13 @@ class AccountsController < ApplicationController
     return false unless description.match?(/\[ACCOUNT:\d+\]/)
 
     description.match?(/\ATransferencia\s+/i)
+  end
+
+  def parse_time_only(raw_value)
+    match = raw_value.to_s.strip.match(/\A([01]?\d|2[0-3]):([0-5]\d)\z/)
+    return nil if match.blank?
+
+    [match[1].to_i, match[2].to_i]
   end
 
   def movement_scope_for_business

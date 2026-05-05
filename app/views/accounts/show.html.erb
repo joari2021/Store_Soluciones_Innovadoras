@@ -263,6 +263,14 @@
                         <i data-lucide="eye" class="h-4 w-4"></i>
                       <% end %>
                     <% end %>
+                    <% if current_user_admin? %>
+                      <%= link_to edit_movement_time_account_path(@account, movement_id: movement.id),
+                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 hover:text-indigo-800',
+                                data: { tooltip: 'Editar hora del movimiento', tooltip_side: 'left' },
+                                aria: { label: 'Editar hora del movimiento' } do %>
+                        <i data-lucide="clock-3" class="h-4 w-4"></i>
+                      <% end %>
+                    <% end %>
                     <% if manual_account_movement_editable?(movement) %>
                       <%= link_to edit_movement_account_path(@account, movement_id: movement.id),
                                 class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-colors hover:bg-amber-100 hover:text-amber-800',
