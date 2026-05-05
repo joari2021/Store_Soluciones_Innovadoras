@@ -333,7 +333,7 @@
                   data-account-currency="<%= account.currency.to_s.upcase %>"
                   data-account-symbol="<%= payment_currency_symbols[account.currency] || account.currency %>"
                   data-account-type="<%= account.account_type %>"
-                ><%= account.name %> (<%= account.currency %> · <%= status_label %>)</option>
+                ><%= account.name_with_cash_role %> (<%= account.currency %> · <%= status_label %>)</option>
               <% end %>
             </select>
             <% if @using_inactive_payment_accounts %>
@@ -347,7 +347,7 @@
                 <option value="">Selecciona una cuenta de <%= @intercompany_mirror_business.name %></option>
                 <% @intercompany_mirror_accounts.each do |account| %>
                   <% status_label = account.active? ? 'Activa' : 'Inactiva' %>
-                  <option value="<%= account.id %>"><%= account.name %> (<%= account.currency %> · <%= status_label %>)</option>
+                  <option value="<%= account.id %>"><%= account.name_with_cash_role %> (<%= account.currency %> · <%= status_label %>)</option>
                 <% end %>
               </select>
               <% if @using_inactive_intercompany_mirror_accounts %>
