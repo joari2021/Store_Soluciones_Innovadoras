@@ -438,6 +438,10 @@ class AccountsController < ApplicationController
   def update_movement_time
     time_parts = parse_time_only(params[:movement_time])
     if time_parts.blank?
+      if request.format.json?
+        return render json: { error: "Indica una hora valida en formato HH:MM." }, status: :unprocessable_entity
+      end
+
       return redirect_to edit_movement_time_account_path(@account, movement_id: @movement.id),
                          alert: "Indica una hora valida en formato HH:MM."
     end
@@ -447,15 +451,29 @@ class AccountsController < ApplicationController
                 Time.current.in_time_zone("America/Caracas")
     updated_occurred_at = base_time.change(hour: time_parts[0], min: time_parts[1], sec: 0)
 
+    updated_targets = movement_time_update_targets(@movement)
+
     AccountMovement.transaction do
-      movement_time_update_targets(@movement).each do |row|
+      updated_targets.each do |row|
         row.update!(occurred_at: updated_occurred_at)
       end
+    end
+
+    if request.format.json?
+      return render json: {
+        updated_ids: updated_targets.map(&:id),
+        occurred_at_iso: updated_occurred_at.in_time_zone("America/Caracas").iso8601,
+        occurred_at_label: movement_occurred_at_label(updated_occurred_at),
+      }, status: :ok
     end
 
     redirect_to account_path(@account, movement_id: @movement.id),
                 notice: "Hora del movimiento actualizada correctamente."
   rescue ActiveRecord::RecordInvalid => e
+    if request.format.json?
+      return render json: { error: e.record&.errors&.full_messages&.to_sentence.presence || e.message }, status: :unprocessable_entity
+    end
+
     redirect_to edit_movement_time_account_path(@account, movement_id: @movement.id),
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
@@ -896,6 +914,13 @@ class AccountsController < ApplicationController
     return nil if match.blank?
 
     [match[1].to_i, match[2].to_i]
+  end
+
+  def movement_occurred_at_label(value)
+    movement_time = value.in_time_zone("America/Caracas")
+    l(movement_time.in_time_zone("Caracas"), format: :short)
+  rescue StandardError
+    movement_time.strftime("%d/%m/%Y %H:%M")
   end
 
   def movement_scope_for_business

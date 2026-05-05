@@ -268,23 +268,16 @@
               <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
                   data-movement-row="true"
                   data-movement-id="<%= movement.id %>"
+                  data-movement-occurred-at="<%= movement.occurred_at.in_time_zone('America/Caracas').iso8601 %>"
                   data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>">
                 <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
-                <td class="px-5 py-3 text-xs text-slate-500"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
+                <td class="px-5 py-3 text-xs text-slate-500" data-movement-date-cell="true"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
                 <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
                 <td class="px-5 py-3 text-xs text-slate-600"><%= account_movement_reference(movement).presence || '-' %></td>
                 <td class="px-5 py-3 text-sm text-slate-600"><%= account_movement_display_description(movement) %></td>
                 <td class="px-5 py-3 text-right text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>"><%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %></td>
                 <td class="px-5 py-3 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
-                    <% if movement_source_link.present? %>
-                      <%= link_to movement_source_link[:path],
-                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800',
-                                data: { turbo_frame: '_top', tooltip: movement_source_link[:label], tooltip_side: 'left' },
-                                aria: { label: movement_source_link[:label] } do %>
-                        <i data-lucide="eye" class="h-4 w-4"></i>
-                      <% end %>
-                    <% end %>
                     <% if can_verify_bank_movements %>
                       <% movement_verified = movement.respond_to?(:verified) && movement.verified? %>
                       <button type="button"
@@ -298,13 +291,25 @@
                         <i data-lucide="star" class="h-4 w-4 <%= movement_verified ? 'fill-current' : '' %>"></i>
                       </button>
                     <% end %>
-                    <% if current_user_admin? %>
-                      <%= link_to edit_movement_time_account_path(@account, movement_id: movement.id),
-                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 hover:text-indigo-800',
-                                data: { tooltip: 'Editar hora del movimiento', tooltip_side: 'left' },
-                                aria: { label: 'Editar hora del movimiento' } do %>
-                        <i data-lucide="clock-3" class="h-4 w-4"></i>
+                    <% if movement_source_link.present? %>
+                      <%= link_to movement_source_link[:path],
+                                class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800',
+                                data: { turbo_frame: '_top', tooltip: movement_source_link[:label], tooltip_side: 'left' },
+                                aria: { label: movement_source_link[:label] } do %>
+                        <i data-lucide="eye" class="h-4 w-4"></i>
                       <% end %>
+                    <% end %>
+                    <% if current_user_admin? %>
+                      <button type="button"
+                              class="js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 hover:text-indigo-800"
+                              data-edit-time-toggle="true"
+                              data-edit-time-url="<%= update_movement_time_account_path(@account, movement_id: movement.id) %>"
+                              data-current-time="<%= movement.occurred_at.in_time_zone('America/Caracas').strftime('%H:%M') %>"
+                              data-tooltip="Editar hora del movimiento"
+                              data-tooltip-side="left"
+                              aria-label="Editar hora del movimiento">
+                        <i data-lucide="clock-3" class="h-4 w-4"></i>
+                      </button>
                     <% end %>
                     <% if manual_account_movement_editable?(movement) %>
                       <%= link_to edit_movement_account_path(@account, movement_id: movement.id),
@@ -484,6 +489,122 @@
         } finally {
           verifyAllButton.disabled = false;
         }
+      });
+    })();
+  </script>
+<% end %>
+<% if current_user_admin? %>
+  <script>
+    (() => {
+      const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const movementsTableBody = document.querySelector('tbody.divide-y.divide-slate-100.bg-white');
+      if (!movementsTableBody) return;
+
+      const showNotice = (message, kind = 'success') => {
+        if (window.Swal?.fire) {
+          window.Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: kind,
+            title: message,
+            showConfirmButton: false,
+            timer: 2200,
+            timerProgressBar: true,
+          });
+          return;
+        }
+        window.alert(message);
+      };
+
+      const sortRowsByDateDesc = () => {
+        const rows = Array.from(movementsTableBody.querySelectorAll('[data-movement-row="true"]'));
+        rows.sort((a, b) => {
+          const aTime = Date.parse(String(a.dataset.movementOccurredAt || ''));
+          const bTime = Date.parse(String(b.dataset.movementOccurredAt || ''));
+          const safeATime = Number.isFinite(aTime) ? aTime : 0;
+          const safeBTime = Number.isFinite(bTime) ? bTime : 0;
+          if (safeATime !== safeBTime) return safeBTime - safeATime;
+
+          const aId = Number(a.dataset.movementId || 0);
+          const bId = Number(b.dataset.movementId || 0);
+          return bId - aId;
+        });
+        rows.forEach((row) => movementsTableBody.appendChild(row));
+      };
+
+      const askTime = async (initialValue) => {
+        if (window.Swal?.fire) {
+          const result = await window.Swal.fire({
+            title: 'Editar hora',
+            input: 'time',
+            inputValue: initialValue || '',
+            inputLabel: 'Selecciona la nueva hora',
+            showCancelButton: true,
+            confirmButtonText: 'Guardar',
+            cancelButtonText: 'Cancelar',
+            heightAuto: false,
+            inputValidator: (value) => {
+              if (!String(value || '').match(/^([01]?\d|2[0-3]):([0-5]\d)$/)) {
+                return 'Indica una hora valida en formato HH:MM.';
+              }
+              return undefined;
+            },
+          });
+          return result.isConfirmed ? String(result.value || '').trim() : null;
+        }
+
+        const value = window.prompt('Indica la nueva hora (HH:MM):', initialValue || '');
+        const normalized = String(value || '').trim();
+        return normalized.match(/^([01]?\d|2[0-3]):([0-5]\d)$/) ? normalized : null;
+      };
+
+      document.querySelectorAll('[data-edit-time-toggle="true"]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const updateUrl = String(button.dataset.editTimeUrl || '').trim();
+          if (!updateUrl) return;
+
+          const movementId = String(button.closest('[data-movement-row="true"]')?.dataset.movementId || '').trim();
+          const selectedTime = await askTime(button.dataset.currentTime || '');
+          if (!selectedTime) return;
+
+          button.disabled = true;
+          try {
+            const response = await fetch(updateUrl, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token,
+                'Accept': 'application/json',
+              },
+              body: JSON.stringify({ movement_time: selectedTime }),
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+              showNotice(data.error || 'No se pudo actualizar la hora del movimiento.', 'error');
+              return;
+            }
+
+            const updatedIds = Array.isArray(data.updated_ids) ? data.updated_ids : [Number(movementId || 0)];
+            updatedIds.forEach((idValue) => {
+              const row = movementsTableBody.querySelector(`[data-movement-row="true"][data-movement-id="${idValue}"]`);
+              if (!row) return;
+              row.dataset.movementOccurredAt = String(data.occurred_at_iso || row.dataset.movementOccurredAt || '');
+              const dateCell = row.querySelector('[data-movement-date-cell="true"]');
+              if (dateCell && data.occurred_at_label) dateCell.textContent = String(data.occurred_at_label);
+            });
+
+            const currentRow = movementsTableBody.querySelector(`[data-movement-row="true"][data-movement-id="${movementId}"]`);
+            if (currentRow) currentRow.classList.add('bg-amber-50', 'ring-1', 'ring-inset', 'ring-amber-200');
+            button.dataset.currentTime = selectedTime;
+            sortRowsByDateDesc();
+            showNotice('Hora actualizada correctamente.', 'success');
+          } catch (_error) {
+            showNotice('No se pudo actualizar la hora del movimiento.', 'error');
+          } finally {
+            button.disabled = false;
+          }
+        });
       });
     })();
   </script>
