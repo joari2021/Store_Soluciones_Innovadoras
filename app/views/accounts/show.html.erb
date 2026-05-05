@@ -189,7 +189,7 @@
       <p class="mt-1 text-sm text-slate-500">
         <%= (@account.settlement_enabled? && current_user_admin?) ? 'Solo movimientos sin cierre asociado.' : 'Ordenado desde el más reciente al más antiguo.' %>
       </p>
-      <%= form_with url: account_path(@account), method: :get, local: true, class: 'mt-4 grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end' do %>
+      <%= form_with url: account_path(@account), method: :get, local: true, class: 'mt-4 grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end' do %>
         <div>
           <label for="account_movement_filter_from" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Desde</label>
           <%= text_field_tag :fecha_desde,
@@ -207,6 +207,17 @@
                              autocomplete: 'off',
                              placeholder: 'dd-mm-aaaa',
                              class: 'js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
+        <div>
+          <label for="account_movement_filter_verified" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Verificacion</label>
+          <%= select_tag :verificado,
+                         options_for_select([
+                           ['Todos', 'all'],
+                           ['Verificados', 'verified'],
+                           ['No verificados', 'unverified']
+                         ], @selected_verificado),
+                         id: 'account_movement_filter_verified',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
         </div>
         <div class="flex items-center justify-start gap-2 md:self-end">
           <button type="submit" class="inline-flex cursor-pointer items-center justify-center w-fit rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">
@@ -254,7 +265,7 @@
               <% amount_positive = signed_amount >= 0 %>
               <% highlighted_movement = @highlight_movement_id.present? && movement.id == @highlight_movement_id %>
               <% movement_source_link = account_movement_source_link_data(movement) %>
-                <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
+              <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
                   data-movement-row="true"
                   data-movement-id="<%= movement.id %>"
                   data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>">

@@ -29,7 +29,9 @@ class AccountsController < ApplicationController
     initialize_movement_filters
 
     if @account.settlement_enabled? && current_user_admin?
-      pending_scope = apply_movement_date_filters(@account.account_movements.where(account_settlement_id: nil))
+      pending_scope = @account.account_movements.where(account_settlement_id: nil)
+      pending_scope = apply_movement_date_filters(pending_scope)
+      pending_scope = apply_movement_verification_filters(pending_scope)
       @pending_movements_count = pending_scope.count
       @pending_movements_total = pending_scope.sum(
         Arel.sql("CASE WHEN movement_kind = 'expense' THEN -amount ELSE amount END")
@@ -58,7 +60,10 @@ class AccountsController < ApplicationController
       return
     end
 
-    ordered_scope = apply_movement_date_filters(@account.account_movements).order(occurred_at: :desc, id: :desc)
+    ordered_scope = @account.account_movements
+    ordered_scope = apply_movement_date_filters(ordered_scope)
+    ordered_scope = apply_movement_verification_filters(ordered_scope)
+    ordered_scope = ordered_scope.order(occurred_at: :desc, id: :desc)
     @pagy, @account_movements = pagy(ordered_scope, items: 24)
     @movement_query_params = build_movement_query_params
   end
@@ -519,6 +524,7 @@ class AccountsController < ApplicationController
   def initialize_movement_filters
     @selected_fecha_desde = parse_filter_date(params[:fecha_desde])
     @selected_fecha_hasta = parse_filter_date(params[:fecha_hasta])
+    @selected_verificado = normalize_verified_filter(params[:verificado])
 
     if @selected_fecha_desde.present? && @selected_fecha_hasta.present? && @selected_fecha_desde > @selected_fecha_hasta
       @selected_fecha_desde, @selected_fecha_hasta = @selected_fecha_hasta, @selected_fecha_desde
@@ -529,6 +535,7 @@ class AccountsController < ApplicationController
     @movement_filters_applied = [
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip,
+      (@selected_verificado == 'all' ? '' : @selected_verificado),
     ].any?(&:present?)
   end
 
@@ -546,6 +553,20 @@ class AccountsController < ApplicationController
     end
 
     filtered_scope
+  end
+
+  def apply_movement_verification_filters(scope)
+    return scope unless scope.respond_to?(:where)
+    return scope unless @account.account_type == 'bank_account'
+
+    case @selected_verificado
+    when 'verified'
+      scope.where(verified: true)
+    when 'unverified'
+      scope.where(verified: false)
+    else
+      scope
+    end
   end
 
   def parse_filter_date(raw_value)
@@ -570,7 +591,16 @@ class AccountsController < ApplicationController
     {}.tap do |hash|
       hash[:fecha_desde] = @selected_fecha_desde_value if @selected_fecha_desde_value.present?
       hash[:fecha_hasta] = @selected_fecha_hasta_value if @selected_fecha_hasta_value.present?
+      hash[:verificado] = @selected_verificado if @selected_verificado.present? && @selected_verificado != 'all'
     end
+  end
+
+  def normalize_verified_filter(raw_value)
+    value = raw_value.to_s.strip.downcase
+    return 'verified' if value == 'verified'
+    return 'unverified' if value == 'unverified'
+
+    'all'
   end
 
   def parse_transfer_date(raw_value)
