@@ -16,6 +16,7 @@
                               end %>
 <% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
 <% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_parties_by_name = @sale_service_parties_by_name || Hash.new { |hash, key| hash[key] = [] } %>
 <% service_item_discounts = @sale_item_discounts || {} %>
 <style>
   .note-banner {
@@ -341,6 +342,24 @@
       <% service_snapshot = if is_service_item
                               service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
                             end %>
+      <% service_party_units = if is_service_item
+                                 service_key = default_item_name.to_s.strip.downcase
+                                 service_quantity_units = [item.quantity.to_d.round(0).to_i, 1].max
+                                 Array(service_parties_by_name[service_key].shift(service_quantity_units))
+                               else
+                                 []
+                               end %>
+      <% if is_service_item && service_party_units.empty? && service_snapshot.is_a?(Hash) %>
+        <% fallback_beneficiary = service_snapshot['service_beneficiary_name'].to_s.strip %>
+        <% fallback_responsible = service_snapshot['service_responsible_name'].to_s.strip %>
+        <% if fallback_beneficiary.present? || fallback_responsible.present? %>
+          <% service_party_units = [{
+               'service_unit_index' => 1,
+               'service_beneficiary_name' => fallback_beneficiary,
+               'service_responsible_name' => fallback_responsible
+             }] %>
+        <% end %>
+      <% end %>
       <% service_breakdown_lines = if is_service_item
                                      Array(service_snapshot.is_a?(Hash) ? service_snapshot['detail_lines'] : []).filter_map do |line|
                                        next unless line.is_a?(Hash)
@@ -443,6 +462,20 @@
               <span style="margin-left: 6px; display: inline-block; padding: 2px 6px; font-size: 10px; font-weight: 700; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em;">Descuento</span>
             <% end %>
           </div>
+          <% if is_service_item && service_party_units.any? %>
+            <div style="margin-top: 6px; display: grid; gap: 4px;">
+              <% service_party_units.each_with_index do |party, party_index| %>
+                <% unit_index = party['service_unit_index'].to_i.positive? ? party['service_unit_index'].to_i : (party_index + 1) %>
+                <% beneficiary = party['service_beneficiary_name'].to_s.strip %>
+                <% responsible = party['service_responsible_name'].to_s.strip %>
+                <div style="padding: 5px 7px; border: 1px solid #dbe2ea; background: #f8fafc; border-radius: 8px; font-size: 10px; line-height: 1.35; color: #334155;">
+                  <strong>Unidad #<%= unit_index %></strong>
+                  · Beneficiario: <strong><%= beneficiary.presence || 'No registrado' %></strong>
+                  · Responsable: <strong><%= responsible.presence || 'No registrado' %></strong>
+                </div>
+              <% end %>
+            </div>
+          <% end %>
         </td>
         <td class="text-center"><%= format_quantity(item.quantity, precision: 2) %></td>
         <td class="text-right"><%= format_money(unit_base, unit: base_symbol) %></td>

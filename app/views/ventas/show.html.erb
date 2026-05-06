@@ -51,6 +51,7 @@
                      end %>
 <% service_cost_rows_by_name = @sale_service_cost_rows_by_name || Hash.new { |hash, key| hash[key] = [] } %>
 <% service_printings_by_parent_name = @sale_service_printings_by_parent_name || Hash.new { |hash, key| hash[key] = [] } %>
+<% service_parties_by_name = @sale_service_parties_by_name || Hash.new { |hash, key| hash[key] = [] } %>
 <% service_item_discounts = @sale_item_discounts || {} %>
 <% checkout_discount = checkout_discount_payload_for_sale(@venta) %>
 <div class="space-y-6">
@@ -224,6 +225,24 @@
               <% service_snapshot = if is_service_item
                                       service_cost_rows_by_name[default_item_name.to_s.strip.downcase]&.shift
                                     end %>
+              <% service_party_units = if is_service_item
+                                         service_key = default_item_name.to_s.strip.downcase
+                                         service_quantity_units = [item.quantity.to_d.round(0).to_i, 1].max
+                                         Array(service_parties_by_name[service_key].shift(service_quantity_units))
+                                       else
+                                         []
+                                       end %>
+              <% if is_service_item && service_party_units.empty? && service_snapshot.is_a?(Hash) %>
+                <% fallback_beneficiary = service_snapshot['service_beneficiary_name'].to_s.strip %>
+                <% fallback_responsible = service_snapshot['service_responsible_name'].to_s.strip %>
+                <% if fallback_beneficiary.present? || fallback_responsible.present? %>
+                  <% service_party_units = [{
+                       'service_unit_index' => 1,
+                       'service_beneficiary_name' => fallback_beneficiary,
+                       'service_responsible_name' => fallback_responsible
+                     }] %>
+                <% end %>
+              <% end %>
               <% service_breakdown_lines = if is_service_item
                                              Array(service_snapshot.is_a?(Hash) ? service_snapshot['detail_lines'] : []).filter_map do |line|
                                                next unless line.is_a?(Hash)
@@ -322,6 +341,20 @@
                     <span class="inline-flex w-fit items-center rounded-full px-2.5 py-1 text-[11px] font-semibold <%= item_kind_class %>"><%= item.producto.present? ? 'Producto' : service_system_label %></span>
                     <% if item.producto.present? && item_exento %>
                       <span class="inline-flex w-fit items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 ring-1 ring-emerald-100">Exento IVA</span>
+                    <% end %>
+                    <% if is_service_item && service_party_units.any? %>
+                      <div class="mt-1 space-y-1">
+                        <% service_party_units.each_with_index do |party, party_index| %>
+                          <% unit_index = party['service_unit_index'].to_i.positive? ? party['service_unit_index'].to_i : (party_index + 1) %>
+                          <% beneficiary = party['service_beneficiary_name'].to_s.strip %>
+                          <% responsible = party['service_responsible_name'].to_s.strip %>
+                          <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] text-slate-600">
+                            <span class="font-semibold text-slate-700">Unidad #<%= unit_index %></span>
+                            · Beneficiario: <span class="font-semibold text-slate-700"><%= beneficiary.presence || 'No registrado' %></span>
+                            · Responsable: <span class="font-semibold text-slate-700"><%= responsible.presence || 'No registrado' %></span>
+                          </div>
+                        <% end %>
+                      </div>
                     <% end %>
                   </div>
                 </td>

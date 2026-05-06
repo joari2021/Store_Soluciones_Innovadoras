@@ -4644,6 +4644,7 @@ class VentasController < ApplicationController
     notes_rows = sale_service_cost_rows_from_notes(@venta)
     debt_rows = sale_service_cost_rows_from_debts(@venta)
     printing_rows = sale_service_printing_rows_from_notes(@venta)
+    @sale_service_parties_by_name = sale_service_parties_by_name_from_notes(@venta)
 
     notes_by_name = notes_rows.group_by { |row| normalized_sale_service_cost_row_key(row["service_name"]) }
     debt_by_name = debt_rows.group_by { |row| normalized_sale_service_cost_row_key(row["service_name"]) }
@@ -4682,6 +4683,46 @@ class VentasController < ApplicationController
       normalized["detail_lines"] = normalize_service_cost_lines_payload(normalized["detail_lines"])
       normalized
     end
+  end
+
+  def sale_service_parties_by_name_from_notes(venta)
+    notes_payload = parse_notes_payload(venta.notes)
+    grouped_rows = Hash.new { |hash, key| hash[key] = [] }
+
+    Array(notes_payload["sold_service_parties"]).each do |row|
+      next unless row.is_a?(Hash)
+
+      normalized = row.deep_stringify_keys
+      beneficiary_name = normalize_service_party_name(normalized["service_beneficiary_name"])
+      responsible_name = normalize_service_party_name(normalized["service_responsible_name"])
+      next if beneficiary_name.blank? && responsible_name.blank?
+
+      row_payload = {
+        "service_unit_index" => normalized["service_unit_index"].to_i.positive? ? normalized["service_unit_index"].to_i : nil,
+        "service_beneficiary_name" => beneficiary_name,
+        "service_responsible_name" => responsible_name,
+      }
+
+      key_candidates = [
+        normalized_sale_service_cost_row_key(normalized["sale_display_name"]),
+        normalized_sale_service_cost_row_key(normalized["service_name"]),
+      ].compact.uniq
+
+      key_candidates.each do |key|
+        next if key.blank?
+
+        grouped_rows[key] << row_payload.dup
+      end
+    end
+
+    grouped_rows.each_value do |rows|
+      rows.sort_by! { |entry| [entry["service_unit_index"].to_i, entry["service_beneficiary_name"].to_s] }
+      rows.each_with_index do |entry, index|
+        entry["service_unit_index"] = index + 1 if entry["service_unit_index"].to_i <= 0
+      end
+    end
+
+    grouped_rows
   end
 
   def sale_service_printing_rows_from_notes(venta)
