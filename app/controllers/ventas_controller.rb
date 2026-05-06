@@ -3239,6 +3239,7 @@ class VentasController < ApplicationController
         :delivery_presentation,
         :service_beneficiary_name,
         :service_responsible_name,
+        { service_parties: %i[beneficiary responsible] },
         :selected_print_coverage_id,
         :selected_print_coverage_percent,
         :selected_print_price_bs,
@@ -3542,22 +3543,45 @@ class VentasController < ApplicationController
       next unless service
 
       payload_hash = entry[:payload].respond_to?(:to_h) ? entry[:payload].to_h : {}
-      beneficiary_name = normalize_service_party_name(
-        payload_hash["service_beneficiary_name"] || payload_hash[:service_beneficiary_name]
-      )
-      responsible_name = normalize_service_party_name(
-        payload_hash["service_responsible_name"] || payload_hash[:service_responsible_name]
-      )
-      next if beneficiary_name.blank? && responsible_name.blank?
+      parties = Array(payload_hash["service_parties"] || payload_hash[:service_parties]).filter_map do |party|
+        row = party.respond_to?(:to_h) ? party.to_h : {}
+        beneficiary_name = normalize_service_party_name(row["beneficiary"] || row[:beneficiary])
+        responsible_name = normalize_service_party_name(row["responsible"] || row[:responsible])
+        next if beneficiary_name.blank? && responsible_name.blank?
 
-      {
-        "service_id" => service.id,
-        "service_name" => service.description.to_s,
-        "sale_display_name" => service_sale_display_name(service: service, payload: payload_hash).to_s,
-        "service_beneficiary_name" => beneficiary_name,
-        "service_responsible_name" => responsible_name,
-      }
+        {
+          "service_beneficiary_name" => beneficiary_name,
+          "service_responsible_name" => responsible_name,
+        }
+      end
+
+      if parties.empty?
+        beneficiary_name = normalize_service_party_name(
+          payload_hash["service_beneficiary_name"] || payload_hash[:service_beneficiary_name]
+        )
+        responsible_name = normalize_service_party_name(
+          payload_hash["service_responsible_name"] || payload_hash[:service_responsible_name]
+        )
+        next if beneficiary_name.blank? && responsible_name.blank?
+
+        parties = [{
+          "service_beneficiary_name" => beneficiary_name,
+          "service_responsible_name" => responsible_name,
+        }]
+      end
+
+      parties.each_with_index.map do |party_row, index|
+        {
+          "service_id" => service.id,
+          "service_name" => service.description.to_s,
+          "sale_display_name" => service_sale_display_name(service: service, payload: payload_hash).to_s,
+          "service_unit_index" => index + 1,
+          "service_beneficiary_name" => party_row["service_beneficiary_name"],
+          "service_responsible_name" => party_row["service_responsible_name"],
+        }
+      end
     end
+      .flatten
   end
 
   def build_service_cost_obligations(service_item_rows:, tasa_dolar:)

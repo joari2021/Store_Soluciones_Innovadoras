@@ -7153,45 +7153,50 @@
 
       const ensureServicePartiesForCheckout = async () => {
         const serviceEntries = Array.from(cart.entries()).filter(([, item]) => item.itemType === 'service');
-        const rowsByServiceId = new Map();
+        const partyRows = [];
 
-        serviceEntries.forEach(([, item]) => {
+        serviceEntries.forEach(([cartKey, item]) => {
           const service = servicesById.get(String(item.serviceId));
           if (!serviceUsesCostDebit(service)) return;
 
           const serviceId = String(item.serviceId || '').trim();
           if (!serviceId) return;
 
-          const row = rowsByServiceId.get(serviceId) || {
-            serviceId,
-            serviceName: String(service?.name || service?.sale_display_name || `Servicio #${serviceId}`),
-            beneficiary: '',
-            responsible: '',
-          };
+          const quantity = Math.max(1, Math.round(Number(item.quantity) || 0));
+          const existingParties = Array.isArray(item.service_parties) ? item.service_parties : [];
+          const fallbackBeneficiary = String(item.service_beneficiary_name || '').trim();
+          const fallbackResponsible = String(item.service_responsible_name || '').trim();
+          const serviceName = String(service?.name || service?.sale_display_name || `Servicio #${serviceId}`);
 
-          const beneficiary = String(item.service_beneficiary_name || '').trim();
-          const responsible = String(item.service_responsible_name || '').trim();
-          if (!row.beneficiary && beneficiary) row.beneficiary = beneficiary;
-          if (!row.responsible && responsible) row.responsible = responsible;
-
-          rowsByServiceId.set(serviceId, row);
+          for (let unitIndex = 0; unitIndex < quantity; unitIndex += 1) {
+            const current = existingParties[unitIndex] || {};
+            partyRows.push({
+              rowId: `${cartKey}::${unitIndex + 1}`,
+              cartKey,
+              serviceId,
+              serviceName,
+              unitIndex: unitIndex + 1,
+              beneficiary: String(current.beneficiary || fallbackBeneficiary || '').trim(),
+              responsible: String(current.responsible || fallbackResponsible || '').trim(),
+            });
+          }
         });
 
-        if (rowsByServiceId.size === 0) return true;
+        if (partyRows.length === 0) return true;
 
-        const rowsHtml = Array.from(rowsByServiceId.values()).map((row) => {
-          const sid = escapeHtml(row.serviceId);
+        const rowsHtml = partyRows.map((row) => {
+          const rowId = escapeHtml(row.rowId);
           const sname = escapeHtml(row.serviceName);
           const beneficiaryValue = escapeHtml(String(row.beneficiary || ''));
           const responsibleValue = escapeHtml(String(row.responsible || ''));
 
           return `
             <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
-              <p class="text-sm font-semibold text-slate-800">${sname}</p>
+              <p class="text-sm font-semibold text-slate-800">${sname} · Unidad #${row.unitIndex}</p>
               <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Beneficiario del servicio</label>
-              <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" data-service-beneficiary="${sid}" value="${beneficiaryValue}" placeholder="Nombre del beneficiario" autocomplete="off">
+              <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" data-service-beneficiary="${rowId}" value="${beneficiaryValue}" placeholder="Nombre del beneficiario" autocomplete="off">
               <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Responsable del servicio (opcional)</label>
-              <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" data-service-responsible="${sid}" value="${responsibleValue}" placeholder="Nombre del responsable" autocomplete="off">
+              <input type="text" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" data-service-responsible="${rowId}" value="${responsibleValue}" placeholder="Nombre del responsable" autocomplete="off">
             </div>
           `;
         }).join('');
@@ -7207,35 +7212,39 @@
             const dialog = window.Swal.getHtmlContainer();
             if (!dialog) return null;
 
-            const collected = {};
+            const collectedByCartKey = {};
 
-            for (const row of rowsByServiceId.values()) {
-              const sid = String(row.serviceId || '').trim();
-              const beneficiary = String(dialog.querySelector(`[data-service-beneficiary="${sid}"]`)?.value || '').trim();
-              const responsible = String(dialog.querySelector(`[data-service-responsible="${sid}"]`)?.value || '').trim();
+            for (const row of partyRows) {
+              const rowId = String(row.rowId || '').trim();
+              const beneficiary = String(dialog.querySelector(`[data-service-beneficiary="${rowId}"]`)?.value || '').trim();
+              const responsible = String(dialog.querySelector(`[data-service-responsible="${rowId}"]`)?.value || '').trim();
 
               if (!beneficiary) {
-                window.Swal.showValidationMessage(`Debes indicar el beneficiario del servicio: ${row.serviceName}.`);
+                window.Swal.showValidationMessage(`Debes indicar el beneficiario del servicio: ${row.serviceName} (unidad #${row.unitIndex}).`);
                 return null;
               }
 
-              collected[sid] = { beneficiary, responsible };
+              if (!collectedByCartKey[row.cartKey]) collectedByCartKey[row.cartKey] = [];
+              collectedByCartKey[row.cartKey].push({ beneficiary, responsible });
             }
 
-            return collected;
+            return collectedByCartKey;
           },
         });
 
         if (!result.isConfirmed) return false;
 
-        const collected = result.value || {};
+        const collectedByCartKey = result.value || {};
         serviceEntries.forEach(([key, item]) => {
-          const sid = String(item.serviceId || '').trim();
-          const values = collected[sid];
-          if (!values) return;
+          const values = Array.isArray(collectedByCartKey[key]) ? collectedByCartKey[key] : [];
+          if (values.length === 0) return;
 
-          item.service_beneficiary_name = String(values.beneficiary || '').trim();
-          item.service_responsible_name = String(values.responsible || '').trim();
+          item.service_parties = values.map((party) => ({
+            beneficiary: String(party.beneficiary || '').trim(),
+            responsible: String(party.responsible || '').trim(),
+          }));
+          item.service_beneficiary_name = String(values[0]?.beneficiary || '').trim();
+          item.service_responsible_name = String(values[0]?.responsible || '').trim();
           cart.set(key, item);
         });
 
@@ -7281,6 +7290,9 @@
         if (item.quantity <= 0) {
           cart.delete(key);
         } else {
+          if (Array.isArray(item.service_parties)) {
+            item.service_parties = item.service_parties.slice(0, Math.max(1, Math.round(Number(item.quantity) || 0)));
+          }
           cart.set(key, item);
         }
         renderCart();
@@ -7547,6 +7559,12 @@
             return {
               item_type: 'service',
               service_id: item.serviceId,
+              service_parties: (Array.isArray(item.service_parties) ? item.service_parties : [])
+                .map((party) => ({
+                  beneficiary: String(party?.beneficiary || '').trim(),
+                  responsible: String(party?.responsible || '').trim(),
+                }))
+                .filter((party) => party.beneficiary.length > 0 || party.responsible.length > 0),
               service_beneficiary_name: String(item.service_beneficiary_name || '').trim(),
               service_responsible_name: String(item.service_responsible_name || '').trim(),
               delivery_presentation: deliveryPresentation,
@@ -11144,6 +11162,7 @@
             const existing = cart.get(key) || {
               itemType: 'service',
               serviceId,
+              service_parties: Array.isArray(entry.service_parties) ? entry.service_parties : [],
               service_beneficiary_name: String(entry.service_beneficiary_name || '').trim() || null,
               service_responsible_name: String(entry.service_responsible_name || '').trim() || null,
               delivery_presentation: deliveryPresentation || null,
@@ -11177,6 +11196,13 @@
             existing.selected_print_coverage_percent = selectedPrintCoveragePercent || existing.selected_print_coverage_percent;
             existing.service_beneficiary_name = String(entry.service_beneficiary_name || existing.service_beneficiary_name || '').trim() || null;
             existing.service_responsible_name = String(entry.service_responsible_name || existing.service_responsible_name || '').trim() || null;
+            if (Array.isArray(entry.service_parties) && entry.service_parties.length > 0) {
+              const existingParties = Array.isArray(existing.service_parties) ? existing.service_parties : [];
+              existing.service_parties = existingParties.concat(entry.service_parties.map((party) => ({
+                beneficiary: String(party?.beneficiary || '').trim(),
+                responsible: String(party?.responsible || '').trim(),
+              })));
+            }
             existing.selected_print_price_bs = Number.isFinite(selectedPrintPriceBs)
               ? roundTo(selectedPrintPriceBs, 2)
               : existing.selected_print_price_bs;
