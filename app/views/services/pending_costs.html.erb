@@ -156,7 +156,12 @@
                 </td>
                 <td class="px-4 py-3">
                   <div class="flex flex-col gap-1">
-                    <span class="font-semibold text-slate-800"><%= row[:service_name] %></span>
+                    <span class="font-semibold text-slate-800">
+                      <%= row[:service_name] %>
+                      <% if row[:service_unit_index].to_i.positive? %>
+                        <span class="ml-1 inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600 ring-1 ring-slate-200">Unidad #<%= row[:service_unit_index].to_i %></span>
+                      <% end %>
+                    </span>
                     <div class="flex flex-wrap items-center gap-1.5">
                       <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 <%= nested_badge_class %>"><%= sale_badge_label %></span>
                       <% if (row[:nested_sale] || row[:printing_sale]) && row[:parent_service_name].present? %>

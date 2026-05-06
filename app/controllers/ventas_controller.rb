@@ -3585,16 +3585,8 @@ class VentasController < ApplicationController
   end
 
   def build_service_cost_obligations(service_item_rows:, tasa_dolar:)
-    grouped_rows = Hash.new do |hash, key|
-      hash[key] = {
-        service: nil,
-        quantity: 0.to_d,
-        delivery_presentation: nil,
-        service_beneficiary_name: nil,
-        service_responsible_name: nil,
-        consumable_decisions: {},
-      }
-    end
+    unidad_vi = parse_decimal(@unidad_VI, default: TasaCambio.latest_value("Unidad VI"))
+    obligations = []
 
     service_item_rows.each do |entry|
       service = entry[:service]
@@ -3609,63 +3601,89 @@ class VentasController < ApplicationController
         payload_hash["delivery_presentation"] || payload_hash[:delivery_presentation],
         service: service,
       )
+      consumable_decisions = normalize_service_product_decisions(entry[:payload])
+      parties_for_units = build_service_cost_parties_for_entry(payload_hash: payload_hash, quantity: quantity)
 
-      group_key = [service.id, delivery_presentation.presence || "none"].join(":")
+      integer_quantity = quantity.to_i
+      split_by_unit = integer_quantity.positive? && quantity == integer_quantity.to_d && integer_quantity > 1
+      unit_multipliers = split_by_unit ? Array.new(integer_quantity, 1.to_d) : [quantity]
 
-      grouped_rows[group_key][:service] = service
-      grouped_rows[group_key][:quantity] += quantity
-      grouped_rows[group_key][:delivery_presentation] = delivery_presentation
+      unit_multipliers.each_with_index do |multiplier, index|
+        party_data = parties_for_units[index] || parties_for_units.first || {}
+
+        detail_lines = build_service_cost_detail_lines(
+          service: service,
+          multiplier: multiplier,
+          tasa_dolar: tasa_dolar,
+          unidad_vi: unidad_vi,
+          delivery_presentation: delivery_presentation,
+          consumable_decisions: consumable_decisions,
+        )
+
+        total_cost_usd = detail_lines.sum { |line| line["amount_usd"].to_d }.round(2)
+        next unless total_cost_usd.positive?
+
+        obligations << {
+          service: service,
+          service_id: service.id,
+          quantity: multiplier,
+          service_unit_index: split_by_unit ? (index + 1) : nil,
+          delivery_presentation: delivery_presentation,
+          service_beneficiary_name: party_data[:beneficiary_name],
+          service_responsible_name: party_data[:responsible_name],
+          unit_cost_usd: (total_cost_usd / multiplier).round(2),
+          total_cost_usd: total_cost_usd,
+          detail_lines: detail_lines,
+        }
+      end
+    end
+
+    [obligations, nil]
+  end
+
+  def build_service_cost_parties_for_entry(payload_hash:, quantity:)
+    parties = Array(payload_hash["service_parties"] || payload_hash[:service_parties]).filter_map do |party|
+      row = party.respond_to?(:to_h) ? party.to_h : {}
+      beneficiary_name = normalize_service_party_name(row["beneficiary"] || row[:beneficiary])
+      responsible_name = normalize_service_party_name(row["responsible"] || row[:responsible])
+      next if beneficiary_name.blank? && responsible_name.blank?
+
+      {
+        beneficiary_name: beneficiary_name,
+        responsible_name: responsible_name,
+      }
+    end
+
+    if parties.empty?
       beneficiary_name = normalize_service_party_name(
         payload_hash["service_beneficiary_name"] || payload_hash[:service_beneficiary_name]
       )
       responsible_name = normalize_service_party_name(
         payload_hash["service_responsible_name"] || payload_hash[:service_responsible_name]
       )
-      grouped_rows[group_key][:service_beneficiary_name] ||= beneficiary_name if beneficiary_name.present?
-      grouped_rows[group_key][:service_responsible_name] ||= responsible_name if responsible_name.present?
 
-      normalize_service_product_decisions(entry[:payload]).each do |expense_id, decision_row|
-        grouped_rows[group_key][:consumable_decisions][expense_id.to_s] = decision_row
+      if beneficiary_name.present? || responsible_name.present?
+        parties = [{
+          beneficiary_name: beneficiary_name,
+          responsible_name: responsible_name,
+        }]
       end
     end
 
-    unidad_vi = parse_decimal(@unidad_VI, default: TasaCambio.latest_value("Unidad VI"))
-    obligations = []
+    required_units = quantity.to_i
+    if required_units.positive? && quantity == required_units.to_d
+      required_units.times do
+        break if parties.size >= required_units
 
-    grouped_rows.each_value do |row|
-      service = row[:service]
-      quantity = row[:quantity].to_d
-      next unless service
-      next unless quantity.positive?
-
-      detail_lines = build_service_cost_detail_lines(
-        service: service,
-        multiplier: quantity,
-        tasa_dolar: tasa_dolar,
-        unidad_vi: unidad_vi,
-        delivery_presentation: row[:delivery_presentation],
-        consumable_decisions: row[:consumable_decisions],
-      )
-
-      total_cost_usd = detail_lines.sum { |line| line["amount_usd"].to_d }.round(2)
-      next unless total_cost_usd.positive?
-
-      unit_cost_usd = (total_cost_usd / quantity).round(2)
-
-      obligations << {
-        service: service,
-        service_id: service.id,
-        quantity: quantity,
-        delivery_presentation: row[:delivery_presentation],
-        service_beneficiary_name: row[:service_beneficiary_name],
-        service_responsible_name: row[:service_responsible_name],
-        unit_cost_usd: unit_cost_usd,
-        total_cost_usd: total_cost_usd,
-        detail_lines: detail_lines,
-      }
+        seed = parties.last || {}
+        parties << {
+          beneficiary_name: seed[:beneficiary_name],
+          responsible_name: seed[:responsible_name],
+        }
+      end
     end
 
-    [obligations, nil]
+    parties.presence || [{}]
   end
 
   def build_service_cost_detail_lines(service:, multiplier:, tasa_dolar:, unidad_vi:, delivery_presentation: nil,
@@ -4078,12 +4096,12 @@ class VentasController < ApplicationController
   def build_service_cost_settlements(obligations:, raw_rows:, tasa_dolar:)
     return [[], nil] if obligations.blank?
 
-    rows_by_service_id = Array(raw_rows).each_with_object({}) do |raw_row, hash|
+    rows_by_service_id = Array(raw_rows).each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |raw_row, hash|
       source = raw_row.respond_to?(:to_h) ? raw_row.to_h : {}
       service_id = source["service_id"] || source[:service_id]
       next if service_id.blank?
 
-      hash[service_id.to_s] = source
+      hash[service_id.to_s] << source
     end
 
     settlements = []
@@ -4092,7 +4110,7 @@ class VentasController < ApplicationController
     obligations.each do |obligation|
       service = obligation[:service]
       service_label = service&.description.to_s.presence || "##{obligation[:service_id]}"
-      raw_row = rows_by_service_id[obligation[:service_id].to_s] || {}
+      raw_row = rows_by_service_id[obligation[:service_id].to_s].shift || {}
 
       pay_now = ActiveModel::Type::Boolean.new.cast(raw_row["pay_now"] || raw_row[:pay_now])
       paid_cost_usd = 0.to_d
@@ -4176,6 +4194,8 @@ class VentasController < ApplicationController
     settlements.each do |settlement|
       service = settlement[:service]
       next unless service
+      unit_index = settlement[:service_unit_index].to_i
+      unit_suffix = unit_index.positive? ? " · Unidad ##{unit_index}" : ""
 
       total_cost_usd = settlement[:total_cost_usd].to_d.round(2)
       paid_cost_usd = settlement[:paid_cost_usd].to_d.round(2)
@@ -4196,8 +4216,8 @@ class VentasController < ApplicationController
 
       if pending_cost_usd.positive?
         debt = current_business.debts.create!(
-          name: "Costo servicio ##{service.id} - Venta ##{venta.id}",
-          description: "Costo pendiente servicio #{service.description} [SERVICE:#{service.id}] [VENTA:#{venta.id}] [SERVICE_COST]",
+          name: "Costo servicio ##{service.id}#{unit_suffix} - Venta ##{venta.id}",
+          description: "Costo pendiente servicio #{service.description}#{unit_suffix} [SERVICE:#{service.id}] [VENTA:#{venta.id}] [SERVICE_COST]",
           debt_kind: "payable",
           amount: total_cost_usd,
           currency: "USD",
@@ -4216,7 +4236,7 @@ class VentasController < ApplicationController
             payment_method: payment_row[:debt_payment_method],
             reference: payment_row[:reference],
             occurred_at: payment_row[:payment_date],
-            notes: "Pago inicial costo servicio venta ##{venta.id} [VENTA:#{venta.id}] [SERVICE:#{service.id}] [SERVICE_COST]",
+            notes: "Pago inicial costo servicio#{unit_suffix} venta ##{venta.id} [VENTA:#{venta.id}] [SERVICE:#{service.id}] [SERVICE_COST]",
           )
         end
 
@@ -4228,7 +4248,7 @@ class VentasController < ApplicationController
       movement_attrs = {
         movement_kind: "expense",
         amount: payment_row[:amount_original].to_d,
-        description: build_service_cost_movement_description(venta: venta, service: service,
+        description: build_service_cost_movement_description(venta: venta, service: service, unit_index: unit_index,
                                                              reference: payment_row[:reference]),
         occurred_at: payment_row[:payment_date].in_time_zone("America/Caracas").end_of_day,
       }
@@ -4289,6 +4309,7 @@ class VentasController < ApplicationController
       "version" => 1,
       "service_id" => settlement[:service_id],
       "service_name" => settlement[:service]&.description.to_s,
+      "service_unit_index" => settlement[:service_unit_index].to_i.positive? ? settlement[:service_unit_index].to_i : nil,
       "service_beneficiary_name" => normalize_service_party_name(settlement[:service_beneficiary_name]),
       "service_responsible_name" => normalize_service_party_name(settlement[:service_responsible_name]),
       "total_usd" => total_usd.to_f,
@@ -4299,8 +4320,9 @@ class VentasController < ApplicationController
     }
   end
 
-  def build_service_cost_movement_description(venta:, service:, reference: nil)
-    base = "Costo servicio #{service.description} venta ##{venta.id} [VENTA:#{venta.id}] [SERVICE:#{service.id}] [SERVICE_COST]"
+  def build_service_cost_movement_description(venta:, service:, unit_index: nil, reference: nil)
+    unit_suffix = unit_index.to_i.positive? ? " unidad ##{unit_index}" : ""
+    base = "Costo servicio #{service.description}#{unit_suffix} venta ##{venta.id} [VENTA:#{venta.id}] [SERVICE:#{service.id}] [SERVICE_COST]"
     return base if reference.blank?
 
     "#{base} - Ref #{reference}"

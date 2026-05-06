@@ -1544,6 +1544,7 @@ class ServicesController < ApplicationController
           normalized_pending_cost_lookup_value(item.variation_name)
         ]
       end
+      consumed_direct_debt_ids = {}
 
       service_item_groups.each do |(name_key, _system_key), grouped_items|
         next if grouped_items.blank?
@@ -1571,9 +1572,86 @@ class ServicesController < ApplicationController
           settlement = settlement_queue_by_service_id[resolved_service.id].shift
         end
 
-        debt = (debts_by_service_id[resolved_service.id]&.max_by(&:id) if resolved_service&.id.present?)
-        debt ||= (debts_by_snapshot_service_id[resolved_service.id]&.max_by(&:id) if resolved_service&.id.present?)
-        debt ||= debts_by_service_name[name_key]&.max_by(&:id)
+        direct_candidate_debts = []
+        if resolved_service&.id.present?
+          direct_candidate_debts.concat(Array(debts_by_service_id[resolved_service.id]))
+          direct_candidate_debts.concat(Array(debts_by_snapshot_service_id[resolved_service.id]))
+        end
+        direct_candidate_debts.concat(Array(debts_by_service_name[name_key]))
+        direct_candidate_debts = direct_candidate_debts.compact.uniq { |debt| debt.id }
+        direct_candidate_debts.reject! { |debt| consumed_direct_debt_ids[debt.id] }
+
+        if direct_candidate_debts.any?
+          direct_candidate_debts.sort_by(&:id).each_with_index do |debt, debt_index|
+            consumed_direct_debt_ids[debt.id] = true
+
+            debt_details = debt.service_cost_details_hash
+            debt_quantity = debt_details['quantity'].to_d
+            debt_quantity = 1.to_d unless debt_quantity.positive?
+            debt_total_usd = debt.amount.to_d.round(2)
+            debt_unit_usd = debt_quantity.positive? ? (debt_total_usd / debt_quantity).round(2) : debt_total_usd
+
+            status_payload = pending_cost_status_for_direct_row(
+              service: resolved_service,
+              settlement: settlement,
+              debt: debt,
+              quantity: debt_quantity
+            )
+
+            debt_party_data = pending_cost_service_party_data(settlement: settlement, debt: debt)
+            fallback_party_data = pending_cost_party_fallback_for_row(
+              service_id: resolved_service&.id,
+              service_name: service_name_snapshot,
+              parties_by_service_id: parties_by_service_id,
+              parties_by_service_name: parties_by_service_name,
+            )
+            debt_party_data = merge_pending_cost_party_data(primary: debt_party_data, fallback: fallback_party_data)
+
+            unit_index = debt_details['service_unit_index'].to_i
+            if unit_index <= 0 && direct_candidate_debts.size > 1
+              unit_index = debt_index + 1
+            end
+
+            row_service_name = debt_details['service_name'].to_s.strip.presence || service_name_snapshot
+            row_system_name = resolved_service&.system_service&.name.to_s.strip.presence || system_name_snapshot
+
+            rows << {
+              sale_id: sale.id,
+              sold_at: sale.created_at,
+              nested_sale: false,
+              parent_service_name: nil,
+              parent_service_system_name: nil,
+              service_id: resolved_service&.id,
+              service_name: row_service_name,
+              service_unit_index: unit_index.positive? ? unit_index : nil,
+              service_system_name: row_system_name,
+              system_service_id: resolved_service&.system_service_id,
+              quantity: debt_quantity,
+              sale_unit_price_usd: debt_unit_usd,
+              sale_total_usd: debt_total_usd,
+              agreed_price_usd: resolved_service&.to_agree? ? debt_unit_usd : nil,
+              has_cost_structure: service_has_active_cost_structure?(resolved_service),
+              cost_status: status_payload[:status],
+              cost_status_label: status_payload[:label],
+              cost_status_class: status_payload[:css_class],
+              pending_cost_usd: status_payload[:pending_usd],
+              service_beneficiary_name: debt_party_data[:beneficiary_name],
+              service_responsible_name: debt_party_data[:responsible_name],
+              detail_debt_id: debt.id,
+              search_text: [
+                row_service_name,
+                resolved_service&.description,
+                row_system_name,
+                sale.id,
+                unit_index.positive? ? "unidad #{unit_index}" : nil,
+              ].compact.join(' ').downcase
+            }
+          end
+
+          next
+        end
+
+        debt = nil
 
         status_payload = pending_cost_status_for_direct_row(
           service: resolved_service,
