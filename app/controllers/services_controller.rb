@@ -1588,8 +1588,7 @@ class ServicesController < ApplicationController
             debt_details = debt.service_cost_details_hash
             debt_quantity = debt_details['quantity'].to_d
             debt_quantity = 1.to_d unless debt_quantity.positive?
-            debt_total_usd = debt.amount.to_d.round(2)
-            debt_unit_usd = debt_quantity.positive? ? (debt_total_usd / debt_quantity).round(2) : debt_total_usd
+            sale_total_usd_for_row = (unit_price_usd.to_d * debt_quantity).round(2)
 
             status_payload = pending_cost_status_for_direct_row(
               service: resolved_service,
@@ -1598,7 +1597,7 @@ class ServicesController < ApplicationController
               quantity: debt_quantity
             )
 
-            debt_party_data = pending_cost_service_party_data(settlement: settlement, debt: debt)
+            debt_party_data = pending_cost_service_party_data(settlement: nil, debt: debt)
             fallback_party_data = pending_cost_party_fallback_for_row(
               service_id: resolved_service&.id,
               service_name: service_name_snapshot,
@@ -1627,9 +1626,9 @@ class ServicesController < ApplicationController
               service_system_name: row_system_name,
               system_service_id: resolved_service&.system_service_id,
               quantity: debt_quantity,
-              sale_unit_price_usd: debt_unit_usd,
-              sale_total_usd: debt_total_usd,
-              agreed_price_usd: resolved_service&.to_agree? ? debt_unit_usd : nil,
+              sale_unit_price_usd: unit_price_usd,
+              sale_total_usd: sale_total_usd_for_row,
+              agreed_price_usd: resolved_service&.to_agree? ? unit_price_usd : nil,
               has_cost_structure: service_has_active_cost_structure?(resolved_service),
               cost_status: status_payload[:status],
               cost_status_label: status_payload[:label],
