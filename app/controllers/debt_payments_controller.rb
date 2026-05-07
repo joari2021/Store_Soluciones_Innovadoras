@@ -656,7 +656,7 @@ class DebtPaymentsController < ApplicationController
   end
 
   def debts_for_show_group(debt)
-      currencies = group_scope_currencies_for(currency: @show_group_currency, debt_kind: debt.debt_kind)
+    currencies = group_scope_currencies_for(currency: @show_group_currency, debt_kind: debt.debt_kind)
 
     scope = current_business
             .debts
@@ -672,6 +672,8 @@ class DebtPaymentsController < ApplicationController
     elsif debt.cliente_id.present?
       scope = scope.where(cliente_id: debt.cliente_id)
     end
+
+    scope = scope_for_same_counterparty(scope, debt)
 
     debts = scope.to_a
     if ActiveModel::Type::Boolean.new.cast(params[:only_active])
@@ -789,7 +791,20 @@ class DebtPaymentsController < ApplicationController
       scope = scope.where(cliente_id: @debt.cliente_id)
     end
 
+    scope = scope_for_same_counterparty(scope, @debt)
+
     scope.select { |candidate| candidate.balance > 0.01.to_d }
+  end
+
+  def scope_for_same_counterparty(scope, debt)
+    return scope unless debt&.payable?
+
+    acreedor_value = debt.acreedor.to_s.strip
+    if acreedor_value.present?
+      scope.where("LOWER(COALESCE(acreedor, '')) = ?", acreedor_value.downcase)
+    else
+      scope.where(id: debt.id)
+    end
   end
 
   def debt_sort_key(debt)
