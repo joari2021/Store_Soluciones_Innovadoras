@@ -1220,12 +1220,17 @@ class VentasController < ApplicationController
             next unless amount.positive?
 
             service_name = entry[:service]&.description.to_s.strip.presence || "Recarga"
-            payall.account_movements.create!(
+            movement_attrs = {
               movement_kind: "expense",
               amount: amount,
               description: "Recarga Payall #{service_name} [VENTA:#{venta.id}]",
               occurred_at: Time.current,
-            )
+            }
+            if payall.account_type == "bank_account"
+              movement_attrs[:payment_method] = "transfer"
+            end
+
+            payall.account_movements.create!(movement_attrs)
           end
         end
 
@@ -1341,11 +1346,13 @@ class VentasController < ApplicationController
             commission_amount = (row[:amount_original].to_d * 0.003).round(2)
             next unless commission_amount.positive?
 
+            commission_occurred_at = account_movement_occurred_at_from_payment_date(row[:payment_date])
+
             commission_attrs = {
               movement_kind: "expense",
               amount: commission_amount,
               description: build_movement_description(venta, row, "Comision pago movil"),
-              occurred_at: movement_occurred_at,
+              occurred_at: commission_occurred_at,
               payment_method: normalize_account_movement_method("mobile"),
             }
             if supports_movement_reference && row[:reference].present?
