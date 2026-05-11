@@ -1,11 +1,5 @@
-<header class="h-16 md:h-20 flex-none glass border-b border-sky-100 flex items-center justify-between px-6 z-10">
+<header class="h-14 md:h-20 flex-none glass border-b border-sky-100 flex items-center justify-between px-4 md:px-6 z-10">
   <div class="flex items-center gap-4">
-    <div class="flex items-center gap-3 md:hidden">
-      <div class="w-8 h-8 bg-sky-500 rounded-lg flex items-center justify-center text-white">
-        <i data-lucide="hexagon" class="w-5 h-5"></i>
-      </div>
-      <h1 class="font-bold text-slate-700">BizFlow</h1>
-    </div>
     <% if @businesses.present? %>
       <div id="business-switcher" class="relative">
         <button id="business-switcher-button" type="button" class="group flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm hover:border-sky-200 hover:bg-sky-50 transition-colors cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Cambiar negocio">
@@ -115,7 +109,7 @@
                       data: { cashier_toggle_label: 'true' },
                       class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold shadow-sm transition-all hover:-translate-y-0.5 #{toggle_cashier_button_class}" do %>
           <i data-lucide="badge-check" class="h-4 w-4"></i>
-          <span id="header-cashier-toggle-label"><%= admin_is_active_cashier ? 'Marcar salida de cajero' : 'Marcar entrada de cajero' %></span>
+          <span id="header-cashier-toggle-label" class="md:hidden"><%= admin_is_active_cashier ? 'Salida' : 'Entrada' %></span>
         <% end %>
       <% end %>
       <% unless customer_sales_mode_header %>
