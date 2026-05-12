@@ -2,12 +2,13 @@
   <% row = @pending_cost_row %>
   <% debt = row[:debt] %>
   <% service_name = debt.service&.description.to_s.strip.presence || debt.display_name %>
+  <% debt_details = debt.service_cost_details_hash %>
+  <% service_beneficiary_name = row[:service_beneficiary_name].to_s.strip.presence || debt_details['service_beneficiary_name'].to_s.strip.presence || 'No registrado' %>
+  <% content_for(:page_title, "#{service_name} — #{service_beneficiary_name}") %>
   <% sale_id = debt.venta_id %>
   <% status_key = row[:status].to_s %>
   <% status_label = status_key == 'paid' ? 'Pagado' : (status_key == 'partial' ? 'Parcial' : 'Pendiente') %>
   <% status_class = status_key == 'paid' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' : (status_key == 'partial' ? 'bg-amber-100 text-amber-700 ring-amber-200' : 'bg-rose-100 text-rose-700 ring-rose-200') %>
-  <% debt_details = debt.service_cost_details_hash %>
-  <% service_beneficiary_name = row[:service_beneficiary_name].to_s.strip.presence || debt_details['service_beneficiary_name'].to_s.strip.presence %>
   <% service_responsible_name = row[:service_responsible_name].to_s.strip.presence || debt_details['service_responsible_name'].to_s.strip.presence %>
   <div class="services-hero relative overflow-hidden rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm">
     <div class="services-hero-glow services-hero-glow--one"></div>
