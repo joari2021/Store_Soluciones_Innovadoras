@@ -814,9 +814,9 @@ class DebtPaymentsController < ApplicationController
     normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
 
     [
-      -issued_on.jd,
-      -created_at.to_i,
-      -debt.id.to_i,
+      issued_on.jd,
+      created_at.to_i,
+      debt.id.to_i,
       normalized_name,
       normalized_cliente
     ]
