@@ -24,32 +24,32 @@
         <table class="min-w-full table-auto text-sm text-slate-700">
           <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
             <tr>
-            <th class="px-6 py-4 text-left font-bold">Proveedor global</th>
-            <th class="px-6 py-4 text-left font-bold">RIF</th>
-            <th class="px-6 py-4 text-left font-bold">Origen</th>
-            <th class="px-6 py-4 text-right font-bold">Mapeos locales</th>
-            <th class="px-6 py-4 text-right font-bold">Productos asociados</th>
-            <th class="px-6 py-4 text-right font-bold">Accion</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-100">
-          <% @global_suppliers.each_with_index do |supplier, index| %>
-            <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
-              <td class="px-6 py-4 font-semibold text-slate-800"><%= supplier.name %></td>
-              <td class="px-6 py-4"><%= supplier.rif.presence || '-' %></td>
-              <td class="px-6 py-4 text-slate-600"><%= supplier.source_business&.name || '-' %></td>
-              <td class="px-6 py-4 text-right"><%= supplier.suppliers.size %></td>
-              <td class="px-6 py-4 text-right"><%= supplier.global_supplier_products.size %></td>
-              <td class="px-6 py-4 text-right">
-                <div class="inline-flex items-center gap-2">
-                  <%= link_to "Ver", global_supplier_path(supplier), class: "inline-flex items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" %>
-                  <%= link_to "Editar", edit_global_supplier_path(supplier), class: "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" %>
-                </div>
-              </td>
+              <th class="px-6 py-4 text-left font-bold">Proveedor global</th>
+              <th class="px-6 py-4 text-left font-bold">RIF</th>
+              <th class="px-6 py-4 text-left font-bold">Origen</th>
+              <th class="px-6 py-4 text-right font-bold">Mapeos locales</th>
+              <th class="px-6 py-4 text-right font-bold">Productos asociados</th>
+              <th class="px-6 py-4 text-right font-bold">Accion</th>
             </tr>
-          <% end %>
-        </tbody>
-      </table>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <% @global_suppliers.each_with_index do |supplier, index| %>
+              <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
+                <td class="px-6 py-4 font-semibold text-slate-800"><%= supplier.name %></td>
+                <td class="px-6 py-4"><%= supplier.rif.presence || '-' %></td>
+                <td class="px-6 py-4 text-slate-600"><%= supplier.source_business&.name || '-' %></td>
+                <td class="px-6 py-4 text-right"><%= supplier.suppliers.size %></td>
+                <td class="px-6 py-4 text-right"><%= supplier.global_supplier_products.size %></td>
+                <td class="px-6 py-4 text-right">
+                  <div class="inline-flex items-center gap-2">
+                    <%= link_to "Ver", global_supplier_path(supplier), class: "inline-flex items-center justify-center rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100" %>
+                    <%= link_to "Editar", edit_global_supplier_path(supplier), class: "inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50" %>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
       </div>
     </div>
   <% else %>
