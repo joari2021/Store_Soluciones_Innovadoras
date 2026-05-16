@@ -247,8 +247,6 @@ const updateFacturaRateByDate = (input, selectedDate) => {
     });
 };
 
-// (mobile row tap handler removed)
-
 const normalizeDatepickerHeaderText = () => {
   const headers = document.querySelectorAll(
     "#materialize-datepicker-portal .datepicker-date-display .date-text",

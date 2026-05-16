@@ -12,21 +12,107 @@ class DebtPaymentsController < ApplicationController
   def new
     redirect_to debt_path(@debt, show_return_params.merge(open_payment_modal: 1))
   end
-    @debt_payment = current_business
-                    .debt_payments
-                    .joins(:debt)
-                      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-                      created_at = debt.created_at || Time.zone.at(0)
-                      normalized_name = debt.display_name.to_s.strip.downcase
-                      normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
 
-                      [
-                        issued_on.jd,
-                        created_at.to_i,
-                        debt.id.to_i,
-                        normalized_name,
-                        normalized_cliente
-                      ]
+  def destroy
+    shift = cash_shift_for_payment(@debt_payment)
+
+    if shift&.closed? && !current_user_admin?
+      redirect_to debt_path(@debt, show_return_params),
+                  alert: 'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
+      return
+    end
+
+    if shift.nil? && !current_user_admin?
+      redirect_to debt_path(@debt, show_return_params),
+                  alert: 'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
+      return
+    end
+
+    payments_to_delete = [@debt_payment] + mirror_synced_payments_for(@debt_payment)
+    movements_to_delete = payments_to_delete.flat_map { |payment| linked_account_movements_for_payment(payment) }
+    movements_to_delete = movements_to_delete.uniq { |movement| movement.id }
+
+    DebtPayment.transaction do
+      movements_to_delete.each(&:destroy!)
+      payments_to_delete.each(&:destroy!)
+    end
+
+    notice = 'Pago eliminado junto con sus movimientos en cuentas.'
+    notice = "#{notice} El pago pertenecía a un turno cerrado." if shift&.closed?
+    redirect_to debt_path(@debt, show_return_params), notice: notice
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to debt_path(@debt, show_return_params), alert: e.message
+  end
+
+  def create
+    account = @accounts.find { |item| item.id == debt_payment_params[:account_id].to_i }
+    payment_currency = account&.currency
+    amount = parse_decimal(debt_payment_params[:amount])
+    submitted_occurred_on = parse_payment_date(debt_payment_params[:occurred_at])
+    occurred_on = resolved_occurred_on_for_current_user(debt_payment_params[:occurred_at])
+    allow_overpayment = @debt.receivable? || overpayment_allowed?
+
+    @debt_payment = @debt.debt_payments.new(
+      account: account,
+      amount: amount,
+      currency: payment_currency,
+      payment_method: debt_payment_params[:payment_method].presence,
+      reference: debt_payment_params[:reference].presence,
+      occurred_at: occurred_on,
+      notes: debt_payment_params[:notes],
+    )
+
+    selected_mirror_account = selected_intercompany_mirror_account
+
+    unless payment_date_allowed_for_current_user?(submitted_occurred_on)
+      @debt_payment.errors.add(:occurred_at, 'el encargado solo puede registrar cobros/pagos con la fecha actual')
+      return handle_payment_form_error
+    end
+
+    build_payment_context(selected_currency: payment_currency, occurred_on: occurred_on)
+
+    if account.blank?
+      @debt_payment.errors.add(:account, "debe seleccionarse")
+      return handle_payment_form_error
+    end
+
+    if payment_currency.blank?
+      @debt_payment.errors.add(:account, "debe tener una moneda configurada")
+      return handle_payment_form_error
+    end
+
+    if @intercompany_group_payment_mode && selected_mirror_account.blank?
+      @debt_payment.errors.add(:base, 'Debes seleccionar la cuenta destino en el negocio contraparte para registrar el espejo.')
+      return handle_payment_form_error
+    end
+
+    if @intercompany_group_payment_mode && @intercompany_mirror_business.present? &&
+       selected_mirror_account.present? && selected_mirror_account.business_id != @intercompany_mirror_business.id
+      @debt_payment.errors.add(:base, 'La cuenta destino seleccionada no pertenece al negocio contraparte de la factura interempresa.')
+      return handle_payment_form_error
+    end
+
+    if @debt.receivable? && account.account_type == "bank_account"
+      duplicated_payment = find_duplicate_bank_receivable_payment(
+        account_id: account.id,
+        occurred_on: occurred_on,
+        amount: amount,
+        reference: debt_payment_params[:reference].to_s.strip,
+      )
+
+      if duplicated_payment.present?
+        @debt_payment.errors.add(
+          :base,
+          duplicate_bank_receivable_payment_message(
+            account: account,
+            occurred_on: occurred_on,
+            amount: amount,
+            reference: debt_payment_params[:reference].to_s.strip,
+          )
+        )
+        return handle_payment_form_error
+      end
+    end
 
     if @debt.payable? && amount.to_d.positive? && amount.to_d > account.balance.to_d
       @debt_payment.errors.add(:base, account.insufficient_balance_message(amount))
@@ -121,56 +207,56 @@ class DebtPaymentsController < ApplicationController
     @debt_payment = current_business
                     .debt_payments
                     .joins(:debt)
-                      # Si la deuda forma parte de un grupo, calculamos la clave usando las deudas
-                      # dentro del grupo (para priorizar vencimientos del grupo).
-                      if debt.group_token.present? || debt.group_root_debt_id.present?
-                        grouped = debts_in_same_group(debt)
-                        # consideramos solo deudas con saldo positivo para ordenamiento
-                        active = grouped.select { |d| (d.respond_to?(:card_total_balance) ? d.card_total_balance.to_d : d.balance.to_d) > 0.01.to_d }
+                    .where(debts: { business_id: current_business.id })
+                    .find(params[:id])
+  end
 
-                        if debt.payable?
-                          due_dates = active.map(&:due_on).compact
-                          if due_dates.any?
-                            min_due = due_dates.min
-                            issued_key = active.select { |d| d.due_on == min_due }
-                                               .map { |d| (d.issued_on || d.created_at&.to_date || Date.new(1970, 1, 1)).jd }
-                                               .min
-                            creditor_key = (debt.counterparty_display_name || debt.acreedor).to_s.strip.downcase
-                            [0, min_due.jd, issued_key || 0, creditor_key, (debt.group_root_debt_id || debt.id).to_i]
-                          else
-                            creditor_key = debt.acreedor.to_s.strip.downcase
-                            issued_key = active.map { |d| (d.issued_on || d.created_at&.to_date || Date.new(1970, 1, 1)).jd }.min || 0
-                            [1, 0, creditor_key, issued_key, (debt.group_root_debt_id || debt.id).to_i]
-                          end
-                        else
-                          # Para no-payable usamos la clave por deuda individual
-                          issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-                          created_at = debt.created_at || Time.zone.at(0)
-                          normalized_name = debt.display_name.to_s.strip.downcase
-                          normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
-                          [issued_on.jd, created_at.to_i, debt.id.to_i, normalized_name, normalized_cliente]
-                        end
-                      else
-                        # Caso deuda individual (sin grupo)
-                        if debt.payable?
-                          if debt.due_on.present?
-                            due_key = debt.due_on.to_date.jd
-                            issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
-                            creditor_key = debt.acreedor.to_s.strip.downcase
-                            [0, due_key, issued_key, creditor_key, debt.id.to_i]
-                          else
-                            creditor_key = debt.acreedor.to_s.strip.downcase
-                            issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
-                            [1, 0, creditor_key, issued_key, debt.id.to_i]
-                          end
-                        else
-                          issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-                          created_at = debt.created_at || Time.zone.at(0)
-                          normalized_name = debt.display_name.to_s.strip.downcase
-                          normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
-                          [issued_on.jd, created_at.to_i, debt.id.to_i, normalized_name, normalized_cliente]
-                        end
-                      end
+  def load_accounts
+    intercompany_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
+
+    base_scope = current_business.accounts
+                                 .where.not(account_type: 'cashea')
+                                 .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    active_scope = apply_payment_currency_filter(base_scope.where(active: true))
+    @accounts = active_scope.order(:currency, :name).to_a
+
+    if @accounts.empty? && intercompany_mode
+      @using_inactive_accounts_for_intercompany = true
+      @accounts = apply_payment_currency_filter(base_scope).order(:currency, :name).to_a
+    end
+  end
+
+  def current_customer_clientes
+    return Cliente.none unless current_user_customer_mode?
+
+    user_name = Current.user&.full_name.to_s.strip
+    user_name = Current.user&.username.to_s.strip if user_name.blank?
+    return Cliente.none if user_name.blank?
+
+    current_business.clientes.where('LOWER(name) = ?', user_name.downcase)
+  end
+
+  def load_intercompany_mirror_accounts
+    @intercompany_group_payment_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
+    @intercompany_mirror_business = nil
+    @mirror_accounts = []
+
+    return unless @intercompany_group_payment_mode
+
+    mirror_businesses = @grouped_debts.filter_map { |debt| debt.mirror_debt&.business }.uniq { |business| business.id }
+    if mirror_businesses.size != 1
+      @intercompany_group_payment_mode = false
+      return
+    end
+
+    @intercompany_mirror_business = mirror_businesses.first
+    base_scope = @intercompany_mirror_business.accounts
+                                              .where.not(account_type: 'cashea')
+                                              .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
+
+    @mirror_accounts = base_scope.where(active: true).order(:currency, :name).to_a
+    if @mirror_accounts.empty?
       @using_inactive_mirror_accounts_for_intercompany = true
       @mirror_accounts = base_scope.order(:currency, :name).to_a
     end
@@ -726,20 +812,12 @@ class DebtPaymentsController < ApplicationController
     # desde la más antigua a la más reciente; luego las que no tienen `due_on`
     # ordenadas por nombre del `acreedor` A-Z.
     if debt.payable?
-      if debt.due_on.present?
-        due_key = debt.due_on.to_date.jd
-        issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
-        creditor_key = debt.acreedor.to_s.strip.downcase
+      has_due = debt.due_on.present? ? 0 : 1
+      due_key = debt.due_on.present? ? debt.due_on.to_date.jd : 0
+      creditor_key = debt.acreedor.to_s.strip.downcase
 
-        # Deudas con vencimiento: [0, due_jd, issued_jd, creditor, id]
-        [0, due_key, issued_key, creditor_key, debt.id.to_i]
-      else
-        creditor_key = debt.acreedor.to_s.strip.downcase
-        issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
-
-        # Deudas sin vencimiento: [1, 0, creditor, issued_jd, id]
-        [1, 0, creditor_key, issued_key, debt.id.to_i]
-      end
+      # Estructura de clave: [tiene_vencimiento(0/1), due_jd_or_0, creditor_name, id]
+      [has_due, due_key, creditor_key, debt.id.to_i]
     else
       issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
       created_at = debt.created_at || Time.zone.at(0)
