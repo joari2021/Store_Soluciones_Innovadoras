@@ -524,30 +524,27 @@
 
     if (accountSelect) {
       accountSelect.addEventListener("change", async () => {
-        const wasBlank = initialAccountBlank;
         updateMethodVisibility();
         await refreshRatesForSelectedDate();
 
-        if (wasBlank && amountMaskedInput) {
+        if (amountMaskedInput) {
           const entered = parseMaskedValue(amountMaskedInput);
-          if (entered > 0) {
-            const maskedSymbol = amountMaskedInput.dataset.moneySymbol || (String(amountMaskedInput.value || "").split(" ")[0] || "$");
-            const fromCurrency = reverseCurrencyBySymbol(maskedSymbol) || String(groupedBalances[0]?.currency || "USD").trim().toUpperCase();
-            const toCurrency = getSelectedAccountCurrency();
+          const maskedSymbol = amountMaskedInput.dataset.moneySymbol || (String(amountMaskedInput.value || "").split(" ")[0] || "$");
+          const fromCurrency = reverseCurrencyBySymbol(maskedSymbol) || String(groupedBalances[0]?.currency || "USD").trim().toUpperCase();
+          const toCurrency = getSelectedAccountCurrency();
+
+          if (entered > 0 && fromCurrency !== toCurrency) {
             const conversion = convertAmount(entered, fromCurrency, toCurrency);
             if (conversion && Number.isFinite(Number(conversion.amount))) {
               syncMaskedInputCurrency(toCurrency, conversion.amount);
               updateAmountHidden();
-            } else {
-              updatePendingByAccount({ setAmount: true });
+              initialAccountBlank = false;
+              return;
             }
-          } else {
-            updatePendingByAccount({ setAmount: true });
           }
-        } else {
-          updatePendingByAccount({ setAmount: true });
         }
 
+        updatePendingByAccount({ setAmount: true });
         initialAccountBlank = false;
       });
     }
