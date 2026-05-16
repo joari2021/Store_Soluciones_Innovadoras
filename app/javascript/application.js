@@ -247,6 +247,51 @@ const updateFacturaRateByDate = (input, selectedDate) => {
     });
 };
 
+// Mostrar modal de producto al tocar la fila en móvil
+window.addEventListener("turbo:load", () => {
+  const isMobile = () => window.innerWidth <= 768;
+  const tableBody = document.getElementById("productos_tbody");
+  if (!tableBody) return;
+
+  let lastTouch = 0;
+
+  const onRowActivate = (event) => {
+    if (!isMobile()) return;
+
+    // Evitar activar cuando el objetivo es interactivo
+    if (event.target.closest("a, button, input, textarea, select, label"))
+      return;
+
+    const row = event.currentTarget;
+    const productLink = row.querySelector(
+      "a[data-turbo-frame='modal-productos'], button[data-turbo-frame='modal-productos']",
+    );
+    if (!productLink) return;
+
+    // Evitar doble activación por touch+click
+    const now = Date.now();
+    if (now - lastTouch < 500) return;
+    lastTouch = now;
+
+    productLink.click();
+  };
+
+  const attach = () => {
+    tableBody.querySelectorAll("tr[data-product-row-id]").forEach((tr) => {
+      // evitar adjuntar múltiples veces
+      if (tr.dataset.touchListenerAttached === "true") return;
+      tr.addEventListener("touchend", onRowActivate, { passive: true });
+      tr.addEventListener("click", onRowActivate, true);
+      tr.dataset.touchListenerAttached = "true";
+    });
+  };
+
+  attach();
+
+  // Re-attach after Turbo renders new content
+  document.addEventListener("turbo:render", attach);
+});
+
 const normalizeDatepickerHeaderText = () => {
   const headers = document.querySelectorAll(
     "#materialize-datepicker-portal .datepicker-date-display .date-text",

@@ -12,59 +12,11 @@ class DebtPaymentsController < ApplicationController
   def new
     redirect_to debt_path(@debt, show_return_params.merge(open_payment_modal: 1))
   end
-
-  def destroy
-    shift = cash_shift_for_payment(@debt_payment)
-
-    if shift&.closed? && !current_user_admin?
-      redirect_to debt_path(@debt, show_return_params),
-                  alert: 'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
-      return
-    end
-
-    if shift.nil? && !current_user_admin?
-      redirect_to debt_path(@debt, show_return_params),
-                  alert: 'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
-      return
-    end
-
-    payments_to_delete = [@debt_payment] + mirror_synced_payments_for(@debt_payment)
-    movements_to_delete = payments_to_delete.flat_map { |payment| linked_account_movements_for_payment(payment) }
-    movements_to_delete = movements_to_delete.uniq { |movement| movement.id }
-
-    DebtPayment.transaction do
-      movements_to_delete.each(&:destroy!)
-      payments_to_delete.each(&:destroy!)
-    end
-
-    notice = 'Pago eliminado junto con sus movimientos en cuentas.'
-    notice = "#{notice} El pago pertenecía a un turno cerrado." if shift&.closed?
-    redirect_to debt_path(@debt, show_return_params), notice: notice
-  rescue ActiveRecord::RecordInvalid => e
-    redirect_to debt_path(@debt, show_return_params), alert: e.message
-  end
-
-  def create
-    account = @accounts.find { |item| item.id == debt_payment_params[:account_id].to_i }
-    payment_currency = account&.currency
-    amount = parse_decimal(debt_payment_params[:amount])
-    submitted_occurred_on = parse_payment_date(debt_payment_params[:occurred_at])
-    occurred_on = resolved_occurred_on_for_current_user(debt_payment_params[:occurred_at])
-    allow_overpayment = @debt.receivable? || overpayment_allowed?
-
-    @debt_payment = @debt.debt_payments.new(
-      account: account,
-      amount: amount,
-      currency: payment_currency,
-      payment_method: debt_payment_params[:payment_method].presence,
-      reference: debt_payment_params[:reference].presence,
-      occurred_at: occurred_on,
-      notes: debt_payment_params[:notes],
-    )
-
-    selected_mirror_account = selected_intercompany_mirror_account
-
-    unless payment_date_allowed_for_current_user?(submitted_occurred_on)
+    @debt_payment = current_business
+                    .debt_payments
+                    .joins(:debt)
+                    .where(debts: { business_id: current_business.id })
+                    .find(params[:id])
       @debt_payment.errors.add(:occurred_at, 'el encargado solo puede registrar cobros/pagos con la fecha actual')
       return handle_payment_form_error
     end
