@@ -808,18 +808,30 @@ class DebtPaymentsController < ApplicationController
   end
 
   def debt_sort_key(debt)
-    issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-    created_at = debt.created_at || Time.zone.at(0)
-    normalized_name = debt.display_name.to_s.strip.downcase
-    normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
+    # Para deudas por pagar: primero las que tienen `due_on` (vencimiento) ordenadas
+    # desde la más antigua a la más reciente; luego las que no tienen `due_on`
+    # ordenadas por nombre del `acreedor` A-Z.
+    if debt.payable?
+      has_due = debt.due_on.present? ? 0 : 1
+      due_key = debt.due_on.present? ? debt.due_on.to_date.jd : 0
+      creditor_key = debt.acreedor.to_s.strip.downcase
 
-    [
-      issued_on.jd,
-      created_at.to_i,
-      debt.id.to_i,
-      normalized_name,
-      normalized_cliente
-    ]
+      # Estructura de clave: [tiene_vencimiento(0/1), due_jd_or_0, creditor_name, id]
+      [has_due, due_key, creditor_key, debt.id.to_i]
+    else
+      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+      created_at = debt.created_at || Time.zone.at(0)
+      normalized_name = debt.display_name.to_s.strip.downcase
+      normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
+
+      [
+        issued_on.jd,
+        created_at.to_i,
+        debt.id.to_i,
+        normalized_name,
+        normalized_cliente
+      ]
+    end
   end
 
   def sort_debts(debts)
