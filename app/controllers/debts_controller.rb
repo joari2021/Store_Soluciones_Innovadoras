@@ -1653,11 +1653,18 @@ class DebtsController < ApplicationController
     # desde la más antigua a la más reciente; luego las que no tienen `due_on`
     # ordenadas por nombre del `acreedor` A-Z.
     if debt.payable?
-      has_due = debt.due_on.present? ? 0 : 1
-      due_key = debt.due_on.present? ? debt.due_on.to_date.jd : 0
-      creditor_key = debt.acreedor.to_s.strip.downcase
+      if debt.due_on.present?
+        due_key = debt.due_on.to_date.jd
+        issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
+        creditor_key = debt.acreedor.to_s.strip.downcase
 
-      [has_due, due_key, creditor_key, debt.id.to_i]
+        [0, due_key, issued_key, creditor_key, debt.id.to_i]
+      else
+        creditor_key = debt.acreedor.to_s.strip.downcase
+        issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
+
+        [1, 0, creditor_key, issued_key, debt.id.to_i]
+      end
     else
       issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
       created_at = debt.created_at || Time.zone.at(0)
