@@ -511,11 +511,44 @@
       methodSelect.addEventListener("change", updateReferenceRules);
     }
 
+    let initialAccountBlank = accountSelect ? !String(accountSelect.value || "").trim() : false;
+
+    const reverseCurrencyBySymbol = (symbol) => {
+      for (const code in currencySymbols) {
+        if (Object.prototype.hasOwnProperty.call(currencySymbols, code) && String(currencySymbols[code]) === String(symbol)) {
+          return code;
+        }
+      }
+      return null;
+    };
+
     if (accountSelect) {
       accountSelect.addEventListener("change", async () => {
+        const wasBlank = initialAccountBlank;
         updateMethodVisibility();
         await refreshRatesForSelectedDate();
-        updatePendingByAccount({ setAmount: true });
+
+        if (wasBlank && amountMaskedInput) {
+          const entered = parseMaskedValue(amountMaskedInput);
+          if (entered > 0) {
+            const maskedSymbol = amountMaskedInput.dataset.moneySymbol || (String(amountMaskedInput.value || "").split(" ")[0] || "$");
+            const fromCurrency = reverseCurrencyBySymbol(maskedSymbol) || String(groupedBalances[0]?.currency || "USD").trim().toUpperCase();
+            const toCurrency = getSelectedAccountCurrency();
+            const conversion = convertAmount(entered, fromCurrency, toCurrency);
+            if (conversion && Number.isFinite(Number(conversion.amount))) {
+              syncMaskedInputCurrency(toCurrency, conversion.amount);
+              updateAmountHidden();
+            } else {
+              updatePendingByAccount({ setAmount: true });
+            }
+          } else {
+            updatePendingByAccount({ setAmount: true });
+          }
+        } else {
+          updatePendingByAccount({ setAmount: true });
+        }
+
+        initialAccountBlank = false;
       });
     }
 
