@@ -207,56 +207,56 @@ class DebtPaymentsController < ApplicationController
     @debt_payment = current_business
                     .debt_payments
                     .joins(:debt)
-                    .where(debts: { business_id: current_business.id })
-                    .find(params[:id])
-  end
+                      # Si la deuda forma parte de un grupo, calculamos la clave usando las deudas
+                      # dentro del grupo (para priorizar vencimientos del grupo).
+                      if debt.group_token.present? || debt.group_root_debt_id.present?
+                        grouped = debts_in_same_group(debt)
+                        # consideramos solo deudas con saldo positivo para ordenamiento
+                        active = grouped.select { |d| (d.respond_to?(:card_total_balance) ? d.card_total_balance.to_d : d.balance.to_d) > 0.01.to_d }
 
-  def load_accounts
-    intercompany_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
-
-    base_scope = current_business.accounts
-                                 .where.not(account_type: 'cashea')
-                                 .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
-
-    active_scope = apply_payment_currency_filter(base_scope.where(active: true))
-    @accounts = active_scope.order(:currency, :name).to_a
-
-    if @accounts.empty? && intercompany_mode
-      @using_inactive_accounts_for_intercompany = true
-      @accounts = apply_payment_currency_filter(base_scope).order(:currency, :name).to_a
-    end
-  end
-
-  def current_customer_clientes
-    return Cliente.none unless current_user_customer_mode?
-
-    user_name = Current.user&.full_name.to_s.strip
-    user_name = Current.user&.username.to_s.strip if user_name.blank?
-    return Cliente.none if user_name.blank?
-
-    current_business.clientes.where('LOWER(name) = ?', user_name.downcase)
-  end
-
-  def load_intercompany_mirror_accounts
-    @intercompany_group_payment_mode = @grouped_debts.present? && @grouped_debts.all? { |debt| intercompany_invoice_debt?(debt) }
-    @intercompany_mirror_business = nil
-    @mirror_accounts = []
-
-    return unless @intercompany_group_payment_mode
-
-    mirror_businesses = @grouped_debts.filter_map { |debt| debt.mirror_debt&.business }.uniq { |business| business.id }
-    if mirror_businesses.size != 1
-      @intercompany_group_payment_mode = false
-      return
-    end
-
-    @intercompany_mirror_business = mirror_businesses.first
-    base_scope = @intercompany_mirror_business.accounts
-                                              .where.not(account_type: 'cashea')
-                                              .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
-
-    @mirror_accounts = base_scope.where(active: true).order(:currency, :name).to_a
-    if @mirror_accounts.empty?
+                        if debt.payable?
+                          due_dates = active.map(&:due_on).compact
+                          if due_dates.any?
+                            min_due = due_dates.min
+                            issued_key = active.select { |d| d.due_on == min_due }
+                                               .map { |d| (d.issued_on || d.created_at&.to_date || Date.new(1970, 1, 1)).jd }
+                                               .min
+                            creditor_key = (debt.counterparty_display_name || debt.acreedor).to_s.strip.downcase
+                            [0, min_due.jd, issued_key || 0, creditor_key, (debt.group_root_debt_id || debt.id).to_i]
+                          else
+                            creditor_key = debt.acreedor.to_s.strip.downcase
+                            issued_key = active.map { |d| (d.issued_on || d.created_at&.to_date || Date.new(1970, 1, 1)).jd }.min || 0
+                            [1, 0, creditor_key, issued_key, (debt.group_root_debt_id || debt.id).to_i]
+                          end
+                        else
+                          # Para no-payable usamos la clave por deuda individual
+                          issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+                          created_at = debt.created_at || Time.zone.at(0)
+                          normalized_name = debt.display_name.to_s.strip.downcase
+                          normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
+                          [issued_on.jd, created_at.to_i, debt.id.to_i, normalized_name, normalized_cliente]
+                        end
+                      else
+                        # Caso deuda individual (sin grupo)
+                        if debt.payable?
+                          if debt.due_on.present?
+                            due_key = debt.due_on.to_date.jd
+                            issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
+                            creditor_key = debt.acreedor.to_s.strip.downcase
+                            [0, due_key, issued_key, creditor_key, debt.id.to_i]
+                          else
+                            creditor_key = debt.acreedor.to_s.strip.downcase
+                            issued_key = (debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)).jd
+                            [1, 0, creditor_key, issued_key, debt.id.to_i]
+                          end
+                        else
+                          issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+                          created_at = debt.created_at || Time.zone.at(0)
+                          normalized_name = debt.display_name.to_s.strip.downcase
+                          normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
+                          [issued_on.jd, created_at.to_i, debt.id.to_i, normalized_name, normalized_cliente]
+                        end
+                      end
       @using_inactive_mirror_accounts_for_intercompany = true
       @mirror_accounts = base_scope.order(:currency, :name).to_a
     end
