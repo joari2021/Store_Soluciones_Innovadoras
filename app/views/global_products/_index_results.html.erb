@@ -28,23 +28,25 @@
           </div>
         </div>
         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <table class="min-w-full table-auto text-sm text-slate-700">
-            <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
-              <tr>
-                <th class="px-6 py-4 text-left font-bold">Imagen</th>
-                <th class="px-6 py-4 text-left font-bold">Producto global</th>
-                <th class="px-6 py-4 text-left font-bold">Categoria</th>
-                <th class="px-6 py-4 text-right font-bold">Ganancia fija (%)</th>
-                <th class="px-6 py-4 text-right font-bold">Precio venta ($)</th>
-                <th class="px-6 py-4 text-right font-bold">Mapeos locales</th>
-                <th class="px-6 py-4 text-right font-bold">Vinculos proveedor</th>
-                <th class="px-6 py-4 text-right font-bold">Accion</th>
-              </tr>
-            </thead>
-            <tbody id="global_products_tbody" class="divide-y divide-slate-100">
-              <%= render partial: "global_products/table_rows", locals: { products: @global_products } %>
-            </tbody>
-          </table>
+          <div class="overflow-x-auto">
+            <table class="min-w-full table-auto text-sm text-slate-700">
+              <thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th class="px-6 py-4 text-left font-bold">Imagen</th>
+                  <th class="px-6 py-4 text-left font-bold">Producto global</th>
+                  <th class="px-6 py-4 text-left font-bold">Categoria</th>
+                  <th class="px-6 py-4 text-right font-bold">Ganancia fija (%)</th>
+                  <th class="px-6 py-4 text-right font-bold">Precio venta ($)</th>
+                  <th class="px-6 py-4 text-right font-bold">Mapeos locales</th>
+                  <th class="px-6 py-4 text-right font-bold">Vinculos proveedor</th>
+                  <th class="px-6 py-4 text-right font-bold">Accion</th>
+                </tr>
+              </thead>
+              <tbody id="global_products_tbody" class="divide-y divide-slate-100">
+                <%= render partial: "global_products/table_rows", locals: { products: @global_products } %>
+              </tbody>
+            </table>
+          </div>
         </div>
         <% if @next_page.present? %>
           <div class="flex justify-center py-2" data-global-products-pagination="true" data-next-page="<%= @next_page %>">
