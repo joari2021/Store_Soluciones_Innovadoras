@@ -347,6 +347,19 @@
     });
 
     root.addEventListener('click', (event) => {
+      const clickedRow = event.target.closest('tr[data-global-product-row="true"]');
+      if (clickedRow) {
+        const clickedLink = event.target.closest('a, button, input, select, label');
+        if (!clickedLink) {
+          const rowEditLink = clickedRow.querySelector('a[data-turbo-frame="modal-global-products"][href]');
+          if (rowEditLink) {
+            event.preventDefault();
+            rowEditLink.click();
+            return;
+          }
+        }
+      }
+
       const link = event.target.closest('a[href]');
       if (!link) return;
       if (!link.href.includes('/global/productos')) return;

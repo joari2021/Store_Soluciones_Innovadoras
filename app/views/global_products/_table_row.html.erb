@@ -8,7 +8,8 @@
                                  @below_target_margin_filter
                                end %>
 <tr id="<%= dom_id(product, :global_row) %>"
-    class="<%= flash_row ? 'bg-emerald-100 transition-colors duration-700' : row_class %>"
+    class="<%= flash_row ? 'bg-emerald-100 transition-colors duration-700' : row_class %> cursor-pointer hover:bg-slate-50 transition-colors"
+    data-global-product-row="true"
     data-row-base-class="<%= row_class %>"
     <%= 'data-row-flash="true"'.html_safe if flash_row %>>
   <td class="px-6 py-4">
