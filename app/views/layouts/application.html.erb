@@ -108,22 +108,34 @@
                 <span class="text-slate-700">Productos</span>
               <% end %>
             <% end %>
+            <% if can_access_module?(:catalogo) %>
+              <%= link_to catalogo_productos_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="book-open" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Catalogo</span>
+              <% end %>
+            <% end %>
             <% if can_access_module?(:services) %>
               <%= link_to services_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
-                <i data-lucide="settings" class="w-5 h-5 text-slate-600"></i>
+                <i data-lucide="zap" class="w-5 h-5 text-slate-600"></i>
                 <span class="text-slate-700">Servicios</span>
               <% end %>
             <% end %>
-            <% if can_access_module?(:clientes) %>
-              <%= link_to clientes_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
-                <i data-lucide="users" class="w-5 h-5 text-slate-600"></i>
-                <span class="text-slate-700">Clientes</span>
+            <% if current_user_admin? %>
+              <%= link_to discount_schedules_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="badge-percent" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Descuentos</span>
               <% end %>
             <% end %>
-            <% if can_access_module?(:suppliers) %>
-              <%= link_to suppliers_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
-                <i data-lucide="truck" class="w-5 h-5 text-slate-600"></i>
-                <span class="text-slate-700">Proveedores</span>
+            <% if can_access_module?(:deudas) %>
+              <%= link_to debts_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="hand-coins" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Deudas</span>
+              <% end %>
+            <% end %>
+            <% if can_access_module?(:expenses) %>
+              <%= link_to expenses_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="receipt" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Gastos</span>
               <% end %>
             <% end %>
             <% if can_access_module?(:accounts) %>
@@ -132,11 +144,33 @@
                 <span class="text-slate-700">Cuentas</span>
               <% end %>
             <% end %>
-            <% if can_access_module?(:deudas) %>
-              <%= link_to debts_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
-                <i data-lucide="credit-card" class="w-5 h-5 text-slate-600"></i>
-                <span class="text-slate-700">Deudas</span>
+            <% if can_access_module?(:purchase_invoices) %>
+              <%= link_to purchase_invoices_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="file-text" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Facturas de Compra</span>
               <% end %>
+            <% end %>
+            <% if can_access_module?(:suppliers) %>
+              <%= link_to suppliers_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="truck" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Proveedores</span>
+              <% end %>
+            <% end %>
+            <% if can_access_module?(:clientes) %>
+              <%= link_to clientes_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="users" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Clientes</span>
+              <% end %>
+            <% end %>
+            <% if can_access_module?(:rates) %>
+              <%= link_to tasa_cambios_path, class: "flex items-center gap-3 p-3 rounded-xl hover:bg-sky-50 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+                <i data-lucide="arrow-left-right" class="w-5 h-5 text-slate-600"></i>
+                <span class="text-slate-700">Tasas de Divisas</span>
+              <% end %>
+            <% end %>
+            <%= link_to logout_path, data: { turbo_method: :delete, swal_delete: 'logout' }, class: "flex items-center gap-3 p-3 rounded-xl border border-rose-100 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors", onclick: "closeModal('sidebarModal')" do %>
+              <i data-lucide="log-out" class="w-5 h-5"></i>
+              <span class="text-rose-700">Cerrar sesión</span>
             <% end %>
           </nav>
         </div>
