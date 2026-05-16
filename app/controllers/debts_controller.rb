@@ -1649,42 +1649,18 @@ class DebtsController < ApplicationController
   end
 
   def debt_sort_key(debt)
-    # Si la deuda forma parte de un grupo, calculamos la clave usando las deudas
-    # dentro del grupo (para priorizar vencimientos del grupo).
-    if debt.group_token.present? || debt.group_root_debt_id.present?
-      grouped = debts_in_same_group(debt)
-      active = grouped.select { |d| (d.respond_to?(:card_total_balance) ? d.card_total_balance.to_d : d.balance.to_d) > 0.01.to_d }
+    issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+    created_at = debt.created_at || Time.zone.at(0)
+    normalized_name = debt.display_name.to_s.strip.downcase
+    normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
 
-      if debt.payable?
-        due_dates = active.map(&:due_on).compact
-        if due_dates.any?
-          min_due = due_dates.min
-          issued_key = active.select { |d| d.due_on == min_due }
-                             .map { |d| (d.issued_on || d.created_at&.to_date || Date.new(1970, 1, 1)).jd }
-                             .min
-          creditor_key = (debt.counterparty_display_name || debt.acreedor).to_s.strip.downcase
-          [0, min_due.jd, issued_key || 0, creditor_key, (debt.group_root_debt_id || debt.id).to_i]
-        else
-          creditor_key = debt.acreedor.to_s.strip.downcase
-          issued_key = active.map { |d| (d.issued_on || d.created_at&.to_date || Date.new(1970, 1, 1)).jd }.min || 0
-          [1, 0, creditor_key, issued_key, (debt.group_root_debt_id || debt.id).to_i]
-        end
-      else
-        issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-        created_at = debt.created_at || Time.zone.at(0)
-        normalized_name = debt.display_name.to_s.strip.downcase
-        normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
-        [-issued_on.jd, -created_at.to_i, -debt.id.to_i, normalized_name, normalized_cliente]
-      end
-    else
-      # comportamiento previo para deudas individuales
-      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-      created_at = debt.created_at || Time.zone.at(0)
-      normalized_name = debt.display_name.to_s.strip.downcase
-      normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
-
-      [-issued_on.jd, -created_at.to_i, -debt.id.to_i, normalized_name, normalized_cliente]
-    end
+    [
+      -issued_on.jd,
+      -created_at.to_i,
+      -debt.id.to_i,
+      normalized_name,
+      normalized_cliente
+    ]
   end
 
   def sort_debts(debts)

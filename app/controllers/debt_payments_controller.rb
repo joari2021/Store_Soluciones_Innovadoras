@@ -15,56 +15,18 @@ class DebtPaymentsController < ApplicationController
     @debt_payment = current_business
                     .debt_payments
                     .joins(:debt)
-                    .where(debts: { business_id: current_business.id })
-                    .find(params[:id])
-      @debt_payment.errors.add(:occurred_at, 'el encargado solo puede registrar cobros/pagos con la fecha actual')
-      return handle_payment_form_error
-    end
+                      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+                      created_at = debt.created_at || Time.zone.at(0)
+                      normalized_name = debt.display_name.to_s.strip.downcase
+                      normalized_cliente = debt.counterparty_display_name.to_s.strip.downcase
 
-    build_payment_context(selected_currency: payment_currency, occurred_on: occurred_on)
-
-    if account.blank?
-      @debt_payment.errors.add(:account, "debe seleccionarse")
-      return handle_payment_form_error
-    end
-
-    if payment_currency.blank?
-      @debt_payment.errors.add(:account, "debe tener una moneda configurada")
-      return handle_payment_form_error
-    end
-
-    if @intercompany_group_payment_mode && selected_mirror_account.blank?
-      @debt_payment.errors.add(:base, 'Debes seleccionar la cuenta destino en el negocio contraparte para registrar el espejo.')
-      return handle_payment_form_error
-    end
-
-    if @intercompany_group_payment_mode && @intercompany_mirror_business.present? &&
-       selected_mirror_account.present? && selected_mirror_account.business_id != @intercompany_mirror_business.id
-      @debt_payment.errors.add(:base, 'La cuenta destino seleccionada no pertenece al negocio contraparte de la factura interempresa.')
-      return handle_payment_form_error
-    end
-
-    if @debt.receivable? && account.account_type == "bank_account"
-      duplicated_payment = find_duplicate_bank_receivable_payment(
-        account_id: account.id,
-        occurred_on: occurred_on,
-        amount: amount,
-        reference: debt_payment_params[:reference].to_s.strip,
-      )
-
-      if duplicated_payment.present?
-        @debt_payment.errors.add(
-          :base,
-          duplicate_bank_receivable_payment_message(
-            account: account,
-            occurred_on: occurred_on,
-            amount: amount,
-            reference: debt_payment_params[:reference].to_s.strip,
-          )
-        )
-        return handle_payment_form_error
-      end
-    end
+                      [
+                        issued_on.jd,
+                        created_at.to_i,
+                        debt.id.to_i,
+                        normalized_name,
+                        normalized_cliente
+                      ]
 
     if @debt.payable? && amount.to_d.positive? && amount.to_d > account.balance.to_d
       @debt_payment.errors.add(:base, account.insufficient_balance_message(amount))
