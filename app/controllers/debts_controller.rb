@@ -1928,8 +1928,12 @@ class DebtsController < ApplicationController
                   representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
                   representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
                   representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
-                  # Fecha minima `due_on` del grupo (puede ser pasada, hoy o futura)
-                  earliest_due_on = Array(grouped_debts).map { |d| d.due_on }.compact.min
+                  # Fecha mínima `due_on` para deudas aún pendientes dentro del grupo.
+                  earliest_due_on = Array(grouped_debts)
+                                  .select { |d| balance_for_overdue_grouping(d) > 0.01.to_d }
+                                  .map { |d| due_on_for_overdue_grouping(d) }
+                                  .compact
+                                  .min
                   representative.define_singleton_method(:card_earliest_due_on) { earliest_due_on }
                   representative.define_singleton_method(:card_overdue_count) { overdue_count }
                   representative.define_singleton_method(:card_overdue_counts_by_due_on) { overdue_badges[:past_due] }
