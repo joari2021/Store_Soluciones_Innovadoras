@@ -52,7 +52,14 @@ class GlobalProduct < ApplicationRecord
     payload = (metadata || {}).to_h
 
     METADATA_KEYS.each do |key|
-      raw = attrs[key] || attrs[key.to_sym]
+      raw = if attrs.key?(key)
+              attrs[key]
+            elsif attrs.key?(key.to_sym)
+              attrs[key.to_sym]
+            else
+              next
+            end
+
       payload[key] = normalize_metadata_value(key, raw)
     end
 
