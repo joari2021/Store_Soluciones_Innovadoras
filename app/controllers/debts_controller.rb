@@ -1931,7 +1931,7 @@ class DebtsController < ApplicationController
                   # Fecha mínima `due_on` para deudas aún pendientes dentro del grupo.
                   earliest_due_on = Array(grouped_debts)
                                   .select { |d| balance_for_overdue_grouping(d) > 0.01.to_d }
-                                  .map { |d| due_on_for_overdue_grouping(d) }
+                                  .map { |d| pending_due_on_for_grouped_debt(d) }
                                   .compact
                                   .min
                   representative.define_singleton_method(:card_earliest_due_on) { earliest_due_on }
@@ -2083,17 +2083,22 @@ class DebtsController < ApplicationController
 
   def earliest_due_on_for_group(debts)
     Array(debts)
-      .flat_map do |debt|
-        next if balance_for_overdue_grouping(debt) <= 0.01.to_d
-
+      .select { |debt| balance_for_overdue_grouping(debt) > 0.01.to_d }
+      .map do |debt|
         if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
           debt.card_earliest_due_on
         else
-          due_on_for_overdue_grouping(debt)
+          pending_due_on_for_grouped_debt(debt)
         end
       end
       .compact
       .min
+  end
+
+  def pending_due_on_for_grouped_debt(debt)
+    return debt.card_earliest_due_on if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
+
+    debt.due_on
   end
 
   def overdue_count_for_group(debts)
