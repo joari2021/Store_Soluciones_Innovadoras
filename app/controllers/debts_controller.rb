@@ -2082,21 +2082,16 @@ class DebtsController < ApplicationController
   end
 
   def earliest_due_on_for_group(debts)
-    # Si el elemento es un representante de grupo, usar su `card_earliest_due_on` si existe.
-    first = Array(debts).first
-    if first.respond_to?(:card_earliest_due_on)
-      # los `debts` aquí son representantes; tomar su card_earliest_due_on si alguno la tiene
-      Array(debts)
-        .map { |d| d.respond_to?(:card_earliest_due_on) ? d.card_earliest_due_on : nil }
-        .compact
-        .min
-    else
-      Array(debts)
-        .select { |debt| balance_for_overdue_grouping(debt) > 0.01.to_d }
-        .map { |debt| due_on_for_overdue_grouping(debt) }
-        .compact
-        .min
-    end
+    Array(debts)
+      .map do |debt|
+        if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
+          debt.card_earliest_due_on
+        elsif balance_for_overdue_grouping(debt) > 0.01.to_d
+          due_on_for_overdue_grouping(debt)
+        end
+      end
+      .compact
+      .min
   end
 
   def overdue_count_for_group(debts)
