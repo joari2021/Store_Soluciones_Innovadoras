@@ -2083,10 +2083,12 @@ class DebtsController < ApplicationController
 
   def earliest_due_on_for_group(debts)
     Array(debts)
-      .map do |debt|
+      .flat_map do |debt|
+        next if balance_for_overdue_grouping(debt) <= 0.01.to_d
+
         if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
           debt.card_earliest_due_on
-        elsif balance_for_overdue_grouping(debt) > 0.01.to_d
+        else
           due_on_for_overdue_grouping(debt)
         end
       end
