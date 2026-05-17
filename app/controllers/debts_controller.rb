@@ -2005,10 +2005,10 @@ class DebtsController < ApplicationController
     case sort
     when :active_overdue_then_alpha
       grouped.sort_by do |cliente, cliente_debts|
-        oldest_overdue_due_on = oldest_overdue_due_on_for_group(cliente_debts)
+        earliest_due_on = earliest_due_on_for_group(cliente_debts)
         normalized_name = cliente&.name.to_s.strip.downcase
-        if oldest_overdue_due_on.present?
-          [0, oldest_overdue_due_on.jd, normalized_name]
+        if earliest_due_on.present?
+          [0, earliest_due_on.jd, normalized_name]
         else
           [1, 0, normalized_name]
         end
@@ -2046,10 +2046,10 @@ class DebtsController < ApplicationController
     case sort
     when :active_overdue_then_alpha
       grouped.sort_by do |counterparty_name, grouped_debts|
-        oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
+        earliest_due_on = earliest_due_on_for_group(grouped_debts)
         normalized_name = counterparty_name.to_s.downcase
-        if oldest_overdue_due_on.present?
-          [0, oldest_overdue_due_on.jd, normalized_name]
+        if earliest_due_on.present?
+          [0, earliest_due_on.jd, normalized_name]
         else
           [1, 0, normalized_name]
         end
@@ -2071,6 +2071,14 @@ class DebtsController < ApplicationController
       .map { |debt| due_on_for_overdue_grouping(debt) }
       .compact
       .select { |due_on| due_on <= today }
+      .min
+  end
+
+  def earliest_due_on_for_group(debts)
+    Array(debts)
+      .select { |debt| balance_for_overdue_grouping(debt) > 0.01.to_d }
+      .map { |debt| due_on_for_overdue_grouping(debt) }
+      .compact
       .min
   end
 
