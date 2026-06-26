@@ -3380,7 +3380,7 @@
         const role = String(activeCashierRoleLabel || '').trim();
         const name = String(activeCashierName || '').trim();
         const full = [role, name].filter((part) => part.length > 0).join(' ');
-        return full || 'el cajero activo';
+        return full || 'el cajero';
       };
 
       const ensureCashExchangeAllowed = async () => {
@@ -3402,7 +3402,7 @@
           if (window.Swal) {
             await window.Swal.fire({
               icon: 'warning',
-              title: 'Cajero activo diferente',
+              title: 'Cajero diferente',
               text: `Los cambios solo pueden ser procesados por ${currentActiveCashierLabel()}, quien es el cajero en este momento.`,
               heightAuto: false,
             });
@@ -3414,12 +3414,8 @@
           if (window.Swal) {
             await window.Swal.fire({
               icon: 'warning',
-              title: 'Sin cajero activo',
-              text: 'No hay un cajero activo asignado en este momento para procesar la pasarela de cambios.',
-              heightAuto: false,
-            });
-          }
-          return false;
+                title: 'Sin cajero',
+                text: 'No hay un cajero asignado en este momento para procesar la pasarela de cambios.',
         }
 
         return true;
@@ -8069,7 +8065,7 @@
 
           if (!isCustomerPosMode && hasDifferentActiveCashier) {
             if (window.Swal) {
-              const cashierRole = activeCashierRoleLabel || 'Cajero activo';
+              const cashierRole = activeCashierRoleLabel || 'Cajero';
               const cashierName = activeCashierName || 'Personal asignado';
               const result = await window.Swal.fire({
                 icon: 'warning',
@@ -8096,7 +8092,7 @@
                   window.Swal.fire({
                     icon: 'success',
                     title: 'Venta lista para cobro',
-                    text: 'El borrador se marco como listo para cobrar para el cajero activo.',
+                    text: 'El borrador se marco como listo para cobrar para el cajero.',
                     heightAuto: false,
                   });
                 } else {
@@ -8115,9 +8111,8 @@
           if (!isCustomerPosMode && !isActiveCashierUser && !canChargeSale) {
             if (window.Swal) {
               const cashierRole = activeCashierRoleLabel || 'Sin cargo asignado';
-              const cashierName = activeCashierName || 'Sin cajero activo';
+              const cashierName = activeCashierName || 'Sin cajero';
               window.Swal.fire({
-                icon: 'warning',
                 title: 'Cobro no autorizado',
                 html: `
                   <p class="text-sm text-slate-600">El cajero autorizado para realizar el cobro es <strong>${escapeHtml(cashierRole)} - ${escapeHtml(cashierName)}</strong>.</p>
