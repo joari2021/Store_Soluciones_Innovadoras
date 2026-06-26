@@ -3414,8 +3414,12 @@
           if (window.Swal) {
             await window.Swal.fire({
               icon: 'warning',
-                title: 'Sin cajero',
-                text: 'No hay un cajero asignado en este momento para procesar la pasarela de cambios.',
+              title: 'Sin cajero',
+              text: 'No hay un cajero asignado en este momento para procesar la pasarela de cambios.',
+              heightAuto: false,
+            });
+          }
+          return false;
         }
 
         return true;
