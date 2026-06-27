@@ -26,11 +26,6 @@ class ExpensePaymentsController < ApplicationController
       notes: expense_payment_params[:notes],
     )
 
-    if account.present? && amount.to_d.positive? && amount.to_d > account.balance.to_d
-      @expense_payment.errors.add(:base, account.insufficient_balance_message(amount))
-      return render :new, status: :unprocessable_entity
-    end
-
     return render :new, status: :unprocessable_entity unless @expense_payment.valid?
 
     ExpensePayment.transaction do

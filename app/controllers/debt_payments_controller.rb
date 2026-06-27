@@ -114,11 +114,6 @@ class DebtPaymentsController < ApplicationController
       end
     end
 
-    if @debt.payable? && amount.to_d.positive? && amount.to_d > account.balance.to_d
-      @debt_payment.errors.add(:base, account.insufficient_balance_message(amount))
-      return handle_payment_form_error
-    end
-
     return handle_payment_form_error unless @debt_payment.valid?
 
     total_pending = total_balance_in_payment_currency(@grouped_debts, payment_currency, occurred_on)

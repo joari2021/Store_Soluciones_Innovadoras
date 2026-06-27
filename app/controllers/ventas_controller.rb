@@ -903,10 +903,6 @@ class VentasController < ApplicationController
 
       if source_draft.blank?
         recarga_total = recarga_entries.sum { |row| row[:amount].to_d }
-        if recarga_total > account.balance.to_d
-          return render json: { error: "Saldo insuficiente en Payall para registrar la recarga." },
-                        status: :unprocessable_entity
-        end
       end
     end
 
@@ -2278,9 +2274,6 @@ class VentasController < ApplicationController
           available += payall_draft_reserved_total(draft) if draft.persisted?
 
           recarga_total = recarga_entries.sum { |row| row[:amount].to_d }
-          if recarga_total > available
-            raise ActiveRecord::RecordInvalid.new(draft), "Saldo insuficiente en Payall para registrar la recarga."
-          end
         end
 
         draft.save!

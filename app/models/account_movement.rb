@@ -26,7 +26,6 @@ class AccountMovement < ApplicationRecord
   validates :payment_method, inclusion: { in: PAYMENT_METHODS.keys }, allow_blank: true
   validate :payment_method_rules
   validate :reference_format_rules
-  validate :sufficient_balance_for_debit
 
   after_commit :refresh_account_balance
 

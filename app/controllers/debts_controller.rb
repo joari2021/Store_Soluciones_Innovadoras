@@ -1017,11 +1017,6 @@ class DebtsController < ApplicationController
       return false
     end
 
-    if debts.first&.payable? && amount.to_d > account.balance.to_d
-      @debt.errors.add(:base, account.insufficient_balance_message(amount))
-      return false
-    end
-
     payment_method = payment_params[:payment_method].presence
     reference = payment_params[:payment_reference].presence
     occurred_on = parse_payment_date(payment_params[:payment_occurred_on]) || Date.current
@@ -1202,14 +1197,6 @@ class DebtsController < ApplicationController
 
                       conversion[:amount].to_d
                     end
-
-      requires_available_balance = debt_kind.to_s == 'receivable'
-      if requires_available_balance && loan_amount > account.balance.to_d
-        @debt.errors.add(:base,
-                         "Deuda #{index + 1}: #{account.insufficient_balance_message(loan_amount)}")
-        valid = false
-        next
-      end
 
       entry[:loan_amount] = loan_amount
     end

@@ -218,11 +218,6 @@ class ExpensesController < ApplicationController
       return false
     end
 
-    if amount.to_d > account.balance.to_d
-      expense.errors.add(:base, account.insufficient_balance_message(amount))
-      return false
-    end
-
     payment_method = payment_params[:payment_method].presence
     reference = payment_params[:payment_reference].presence
     occurred_at = parse_datetime(payment_params[:payment_occurred_at]) || Time.current

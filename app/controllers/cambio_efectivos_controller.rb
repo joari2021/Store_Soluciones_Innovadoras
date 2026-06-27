@@ -64,16 +64,6 @@ class CambioEfectivosController < ApplicationController
         return render json: { error: "No se encontraron las cajas en Bs configuradas." },
                       status: :unprocessable_entity
       end
-
-      if monto_caja_operativa > cash_box_account.balance.to_d
-        return render json: { error: "El monto en caja operativa excede el disponible." },
-                      status: :unprocessable_entity
-      end
-
-      if monto_caja_deposito > cash_deposit_account.balance.to_d
-        return render json: { error: "El monto en caja deposito excede el disponible." },
-                      status: :unprocessable_entity
-      end
     else
       if primary_bank_account.blank?
         return render json: { error: "No existe una cuenta bancaria principal en Bs para enviar fondos." },
@@ -82,11 +72,6 @@ class CambioEfectivosController < ApplicationController
 
       if (monto_cuenta_origen - efectivo_vendido).abs > 0.01
         return render json: { error: "El monto a enviar debe coincidir con el descuento en la cuenta origen." },
-                      status: :unprocessable_entity
-      end
-
-      if monto_cuenta_origen > primary_bank_account.balance.to_d
-        return render json: { error: "El monto a enviar excede el saldo disponible en la cuenta bancaria principal." },
                       status: :unprocessable_entity
       end
     end
@@ -314,16 +299,6 @@ class CambioEfectivosController < ApplicationController
         return render json: { error: "No se encontraron las cajas en Bs configuradas." },
                       status: :unprocessable_entity
       end
-
-      if monto_caja_operativa > cash_box_account.balance.to_d
-        return render json: { error: "El monto en caja operativa excede el disponible." },
-                      status: :unprocessable_entity
-      end
-
-      if monto_caja_deposito > cash_deposit_account.balance.to_d
-        return render json: { error: "El monto en caja deposito excede el disponible." },
-                      status: :unprocessable_entity
-      end
     else
       primary_bank_account = current_business.accounts.find_by(
         account_type: "bank_account",
@@ -338,11 +313,6 @@ class CambioEfectivosController < ApplicationController
 
       if (monto_cuenta_origen - efectivo_vendido).abs > 0.01
         return render json: { error: "El monto a enviar debe coincidir con el descuento en la cuenta origen." },
-                      status: :unprocessable_entity
-      end
-
-      if monto_cuenta_origen > primary_bank_account.balance.to_d
-        return render json: { error: "El monto a enviar excede el saldo disponible en la cuenta bancaria principal." },
                       status: :unprocessable_entity
       end
     end

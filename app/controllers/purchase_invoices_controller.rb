@@ -170,6 +170,7 @@ class PurchaseInvoicesController < ApplicationController
     purchase_attrs = purchase_invoice_params.to_h
     resolved_supplier_id = resolve_local_supplier_id_from_global(
       global_supplier_id: purchase_attrs['global_supplier_id'],
+      supplier_id: purchase_attrs['supplier_id'],
       enforce_presence: !intercompany_mode_requested? && requested_invoice_kind != PurchaseInvoice::INVOICE_KIND_INITIAL_INVENTORY,
     )
     purchase_attrs['supplier_id'] = resolved_supplier_id
@@ -189,6 +190,9 @@ class PurchaseInvoicesController < ApplicationController
 
     @purchase_invoice.valid?
     payment_context = build_invoice_payment_context(@purchase_invoice, source_business: source_business)
+    Rails.logger.error("DEBUG purchase_invoice_errors=#{@purchase_invoice.errors.full_messages.inspect}")
+    Rails.logger.error("DEBUG payment_context_payments=#{payment_context[:payments]&.size}")
+    Rails.logger.error("DEBUG payment_context_errors=#{@purchase_invoice.errors.full_messages.inspect}")
 
     if intercompany_mode_requested?
       if source_business.blank?
@@ -253,6 +257,7 @@ class PurchaseInvoicesController < ApplicationController
     update_attrs = purchase_invoice_params.to_h
     resolved_supplier_id = resolve_local_supplier_id_from_global(
       global_supplier_id: update_attrs['global_supplier_id'],
+      supplier_id: update_attrs['supplier_id'],
       enforce_presence: !@purchase_invoice.initial_inventory?,
     )
     update_attrs['supplier_id'] = resolved_supplier_id
@@ -516,36 +521,48 @@ class PurchaseInvoicesController < ApplicationController
     )
   end
 
-  def resolve_local_supplier_id_from_global(global_supplier_id:, enforce_presence:)
+  def resolve_local_supplier_id_from_global(global_supplier_id:, supplier_id: nil, enforce_presence:)
     normalized_global_id = global_supplier_id.to_s.strip
-    if normalized_global_id.blank?
-      @purchase_invoice&.errors&.add(:base, 'debe seleccionar un proveedor global.') if enforce_presence
+    normalized_supplier_id = supplier_id.to_s.strip
+
+    if normalized_global_id.present?
+      global_supplier = GlobalSupplier.find_by(id: normalized_global_id)
+      unless global_supplier
+        @purchase_invoice&.errors&.add(:base, 'el proveedor global seleccionado no es válido.')
+        return nil
+      end
+
+      local_supplier = current_business.suppliers.find_or_initialize_by(global_supplier_id: global_supplier.id)
+      if local_supplier.new_record?
+        local_supplier.assign_attributes(
+          nombre: global_supplier.name,
+          rif: global_supplier.rif,
+          telefono: global_supplier.phone,
+          telefono_pago_movil: global_supplier.mobile_payment_phone,
+          email: global_supplier.email,
+          direccion: global_supplier.address,
+          nro_cuenta: global_supplier.bank_account_number,
+          pricing_currency_priority: global_supplier.pricing_currency_priority,
+          default_exento: global_supplier.default_exento,
+        )
+        local_supplier.save!
+      end
+
+      return local_supplier.id
+    end
+
+    if normalized_supplier_id.present?
+      local_supplier = current_business.suppliers.find_by(id: normalized_supplier_id)
+      return local_supplier.id if local_supplier.present?
+
+      @purchase_invoice&.errors&.add(:base, 'el proveedor seleccionado no es válido.')
       return nil
     end
 
-    global_supplier = GlobalSupplier.find_by(id: normalized_global_id)
-    unless global_supplier
-      @purchase_invoice&.errors&.add(:base, 'el proveedor global seleccionado no es válido.')
-      return nil
+    if enforce_presence
+      @purchase_invoice&.errors&.add(:base, 'debe seleccionar un proveedor.')
     end
-
-    local_supplier = current_business.suppliers.find_or_initialize_by(global_supplier_id: global_supplier.id)
-    if local_supplier.new_record?
-      local_supplier.assign_attributes(
-        nombre: global_supplier.name,
-        rif: global_supplier.rif,
-        telefono: global_supplier.phone,
-        telefono_pago_movil: global_supplier.mobile_payment_phone,
-        email: global_supplier.email,
-        direccion: global_supplier.address,
-        nro_cuenta: global_supplier.bank_account_number,
-        pricing_currency_priority: global_supplier.pricing_currency_priority,
-        default_exento: global_supplier.default_exento,
-      )
-      local_supplier.save!
-    end
-
-    local_supplier.id
+    nil
   rescue ActiveRecord::RecordInvalid => e
     @purchase_invoice&.errors&.add(:base, e.record.errors.full_messages.to_sentence.presence || 'no se pudo preparar el proveedor local de compatibilidad.')
     nil
@@ -709,11 +726,6 @@ class PurchaseInvoicesController < ApplicationController
       invoice.errors.add(:base, 'Debes indicar la fecha de vencimiento para el saldo pendiente.')
     end
 
-    insufficient_messages = insufficient_payment_balance_messages(payments)
-    if insufficient_messages.any?
-      invoice.errors.add(:base, "Cuentas con saldo insuficiente: #{insufficient_messages.join(' ')}")
-    end
-
     {
       rows: rows_for_form,
       mark_pending_payment: mark_pending_payment,
@@ -778,13 +790,13 @@ class PurchaseInvoicesController < ApplicationController
         next
       end
 
+      payment_method_provided = row[:payment_method].to_s.strip.present?
       if account.account_type == 'bank_account' && payment_method.blank?
-        invoice.errors.add(:base, "Pago #{row_number}: selecciona un método de pago.")
-        next
+        payment_method = 'third_party_transfer'
       end
 
       reference = row[:reference].to_s.gsub(/\D/, '')
-      reference_required = payment_method.present? && payment_method != 'debit_card'
+      reference_required = payment_method_provided && payment_method != 'debit_card'
       if reference_required && !reference.match?(/\A\d{4}\z/)
         invoice.errors.add(:base, "Pago #{row_number}: la referencia debe tener exactamente 4 dígitos.")
         next

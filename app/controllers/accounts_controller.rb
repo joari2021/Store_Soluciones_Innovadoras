@@ -227,21 +227,6 @@ class AccountsController < ApplicationController
     end
 
     source_required = amount_from + (commission_account&.id == @account.id ? commission_amount : 0.to_d)
-    if !allow_negative_balance && source_required > @account.balance.to_d
-      return redirect_to accounts_path,
-                         alert: @account.insufficient_balance_message(source_required)
-    end
-
-    if commission_account&.id == target_account.id
-      target_available_after_transfer = target_account.balance.to_d + amount_to.to_d
-      if !allow_negative_balance && commission_amount > target_available_after_transfer
-        return redirect_to accounts_path,
-                           alert: target_account.insufficient_balance_message(
-                             commission_amount,
-                             available_balance: target_available_after_transfer,
-                           )
-      end
-    end
 
     caracas_now = Time.current.in_time_zone("America/Caracas")
     occurred_at = caracas_now.change(year: transfer_date.year, month: transfer_date.month, day: transfer_date.day)
@@ -317,10 +302,6 @@ class AccountsController < ApplicationController
     end
 
     total_debit = movement_kind == "expense" ? (amount + commission_amount).round(2) : 0.to_d
-
-    if movement_kind == "expense" && !allow_negative_balance && total_debit > @account.balance.to_d
-      return redirect_to account_path(@account), alert: @account.insufficient_balance_message(total_debit)
-    end
 
     caracas_now = Time.current.in_time_zone("America/Caracas")
     occurred_at = caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
