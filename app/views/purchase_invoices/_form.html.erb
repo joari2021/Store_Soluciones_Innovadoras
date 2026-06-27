@@ -517,7 +517,7 @@
     </table>
   </div>
   <% unless initial_inventory_mode %>
-    <% if factura.new_record? || action_name.in?(%w[edit update]) %>
+    <% if factura.new_record? || action_name == 'update' %>
       <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '', payment_method: '', include_commission: false, commission_amount: '', reference: '' }] %>
       <% payment_method_options = [
            ['Transferencia a tercero', 'third_party_transfer'],
