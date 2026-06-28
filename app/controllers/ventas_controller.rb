@@ -1954,7 +1954,12 @@ class VentasController < ApplicationController
       .where("account_movements.description LIKE ?", pattern)
       .find_each do |movement|
         settlement_ids << movement.account_settlement_id if movement.account_settlement_id.present?
+        account = movement.account
         movement.destroy!
+        # Forzar recálculo inmediato del balance de la cuenta asociada.
+        # En algunos flujos (Heroku / transacciones) el callback after_commit puede
+        # no reflejar el cambio en el momento esperado, así que actualizamos aquí.
+        account&.recalculate_balance!
       end
 
     settlement_ids.uniq.each do |settlement_id|
@@ -4018,7 +4023,11 @@ class VentasController < ApplicationController
   end
 
   def delete_payall_draft_movements!(draft)
-    payall_draft_movements_scope(draft).find_each(&:destroy!)
+    payall_draft_movements_scope(draft).find_each do |movement|
+      account = movement.account
+      movement.destroy!
+      account&.recalculate_balance!
+    end
   end
 
   def relabel_payall_draft_movements!(draft, venta)
