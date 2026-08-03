@@ -669,6 +669,37 @@ document.addEventListener(
       return;
     }
 
+    const deleteAccountMovementInPlace = async () => {
+      const movementId = String(deleteLink.dataset.movementId || "").trim();
+      if (!movementId) {
+        throw new Error("No se encontro el movimiento a eliminar.");
+      }
+
+      const csrfToken = document
+        .querySelector('meta[name="csrf-token"]')
+        ?.getAttribute("content");
+
+      const response = await fetch(deleteLink.href, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          "X-Requested-With": "XMLHttpRequest",
+          ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        },
+        credentials: "same-origin",
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.success !== true) {
+        throw new Error(payload.error || "No se pudo eliminar el movimiento.");
+      }
+
+      const row = document.querySelector(`tr[data-movement-id="${movementId}"]`);
+      if (row) {
+        row.remove();
+      }
+    };
+
     const submitDeleteForm = (extraFields = {}) => {
       const form = document.createElement("form");
       form.method = "post";
@@ -798,6 +829,33 @@ document.addEventListener(
       heightAuto: false,
     }).then((result) => {
       if (!result.isConfirmed) return;
+
+      const wantsAsyncDelete =
+        deleteType === "account_movement" &&
+        deleteLink.dataset.asyncDelete === "account_movement";
+
+      if (wantsAsyncDelete) {
+        deleteAccountMovementInPlace()
+          .then(() => {
+            Swal.fire({
+              title: "Eliminado!",
+              text: "El movimiento fue eliminado correctamente.",
+              icon: "success",
+              target: "body",
+              heightAuto: false,
+            });
+          })
+          .catch((error) => {
+            Swal.fire({
+              title: "Error",
+              text: error.message || "No se pudo eliminar el movimiento.",
+              icon: "error",
+              target: "body",
+              heightAuto: false,
+            });
+          });
+        return;
+      }
 
       submitDeleteForm();
     });

@@ -513,9 +513,29 @@ class AccountsController < ApplicationController
       @movement.destroy!
     end
 
-    redirect_to account_path(@account), notice: "Movimiento ##{movement_id} eliminado correctamente."
+    respond_to do |format|
+      format.html do
+        redirect_to account_path(@account), notice: "Movimiento ##{movement_id} eliminado correctamente."
+      end
+      format.json do
+        render json: {
+          success: true,
+          movement_id: movement_id,
+          message: "Movimiento ##{movement_id} eliminado correctamente.",
+        }, status: :ok
+      end
+    end
   rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::RecordInvalid => e
-    redirect_to account_path(@account), alert: e.message.presence || "No se pudo eliminar el movimiento."
+    message = e.message.presence || "No se pudo eliminar el movimiento."
+
+    respond_to do |format|
+      format.html do
+        redirect_to account_path(@account), alert: message
+      end
+      format.json do
+        render json: { success: false, error: message }, status: :unprocessable_entity
+      end
+    end
   end
 
   private
@@ -710,7 +730,14 @@ class AccountsController < ApplicationController
     @movement = @account.account_movements.find_by(id: params[:movement_id])
     return if @movement.present?
 
-    redirect_to account_path(@account), alert: "No se encontro el movimiento seleccionado."
+    respond_to do |format|
+      format.html do
+        redirect_to account_path(@account), alert: "No se encontro el movimiento seleccionado."
+      end
+      format.json do
+        render json: { success: false, error: "No se encontro el movimiento seleccionado." }, status: :not_found
+      end
+    end
   end
 
   def set_movement_for_time_edit
