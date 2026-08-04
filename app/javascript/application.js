@@ -694,7 +694,9 @@ document.addEventListener(
         throw new Error(payload.error || "No se pudo eliminar el movimiento.");
       }
 
-      const row = document.querySelector(`tr[data-movement-id="${movementId}"]`);
+      const row = document.querySelector(
+        `tr[data-movement-id="${movementId}"]`,
+      );
       if (row) {
         row.remove();
       }

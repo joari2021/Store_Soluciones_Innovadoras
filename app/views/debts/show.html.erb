@@ -1188,27 +1188,8 @@
                     if (!selectedOption || !selectedOption.value) return;
 
                     const requestedAmount = parseMaskedValue(amountMaskedInput);
-                    const availableBalance = Number.parseFloat(selectedOption.dataset.accountBalance || "0");
 
                     if (!Number.isFinite(requestedAmount) || requestedAmount <= 0) return;
-
-                    if (requestedAmount > availableBalance) {
-                      event.preventDefault();
-
-                      const message = "Saldo insuficiente en la cuenta seleccionada para registrar el prestamo.";
-                      if (window.Swal) {
-                        window.Swal.fire({
-                          icon: "warning",
-                          title: "Saldo insuficiente",
-                          text: message,
-                          confirmButtonText: "Entendido",
-                          heightAuto: false,
-                          scrollbarPadding: false
-                        });
-                      } else {
-                        window.alert(message);
-                      }
-                    }
                   });
                 }
 

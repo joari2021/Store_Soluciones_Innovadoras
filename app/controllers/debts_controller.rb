@@ -1226,13 +1226,15 @@ class DebtsController < ApplicationController
         amount: loan_amount,
         description: build_loan_movement_description(debt),
         occurred_at: loan_occurred_at_for(debt),
-        payment_method: account.account_type == 'bank_account' ? 'transfer' : nil
+        payment_method: account.account_type == 'bank_account' ? 'transfer' : nil,
+        allow_negative_balance: true
       }
 
       primary_movement = existing_movements.first
 
       if primary_movement.present?
         if primary_movement.account_id == account.id
+          primary_movement.allow_negative_balance = true
           primary_movement.update!(movement_attrs)
           existing_movements.drop(1).each(&:destroy!)
         else
