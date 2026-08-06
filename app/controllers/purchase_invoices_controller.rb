@@ -869,13 +869,15 @@ class PurchaseInvoicesController < ApplicationController
   def create_invoice_payment_movements!(invoice, payments)
     occurred_at = movement_occurred_at_for_invoice(invoice)
     description = build_invoice_payment_movement_description(invoice)
+    allow_negative_balance = allow_insufficient_payment_balance?
 
     payments.each do |entry|
       movement_attrs = {
         movement_kind: 'expense',
         amount: entry[:amount],
         description: description,
-        occurred_at: occurred_at
+        occurred_at: occurred_at,
+        allow_negative_balance: allow_negative_balance
       }
 
       if entry[:account].account_type == 'bank_account'
@@ -973,6 +975,10 @@ class PurchaseInvoicesController < ApplicationController
     return caracas_now if payment_date.blank?
 
     caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
+  end
+
+  def allow_insufficient_payment_balance?
+    ActiveModel::Type::Boolean.new.cast(params[:allow_insufficient_payment_balance])
   end
 
   def invoice_payment_rows_for_form

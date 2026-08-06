@@ -21,6 +21,7 @@
                 }
               } do |f| %>
   <%= hidden_field_tag :invoice_kind, factura.invoice_kind %>
+  <%= hidden_field_tag :allow_insufficient_payment_balance, '0', data: { invoice_allow_insufficient_balance: true } %>
   <% format_decimal_input = lambda do |value, scale = 2|
        next '' if value.nil?
 
@@ -2767,6 +2768,7 @@
       const totalPaidNode = paymentsBlock.querySelector('[data-invoice-payment-total-paid-bs="true"]');
       const totalPendingNode = paymentsBlock.querySelector('[data-invoice-payment-pending-bs="true"]');
       const hintNode = paymentsBlock.querySelector('[data-invoice-payment-hint="true"]');
+      const allowInsufficientBalanceInput = form.querySelector('[data-invoice-allow-insufficient-balance="true"]');
 
       if (!rowsContainer) return;
 
@@ -3010,51 +3012,51 @@
         }
       };
 
-      const validateInvoicePaymentsBeforeSubmit = () => {
+      const validateInvoicePaymentsBeforeSubmit = ({ allowInsufficientBalance = false } = {}) => {
         const summary = syncPaymentSummary();
         const rowsWithData = summary.rows.filter((entry) => entry.accountId || entry.amount > 0);
         const markPending = Boolean(pendingToggle?.checked);
 
         if (!markPending && rowsWithData.length === 0) {
           showWarning('Pagos requeridos', 'Debes registrar al menos un pago en Bs o marcar la factura como pendiente por pagar.');
-          return false;
+          return { valid: false };
         }
 
         for (let index = 0; index < rowsWithData.length; index += 1) {
           const entry = rowsWithData[index];
           if (!entry.accountId) {
             showWarning('Cuenta requerida', `Pago ${index + 1}: selecciona una cuenta en Bs.`);
-            return false;
+            return { valid: false };
           }
           if (!(entry.amount > 0)) {
             showWarning('Monto inválido', `Pago ${index + 1}: el monto debe ser mayor a cero.`);
-            return false;
+            return { valid: false };
           }
 
           if (intercompanyMode && !entry.sourceAccountId) {
             showWarning('Cuenta origen requerida', `Pago ${index + 1}: selecciona la cuenta a acreditar en negocio origen.`);
-            return false;
+            return { valid: false };
           }
 
           if (entry.accountType === 'bank_account' && !entry.paymentMethod) {
             showWarning('Metodo requerido', `Pago ${index + 1}: selecciona el metodo de pago.`);
-            return false;
+            return { valid: false };
           }
 
           if (entry.accountType === 'bank_account' && !paymentMethodHidesReference(entry.paymentMethod) && !/^\d{4}$/.test(entry.reference)) {
             showWarning('Referencia invalida', `Pago ${index + 1}: la referencia debe tener exactamente 4 digitos.`);
-            return false;
+            return { valid: false };
           }
         }
 
         if (summary.pendingPositive > 0.01 && !markPending) {
           showWarning('Saldo pendiente', 'El pago no cubre el total. Marca "Pendiente por pagar" para guardar el saldo como deuda.');
-          return false;
+          return { valid: false };
         }
 
         if (markPending && summary.pendingPositive > 0.01 && String(pendingDueInput?.value || '').trim() === '') {
           showWarning('Fecha requerida', 'Debes indicar la fecha de vencimiento para el saldo pendiente.');
-          return false;
+          return { valid: false };
         }
 
         const requiredByAccount = new Map();
@@ -3076,12 +3078,15 @@
           }
         });
 
-        if (shortageMessages.length > 0) {
-          showWarning('Saldo insuficiente en cuentas seleccionadas', shortageMessages.join(' '));
-          return false;
+        if (shortageMessages.length > 0 && !allowInsufficientBalance) {
+          return {
+            valid: false,
+            code: 'insufficient_balance',
+            message: shortageMessages.join(' '),
+          };
         }
 
-        return true;
+        return { valid: true };
       };
 
       const addPaymentRow = () => {
@@ -3287,11 +3292,58 @@
         observer.observe(invoiceTotalCell, { childList: true, characterData: true, subtree: true });
       }
 
-      form.addEventListener('submit', (event) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
         reindexRows();
         syncPendingDueVisibility();
-        if (!validateInvoicePaymentsBeforeSubmit()) {
-          event.preventDefault();
+
+        if (allowInsufficientBalanceInput) {
+          allowInsufficientBalanceInput.value = '0';
+        }
+
+        const validation = validateInvoicePaymentsBeforeSubmit();
+        if (validation.valid) {
+          form.submit();
+          return;
+        }
+
+        if (validation.code === 'insufficient_balance') {
+          let accepted = false;
+
+          if (window.Swal) {
+            const result = await window.Swal.fire({
+              icon: 'warning',
+              title: 'Saldo insuficiente en cuentas seleccionadas',
+              text: `${validation.message} Se registrara el pago y la cuenta puede quedar en negativo.`,
+              showCancelButton: true,
+              confirmButtonText: 'Continuar y registrar',
+              cancelButtonText: 'Cancelar',
+              reverseButtons: true,
+              target: 'body',
+              heightAuto: false,
+            });
+            accepted = !!result.isConfirmed;
+          } else {
+            accepted = window.confirm('Hay cuentas con saldo insuficiente. Si continuas, se registrara el pago y la cuenta puede quedar en negativo.');
+          }
+
+          if (!accepted) {
+            return;
+          }
+
+          if (allowInsufficientBalanceInput) {
+            allowInsufficientBalanceInput.value = '1';
+          }
+
+          const secondValidation = validateInvoicePaymentsBeforeSubmit({ allowInsufficientBalance: true });
+          if (!secondValidation.valid) {
+            if (allowInsufficientBalanceInput) {
+              allowInsufficientBalanceInput.value = '0';
+            }
+            return;
+          }
+
+          form.submit();
         }
       });
     };
