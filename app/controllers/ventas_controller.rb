@@ -5057,7 +5057,7 @@ class VentasController < ApplicationController
       next unless amount.positive?
 
       debt_attrs = {
-        name: "Cuota Cashea #{index + 1} venta ##{venta.id}",
+        name: "Cuota Cashea #{index + 1} #{original_cliente_label}",
         description: "Cuota Cashea #{index + 1} pendiente venta ##{venta.id} - Cliente: #{original_cliente_label} [VENTA:#{venta.id}] [CASHEA]",
         debt_kind: "receivable",
         amount: amount,
