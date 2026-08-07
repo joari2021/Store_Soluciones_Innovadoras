@@ -139,6 +139,7 @@ module ApplicationHelper
 
     if raw_description.match?(/\ACuota\s+Cashea\b/i)
       cleaned_cashea = raw_description
+                      .gsub(/\s+pendiente\s+venta\s+#\d+\s*-?/i, ' ')
                       .gsub(/\s*\[(?:VENTA):\d+\]/i, '')
                       .gsub(/\s*\[CASHEA\]/i, '')
       return cleaned_cashea.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
