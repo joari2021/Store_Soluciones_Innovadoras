@@ -5091,7 +5091,13 @@ class VentasController < ApplicationController
   def cashea_original_cliente_label(venta)
     cliente = venta.cliente
     cliente_name = cliente&.name.to_s.strip.presence || "Cliente sin nombre"
-    cliente_document = cliente&.document_label.to_s.strip.presence || "Sin identificacion"
+    document_prefix = cliente&.document_type.to_s.strip.downcase
+    document_number = cliente&.document_number.to_s.gsub(/[^0-9A-Za-z]/, "")
+    cliente_document = if document_prefix.present? && document_number.present?
+        "#{document_prefix}#{document_number}"
+      else
+        "Sin identificacion"
+      end
     "#{cliente_name} #{cliente_document}"
   end
 
