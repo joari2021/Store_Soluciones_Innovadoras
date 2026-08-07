@@ -5046,8 +5046,10 @@ class VentasController < ApplicationController
     return if installments.empty?
 
     issued_on = Time.use_zone("America/Caracas") { Time.zone.today }
+    cashea_cliente = cashea_receivable_cliente!
+    original_cliente_label = cashea_original_cliente_label(venta)
     group_token = if Debt.column_names.include?("group_token")
-        sale_debt_group_token_for(cliente_id: venta.cliente_id, currency: "USD")
+        sale_debt_group_token_for(cliente_id: cashea_cliente.id, currency: "USD")
       end
 
     installments.each_with_index do |installment, index|
@@ -5056,13 +5058,13 @@ class VentasController < ApplicationController
 
       debt_attrs = {
         name: "Cuota Cashea #{index + 1} venta ##{venta.id}",
-        description: "Cuota Cashea #{index + 1} pendiente venta ##{venta.id} [VENTA:#{venta.id}] [CASHEA]",
+        description: "Cuota Cashea #{index + 1} pendiente venta ##{venta.id} - Cliente: #{original_cliente_label} [VENTA:#{venta.id}] [CASHEA]",
         debt_kind: "receivable",
         amount: amount,
         currency: "USD",
         issued_on: issued_on,
         due_on: installment[:due_on],
-        cliente: venta.cliente,
+        cliente: cashea_cliente,
         venta: venta,
       }
 
@@ -5070,6 +5072,27 @@ class VentasController < ApplicationController
 
       current_business.debts.create!(debt_attrs)
     end
+  end
+
+  def cashea_receivable_cliente!
+    cashea_name = "Grupo Cashea VE, C.A"
+    existing_cliente = current_business.clientes.where("LOWER(name) = ?", cashea_name.downcase).order(:id).first
+    return existing_cliente if existing_cliente.present?
+
+    current_business.clientes.create!(
+      name: cashea_name,
+      document_type: "J",
+      document_number: nil,
+      phone: nil,
+      address: nil,
+    )
+  end
+
+  def cashea_original_cliente_label(venta)
+    cliente = venta.cliente
+    cliente_name = cliente&.name.to_s.strip.presence || "Cliente sin nombre"
+    cliente_document = cliente&.document_label.to_s.strip.presence || "Sin identificacion"
+    "#{cliente_name} #{cliente_document}"
   end
 
   def sale_debt_group_token_for(cliente_id:, currency:)
