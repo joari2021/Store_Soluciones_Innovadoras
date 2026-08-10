@@ -2605,19 +2605,17 @@ class VentasController < ApplicationController
   end
 
   def current_user_can_view_all_drafts?
-    return true if current_user_admin?
+    return true if current_user_admin? || current_user_manager?
     return false if customer_sales_mode?
 
-    active_cashier_id = current_open_shift_active_cashier_id
-    active_cashier_id.present? && active_cashier_id == Current.user&.id
+    false
   end
 
   def current_user_can_charge_sale_realtime?
-    return true if current_user_admin?
+    return true if current_user_admin? || current_user_manager?
     return true if customer_sales_mode?
 
-    active_cashier_id = current_open_shift_active_cashier_id
-    active_cashier_id.present? && active_cashier_id == Current.user&.id
+    false
   end
 
   def current_open_shift_active_cashier_id

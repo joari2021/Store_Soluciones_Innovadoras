@@ -318,17 +318,17 @@ class CashShiftsController < ApplicationController
   end
 
   def current_user_can_charge_sale_for_shift?(cash_shift)
-    return true if current_user_admin?
+    return true if current_user_admin? || current_user_manager?
     return false unless cash_shift&.open?
 
-    cash_shift.active_cashier_id.present? && cash_shift.active_cashier_id == Current.user&.id
+    false
   end
 
   def current_user_can_view_all_drafts_for_shift?(cash_shift)
-    return true if current_user_admin?
+    return true if current_user_admin? || current_user_manager?
     return false unless cash_shift&.open?
 
-    cash_shift.active_cashier_id.present? && cash_shift.active_cashier_id == Current.user&.id
+    false
   end
 
   def ensure_can_view_cash_shift!

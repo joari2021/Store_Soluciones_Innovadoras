@@ -3,7 +3,7 @@
 <% service_systems = @service_systems || [] %>
 <% can_use_cash_exchange = current_user_admin? || current_user_manager? %>
 <% customer_pos_mode = @customer_pos_mode == true %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-active-cashier-id="<%= @active_cashier&.id %>" data-active-cashier-name="<%= @active_cashier&.display_name.to_s %>" data-active-cashier-role-label="<%= @active_cashier&.role_label.to_s %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>">
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -712,9 +712,6 @@
       const isCustomerPosMode = root.dataset.customerPosMode === 'true';
       const canUseCashExchange = root.dataset.canUseCashExchange === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
-      let activeCashierId = Number(root.dataset.activeCashierId || 0);
-      let activeCashierName = String(root.dataset.activeCashierName || '').trim();
-      let activeCashierRoleLabel = String(root.dataset.activeCashierRoleLabel || '').trim();
 
       const productsDataEl = document.getElementById('ventas-products-data');
       if (!productsDataEl) return;
@@ -770,13 +767,9 @@
       const PAYMENT_SPECIAL_ORDER = ['biopago', 'pos', 'cashea'];
 
       const applyActiveCashierState = (activeCashier, options = {}) => {
-        const syncHeader = options.syncHeader !== false;
         const canChargeOverride = options.canChargeSale;
         const canViewAllDraftsOverride = options.canViewAllDrafts;
         const previousCanViewAllDrafts = canViewAllDrafts;
-        activeCashierId = Number(activeCashier?.id || 0);
-        activeCashierName = String(activeCashier?.name || '').trim();
-        activeCashierRoleLabel = String(activeCashier?.role_label || '').trim();
 
         if (typeof canChargeOverride === 'boolean') {
           canChargeSale = canChargeOverride;
@@ -788,65 +781,13 @@
           root.dataset.canViewAllDrafts = canViewAllDrafts ? 'true' : 'false';
         }
 
-        root.dataset.activeCashierId = activeCashierId > 0 ? String(activeCashierId) : '';
-        root.dataset.activeCashierName = activeCashierName;
-        root.dataset.activeCashierRoleLabel = activeCashierRoleLabel;
-
         if (!previousCanViewAllDrafts && canViewAllDrafts && activeDraftId && activeDraftCreatedById && currentUserId > 0 && activeDraftCreatedById !== currentUserId) {
           resetWorkingSale();
-        }
-
-        if (syncHeader && typeof window.updateHeaderCashierState === 'function') {
-          window.updateHeaderCashierState(activeCashier || null);
         }
       };
 
       const fetchActiveCashierStatus = async () => {
-        if (isCustomerPosMode) return null;
-        if (!hasOpenCashShift || !openCashShiftId || openCashShiftId <= 0) return null;
-        const response = await fetch(`/cierres-turno/${openCashShiftId}/active_cashier_status?t=${Date.now()}`, {
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-        });
-
-        if (!response.ok) return null;
-
-        const payload = await response.json();
-        applyActiveCashierState(payload.active_cashier || null, {
-          canChargeSale: payload.can_charge_sale === true,
-          canViewAllDrafts: payload.can_view_all_drafts === true,
-        });
-        return payload;
-      };
-
-      const onCashierUpdated = (event) => {
-        const payload = event?.detail || {};
-        if (!Object.prototype.hasOwnProperty.call(payload, 'activeCashier')) return;
-        applyActiveCashierState(payload.activeCashier || null, {
-          syncHeader: false,
-          canChargeSale: payload.canChargeSale,
-          canViewAllDrafts: payload.canViewAllDrafts,
-        });
-      };
-      window.addEventListener('cashier:updated', onCashierUpdated);
-
-      let cashierPollIntervalId = null;
-
-      const startCashierPolling = () => {
-        if (isCustomerPosMode) return;
-        if (!hasOpenCashShift || openCashShiftId <= 0) return;
-        if (cashierPollIntervalId) window.clearInterval(cashierPollIntervalId);
-
-        fetchActiveCashierStatus().catch(() => null);
-        cashierPollIntervalId = window.setInterval(() => {
-          fetchActiveCashierStatus().catch(() => null);
-        }, 15000);
-      };
-
-      const stopCashierPolling = () => {
-        if (!cashierPollIntervalId) return;
-        window.clearInterval(cashierPollIntervalId);
-        cashierPollIntervalId = null;
+        return null;
       };
 
       const onCashShiftOpened = (event) => {
@@ -859,18 +800,12 @@
         root.dataset.openShift = 'true';
         root.dataset.openShiftId = String(shiftId);
 
-        startCashierPolling();
-        fetchActiveCashierStatus().catch(() => null);
         renderCart();
       };
       window.addEventListener('cash_shift:opened', onCashShiftOpened);
 
-      startCashierPolling();
-
       document.addEventListener('turbo:before-cache', () => {
-        window.removeEventListener('cashier:updated', onCashierUpdated);
         window.removeEventListener('cash_shift:opened', onCashShiftOpened);
-        stopCashierPolling();
       }, { once: true });
 
       const accountTypeKey = (account) => String(account?.account_type || '').toLowerCase();
@@ -3376,13 +3311,6 @@
         }
       };
 
-      const currentActiveCashierLabel = () => {
-        const role = String(activeCashierRoleLabel || '').trim();
-        const name = String(activeCashierName || '').trim();
-        const full = [role, name].filter((part) => part.length > 0).join(' ');
-        return full || 'el cajero';
-      };
-
       const ensureCashExchangeAllowed = async () => {
         if (!canUseCashExchange) {
           if (window.Swal) {
@@ -3390,32 +3318,6 @@
               icon: 'warning',
               title: 'Acceso restringido',
               text: 'Solo encargado o administrador pueden usar la pasarela de cambios.',
-              heightAuto: false,
-            });
-          }
-          return false;
-        }
-
-        await fetchActiveCashierStatus().catch(() => null);
-
-        if (activeCashierId > 0 && currentUserId > 0 && activeCashierId !== currentUserId) {
-          if (window.Swal) {
-            await window.Swal.fire({
-              icon: 'warning',
-              title: 'Cajero diferente',
-              text: `Los cambios solo pueden ser procesados por ${currentActiveCashierLabel()}, quien es el cajero en este momento.`,
-              heightAuto: false,
-            });
-          }
-          return false;
-        }
-
-        if (!(activeCashierId > 0)) {
-          if (window.Swal) {
-            await window.Swal.fire({
-              icon: 'warning',
-              title: 'Sin cajero',
-              text: 'No hay un cajero asignado en este momento para procesar la pasarela de cambios.',
               heightAuto: false,
             });
           }
@@ -8060,67 +7962,12 @@
       const payButton = document.getElementById('ventas-pay-button');
       if (payButton) {
         payButton.addEventListener('click', async () => {
-          if (!isCustomerPosMode) {
-            await fetchActiveCashierStatus().catch(() => null);
-          }
-
-          const isActiveCashierUser = activeCashierId > 0 && currentUserId > 0 && activeCashierId === currentUserId;
-          const hasDifferentActiveCashier = activeCashierId > 0 && currentUserId > 0 && activeCashierId !== currentUserId;
-
-          if (!isCustomerPosMode && hasDifferentActiveCashier) {
+          if (!isCustomerPosMode && !canChargeSale) {
             if (window.Swal) {
-              const cashierRole = activeCashierRoleLabel || 'Cajero';
-              const cashierName = activeCashierName || 'Personal asignado';
-              const result = await window.Swal.fire({
-                icon: 'warning',
-                title: 'Cobro restringido',
-                html: `
-                  <p class="text-sm text-slate-600">Quien puede realizar el cobro es <strong>${escapeHtml(cashierName)}</strong> (${escapeHtml(cashierRole)}).</p>
-                  <p class="mt-2 text-sm text-slate-600">Indique si la venta esta lista para cobrar.</p>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Si, marcar lista',
-                cancelButtonText: 'No',
-                heightAuto: false,
-              });
-
-              if (result.isConfirmed) {
-                const markedReady = await persistDraft({
-                  clearAfterSave: true,
-                  silent: true,
-                  draftVisibility: 'visible',
-                  draftCheckoutStatus: 'ready',
-                });
-
-                if (markedReady) {
-                  window.Swal.fire({
-                    icon: 'success',
-                    title: 'Venta lista para cobro',
-                    text: 'El borrador se marco como listo para cobrar para el cajero.',
-                    heightAuto: false,
-                  });
-                } else {
-                  window.Swal.fire({
-                    icon: 'error',
-                    title: 'No se pudo marcar',
-                    text: 'Agrega productos al panel y vuelve a intentarlo.',
-                    heightAuto: false,
-                  });
-                }
-              }
-            }
-            return;
-          }
-
-          if (!isCustomerPosMode && !isActiveCashierUser && !canChargeSale) {
-            if (window.Swal) {
-              const cashierRole = activeCashierRoleLabel || 'Sin cargo asignado';
-              const cashierName = activeCashierName || 'Sin cajero';
               window.Swal.fire({
                 title: 'Cobro no autorizado',
                 html: `
-                  <p class="text-sm text-slate-600">El cajero autorizado para realizar el cobro es <strong>${escapeHtml(cashierRole)} - ${escapeHtml(cashierName)}</strong>.</p>
-                  <p class="mt-2 text-sm text-slate-600">Solo el encargado o administrador pueden cobrar ventas.</p>
+                  <p class="text-sm text-slate-600">Solo el encargado o administrador pueden cobrar ventas.</p>
                 `,
                 heightAuto: false,
               });
@@ -10950,12 +10797,7 @@
             renderDraftTags();
           }
 
-          if (Object.prototype.hasOwnProperty.call(data, 'active_cashier')) {
-            applyActiveCashierState(data.active_cashier || null, {
-              canChargeSale: data.can_charge_sale === true,
-              canViewAllDrafts: data.can_view_all_drafts === true,
-            });
-          } else if (Object.prototype.hasOwnProperty.call(data, 'can_charge_sale')) {
+          if (Object.prototype.hasOwnProperty.call(data, 'can_charge_sale')) {
             canChargeSale = data.can_charge_sale === true;
             root.dataset.canChargeSale = canChargeSale ? 'true' : 'false';
             if (Object.prototype.hasOwnProperty.call(data, 'can_view_all_drafts')) {
