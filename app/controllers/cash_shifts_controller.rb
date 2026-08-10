@@ -453,7 +453,7 @@ class CashShiftsController < ApplicationController
       .where(business_user_assignments: {
                business_id: current_business.id,
                active: true,
-               authorization_level: 'manager'
+               authorization_level: "manager",
              })
       .where(active: true)
       .order(Arel.sql("LOWER(COALESCE(full_name, username)) ASC"))
