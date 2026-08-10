@@ -2335,7 +2335,7 @@ class VentasController < ApplicationController
     productos = current_business
       .productos
       .includes(:product_variations, :stock_lot_variations, :stock_lots)
-      .order(:descripcion)
+      .order(:descripcion, :id)
 
     build_products_payload(productos)
   end
@@ -2521,7 +2521,7 @@ class VentasController < ApplicationController
       .productos
       .with_attached_foto
       .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
-      .order(:descripcion)
+      .order(:descripcion, :id)
   end
 
   def ventas_services_scope
