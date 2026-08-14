@@ -25,6 +25,48 @@
       </div>
     </div>
   </div>
+  <% if @available_source_businesses.any? %>
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5">
+      <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h2 class="text-base font-bold text-amber-900">Absorber inventario desde otro negocio</h2>
+          <p class="mt-1 text-sm text-amber-800">Fusiona inventario por lotes y costos sin crear factura por pagar. Puedes simular antes de ejecutar.</p>
+        </div>
+        <%= form_with url: absorb_source_inventory_purchase_invoices_path,
+                      method: :post,
+                      local: true,
+                      class: 'grid w-full gap-2 md:w-auto md:grid-cols-[minmax(12rem,1fr)_minmax(10rem,1fr)_auto_auto]' do %>
+          <div>
+            <label for="absorb_inventory_source_business_id" class="block text-xs font-semibold uppercase tracking-wider text-amber-800">Negocio origen</label>
+            <%= select_tag :source_business_id,
+                           options_for_select(@available_source_businesses.map { |business| [business.name, business.id] }),
+                           id: 'absorb_inventory_source_business_id',
+                           class: 'mt-1 block w-full rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-amber-500 focus:ring-amber-500' %>
+          </div>
+          <div>
+            <label for="absorb_inventory_mode" class="block text-xs font-semibold uppercase tracking-wider text-amber-800">Modo</label>
+            <%= select_tag :absorption_mode,
+                           options_for_select([['Mover inventario (recomendado)', 'move'], ['Copiar inventario', 'copy']], 'move'),
+                           id: 'absorb_inventory_mode',
+                           class: 'mt-1 block w-full rounded-xl border border-amber-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-amber-500 focus:ring-amber-500' %>
+          </div>
+          <button type="submit"
+                  name="dry_run"
+                  value="1"
+                  class="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-900 shadow-sm transition-colors hover:bg-amber-100 cursor-pointer">
+            Simular
+          </button>
+          <button type="submit"
+                  name="dry_run"
+                  value="0"
+                  class="inline-flex items-center justify-center rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-amber-800 cursor-pointer"
+                  data-confirm="Se transferira inventario por lotes desde el negocio origen al actual. Esta accion no crea factura por pagar.">
+            Ejecutar absorcion
+          </button>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
   <% if @has_purchase_invoices || @filters_applied %>
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
       <%= form_with url: purchase_invoices_path, method: :get, local: true, class: "grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,0.9fr)_repeat(2,minmax(0,0.8fr))_auto] lg:items-end" do %>

@@ -35,7 +35,7 @@ class PurchaseInvoicesController < ApplicationController
   before_action :set_purchase_invoice, only: %i[show edit update destroy]
   before_action :load_global_suppliers, only: %i[index new edit create update]
   before_action :load_bs_accounts, only: %i[new create edit update]
-  before_action :load_intercompany_options, only: %i[new create edit update]
+  before_action :load_intercompany_options, only: %i[index new create edit update]
   before_action :load_invoice_payment_summary, only: %i[show edit]
 
   def index
@@ -120,6 +120,43 @@ class PurchaseInvoicesController < ApplicationController
     end.compact
 
     render json: accounts
+  end
+
+  def absorb_source_inventory
+    source_business = absorption_source_business
+    if source_business.blank?
+      redirect_to purchase_invoices_path, alert: 'Debes seleccionar un negocio origen valido para absorber inventario.'
+      return
+    end
+
+    mode = normalize_absorption_mode(params[:absorption_mode])
+    dry_run = ActiveModel::Type::Boolean.new.cast(params[:dry_run])
+
+    result = Inventory::BusinessAbsorptionService.new(
+      destination_business: current_business,
+      source_business: source_business,
+      mode: mode,
+      dry_run: dry_run,
+    ).call
+
+    unless result.success?
+      redirect_to purchase_invoices_path, alert: result.errors.to_sentence.presence || 'No se pudo completar la absorcion de inventario.'
+      return
+    end
+
+    summary = result.summary || {}
+    base_message = dry_run ? 'Simulacion completada.' : 'Absorcion completada.'
+    detail_message = [
+      "Productos tocados: #{summary[:products_touched].to_i}",
+      "Productos nuevos: #{summary[:destination_products_created].to_i}",
+      "Lotes transferidos: #{summary[:lots_transferred].to_i}",
+      "Unidades transferidas: #{summary[:units_transferred].to_d.round(2).to_s('F')}",
+      "Lotes ya absorbidos omitidos: #{summary[:lots_skipped_existing].to_i}",
+    ].join(' | ')
+
+    redirect_to purchase_invoices_path, notice: "#{base_message} #{detail_message}"
+  rescue StandardError => e
+    redirect_to purchase_invoices_path, alert: "No se pudo completar la absorcion de inventario: #{e.message}"
   end
 
   def show
@@ -593,6 +630,48 @@ class PurchaseInvoicesController < ApplicationController
             end
 
     scope.where.not(id: current_business.id).find_by(id: source_id)
+  end
+
+  def absorption_source_business
+    source_id = params[:source_business_id].to_s.strip.to_i
+    return nil if source_id <= 0
+    return nil if current_business.present? && source_id == current_business.id
+
+    scope = if Current.user&.admin?
+              Business.where.not(id: current_business.id)
+            else
+              Business.none
+            end
+
+    scope.find_by(id: source_id)
+  end
+
+  def normalize_absorption_mode(value)
+    normalized = value.to_s.strip
+    return 'copy' if normalized == 'copy'
+
+    'move'
+  end
+
+  def absorption_source_business
+    source_id = params[:source_business_id].to_s.strip.to_i
+    return nil if source_id <= 0
+    return nil if current_business.present? && source_id == current_business.id
+
+    scope = if Current.user&.admin?
+              Business.where.not(id: current_business.id)
+            else
+              Business.none
+            end
+
+    scope.find_by(id: source_id)
+  end
+
+  def normalize_absorption_mode(value)
+    normalized = value.to_s.strip
+    return 'copy' if normalized == 'copy'
+
+    'move'
   end
 
   def requested_invoice_kind

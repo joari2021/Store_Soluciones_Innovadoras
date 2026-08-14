@@ -143,6 +143,7 @@ Rails.application.routes.draw do
   resources :purchase_invoices, path: 'facturas-compra' do
     collection do
       get :source_business_accounts, path: 'intercompany/source-business-accounts'
+      post :absorb_source_inventory, path: 'intercompany/absorber-inventario'
     end
   end
   resources :managers

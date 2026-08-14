@@ -1,0 +1,240 @@
+module Inventory
+  class BusinessAbsorptionService
+    Result = Struct.new(:success?, :summary, :errors)
+
+    def initialize(destination_business:, source_business:, mode:, dry_run: false)
+      @destination_business = destination_business
+      @source_business = source_business
+      @mode = normalize_mode(mode)
+      @dry_run = dry_run == true
+      @destination_products_cache = {}
+      @summary = {
+        products_touched: 0,
+        destination_products_created: 0,
+        lots_transferred: 0,
+        units_transferred: 0.to_d,
+        lots_skipped_existing: 0,
+      }
+    end
+
+    def call
+      return Result.new(false, nil, ['Negocio origen no valido.']) if @source_business.blank?
+      return Result.new(false, nil, ['Negocio destino no valido.']) if @destination_business.blank?
+      return Result.new(false, nil, ['El negocio origen y destino deben ser distintos.']) if @source_business.id == @destination_business.id
+
+      ActiveRecord::Base.transaction do
+        source_products.find_each do |source_product|
+          process_source_product(source_product)
+        end
+
+        raise ActiveRecord::Rollback if @dry_run
+      end
+
+      Result.new(true, @summary, [])
+    rescue ActiveRecord::RecordInvalid => e
+      message = if e.record&.errors&.any?
+                  e.record.errors.full_messages.to_sentence
+                else
+                  e.message
+                end
+      Result.new(false, nil, [message])
+    rescue StandardError => e
+      Result.new(false, nil, [e.message])
+    end
+
+    private
+
+    def source_products
+      @source_business.productos.includes(:categoria, :profit_margin_preset, :product_variations, stock_lots: :stock_lot_variations)
+    end
+
+    def process_source_product(source_product)
+      destination_product = resolve_destination_product!(source_product)
+      return if destination_product.blank?
+
+      touched = false
+
+      source_product.stock_lots.each do |source_lot|
+        quantity_to_transfer = source_lot.quantity_remaining.to_d
+        next unless quantity_to_transfer.positive?
+
+        if absorbed_lot_exists?(source_lot: source_lot, destination_product: destination_product)
+          @summary[:lots_skipped_existing] += 1
+          next
+        end
+
+        create_destination_lot_from_source!(
+          source_lot: source_lot,
+          destination_product: destination_product,
+          quantity_to_transfer: quantity_to_transfer,
+        )
+
+        touched = true
+        @summary[:lots_transferred] += 1
+        @summary[:units_transferred] = @summary[:units_transferred].to_d + quantity_to_transfer
+
+        next unless @mode == 'move'
+
+        source_lot.quantity_remaining = 0
+        source_lot.save!
+
+        source_lot.stock_lot_variations.each do |variation_row|
+          variation_row.quantity_remaining = 0
+          variation_row.save!
+        end
+      end
+
+      @summary[:products_touched] += 1 if touched
+    end
+
+    def resolve_destination_product!(source_product)
+      cached = @destination_products_cache[source_product.id]
+      return cached if cached.present?
+
+      destination_product = @destination_business.productos.find_by(
+        source_business_id: @source_business.id,
+        source_product_id: source_product.id,
+      )
+
+      if destination_product.blank?
+        destination_product = find_destination_product_by_definition(source_product)
+      end
+
+      if destination_product.present?
+        if destination_product.source_business_id.blank? || destination_product.source_product_id.blank?
+          destination_product.update!(
+            source_business_id: @source_business.id,
+            source_product_id: source_product.id,
+          )
+        end
+
+        sync_destination_variations!(destination_product: destination_product, source_product: source_product)
+        @destination_products_cache[source_product.id] = destination_product
+        return destination_product
+      end
+
+      destination_category = @destination_business.categorias.find_or_create_by!(
+        nombre: source_product.categoria&.nombre.presence || 'General',
+      )
+
+      destination_preset = nil
+      if source_product.profit_margin_preset.present?
+        destination_preset = @destination_business.profit_margin_presets.find_or_create_by!(
+          percentage: source_product.profit_margin_preset.percentage,
+        )
+      end
+
+      destination_product = @destination_business.productos.create!(
+        descripcion: source_product.descripcion,
+        presentation: source_product.presentation,
+        cant_presentation: source_product.cant_presentation,
+        allow_unpack: source_product.allow_unpack,
+        precio_venta_usd: source_product.precio_venta_usd,
+        porcentaje_ganancia: source_product.porcentaje_ganancia,
+        categoria: destination_category,
+        profit_margin_preset: destination_preset,
+        exento: source_product.respond_to?(:exento) ? source_product.exento : false,
+        source_business_id: @source_business.id,
+        source_product_id: source_product.id,
+      )
+
+      source_product.product_variations.order(:id).find_each do |source_variation|
+        destination_product.product_variations.create!(
+          description: source_variation.description,
+          safety_stock: source_variation.safety_stock,
+        )
+      end
+
+      if source_product.foto.attached?
+        destination_product.foto.attach(source_product.foto.blob) unless destination_product.foto.attached?
+      end
+
+      @summary[:destination_products_created] += 1
+      @destination_products_cache[source_product.id] = destination_product
+      destination_product
+    end
+
+    def find_destination_product_by_definition(source_product)
+      normalized_description = source_product.descripcion.to_s.strip.downcase
+      return nil if normalized_description.blank?
+
+      scope = @destination_business.productos
+               .where('LOWER(TRIM(productos.descripcion)) = ?', normalized_description)
+               .where(presentation: source_product.presentation)
+
+      if source_product.pack?
+        scope = scope.where(cant_presentation: source_product.cant_presentation)
+      end
+
+      scope.order(:id).first
+    end
+
+    def sync_destination_variations!(destination_product:, source_product:)
+      existing_by_name = destination_product.product_variations.index_by { |variation| variation.description.to_s.strip.downcase }
+
+      source_product.product_variations.order(:id).each do |source_variation|
+        normalized = source_variation.description.to_s.strip.downcase
+        next if existing_by_name.key?(normalized)
+
+        destination_product.product_variations.create!(
+          description: source_variation.description,
+          safety_stock: source_variation.safety_stock,
+        )
+      end
+    end
+
+    def create_destination_lot_from_source!(source_lot:, destination_product:, quantity_to_transfer:)
+      destination_lot = destination_product.stock_lots.create!(
+        purchase_invoice_item: nil,
+        supplier: nil,
+        supplier_name: source_lot.supplier_name.presence || source_lot.supplier_display_name,
+        description: absorbed_lot_description(source_lot),
+        unit_cost_usd: source_lot.unit_cost_usd.to_d,
+        quantity_in: quantity_to_transfer,
+        quantity_remaining: quantity_to_transfer,
+        purchased_at: source_lot.purchased_at || source_lot.created_at || Time.current,
+      )
+
+      source_rows = source_lot.stock_lot_variations.to_a
+      return if source_rows.empty?
+
+      variation_map = destination_product.product_variations.index_by { |variation| variation.description.to_s.strip.downcase }
+
+      source_rows.each do |source_row|
+        quantity = source_row.quantity_remaining.to_d
+        next unless quantity.positive?
+
+        destination_variation = variation_map[source_row.variation_description.to_s.strip.downcase]
+
+        destination_lot.stock_lot_variations.create!(
+          product_variation_id: destination_variation&.id,
+          variation_description: source_row.variation_description,
+          quantity_in: quantity,
+          quantity_remaining: quantity,
+        )
+      end
+
+      destination_lot.sync_quantity_remaining_from_variations! if destination_lot.stock_lot_variations.any?
+    end
+
+    def absorbed_lot_exists?(source_lot:, destination_product:)
+      marker = absorbed_lot_marker(source_lot)
+      destination_product.stock_lots.where(description: marker).exists?
+    end
+
+    def absorbed_lot_description(source_lot)
+      absorbed_lot_marker(source_lot)
+    end
+
+    def absorbed_lot_marker(source_lot)
+      "[ABSORB_STOCK][SRC_BIZ:#{@source_business.id}][SRC_PRODUCT:#{source_lot.producto_id}][SRC_LOT:#{source_lot.id}]"
+    end
+
+    def normalize_mode(mode)
+      value = mode.to_s.strip
+      return 'copy' if value == 'copy'
+
+      'move'
+    end
+  end
+end
