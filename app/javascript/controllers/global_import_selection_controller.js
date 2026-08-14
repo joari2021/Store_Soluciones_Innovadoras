@@ -3,6 +3,7 @@ import { Controller } from "@hotwired/stimulus";
 export default class extends Controller {
   static targets = [
     "checkbox",
+    "masterCheckbox",
     "toolbar",
     "count",
     "submitButton",
@@ -49,6 +50,24 @@ export default class extends Controller {
     this.refresh();
   }
 
+  toggleVisible(event) {
+    const masterCheckbox = event?.currentTarget;
+    const shouldSelect = Boolean(masterCheckbox?.checked);
+
+    this.checkboxTargets.forEach((checkbox) => {
+      const productId = this.checkboxProductId(checkbox);
+      if (!productId) return;
+
+      if (shouldSelect) {
+        this.selectedSet.add(productId);
+      } else {
+        this.selectedSet.delete(productId);
+      }
+    });
+
+    this.refresh();
+  }
+
   refresh() {
     this.checkboxTargets.forEach((checkbox) => {
       const productId = this.checkboxProductId(checkbox);
@@ -72,6 +91,24 @@ export default class extends Controller {
     }
 
     const selectedCount = this.selectedSet.size;
+
+    if (this.hasMasterCheckboxTarget) {
+      const visibleProductIds = this.checkboxTargets
+        .map((checkbox) => this.checkboxProductId(checkbox))
+        .filter((productId) => Boolean(productId));
+
+      const visibleCheckedCount = visibleProductIds.filter((productId) =>
+        this.selectedSet.has(productId),
+      ).length;
+
+      this.masterCheckboxTarget.checked =
+        visibleProductIds.length > 0 &&
+        visibleCheckedCount === visibleProductIds.length;
+      this.masterCheckboxTarget.indeterminate =
+        visibleCheckedCount > 0 &&
+        visibleCheckedCount < visibleProductIds.length;
+      this.masterCheckboxTarget.disabled = visibleProductIds.length === 0;
+    }
 
     if (this.hasCountTarget) {
       this.countTarget.textContent = String(selectedCount);
