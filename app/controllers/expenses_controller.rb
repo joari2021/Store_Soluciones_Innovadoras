@@ -253,13 +253,23 @@ class ExpensesController < ApplicationController
       occurred_at: occurred_at
     }
 
-    if account.account_type == 'bank_account' && method.present?
-      movement_attrs[:payment_method] = normalize_account_movement_method(method)
+    if account.account_type == 'bank_account'
+      movement_method = resolved_expense_payment_method_for_movement(account, method)
+      movement_attrs[:payment_method] = normalize_account_movement_method(movement_method) if movement_method.present?
     end
 
     movement_attrs[:reference] = reference.presence if reference.present?
 
     account.account_movements.create!(movement_attrs)
+  end
+
+  def resolved_expense_payment_method_for_movement(account, method)
+    submitted_method = method.to_s.strip
+    return submitted_method if submitted_method.present?
+
+    return 'transfer' if account.account_type == 'bank_account' && account.currency.to_s.upcase == 'USD'
+
+    nil
   end
 
   def build_movement_description(expense, _reference)
