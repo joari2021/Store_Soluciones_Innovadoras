@@ -1,6 +1,6 @@
 module Inventory
   class BusinessAbsorptionService
-    Result = Struct.new(:success?, :summary, :errors)
+    Result = Struct.new(:success?, :summary, :errors, :preview)
 
     def initialize(destination_business:, source_business:, mode:, dry_run: false)
       @destination_business = destination_business
@@ -15,12 +15,13 @@ module Inventory
         units_transferred: 0.to_d,
         lots_skipped_existing: 0,
       }
+      @preview_map = {}
     end
 
     def call
-      return Result.new(false, nil, ['Negocio origen no valido.']) if @source_business.blank?
-      return Result.new(false, nil, ['Negocio destino no valido.']) if @destination_business.blank?
-      return Result.new(false, nil, ['El negocio origen y destino deben ser distintos.']) if @source_business.id == @destination_business.id
+      return Result.new(false, nil, ['Negocio origen no valido.'], nil) if @source_business.blank?
+      return Result.new(false, nil, ['Negocio destino no valido.'], nil) if @destination_business.blank?
+      return Result.new(false, nil, ['El negocio origen y destino deben ser distintos.'], nil) if @source_business.id == @destination_business.id
 
       ActiveRecord::Base.transaction do
         source_products.find_each do |source_product|
@@ -30,16 +31,16 @@ module Inventory
         raise ActiveRecord::Rollback if @dry_run
       end
 
-      Result.new(true, @summary, [])
+      Result.new(true, @summary, [], build_preview_payload)
     rescue ActiveRecord::RecordInvalid => e
       message = if e.record&.errors&.any?
                   e.record.errors.full_messages.to_sentence
                 else
                   e.message
                 end
-      Result.new(false, nil, [message])
+      Result.new(false, nil, [message], nil)
     rescue StandardError => e
-      Result.new(false, nil, [e.message])
+      Result.new(false, nil, [e.message], nil)
     end
 
     private
@@ -51,6 +52,8 @@ module Inventory
     def process_source_product(source_product)
       destination_product = resolve_destination_product!(source_product)
       return if destination_product.blank?
+
+      ensure_preview_product_entry!(destination_product)
 
       touched = false
 
@@ -66,6 +69,12 @@ module Inventory
         create_destination_lot_from_source!(
           source_lot: source_lot,
           destination_product: destination_product,
+          quantity_to_transfer: quantity_to_transfer,
+        )
+
+        add_preview_incoming_lot!(
+          destination_product: destination_product,
+          source_lot: source_lot,
           quantity_to_transfer: quantity_to_transfer,
         )
 
@@ -85,6 +94,79 @@ module Inventory
       end
 
       @summary[:products_touched] += 1 if touched
+    end
+
+    def ensure_preview_product_entry!(destination_product)
+      key = preview_key_for(destination_product)
+      return if @preview_map.key?(key)
+
+      current_quantity = destination_product.stock_lots.sum(:quantity_remaining).to_d
+      current_lots = destination_product.stock_lots.order(:id).map do |lot|
+        {
+          lot_id: lot.id,
+          quantity_remaining: lot.quantity_remaining.to_d,
+          unit_cost_usd: lot.unit_cost_usd.to_d,
+          supplier_name: lot.supplier_name.presence || lot.supplier_display_name,
+          purchased_at: lot.purchased_at,
+        }
+      end
+
+      @preview_map[key] = {
+        product_key: key,
+        producto_id: destination_product.id,
+        descripcion: destination_product.descripcion,
+        presentation: destination_product.presentation,
+        cant_presentation: destination_product.cant_presentation,
+        current_quantity: current_quantity,
+        incoming_quantity: 0.to_d,
+        projected_quantity: current_quantity,
+        current_lots: current_lots,
+        incoming_lots: [],
+      }
+    end
+
+    def add_preview_incoming_lot!(destination_product:, source_lot:, quantity_to_transfer:)
+      key = preview_key_for(destination_product)
+      preview = @preview_map[key]
+      return if preview.blank?
+
+      source_variations = source_lot.stock_lot_variations.filter_map do |row|
+        quantity = row.quantity_remaining.to_d
+        next unless quantity.positive?
+
+        {
+          variation_description: row.variation_description,
+          quantity_remaining: quantity,
+        }
+      end
+
+      preview[:incoming_lots] << {
+        source_lot_id: source_lot.id,
+        quantity_remaining: quantity_to_transfer.to_d,
+        unit_cost_usd: source_lot.unit_cost_usd.to_d,
+        supplier_name: source_lot.supplier_name.presence || source_lot.supplier_display_name,
+        purchased_at: source_lot.purchased_at,
+        variations: source_variations,
+      }
+
+      preview[:incoming_quantity] = preview[:incoming_quantity].to_d + quantity_to_transfer.to_d
+      preview[:projected_quantity] = preview[:current_quantity].to_d + preview[:incoming_quantity].to_d
+    end
+
+    def build_preview_payload
+      {
+        products: @preview_map.values.sort_by do |row|
+          [row[:descripcion].to_s.downcase, row[:producto_id].to_i]
+        end,
+      }
+    end
+
+    def preview_key_for(destination_product)
+      if destination_product.id.present?
+        "product-#{destination_product.id}"
+      else
+        "new-product-#{destination_product.object_id}"
+      end
     end
 
     def resolve_destination_product!(source_product)
