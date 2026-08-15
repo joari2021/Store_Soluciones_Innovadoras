@@ -7983,7 +7983,7 @@
             if (!servicePartiesReady) return;
 
             const draftResponse = await persistDraft({
-              clearAfterSave: false,
+              clearAfterSave: true,
               silent: true,
               draftCheckoutStatus: 'ready',
             });
@@ -7995,7 +7995,7 @@
                 icon: 'success',
                 title: 'Venta lista para cobrar',
                 html: `
-                  <p class="text-sm text-slate-600">Se marco la venta como <strong>lista para cobrar</strong>. Ahora el encargado o administrador puede completar el cobro.</p>
+                  <p class="text-sm text-slate-600">Se marco la venta como <strong>lista para cobrar</strong>, se guardo el borrador y se cerro el panel actual.</p>
                 `,
                 heightAuto: false,
               });
