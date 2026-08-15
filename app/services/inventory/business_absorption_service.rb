@@ -70,6 +70,7 @@ module Inventory
 
         create_destination_lot_from_source!(
           source_lot: source_lot,
+          source_product: source_product,
           destination_product: destination_product,
           quantity_to_transfer: quantity_to_transfer,
         )
@@ -292,7 +293,7 @@ module Inventory
       end
     end
 
-    def create_destination_lot_from_source!(source_lot:, destination_product:, quantity_to_transfer:)
+    def create_destination_lot_from_source!(source_lot:, source_product:, destination_product:, quantity_to_transfer:)
       destination_lot = destination_product.stock_lots.create!(
         purchase_invoice_item: nil,
         supplier: nil,
@@ -308,16 +309,33 @@ module Inventory
       return if source_rows.empty?
 
       variation_map = destination_product.product_variations.index_by { |variation| variation.description.to_s.strip.downcase }
+      source_variation_map = source_product.product_variations.index_by(&:id)
 
       source_rows.each do |source_row|
         quantity = source_row.quantity_remaining.to_d
         next unless quantity.positive?
 
-        destination_variation = variation_map[source_row.variation_description.to_s.strip.downcase]
+        source_row_description = source_row.variation_description.to_s.strip
+        source_variation = source_variation_map[source_row.product_variation_id.to_i]
+        source_variation_description = source_variation&.description.to_s.strip
+
+        destination_variation = variation_map[source_row_description.downcase]
+        if destination_variation.blank? && source_variation_description.present?
+          destination_variation = variation_map[source_variation_description.downcase]
+        end
+
+        if destination_variation.blank?
+          candidate_description = source_variation_description.presence || source_row_description.presence || 'Variacion'
+          destination_variation = destination_product.product_variations.create!(
+            description: candidate_description,
+            safety_stock: source_variation&.safety_stock || 0,
+          )
+          variation_map[candidate_description.to_s.strip.downcase] = destination_variation
+        end
 
         destination_lot.stock_lot_variations.create!(
-          product_variation_id: destination_variation&.id,
-          variation_description: source_row.variation_description,
+          product_variation_id: destination_variation.id,
+          variation_description: destination_variation.description,
           quantity_in: quantity,
           quantity_remaining: quantity,
         )
