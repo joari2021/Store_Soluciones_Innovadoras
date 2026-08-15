@@ -226,12 +226,38 @@
                 <tr class="bg-slate-50/60">
                   <td colspan="9" class="px-4 py-3">
                     <% if incoming_lots.any? %>
+                      <% variation_totals = Hash.new(0.to_d) %>
+                      <% incoming_lots.each do |lot| %>
+                        <% lot_variations = Array(lot[:variations] || lot['variations']) %>
+                        <% if lot_variations.any? %>
+                          <% lot_variations.each do |entry| %>
+                            <% key = (entry[:variation_description] || entry['variation_description']).to_s.strip.presence || 'Sin variacion' %>
+                            <% qty = (entry[:quantity_remaining] || entry['quantity_remaining']).to_d %>
+                            <% variation_totals[key] += qty %>
+                          <% end %>
+                        <% else %>
+                          <% variation_totals['Sin variacion'] += (lot[:quantity_remaining] || lot['quantity_remaining']).to_d %>
+                        <% end %>
+                      <% end %>
+
+                      <div class="mb-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
+                        <p class="text-[11px] font-semibold uppercase tracking-wider text-cyan-800">Desglose agrupado por variacion</p>
+                        <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
+                          <% variation_totals.sort_by { |name, _qty| name.to_s.downcase }.each do |name, qty| %>
+                            <span class="inline-flex items-center rounded-full border border-cyan-200 bg-white px-2 py-0.5 font-semibold text-cyan-900">
+                              <%= name %>: <%= qty.round(2).to_s('F') %>
+                            </span>
+                          <% end %>
+                        </div>
+                      </div>
+
                       <div class="space-y-1 text-xs text-slate-700">
                         <% incoming_lots.each do |lot| %>
                           <% source_lot_id = lot[:source_lot_id] || lot['source_lot_id'] %>
                           <% quantity_remaining = (lot[:quantity_remaining] || lot['quantity_remaining']).to_d %>
                           <% unit_cost_usd = (lot[:unit_cost_usd] || lot['unit_cost_usd']).to_d %>
                           <% purchased_at = lot[:purchased_at] || lot['purchased_at'] %>
+                          <% lot_variations = Array(lot[:variations] || lot['variations']) %>
                           <div class="rounded-lg border border-slate-200 bg-white px-2 py-1">
                             Lote origen #<%= source_lot_id %> · Cant: <%= quantity_remaining.round(2).to_s('F') %> · Costo USD: <%= unit_cost_usd.round(4).to_s('F') %>
                             <% if purchased_at.present? %>
@@ -241,6 +267,17 @@
                                                   purchased_at.to_s
                                                 end %>
                               · Fecha: <%= purchased_date %>
+                            <% end %>
+                            <% if lot_variations.any? %>
+                              <div class="mt-1 text-[11px] text-slate-600">
+                                <% lot_variations.each do |entry| %>
+                                  <% variation_name = (entry[:variation_description] || entry['variation_description']).to_s.strip.presence || 'Sin variacion' %>
+                                  <% variation_qty = (entry[:quantity_remaining] || entry['quantity_remaining']).to_d %>
+                                  <span class="inline-flex items-center rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 mr-1 mb-1">
+                                    <%= variation_name %>: <%= variation_qty.round(2).to_s('F') %>
+                                  </span>
+                                <% end %>
+                              </div>
                             <% end %>
                           </div>
                         <% end %>
