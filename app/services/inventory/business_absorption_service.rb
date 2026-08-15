@@ -58,7 +58,7 @@ module Inventory
       touched = false
 
       source_product.stock_lots.each do |source_lot|
-        quantity_to_transfer = source_lot.quantity_remaining.to_d
+        quantity_to_transfer = source_lot_transfer_units(source_lot)
         next unless quantity_to_transfer.positive?
 
         if absorbed_lot_exists?(source_lot: source_lot, destination_product: destination_product)
@@ -100,9 +100,9 @@ module Inventory
       key = preview_key_for(destination_product)
       return if @preview_map.key?(key)
 
-      current_quantity = destination_product.stock_lots.sum(:quantity_remaining).to_d
+      current_quantity = destination_product.total_quantity.to_d
       current_lots = destination_product.stock_lots.order(:id).map do |lot|
-        lot_quantity = lot.quantity_remaining.to_d
+        lot_quantity = lot_quantity_units(lot)
         {
           lot_id: lot.id,
           quantity_remaining: lot_quantity,
@@ -333,6 +333,25 @@ module Inventory
       return 'copy' if value == 'copy'
 
       'move'
+    end
+
+    def source_lot_transfer_units(source_lot)
+      units_from_variations = source_lot.stock_lot_variations.sum { |row| row.quantity_remaining.to_d }
+      return units_from_variations if units_from_variations.positive?
+
+      lot_quantity_units(source_lot)
+    end
+
+    def lot_quantity_units(lot)
+      quantity = lot.quantity_remaining.to_d
+      item = lot.purchase_invoice_item
+      return quantity if item.blank?
+      return quantity if item.purchase_invoice&.intercompany?
+
+      units_per_pack = item.unid_x_pack.to_d
+      return quantity unless units_per_pack.positive?
+
+      quantity * units_per_pack
     end
   end
 end

@@ -10,7 +10,6 @@
       <% end %>
     </div>
   </div>
-
   <div class="rounded-2xl border border-amber-200 bg-white p-4 shadow-sm sm:p-5">
     <%= form_with url: absorb_source_inventory_purchase_invoices_path,
                   method: :post,
@@ -45,7 +44,6 @@
       </button>
     <% end %>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
     <div class="flex items-center justify-between gap-3">
       <div>
@@ -53,7 +51,6 @@
         <p class="mt-1 text-sm text-slate-500">Cada simulacion queda registrada para consulta posterior, sin afectar el inventario real.</p>
       </div>
     </div>
-
     <% if @absorption_simulations.present? %>
       <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200">
         <table class="min-w-full table-auto text-sm text-slate-700">
@@ -96,7 +93,6 @@
       </div>
     <% end %>
   </div>
-
   <% if @absorption_summary.present? %>
     <% simulation_label = if @absorption_simulated
                             'Resultado de simulacion guardado ahora (sin guardar cambios de inventario)'
@@ -137,7 +133,6 @@
         </div>
       </div>
     </div>
-
     <% preview_payload = @absorption_preview || {} %>
     <% preview_products = Array(preview_payload[:products] || preview_payload['products']) %>
     <% if preview_products.any? %>
@@ -185,7 +180,6 @@
                   <td class="px-4 py-3 text-right font-semibold"><%= format_money(projected_inventory_value, unit: '$') %></td>
                   <td class="px-4 py-3 text-right font-semibold"><%= format_money(projected_sale_value, unit: '$') %></td>
                 </tr>
-
                 <% incoming_lots = Array(row[:incoming_lots] || row['incoming_lots']) %>
                 <tr class="bg-slate-50/60">
                   <td colspan="9" class="px-4 py-3">
