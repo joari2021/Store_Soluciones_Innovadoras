@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_14_121000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_15_093000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -76,6 +76,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_14_121000) do
     t.integer "cashea_cotidiana_installments", default: 1, null: false
     t.decimal "cashea_min_purchase_usd", precision: 14, scale: 2, default: "0.0", null: false
     t.decimal "cashea_commission_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cashea_principal_min_purchase_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.jsonb "cashea_cotidiana_category_ids", default: [], null: false
     t.index ["account_type"], name: "index_accounts_on_account_type"
     t.index ["active"], name: "index_accounts_on_active"
     t.index ["business_id"], name: "index_accounts_on_business_id"

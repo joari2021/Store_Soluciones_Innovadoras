@@ -11,6 +11,7 @@ class AccountsController < ApplicationController
   before_action :set_movement_for_destroy, only: %i[destroy_movement]
   before_action :set_bcv_rate, only: %i[index show]
   before_action :load_bank_accounts_ves, only: %i[new edit create update]
+  before_action :load_cashea_categories, only: %i[new edit create update]
   before_action :load_transfer_support_data, only: %i[index]
   before_action :ensure_accounts_management_allowed!, only: %i[new create edit update destroy set_primary unset_primary
                                                                transfer register_payment edit_movement update_movement
@@ -1000,6 +1001,7 @@ class AccountsController < ApplicationController
       :cashea_line_mode,
       :cashea_cotidiana_installments,
       :cashea_min_purchase_usd,
+      :cashea_principal_min_purchase_usd,
       :cashea_commission_percent,
       :theme_color,
       :active,
@@ -1007,7 +1009,8 @@ class AccountsController < ApplicationController
       :notes,
       :logo,
       :small_logo,
-      :payment_method_image
+      :payment_method_image,
+      cashea_cotidiana_category_ids: []
     )
   end
 
@@ -1020,6 +1023,10 @@ class AccountsController < ApplicationController
     @bank_accounts_ves = current_business.accounts
                                          .where(account_type: "bank_account", currency: "VES")
                                          .order(:name)
+  end
+
+  def load_cashea_categories
+    @cashea_categories = current_business.categorias.order(:nombre)
   end
 
   def build_biopago_pending_close_info(account)

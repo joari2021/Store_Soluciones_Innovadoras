@@ -109,7 +109,23 @@
               placeholder="$ 0,00"
               class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500"
             />
-            <p class="mt-1 text-xs text-slate-500">Si la venta en USD alcanza este monto, se preguntara por Cashea al cobrar.</p>
+            <p class="mt-1 text-xs text-slate-500">Monto minimo para habilitar linea cotidiana.</p>
+          </div>
+          <div data-cashea-principal-min-wrapper="true">
+            <%= f.label :cashea_principal_min_purchase_usd, 'Compra minima linea principal (USD)', class: 'block text-sm font-medium text-slate-700' %>
+            <%= f.hidden_field :cashea_principal_min_purchase_usd, data: { cashea_principal_min_purchase_hidden: true } %>
+            <input
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              data-money-mask="true"
+              data-money-symbol="$"
+              data-cashea-principal-min-purchase-masked="true"
+              value="<%= number_with_precision(account.cashea_principal_min_purchase_usd.to_d, precision: 2, delimiter: '.', separator: ',') %>"
+              placeholder="$ 0,00"
+              class="mt-1 block w-full rounded-md border border-slate-300 px-3 py-2 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">Monto minimo para habilitar linea principal.</p>
           </div>
           <div>
             <%= f.label :cashea_commission_percent, 'Comision sobre el total (%)', class: 'block text-sm font-medium text-slate-700' %>
@@ -121,6 +137,26 @@
                                placeholder: '0.00' %>
             <p class="mt-1 text-xs text-slate-500">Por defecto es 0%. Este porcentaje se suma al total de la venta cuando se procesa con Cashea.</p>
           </div>
+          <div class="md:col-span-2" data-cashea-cotidiana-categories-wrapper="true">
+            <p class="block text-sm font-medium text-slate-700">Categorias exclusivas de linea cotidiana</p>
+            <p class="mt-1 text-xs text-slate-500">Si un producto de estas categorias esta en la compra, no se permitira usar linea principal.</p>
+            <div class="mt-2 max-h-44 overflow-auto rounded-lg border border-slate-200 bg-white p-2">
+              <% selected_cotidiana_categories = account.cashea_cotidiana_only_category_ids %>
+              <% if @cashea_categories.present? %>
+                <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                  <% @cashea_categories.each do |categoria| %>
+                    <label class="inline-flex items-center gap-2 rounded-md border border-slate-200 px-2 py-1 text-sm text-slate-700">
+                      <%= check_box_tag 'account[cashea_cotidiana_category_ids][]', categoria.id, selected_cotidiana_categories.include?(categoria.id), class: 'rounded border-slate-300 text-amber-600 focus:ring-amber-500' %>
+                      <span><%= categoria.nombre %></span>
+                    </label>
+                  <% end %>
+                </div>
+              <% else %>
+                <p class="text-xs text-slate-500">No hay categorias registradas en este negocio.</p>
+              <% end %>
+              <%= hidden_field_tag 'account[cashea_cotidiana_category_ids][]', '' %>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -128,212 +164,240 @@
       <%= f.label :currency, 'Moneda', class: 'block text-sm font-medium text-slate-700' %>
       <% if account.settlement_enabled? %>
         <div class="mt-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
-              <%= account.currency_label %>
-            </div>
-            <%= f.hidden_field :currency %>
-          <% else %>
-            <%= f.select :currency,
+          <%= account.currency_label %>
+        </div>
+        <%= f.hidden_field :currency %>
+      <% else %>
+        <%= f.select :currency,
                      options_for_select(Account.currency_options, account.currency),
                      {},
                      class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
-          <% end %>
-        </div>
-        <div class="col-span-2 md:col-span-1">
-          <%= f.label :balance, 'Saldo', class: 'block text-sm font-medium text-slate-700' %>
-          <%= f.number_field :balance,
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :balance, 'Saldo', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.number_field :balance,
                          step: 0.01,
                          class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                          placeholder: 'Ej: 1500.00' %>
-        </div>
-        <div class="col-span-2 md:col-span-1">
-          <%= f.label :theme_color, 'Color de la cuenta', class: 'block text-sm font-medium text-slate-700' %>
-          <%= f.select :theme_color,
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :theme_color, 'Color de la cuenta', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.select :theme_color,
                    options_for_select(Account.theme_color_options, account.theme_color),
                    {},
                    class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
-        </div>
-        <% if account.settlement_enabled? %>
-          <div class="col-span-2 md:col-span-1">
-            <%= f.label :settlement_account_id, 'Cuenta bancaria asignada', class: 'block text-sm font-medium text-slate-700' %>
-            <%= f.select :settlement_account_id,
+    </div>
+    <% if account.settlement_enabled? %>
+      <div class="col-span-2 md:col-span-1">
+        <%= f.label :settlement_account_id, 'Cuenta bancaria asignada', class: 'block text-sm font-medium text-slate-700' %>
+        <%= f.select :settlement_account_id,
                      options_from_collection_for_select(@bank_accounts_ves, :id, :name, account.settlement_account_id),
                      { include_blank: 'Selecciona una cuenta' },
                      class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
-            <p class="mt-1 text-xs text-slate-500">Solo cuentas bancarias en Bs.</p>
-          </div>
-        <% end %>
-        <div class="col-span-2 md:col-span-1">
-          <%= f.label :logo, 'Logo Mediano', class: 'block text-sm font-medium text-slate-700' %>
-          <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
-          <p class="mt-1 text-xs text-slate-500">Se muestra como imagen de fondo en las tarjetas del index de cuentas.</p>
-          <% if account.settlement_enabled? %>
-            <p class="mt-1 text-xs text-slate-400">En cuentas especiales puedes reemplazar la imagen predefinida si lo deseas.</p>
-          <% end %>
-          <% if account.logo.attached? %>
-            <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-              <%= image_tag account.logo, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para cuentas" %>
-              <span class="text-xs font-medium text-slate-600">Imagen actual</span>
-            </div>
-          <% end %>
-        </div>
-        <div class="col-span-2 md:col-span-1">
-          <%= f.label :small_logo, 'Imagen Logo Pequeño', class: 'block text-sm font-medium text-slate-700' %>
-          <%= f.file_field :small_logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
-          <p class="mt-1 text-xs text-slate-500">Puedes usarla como version compacta del logo para vistas pequenas.</p>
-          <% if account.small_logo.attached? %>
-            <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-              <%= image_tag account.small_logo, class: 'h-12 w-12 rounded-lg border border-slate-200 object-cover', alt: "Logo pequeño de #{account.name}" %>
-              <span class="text-xs font-medium text-slate-600">Imagen actual</span>
-            </div>
-          <% end %>
-        </div>
-        <div class="col-span-2 md:col-span-1">
-          <%= f.label :payment_method_image, 'Imagen Banner', class: 'block text-sm font-medium text-slate-700' %>
-          <%= f.file_field :payment_method_image, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
-          <p class="mt-1 text-xs text-slate-500">Se muestra en el modal de metodos de pago de ventas.</p>
-          <% if account.payment_method_image.attached? %>
-            <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
-              <%= image_tag account.payment_method_image, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para metodos de pago" %>
-              <span class="text-xs font-medium text-slate-600">Imagen actual</span>
-            </div>
-          <% end %>
-        </div>
-        <div class="col-span-2 md:col-span-1">
-          <label class="mt-7 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
-            <%= f.check_box :active, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
-            Cuenta activa
-          </label>
-        </div>
-        <div class="col-span-2">
-          <%= f.label :notes, 'Notas', class: 'block text-sm font-medium text-slate-700' %>
-          <%= f.text_area :notes, rows: 3, class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Notas opcionales de uso de esta cuenta.' %>
-        </div>
-      </div>
-      <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <%= link_to 'Volver', accounts_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
-        <%= f.submit account.persisted? ? 'Actualizar cuenta' : 'Guardar cuenta', class: 'inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 cursor-pointer' %>
+        <p class="mt-1 text-xs text-slate-500">Solo cuentas bancarias en Bs.</p>
       </div>
     <% end %>
-    <script>
-      (() => {
-        const initAccountFormPreview = () => {
-          const form = document.getElementById('account-form');
-          const preview = document.getElementById('account-preview');
-          if (!form || !preview) return;
-          if (form.dataset.previewBound === 'true') return;
-          form.dataset.previewBound = 'true';
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :logo, 'Logo Mediano', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.file_field :logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+      <p class="mt-1 text-xs text-slate-500">Se muestra como imagen de fondo en las tarjetas del index de cuentas.</p>
+      <% if account.settlement_enabled? %>
+        <p class="mt-1 text-xs text-slate-400">En cuentas especiales puedes reemplazar la imagen predefinida si lo deseas.</p>
+      <% end %>
+      <% if account.logo.attached? %>
+        <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <%= image_tag account.logo, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para cuentas" %>
+          <span class="text-xs font-medium text-slate-600">Imagen actual</span>
+        </div>
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :small_logo, 'Imagen Logo Pequeño', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.file_field :small_logo, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+      <p class="mt-1 text-xs text-slate-500">Puedes usarla como version compacta del logo para vistas pequenas.</p>
+      <% if account.small_logo.attached? %>
+        <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <%= image_tag account.small_logo, class: 'h-12 w-12 rounded-lg border border-slate-200 object-cover', alt: "Logo pequeño de #{account.name}" %>
+          <span class="text-xs font-medium text-slate-600">Imagen actual</span>
+        </div>
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <%= f.label :payment_method_image, 'Imagen Banner', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.file_field :payment_method_image, accept: 'image/*', class: 'mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200' %>
+      <p class="mt-1 text-xs text-slate-500">Se muestra en el modal de metodos de pago de ventas.</p>
+      <% if account.payment_method_image.attached? %>
+        <div class="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-2">
+          <%= image_tag account.payment_method_image, class: 'h-12 w-20 rounded-lg border border-slate-200 object-cover', alt: "Imagen de #{account.name} para metodos de pago" %>
+          <span class="text-xs font-medium text-slate-600">Imagen actual</span>
+        </div>
+      <% end %>
+    </div>
+    <div class="col-span-2 md:col-span-1">
+      <label class="mt-7 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700">
+        <%= f.check_box :active, class: 'rounded border-slate-300 text-sky-600 focus:ring-sky-500' %>
+        Cuenta activa
+      </label>
+    </div>
+    <div class="col-span-2">
+      <%= f.label :notes, 'Notas', class: 'block text-sm font-medium text-slate-700' %>
+      <%= f.text_area :notes, rows: 3, class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500', placeholder: 'Notas opcionales de uso de esta cuenta.' %>
+    </div>
+  </div>
+  <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+    <%= link_to 'Volver', accounts_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
+    <%= f.submit account.persisted? ? 'Actualizar cuenta' : 'Guardar cuenta', class: 'inline-flex items-center justify-center rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 cursor-pointer' %>
+  </div>
+<% end %>
+<script>
+  (() => {
+    const initAccountFormPreview = () => {
+      const form = document.getElementById('account-form');
+      const preview = document.getElementById('account-preview');
+      if (!form || !preview) return;
+      if (form.dataset.previewBound === 'true') return;
+      form.dataset.previewBound = 'true';
 
-          const typeSelect = form.querySelector('#account_account_type');
-          const currencySelect = form.querySelector('#account_currency');
-          const colorSelect = form.querySelector('#account_theme_color');
-          const previewCard = document.getElementById('account-preview-card');
-          const cashRoleField = document.getElementById('cash-role-field');
-          const cashRoleSelect = form.querySelector('#account_cash_role');
-          const casheaConfigField = document.getElementById('cashea-config-field');
-          const casheaLineModeSelect = form.querySelector('[data-cashea-line-mode="true"]');
-          const casheaCoutasInput = form.querySelector('[data-cashea-cotidiana-installments="true"]');
-          const casheaMinPurchaseHidden = form.querySelector('[data-cashea-min-purchase-hidden="true"]');
-          const casheaMinPurchaseMasked = form.querySelector('[data-cashea-min-purchase-masked="true"]');
-          const typeBadge = document.getElementById('account-preview-type-badge');
-          const currencyBadge = document.getElementById('account-preview-currency-badge');
-          const typeIconEl = document.getElementById('account-preview-type-icon');
-          const typeLabelEl = document.getElementById('account-preview-type-label');
-          const currencyIconEl = document.getElementById('account-preview-currency-icon');
-          const currencyLabelEl = document.getElementById('account-preview-currency-label');
-          const currencySymbolEl = document.getElementById('account-preview-currency-symbol');
+      const typeSelect = form.querySelector('#account_account_type');
+      const currencySelect = form.querySelector('#account_currency');
+      const colorSelect = form.querySelector('#account_theme_color');
+      const previewCard = document.getElementById('account-preview-card');
+      const cashRoleField = document.getElementById('cash-role-field');
+      const cashRoleSelect = form.querySelector('#account_cash_role');
+      const casheaConfigField = document.getElementById('cashea-config-field');
+      const casheaLineModeSelect = form.querySelector('[data-cashea-line-mode="true"]');
+      const casheaCoutasInput = form.querySelector('[data-cashea-cotidiana-installments="true"]');
+      const casheaMinPurchaseHidden = form.querySelector('[data-cashea-min-purchase-hidden="true"]');
+      const casheaMinPurchaseMasked = form.querySelector('[data-cashea-min-purchase-masked="true"]');
+      const casheaPrincipalMinPurchaseHidden = form.querySelector('[data-cashea-principal-min-purchase-hidden="true"]');
+      const casheaPrincipalMinPurchaseMasked = form.querySelector('[data-cashea-principal-min-purchase-masked="true"]');
+      const casheaPrincipalMinWrapper = form.querySelector('[data-cashea-principal-min-wrapper="true"]');
+      const casheaCotidianaCategoriesWrapper = form.querySelector('[data-cashea-cotidiana-categories-wrapper="true"]');
+      const typeBadge = document.getElementById('account-preview-type-badge');
+      const currencyBadge = document.getElementById('account-preview-currency-badge');
+      const typeIconEl = document.getElementById('account-preview-type-icon');
+      const typeLabelEl = document.getElementById('account-preview-type-label');
+      const currencyIconEl = document.getElementById('account-preview-currency-icon');
+      const currencyLabelEl = document.getElementById('account-preview-currency-label');
+      const currencySymbolEl = document.getElementById('account-preview-currency-symbol');
 
-          if (!typeSelect || !currencySelect || !colorSelect || !previewCard || !typeBadge || !currencyBadge || !typeIconEl || !typeLabelEl || !currencyIconEl || !currencyLabelEl || !currencySymbolEl) return;
+      if (!typeSelect || !currencySelect || !colorSelect || !previewCard || !typeBadge || !currencyBadge || !typeIconEl || !typeLabelEl || !currencyIconEl || !currencyLabelEl || !currencySymbolEl) return;
 
-          const typeIcons = JSON.parse(preview.dataset.typeIcons || '{}');
-          const typeLabels = JSON.parse(preview.dataset.typeLabels || '{}');
-          const currencyIcons = JSON.parse(preview.dataset.currencyIcons || '{}');
-          const currencyLabels = JSON.parse(preview.dataset.currencyLabels || '{}');
-          const currencySymbols = JSON.parse(preview.dataset.currencySymbols || '{}');
-          const themeCards = JSON.parse(preview.dataset.themeCards || '{}');
-          const themeTags = JSON.parse(preview.dataset.themeTags || '{}');
+      const typeIcons = JSON.parse(preview.dataset.typeIcons || '{}');
+      const typeLabels = JSON.parse(preview.dataset.typeLabels || '{}');
+      const currencyIcons = JSON.parse(preview.dataset.currencyIcons || '{}');
+      const currencyLabels = JSON.parse(preview.dataset.currencyLabels || '{}');
+      const currencySymbols = JSON.parse(preview.dataset.currencySymbols || '{}');
+      const themeCards = JSON.parse(preview.dataset.themeCards || '{}');
+      const themeTags = JSON.parse(preview.dataset.themeTags || '{}');
 
-          const cardBaseClasses = 'mt-3 rounded-xl border p-3 transition-colors';
-          const badgeBaseClasses = 'inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-semibold';
+      const cardBaseClasses = 'mt-3 rounded-xl border p-3 transition-colors';
+      const badgeBaseClasses = 'inline-flex items-center gap-2 rounded-lg px-2.5 py-1 text-sm font-semibold';
 
-          const refreshCashRole = () => {
-            if (!cashRoleField || !typeSelect) return;
-            const isCashBox = typeSelect.value === 'cash_box';
-            cashRoleField.style.display = isCashBox ? '' : 'none';
-            if (!isCashBox && cashRoleSelect) {
-              cashRoleSelect.value = '';
-            }
-          };
-
-          const refreshCasheaConfig = () => {
-            if (!casheaConfigField || !typeSelect) return;
-
-            const isCashea = typeSelect.value === 'cashea';
-            casheaConfigField.style.display = isCashea ? '' : 'none';
-
-            if (!isCashea) return;
-            if (!casheaLineModeSelect || !casheaCoutasInput) return;
-
-            const isPrincipal = casheaLineModeSelect.value === 'principal';
-            casheaCoutasInput.readOnly = isPrincipal;
-            if (isPrincipal) casheaCoutasInput.value = '3';
-          };
-
-          const parseMoney = (value) => {
-            const sanitized = String(value || '').replace(/[^\d,.-]/g, '').replace(',', '.');
-            const parsed = Number.parseFloat(sanitized);
-            return Number.isFinite(parsed) ? parsed : 0;
-          };
-
-          const syncCasheaMinPurchase = () => {
-            if (!casheaMinPurchaseHidden || !casheaMinPurchaseMasked) return;
-            const parsed = parseMoney(casheaMinPurchaseMasked.value);
-            casheaMinPurchaseHidden.value = parsed > 0 ? parsed.toFixed(2) : '0';
-          };
-
-          const refreshPreview = () => {
-            const selectedType = typeSelect.value;
-            const selectedCurrency = currencySelect.value;
-            const selectedColor = colorSelect.value;
-
-            typeIconEl.setAttribute('data-lucide', typeIcons[selectedType] || 'wallet');
-            typeLabelEl.textContent = typeLabels[selectedType] || 'Cuenta';
-
-            currencyIconEl.setAttribute('data-lucide', currencyIcons[selectedCurrency] || 'coins');
-            currencyLabelEl.textContent = currencyLabels[selectedCurrency] || selectedCurrency;
-            currencySymbolEl.textContent = currencySymbols[selectedCurrency] || selectedCurrency;
-
-            previewCard.className = `${cardBaseClasses} ${themeCards[selectedColor] || themeCards.sky || ''}`;
-            typeBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
-            currencyBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
-
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
-              window.lucide.createIcons();
-            }
-          };
-
-          typeSelect.addEventListener('change', refreshPreview);
-          typeSelect.addEventListener('change', refreshCashRole);
-          typeSelect.addEventListener('change', refreshCasheaConfig);
-          if (casheaLineModeSelect) {
-            casheaLineModeSelect.addEventListener('change', refreshCasheaConfig);
-          }
-          if (casheaMinPurchaseMasked) {
-            casheaMinPurchaseMasked.addEventListener('input', syncCasheaMinPurchase);
-            casheaMinPurchaseMasked.addEventListener('blur', syncCasheaMinPurchase);
-          }
-          form.addEventListener('submit', syncCasheaMinPurchase);
-          currencySelect.addEventListener('change', refreshPreview);
-          colorSelect.addEventListener('change', refreshPreview);
-          refreshPreview();
-          refreshCashRole();
-          refreshCasheaConfig();
-          syncCasheaMinPurchase();
-        };
-
-        if (!window.__accountFormPreviewListenersBound) {
-          window.__accountFormPreviewListenersBound = true;
-          document.addEventListener('turbo:load', initAccountFormPreview);
-          document.addEventListener('DOMContentLoaded', initAccountFormPreview);
+      const refreshCashRole = () => {
+        if (!cashRoleField || !typeSelect) return;
+        const isCashBox = typeSelect.value === 'cash_box';
+        cashRoleField.style.display = isCashBox ? '' : 'none';
+        if (!isCashBox && cashRoleSelect) {
+          cashRoleSelect.value = '';
         }
-      })();
-    </script>
+      };
+
+      const refreshCasheaConfig = () => {
+        if (!casheaConfigField || !typeSelect) return;
+
+        const isCashea = typeSelect.value === 'cashea';
+        casheaConfigField.style.display = isCashea ? '' : 'none';
+
+        if (!isCashea) return;
+        if (!casheaLineModeSelect || !casheaCoutasInput) return;
+
+        const lineMode = casheaLineModeSelect.value;
+        const isPrincipal = lineMode === 'principal';
+        const supportsCotidiana = lineMode === 'cotidiana' || lineMode === 'both';
+        const supportsPrincipal = lineMode === 'principal' || lineMode === 'both';
+        casheaCoutasInput.readOnly = isPrincipal;
+        if (isPrincipal) casheaCoutasInput.value = '3';
+
+        if (casheaPrincipalMinWrapper) {
+          casheaPrincipalMinWrapper.style.display = supportsPrincipal ? '' : 'none';
+        }
+        if (casheaCotidianaCategoriesWrapper) {
+          casheaCotidianaCategoriesWrapper.style.display = supportsCotidiana ? '' : 'none';
+        }
+      };
+
+      const parseMoney = (value) => {
+        const sanitized = String(value || '').replace(/[^\d,.-]/g, '').replace(',', '.');
+        const parsed = Number.parseFloat(sanitized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      const syncCasheaMinPurchase = () => {
+        if (!casheaMinPurchaseHidden || !casheaMinPurchaseMasked) return;
+        const parsed = parseMoney(casheaMinPurchaseMasked.value);
+        casheaMinPurchaseHidden.value = parsed > 0 ? parsed.toFixed(2) : '0';
+      };
+
+      const syncCasheaPrincipalMinPurchase = () => {
+        if (!casheaPrincipalMinPurchaseHidden || !casheaPrincipalMinPurchaseMasked) return;
+        const parsed = parseMoney(casheaPrincipalMinPurchaseMasked.value);
+        casheaPrincipalMinPurchaseHidden.value = parsed > 0 ? parsed.toFixed(2) : '0';
+      };
+
+      const refreshPreview = () => {
+        const selectedType = typeSelect.value;
+        const selectedCurrency = currencySelect.value;
+        const selectedColor = colorSelect.value;
+
+        typeIconEl.setAttribute('data-lucide', typeIcons[selectedType] || 'wallet');
+        typeLabelEl.textContent = typeLabels[selectedType] || 'Cuenta';
+
+        currencyIconEl.setAttribute('data-lucide', currencyIcons[selectedCurrency] || 'coins');
+        currencyLabelEl.textContent = currencyLabels[selectedCurrency] || selectedCurrency;
+        currencySymbolEl.textContent = currencySymbols[selectedCurrency] || selectedCurrency;
+
+        previewCard.className = `${cardBaseClasses} ${themeCards[selectedColor] || themeCards.sky || ''}`;
+        typeBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
+        currencyBadge.className = `${badgeBaseClasses} ${themeTags[selectedColor] || themeTags.sky || ''}`;
+
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          window.lucide.createIcons();
+        }
+      };
+
+      typeSelect.addEventListener('change', refreshPreview);
+      typeSelect.addEventListener('change', refreshCashRole);
+      typeSelect.addEventListener('change', refreshCasheaConfig);
+      if (casheaLineModeSelect) {
+        casheaLineModeSelect.addEventListener('change', refreshCasheaConfig);
+      }
+      if (casheaMinPurchaseMasked) {
+        casheaMinPurchaseMasked.addEventListener('input', syncCasheaMinPurchase);
+        casheaMinPurchaseMasked.addEventListener('blur', syncCasheaMinPurchase);
+      }
+      if (casheaPrincipalMinPurchaseMasked) {
+        casheaPrincipalMinPurchaseMasked.addEventListener('input', syncCasheaPrincipalMinPurchase);
+        casheaPrincipalMinPurchaseMasked.addEventListener('blur', syncCasheaPrincipalMinPurchase);
+      }
+      form.addEventListener('submit', () => {
+        syncCasheaMinPurchase();
+        syncCasheaPrincipalMinPurchase();
+      });
+      currencySelect.addEventListener('change', refreshPreview);
+      colorSelect.addEventListener('change', refreshPreview);
+      refreshPreview();
+      refreshCashRole();
+      refreshCasheaConfig();
+      syncCasheaMinPurchase();
+      syncCasheaPrincipalMinPurchase();
+    };
+
+    if (!window.__accountFormPreviewListenersBound) {
+      window.__accountFormPreviewListenersBound = true;
+      document.addEventListener('turbo:load', initAccountFormPreview);
+      document.addEventListener('DOMContentLoaded', initAccountFormPreview);
+    }
+  })();
+</script>

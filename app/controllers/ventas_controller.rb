@@ -72,6 +72,8 @@ class VentasController < ApplicationController
         cashea_line_mode: account.cashea_line_mode,
         cashea_cotidiana_installments: account.cashea_cotidiana_installments,
         cashea_min_purchase_usd: account.cashea_min_purchase_usd.to_d.to_f,
+        cashea_principal_min_purchase_usd: account.cashea_principal_min_purchase_usd.to_d.to_f,
+        cashea_cotidiana_category_ids: account.cashea_cotidiana_only_category_ids,
         cashea_commission_percent: account.cashea_commission_percent.to_d.to_f,
         payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
         small_logo_url: (url_for(account.small_logo) if account.small_logo.attached?),
@@ -566,6 +568,7 @@ class VentasController < ApplicationController
     cashea_sale = {
       enabled: false,
       account_id: nil,
+      selected_line: nil,
       initial_usd: 0.to_d,
       min_purchase_usd: 0.to_d,
       commission_percent: 0.to_d,
@@ -1118,9 +1121,57 @@ class VentasController < ApplicationController
         return render json: { error: "No se pudo convertir el total de la venta a USD para procesar Cashea." }, status: :unprocessable_entity
       end
 
-      if cashea_sale[:min_purchase_usd].to_d.positive? && total_due_usd < cashea_sale[:min_purchase_usd].to_d
-        return render json: { error: "La venta no alcanza el minimo requerido para Cashea." }, status: :unprocessable_entity
+      selected_line = cashea_sale[:selected_line].to_s
+      unless %w[cotidiana principal].include?(selected_line)
+        return render json: { error: "Debes seleccionar una linea Cashea valida." }, status: :unprocessable_entity
       end
+
+      supports_cotidiana = cashea_account.cashea_supports_cotidiana?
+      supports_principal = cashea_account.cashea_supports_principal?
+
+      if selected_line == 'cotidiana' && !supports_cotidiana
+        return render json: { error: "La cuenta Cashea no tiene habilitada la linea cotidiana." }, status: :unprocessable_entity
+      end
+
+      if selected_line == 'principal' && !supports_principal
+        return render json: { error: "La cuenta Cashea no tiene habilitada la linea principal." }, status: :unprocessable_entity
+      end
+
+      selected_product_ids = items.filter_map do |item|
+        next unless item.is_a?(Hash) || item.respond_to?(:to_h)
+
+        item_hash = item.respond_to?(:to_h) ? item.to_h : item
+        product_id = item_hash['product_id'] || item_hash[:product_id]
+        parsed_id = product_id.to_i
+        parsed_id.positive? ? parsed_id : nil
+      end.uniq
+
+      product_category_pairs = current_business.productos.where(id: selected_product_ids).pluck(:categoria_id, :id)
+      selected_category_ids = product_category_pairs.map(&:first).compact.uniq
+
+      cotidiana_exclusive_ids = cashea_account.cashea_cotidiana_only_category_ids
+      has_cotidiana_exclusive_category = (selected_category_ids & cotidiana_exclusive_ids).any?
+
+      if selected_line == 'principal' && has_cotidiana_exclusive_category
+        category_names = current_business.categorias.where(id: selected_category_ids & cotidiana_exclusive_ids).order(:nombre).pluck(:nombre)
+        categories_text = category_names.join(', ')
+        return render json: {
+          error: "Esta compra contiene categorias exclusivas de linea cotidiana#{categories_text.present? ? ": #{categories_text}" : ''}."
+        }, status: :unprocessable_entity
+      end
+
+      min_for_selected_line = if selected_line == 'principal'
+                                cashea_account.cashea_principal_min_purchase_usd.to_d
+                              else
+                                cashea_account.cashea_min_purchase_usd.to_d
+                              end
+
+      if min_for_selected_line.positive? && total_due_usd < min_for_selected_line
+        return render json: { error: "La venta no alcanza el minimo requerido para la linea Cashea seleccionada." }, status: :unprocessable_entity
+      end
+
+      cashea_sale[:selected_line] = selected_line
+      cashea_sale[:min_purchase_usd] = min_for_selected_line.round(2)
 
       cashea_commission_percent = cashea_account.cashea_commission_percent.to_d.round(2)
       cashea_commission_percent = 0.to_d if cashea_commission_percent.negative?
@@ -1265,6 +1316,7 @@ class VentasController < ApplicationController
           notes_payload["cashea_sale"] = {
             "enabled" => true,
             "account_id" => cashea_sale[:account_id],
+            "selected_line" => cashea_sale[:selected_line],
             "initial_usd" => cashea_sale[:initial_usd].to_d.round(2).to_f,
             "min_purchase_usd" => cashea_sale[:min_purchase_usd].to_d.round(2).to_f,
             "commission_percent" => cashea_commission_percent.to_d.round(2).to_f,
@@ -2386,6 +2438,8 @@ class VentasController < ApplicationController
         unit_cost_usd: producto.highest_active_lot_unit_cost_usd&.to_d&.round(4)&.to_f,
         presentation: producto.presentation.to_s,
         presentation_suffix: producto.presentation_display_suffix.to_s,
+        category_id: producto.categoria_id,
+        category_name: producto.categoria&.nombre.to_s,
         exento: producto.respond_to?(:exento?) ? producto.exento? : false,
         available_total: total_units.to_f,
         variations: variations_payload,
@@ -3264,6 +3318,7 @@ class VentasController < ApplicationController
       cashea: [
         :enabled,
         :account_id,
+        :selected_line,
         :initial_usd,
         :min_purchase_usd,
         :commission_percent,
@@ -4575,6 +4630,7 @@ class VentasController < ApplicationController
     source = raw_payload.respond_to?(:to_h) ? raw_payload.to_h : {}
     enabled_value = source["enabled"] || source[:enabled]
     account_id_value = source["account_id"] || source[:account_id]
+    selected_line_value = source["selected_line"] || source[:selected_line]
     initial_value = source["initial_usd"] || source[:initial_usd]
     min_purchase_value = source["min_purchase_usd"] || source[:min_purchase_usd]
     commission_percent_value = source["commission_percent"] || source[:commission_percent]
@@ -4600,6 +4656,7 @@ class VentasController < ApplicationController
     {
       enabled: ActiveModel::Type::Boolean.new.cast(enabled_value),
       account_id: account_id_value.to_s.strip.presence&.to_i,
+      selected_line: selected_line_value.to_s.strip.downcase.presence,
       initial_usd: parse_decimal(initial_value, default: 0).to_d.round(2),
       min_purchase_usd: parse_decimal(min_purchase_value, default: 0).to_d.round(2),
       commission_percent: parse_decimal(commission_percent_value, default: 0).to_d.round(2),

@@ -239,7 +239,6 @@
                           <% variation_totals['Sin variacion'] += (lot[:quantity_remaining] || lot['quantity_remaining']).to_d %>
                         <% end %>
                       <% end %>
-
                       <div class="mb-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2">
                         <p class="text-[11px] font-semibold uppercase tracking-wider text-cyan-800">Desglose agrupado por variacion</p>
                         <div class="mt-1 flex flex-wrap gap-1.5 text-xs">
@@ -250,7 +249,6 @@
                           <% end %>
                         </div>
                       </div>
-
                       <div class="space-y-1 text-xs text-slate-700">
                         <% incoming_lots.each do |lot| %>
                           <% source_lot_id = lot[:source_lot_id] || lot['source_lot_id'] %>

@@ -5359,7 +5359,7 @@
 
         emptyState?.classList.add('hidden');
         if (payButton) {
-          if (hasOpenCashShift) {
+          if (hasOpenCashShift || !canChargeSale) {
             payButton.classList.remove('opacity-60', 'cursor-not-allowed');
             payButton.disabled = false;
           } else {
@@ -7572,6 +7572,7 @@
           payload.cashea = {
             enabled: true,
             account_id: casheaSale.account_id,
+            selected_line: casheaSale.selected_line,
             initial_usd: casheaSale.initial_usd,
             min_purchase_usd: casheaSale.min_purchase_usd,
             commission_percent: casheaSale.commission_percent,
@@ -7963,11 +7964,38 @@
       if (payButton) {
         payButton.addEventListener('click', async () => {
           if (!isCustomerPosMode && !canChargeSale) {
+            if (cart.size === 0) {
+              if (window.Swal) {
+                window.Swal.fire({
+                  icon: 'info',
+                  title: 'Orden vacia',
+                  text: 'Agrega productos o servicios antes de marcar lista para cobrar.',
+                  heightAuto: false,
+                });
+              }
+              return;
+            }
+
+            const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
+            if (!checkoutDecisionsReady) return;
+
+            const servicePartiesReady = await ensureServicePartiesForCheckout();
+            if (!servicePartiesReady) return;
+
+            const draftResponse = await persistDraft({
+              clearAfterSave: false,
+              silent: true,
+              draftCheckoutStatus: 'ready',
+            });
+
+            if (!draftResponse) return;
+
             if (window.Swal) {
               window.Swal.fire({
-                title: 'Cobro no autorizado',
+                icon: 'success',
+                title: 'Venta lista para cobrar',
                 html: `
-                  <p class="text-sm text-slate-600">Solo el encargado o administrador pueden cobrar ventas.</p>
+                  <p class="text-sm text-slate-600">Se marco la venta como <strong>lista para cobrar</strong>. Ahora el encargado o administrador puede completar el cobro.</p>
                 `,
                 heightAuto: false,
               });
@@ -8038,6 +8066,13 @@
           const totalUsd = convertAmount(totalBase, baseCurrencyCode, 'USD');
           const casheaAccount = allPaymentAccounts.find((account) => String(account.account_type || '').toLowerCase() === 'cashea');
           const casheaMinPurchaseUsd = Number(casheaAccount?.cashea_min_purchase_usd || 0);
+          const casheaPrincipalMinPurchaseUsd = Number(casheaAccount?.cashea_principal_min_purchase_usd || 0);
+          const casheaLineMode = String(casheaAccount?.cashea_line_mode || '').toLowerCase();
+          const supportsCotidiana = casheaLineMode === 'cotidiana' || casheaLineMode === 'both';
+          const supportsPrincipal = casheaLineMode === 'principal' || casheaLineMode === 'both';
+          const casheaCotidianaCategoryIds = Array.isArray(casheaAccount?.cashea_cotidiana_category_ids)
+            ? casheaAccount.cashea_cotidiana_category_ids.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)
+            : [];
           const casheaCommissionPercent = Number(casheaAccount?.cashea_commission_percent || 0);
           const casheaCommissionUsd = Number.isFinite(totalUsd)
             ? roundTo(Math.max(totalUsd, 0) * Math.max(casheaCommissionPercent, 0) / 100, 2)
@@ -8045,18 +8080,33 @@
           const casheaTotalUsd = Number.isFinite(totalUsd)
             ? roundTo(Math.max(totalUsd, 0) + casheaCommissionUsd, 2)
             : 0;
-          const casheaInstallmentsCount = (() => {
-            if (!casheaAccount) return 0;
-            const lineMode = String(casheaAccount.cashea_line_mode || '').toLowerCase();
-            if (lineMode === 'principal') return 3;
-            const rawCount = Number(casheaAccount.cashea_cotidiana_installments || 1);
-            return Number.isFinite(rawCount) && rawCount > 0 ? Math.round(rawCount) : 1;
-          })();
-          const canOfferCashea = casheaAccount
+          const cartCategoryMap = new Map();
+          Array.from(cart.values()).forEach((item) => {
+            if (String(item?.itemType || 'product') !== 'product') return;
+            const product = productsById.get(String(item?.productId || ''));
+            const categoryId = Number(product?.category_id || 0);
+            if (!(Number.isFinite(categoryId) && categoryId > 0)) return;
+            const categoryName = String(product?.category_name || 'Sin categoria').trim() || 'Sin categoria';
+            cartCategoryMap.set(categoryId, categoryName);
+          });
+          const cartCategoryIds = Array.from(cartCategoryMap.keys());
+          const exclusiveCategoryNames = cartCategoryIds
+            .filter((categoryId) => casheaCotidianaCategoryIds.includes(categoryId))
+            .map((categoryId) => cartCategoryMap.get(categoryId));
+          const hasCotidianaExclusiveProducts = exclusiveCategoryNames.length > 0;
+
+          const cotidianaEligible = casheaAccount
             && Number.isFinite(totalUsd)
             && totalUsd > 0
-            && totalUsd >= casheaMinPurchaseUsd
-            && casheaMinPurchaseUsd > 0;
+            && supportsCotidiana
+            && totalUsd >= Math.max(casheaMinPurchaseUsd, 0);
+          const principalEligibleByMin = casheaAccount
+            && Number.isFinite(totalUsd)
+            && totalUsd > 0
+            && supportsPrincipal
+            && totalUsd >= Math.max(casheaPrincipalMinPurchaseUsd, 0);
+          const principalEligible = principalEligibleByMin && !hasCotidianaExclusiveProducts;
+          const canOfferCashea = Boolean(cotidianaEligible || principalEligible);
 
           let selectedCasheaContext = null;
           if (canOfferCashea) {
@@ -8107,6 +8157,31 @@
               return null;
             };
 
+            const principalMissingAmount = Math.max(Math.max(casheaPrincipalMinPurchaseUsd, 0) - Math.max(totalUsd, 0), 0);
+            const principalBlockedByCategoriesText = hasCotidianaExclusiveProducts
+              ? `Hay productos de categorias exclusivas de linea cotidiana en esta compra: ${exclusiveCategoryNames.join(', ')}.`
+              : '';
+            const principalRequirementText = !principalEligible
+              ? (hasCotidianaExclusiveProducts
+                ? principalBlockedByCategoriesText
+                : `Para usar linea principal se requiere compra minima de $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)}${principalMissingAmount > 0 ? ` (faltan $ ${formatNumber(principalMissingAmount, 2)})` : ''}.`)
+              : '';
+
+            const lineOptions = [];
+            if (cotidianaEligible) lineOptions.push({ key: 'cotidiana', label: 'Linea cotidiana' });
+            if (principalEligible) lineOptions.push({ key: 'principal', label: 'Linea principal' });
+            const defaultSelectedLine = lineOptions[0]?.key || null;
+            const lineSelectorHtml = lineOptions.length > 1
+              ? `
+                <div class="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selecciona linea Cashea</label>
+                  <select id="cashea-line-selector" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700">
+                    ${lineOptions.map((option) => `<option value="${option.key}">${option.label}</option>`).join('')}
+                  </select>
+                </div>
+              `
+              : '';
+
             const casheaQuestion = await window.Swal.fire({
               title: 'Compra elegible para Cashea',
               html: `
@@ -8117,7 +8192,7 @@
                     <p class="text-sm text-slate-600">Puede proponerselo al cliente en caso de no haberlo hecho.</p>
                     <div class="grid gap-2 sm:grid-cols-2 pt-1">
                       <div class="rounded-xl border border-sky-200 bg-white px-3 py-2">
-                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Compra minima Cashea</p>
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Compra minima linea cotidiana</p>
                         <p class="text-sm font-extrabold text-sky-700">$ ${formatNumber(casheaMinPurchaseUsd, 2)}</p>
                       </div>
                       <div class="rounded-xl border border-emerald-200 bg-white px-3 py-2">
@@ -8126,6 +8201,8 @@
                         <p class="text-[11px] font-semibold text-slate-500">Comision Cashea: ${formatNumber(casheaCommissionPercent, 2)}% ($ ${formatNumber(casheaCommissionUsd, 2)})</p>
                       </div>
                     </div>
+                    ${principalRequirementText ? `<p class="text-xs font-semibold text-amber-700">${principalRequirementText}</p>` : ''}
+                    ${lineSelectorHtml}
                     <p class="pt-1 text-sm font-semibold text-slate-700">¿Deseas procesar esta venta con Cashea?</p>
                   </div>
                 </div>
@@ -8142,10 +8219,37 @@
                 confirmButton: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-500',
                 cancelButton: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
               },
+              preConfirm: () => {
+                if (lineOptions.length === 0) {
+                  window.Swal.showValidationMessage('No hay lineas Cashea elegibles para esta compra.');
+                  return null;
+                }
+
+                const selector = document.getElementById('cashea-line-selector');
+                const selectedLine = lineOptions.length > 1 ? String(selector?.value || '').trim() : defaultSelectedLine;
+                if (!['cotidiana', 'principal'].includes(selectedLine)) {
+                  window.Swal.showValidationMessage('Debes seleccionar una linea Cashea valida.');
+                  return null;
+                }
+
+                const lineMinPurchase = selectedLine === 'principal'
+                  ? Math.max(casheaPrincipalMinPurchaseUsd, 0)
+                  : Math.max(casheaMinPurchaseUsd, 0);
+                return { selectedLine, lineMinPurchase };
+              },
               heightAuto: false,
             });
 
             if (casheaQuestion.isConfirmed) {
+              const selectedLine = String(casheaQuestion.value?.selectedLine || '').trim();
+              const selectedLineMinPurchase = Number(casheaQuestion.value?.lineMinPurchase || 0);
+              const casheaInstallmentsCount = selectedLine === 'principal'
+                ? 3
+                : (() => {
+                  const rawCount = Number(casheaAccount?.cashea_cotidiana_installments || 1);
+                  return Number.isFinite(rawCount) && rawCount > 0 ? Math.round(rawCount) : 1;
+                })();
+
               if (!selectedClient?.id) {
                 await window.Swal.fire({
                   icon: 'warning',
@@ -8318,8 +8422,9 @@
               selectedCasheaContext = {
                 enabled: true,
                 account_id: casheaAccount.id,
+                selected_line: selectedLine,
                 initial_usd: askInitialResult.value.initialUsd,
-                min_purchase_usd: casheaMinPurchaseUsd,
+                min_purchase_usd: selectedLineMinPurchase,
                 commission_percent: roundTo(Math.max(casheaCommissionPercent, 0), 2),
                 commission_amount_usd: casheaCommissionUsd,
                 total_with_commission_usd: casheaTotalUsd,

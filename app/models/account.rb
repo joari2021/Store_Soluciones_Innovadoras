@@ -25,7 +25,8 @@ class Account < ApplicationRecord
   SETTLEMENT_REQUIRED_TYPES = %w[biopago pos].freeze
   CASHEA_LINE_MODES = {
     'cotidiana' => 'Linea cotidiana',
-    'principal' => 'Linea principal (inicial + 3 cuotas)'
+    'principal' => 'Linea principal (inicial + 3 cuotas)',
+    'both' => 'Ambas lineas (cotidiana + principal)'
   }.freeze
   SPECIAL_ACCOUNT_DEFAULTS = {
     'biopago' => { name: 'Biopago', currency: 'VES', theme_color: 'emerald' },
@@ -103,6 +104,7 @@ class Account < ApplicationRecord
   validates :cashea_line_mode, inclusion: { in: CASHEA_LINE_MODES.keys }
   validates :cashea_cotidiana_installments, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 24 }
   validates :cashea_min_purchase_usd, numericality: { greater_than_or_equal_to: 0 }
+  validates :cashea_principal_min_purchase_usd, numericality: { greater_than_or_equal_to: 0 }
   validates :cashea_commission_percent,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
   validates :shared_key, presence: true
@@ -372,6 +374,19 @@ class Account < ApplicationRecord
     count.positive? ? count : 1
   end
 
+  def cashea_supports_cotidiana?
+    %w[cotidiana both].include?(cashea_line_mode.to_s)
+  end
+
+  def cashea_supports_principal?
+    %w[principal both].include?(cashea_line_mode.to_s)
+  end
+
+  def cashea_cotidiana_only_category_ids
+    raw = self[:cashea_cotidiana_category_ids]
+    Array(raw).map { |value| value.to_i }.select(&:positive?).uniq
+  end
+
   def cash_box_account?
     account_type == 'cash_box'
   end
@@ -443,7 +458,9 @@ class Account < ApplicationRecord
     self.cashea_line_mode = 'cotidiana' if cashea_line_mode.blank?
     self.cashea_cotidiana_installments = 1 if cashea_cotidiana_installments.to_i <= 0
     self.cashea_min_purchase_usd = cashea_min_purchase_usd.to_d.round(2)
+    self.cashea_principal_min_purchase_usd = cashea_principal_min_purchase_usd.to_d.round(2)
     self.cashea_commission_percent = cashea_commission_percent.to_d.round(2)
+    self.cashea_cotidiana_category_ids = cashea_cotidiana_only_category_ids
   end
 
   def clear_primary_for_non_bank
@@ -516,9 +533,14 @@ class Account < ApplicationRecord
       errors.add(:cashea_line_mode, 'no es valido para Cashea')
     end
 
-    return unless cashea_line_mode.to_s == 'principal'
+    self.cashea_min_purchase_usd = 0.to_d if cashea_line_mode.to_s == 'principal'
+    self.cashea_principal_min_purchase_usd = 0.to_d if cashea_line_mode.to_s == 'cotidiana'
 
-    self.cashea_cotidiana_installments = 3 if will_save_change_to_cashea_line_mode?
+    unless cashea_supports_cotidiana?
+      self.cashea_cotidiana_category_ids = []
+    end
+
+    self.cashea_cotidiana_installments = 3 if cashea_line_mode.to_s == 'principal' && will_save_change_to_cashea_line_mode?
   end
 
   def validate_logo_attachment
