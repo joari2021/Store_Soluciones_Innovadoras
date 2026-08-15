@@ -8166,6 +8166,17 @@
                 ? principalBlockedByCategoriesText
                 : `Para usar linea principal se requiere compra minima de $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)}${principalMissingAmount > 0 ? ` (faltan $ ${formatNumber(principalMissingAmount, 2)})` : ''}.`)
               : '';
+            const principalStatusCardClasses = principalEligible
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-rose-200 bg-rose-50 text-rose-800';
+            const principalStatusTitle = principalEligible
+              ? 'Linea principal habilitada'
+              : 'Linea principal no habilitada';
+            const principalStatusDetail = principalEligible
+              ? 'La compra cumple condiciones para usar linea principal.'
+              : (hasCotidianaExclusiveProducts
+                ? principalBlockedByCategoriesText
+                : `Minimo requerido: $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)} · Te faltan $ ${formatNumber(principalMissingAmount, 2)}.`);
 
             const lineOptions = [];
             if (cotidianaEligible) lineOptions.push({ key: 'cotidiana', label: 'Linea cotidiana' });
@@ -8200,6 +8211,11 @@
                         <p class="text-sm font-extrabold text-emerald-700">$ ${formatNumber(casheaTotalUsd, 2)}</p>
                         <p class="text-[11px] font-semibold text-slate-500">Comision Cashea: ${formatNumber(casheaCommissionPercent, 2)}% ($ ${formatNumber(casheaCommissionUsd, 2)})</p>
                       </div>
+                    </div>
+                    <div class="rounded-xl border px-3 py-2 ${principalStatusCardClasses}">
+                      <p class="text-[11px] font-semibold uppercase tracking-wide">Compra minima linea principal: $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)}</p>
+                      <p class="text-sm font-extrabold mt-0.5">${principalStatusTitle}</p>
+                      <p class="text-xs font-semibold mt-0.5">${principalStatusDetail}</p>
                     </div>
                     ${principalRequirementText ? `<p class="text-xs font-semibold text-amber-700">${principalRequirementText}</p>` : ''}
                     ${lineSelectorHtml}
@@ -8361,8 +8377,8 @@
                   const usdInput = dialog?.querySelector('#cashea-initial-usd');
                   const initialUsd = roundTo(parseMoneyInput(usdInput), 2);
 
-                  if (!initialUsd || initialUsd <= 0) {
-                    window.Swal.showValidationMessage('Debes indicar un monto inicial mayor a 0.');
+                  if (initialUsd < 0) {
+                    window.Swal.showValidationMessage('El monto inicial no puede ser negativo.');
                     return null;
                   }
 
@@ -9825,6 +9841,7 @@
                 const creditToggle = dialog.querySelector('[data-credit-toggle]');
                 const creditDueOnInput = dialog.querySelector('[data-credit-due-on]');
                 const casheaEnabled = Boolean(selectedCasheaContext?.enabled);
+                const casheaZeroInitial = casheaEnabled && Number(selectedCasheaContext?.initial_usd || 0) <= 0;
                 const creditEnabled = casheaEnabled ? false : Boolean(creditToggle?.checked);
                 const creditDueOn = String(creditDueOnInput?.value || '').trim();
                 const normalizedCreditDueOn = creditDueOn ? normalizePaymentDateInput(creditDueOn) : null;
@@ -10008,7 +10025,7 @@
                 if (Math.abs(remaining) <= paymentTolerance) remaining = 0;
                 const creditCoversPendingBalance = creditEnabled && remaining > paymentTolerance;
 
-                if (payments.length === 0 && !creditCoversPendingBalance) {
+                if (payments.length === 0 && !creditCoversPendingBalance && !casheaZeroInitial) {
                   window.Swal.showValidationMessage('Registra al menos un pago.');
                   return null;
                 }
@@ -10111,6 +10128,7 @@
                   cashea: {
                     enabled: casheaEnabled,
                     account_id: casheaEnabled ? selectedCasheaContext.account_id : null,
+                    selected_line: casheaEnabled ? selectedCasheaContext.selected_line : null,
                     initial_usd: casheaEnabled ? selectedCasheaContext.initial_usd : 0,
                     min_purchase_usd: casheaEnabled ? selectedCasheaContext.min_purchase_usd : 0,
                     commission_percent: casheaEnabled ? selectedCasheaContext.commission_percent : 0,

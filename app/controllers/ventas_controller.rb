@@ -1179,8 +1179,8 @@ class VentasController < ApplicationController
       cashea_total_due_usd = (total_due_usd + cashea_commission_usd).round(2)
 
       initial_usd = cashea_sale[:initial_usd].to_d.round(2)
-      if initial_usd <= 0
-        return render json: { error: "Debes indicar un monto inicial Cashea mayor a 0." }, status: :unprocessable_entity
+      if initial_usd.negative?
+        return render json: { error: "El inicial Cashea no puede ser negativo." }, status: :unprocessable_entity
       end
 
       if initial_usd > cashea_total_due_usd
@@ -1244,7 +1244,8 @@ class VentasController < ApplicationController
     payment_rows.each { |row| venta.venta_payments.build(row) }
     change_rows.each { |row| venta.venta_payments.build(row) }
 
-    if payment_rows.empty? && !remaining_credit_amount.positive? && !customer_mode
+    cashea_zero_initial_payment = cashea_sale[:enabled] && total_due_for_payment.to_d <= 0
+    if payment_rows.empty? && !remaining_credit_amount.positive? && !customer_mode && !cashea_zero_initial_payment
       return render json: { error: "Debes registrar al menos un metodo de pago." }, status: :unprocessable_entity
     end
 
