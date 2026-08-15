@@ -14,6 +14,8 @@ module Inventory
         lots_transferred: 0,
         units_transferred: 0.to_d,
         lots_skipped_existing: 0,
+        absorbed_inventory_value_usd: 0.to_d,
+        absorbed_sale_value_usd: 0.to_d,
       }
       @preview_map = {}
     end
@@ -75,12 +77,15 @@ module Inventory
         add_preview_incoming_lot!(
           destination_product: destination_product,
           source_lot: source_lot,
+          source_product: source_product,
           quantity_to_transfer: quantity_to_transfer,
         )
 
         touched = true
         @summary[:lots_transferred] += 1
         @summary[:units_transferred] = @summary[:units_transferred].to_d + quantity_to_transfer
+        @summary[:absorbed_inventory_value_usd] = @summary[:absorbed_inventory_value_usd].to_d + (source_lot.unit_cost_usd.to_d * quantity_to_transfer)
+        @summary[:absorbed_sale_value_usd] = @summary[:absorbed_sale_value_usd].to_d + (source_product.precio_venta_usd.to_d * quantity_to_transfer)
 
         next unless @mode == 'move'
 
@@ -136,10 +141,13 @@ module Inventory
       }
     end
 
-    def add_preview_incoming_lot!(destination_product:, source_lot:, quantity_to_transfer:)
+    def add_preview_incoming_lot!(destination_product:, source_lot:, source_product:, quantity_to_transfer:)
       key = preview_key_for(destination_product)
       preview = @preview_map[key]
       return if preview.blank?
+
+      source_sale_price_usd = source_product.precio_venta_usd.to_d
+      incoming_sale_value = (source_sale_price_usd * quantity_to_transfer.to_d).round(4)
 
       source_variations = source_lot.stock_lot_variations.filter_map do |row|
         quantity = row.quantity_remaining.to_d
@@ -156,6 +164,8 @@ module Inventory
         quantity_remaining: quantity_to_transfer.to_d,
         unit_cost_usd: source_lot.unit_cost_usd.to_d,
         total_value_usd: (source_lot.unit_cost_usd.to_d * quantity_to_transfer.to_d).round(4),
+        source_sale_price_usd: source_sale_price_usd,
+        incoming_sale_value_usd: incoming_sale_value,
         supplier_name: source_lot.supplier_name.presence || source_lot.supplier_display_name,
         purchased_at: source_lot.purchased_at,
         variations: source_variations,
@@ -164,6 +174,7 @@ module Inventory
       preview[:incoming_quantity] = preview[:incoming_quantity].to_d + quantity_to_transfer.to_d
       preview[:projected_quantity] = preview[:current_quantity].to_d + preview[:incoming_quantity].to_d
       preview[:incoming_inventory_value_usd] = preview[:incoming_inventory_value_usd].to_d + (source_lot.unit_cost_usd.to_d * quantity_to_transfer.to_d)
+      preview[:incoming_sale_value_usd] = preview.fetch(:incoming_sale_value_usd, 0.to_d).to_d + incoming_sale_value
       preview[:projected_inventory_value_usd] = preview[:current_inventory_value_usd].to_d + preview[:incoming_inventory_value_usd].to_d
       preview[:projected_sale_value_usd] = (preview[:projected_quantity].to_d * preview[:sale_price_usd].to_d).round(4)
     end
