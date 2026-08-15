@@ -102,24 +102,35 @@ module Inventory
 
       current_quantity = destination_product.stock_lots.sum(:quantity_remaining).to_d
       current_lots = destination_product.stock_lots.order(:id).map do |lot|
+        lot_quantity = lot.quantity_remaining.to_d
         {
           lot_id: lot.id,
-          quantity_remaining: lot.quantity_remaining.to_d,
+          quantity_remaining: lot_quantity,
           unit_cost_usd: lot.unit_cost_usd.to_d,
+          total_value_usd: (lot.unit_cost_usd.to_d * lot_quantity).round(4),
           supplier_name: lot.supplier_name.presence || lot.supplier_display_name,
           purchased_at: lot.purchased_at,
         }
       end
 
+      current_inventory_value = current_lots.sum { |lot| lot[:total_value_usd].to_d }
+      sale_price_usd = destination_product.precio_venta_usd.to_d
+
       @preview_map[key] = {
         product_key: key,
         producto_id: destination_product.id,
         descripcion: destination_product.descripcion,
+        categoria_nombre: destination_product.categoria&.nombre,
         presentation: destination_product.presentation,
         cant_presentation: destination_product.cant_presentation,
+        sale_price_usd: sale_price_usd,
         current_quantity: current_quantity,
         incoming_quantity: 0.to_d,
         projected_quantity: current_quantity,
+        current_inventory_value_usd: current_inventory_value,
+        incoming_inventory_value_usd: 0.to_d,
+        projected_inventory_value_usd: current_inventory_value,
+        projected_sale_value_usd: (current_quantity * sale_price_usd).round(4),
         current_lots: current_lots,
         incoming_lots: [],
       }
@@ -144,6 +155,7 @@ module Inventory
         source_lot_id: source_lot.id,
         quantity_remaining: quantity_to_transfer.to_d,
         unit_cost_usd: source_lot.unit_cost_usd.to_d,
+        total_value_usd: (source_lot.unit_cost_usd.to_d * quantity_to_transfer.to_d).round(4),
         supplier_name: source_lot.supplier_name.presence || source_lot.supplier_display_name,
         purchased_at: source_lot.purchased_at,
         variations: source_variations,
@@ -151,10 +163,14 @@ module Inventory
 
       preview[:incoming_quantity] = preview[:incoming_quantity].to_d + quantity_to_transfer.to_d
       preview[:projected_quantity] = preview[:current_quantity].to_d + preview[:incoming_quantity].to_d
+      preview[:incoming_inventory_value_usd] = preview[:incoming_inventory_value_usd].to_d + (source_lot.unit_cost_usd.to_d * quantity_to_transfer.to_d)
+      preview[:projected_inventory_value_usd] = preview[:current_inventory_value_usd].to_d + preview[:incoming_inventory_value_usd].to_d
+      preview[:projected_sale_value_usd] = (preview[:projected_quantity].to_d * preview[:sale_price_usd].to_d).round(4)
     end
 
     def build_preview_payload
       {
+        generated_at: Time.current,
         products: @preview_map.values.sort_by do |row|
           [row[:descripcion].to_s.downcase, row[:producto_id].to_i]
         end,

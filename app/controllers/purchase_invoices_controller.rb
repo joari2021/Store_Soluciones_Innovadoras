@@ -128,6 +128,9 @@ class PurchaseInvoicesController < ApplicationController
     @absorption_preview = nil
     @absorption_summary = nil
     @absorption_simulated = false
+
+    load_absorption_history(selected_simulation_id: params[:simulation_id])
+    assign_absorption_display_from_simulation(@selected_absorption_simulation) if @selected_absorption_simulation.present?
   end
 
   def absorb_source_inventory
@@ -154,11 +157,15 @@ class PurchaseInvoicesController < ApplicationController
 
     summary = result.summary || {}
     if dry_run
-      @absorption_mode = mode
-      @absorption_source_business_id = source_business.id.to_s
-      @absorption_preview = result.preview || {}
-      @absorption_summary = summary
-      @absorption_simulated = true
+      simulation = create_absorption_simulation_record!(
+        source_business: source_business,
+        mode: mode,
+        summary: summary,
+        preview: result.preview || {}
+      )
+
+      load_absorption_history(selected_simulation_id: simulation.id)
+      assign_absorption_display_from_simulation(simulation, simulated_now: true)
       render :inventory_absorption
       return
     end
@@ -668,6 +675,49 @@ class PurchaseInvoicesController < ApplicationController
     return 'copy' if normalized == 'copy'
 
     'move'
+  end
+
+  def load_absorption_history(selected_simulation_id: nil)
+    @absorption_simulations = InventoryAbsorptionSimulation
+                             .where(destination_business_id: current_business.id)
+                             .includes(:source_business, :destination_business, :user)
+                             .order(created_at: :desc)
+                             .limit(40)
+
+    return if selected_simulation_id.blank?
+
+    selected_id = selected_simulation_id.to_i
+    return if selected_id <= 0
+
+    @selected_absorption_simulation = @absorption_simulations.find { |row| row.id == selected_id }
+    @selected_absorption_simulation ||= InventoryAbsorptionSimulation
+                                        .where(destination_business_id: current_business.id)
+                                        .find_by(id: selected_id)
+  end
+
+  def assign_absorption_display_from_simulation(simulation, simulated_now: false)
+    @absorption_mode = normalize_absorption_mode(simulation.mode)
+    @absorption_source_business_id = simulation.source_business_id.to_s
+    @absorption_preview = simulation.preview || {}
+    @absorption_summary = simulation.summary || {}
+    @absorption_simulated = simulated_now
+    @selected_absorption_simulation = simulation
+  end
+
+  def create_absorption_simulation_record!(source_business:, mode:, summary:, preview:)
+    InventoryAbsorptionSimulation.create!(
+      destination_business_id: current_business.id,
+      source_business_id: source_business.id,
+      user_id: Current.user&.id,
+      mode: normalize_absorption_mode(mode),
+      simulated_at: Time.current,
+      summary: normalize_absorption_payload(summary || {}),
+      preview: normalize_absorption_payload(preview || {})
+    )
+  end
+
+  def normalize_absorption_payload(payload)
+    JSON.parse(payload.to_json)
   end
 
   def requested_invoice_kind

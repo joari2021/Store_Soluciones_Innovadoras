@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_05_113000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_14_121000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -531,6 +531,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_113000) do
     t.datetime "updated_at", null: false
     t.index ["business_id", "group_key"], name: "index_hidden_debt_groups_on_business_id_and_group_key", unique: true
     t.index ["business_id"], name: "index_hidden_debt_groups_on_business_id"
+  end
+
+  create_table "inventory_absorption_simulations", force: :cascade do |t|
+    t.bigint "destination_business_id", null: false
+    t.bigint "source_business_id", null: false
+    t.bigint "user_id"
+    t.string "mode", null: false
+    t.datetime "simulated_at", null: false
+    t.jsonb "summary", default: {}, null: false
+    t.jsonb "preview", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["destination_business_id", "created_at"], name: "idx_absorption_simulations_destination_created"
+    t.index ["destination_business_id"], name: "idx_on_destination_business_id_4b273fc8b9"
+    t.index ["mode"], name: "index_inventory_absorption_simulations_on_mode"
+    t.index ["source_business_id", "created_at"], name: "idx_absorption_simulations_source_created"
+    t.index ["source_business_id"], name: "index_inventory_absorption_simulations_on_source_business_id"
+    t.index ["user_id"], name: "index_inventory_absorption_simulations_on_user_id"
   end
 
   create_table "juegos", force: :cascade do |t|
@@ -1143,6 +1161,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_05_113000) do
   add_foreign_key "global_supplier_products", "global_suppliers"
   add_foreign_key "global_suppliers", "businesses", column: "source_business_id"
   add_foreign_key "hidden_debt_groups", "businesses"
+  add_foreign_key "inventory_absorption_simulations", "businesses", column: "destination_business_id"
+  add_foreign_key "inventory_absorption_simulations", "businesses", column: "source_business_id"
+  add_foreign_key "inventory_absorption_simulations", "users"
   add_foreign_key "pack_unwrap_items", "pack_unwraps"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "source_product_variation_id"
