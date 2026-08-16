@@ -531,18 +531,46 @@
             if (!targetSelect) return;
             targetSelect.innerHTML = '<option value="">Selecciona una cuenta</option>';
 
+            const groupedAccounts = new Map();
+
             transferAccounts.forEach((account) => {
               if (!currentOrigin || String(account.id) === String(currentOrigin.id)) return;
 
-              const option = document.createElement('option');
-              option.value = account.id;
-              const accountLabel = String(account.display_name || account.name || '').trim();
-              option.textContent = `${accountLabel} (${account.currency})`;
-              option.dataset.currency = account.currency;
-              option.dataset.symbol = account.symbol;
-              option.dataset.balance = account.balance;
-              option.dataset.accountType = account.account_type;
-              targetSelect.appendChild(option);
+              const label = String(account.group_label || 'Otros').trim() || 'Otros';
+              if (!groupedAccounts.has(label)) groupedAccounts.set(label, []);
+              groupedAccounts.get(label).push(account);
+            });
+
+            const sortedGroups = Array.from(groupedAccounts.entries()).sort((a, b) => {
+              const rankA = Number(a[1][0]?.group_rank ?? 99);
+              const rankB = Number(b[1][0]?.group_rank ?? 99);
+              if (rankA !== rankB) return rankA - rankB;
+              return a[0].localeCompare(b[0], 'es', { sensitivity: 'base' });
+            });
+
+            sortedGroups.forEach(([groupLabel, accounts]) => {
+              const groupElement = document.createElement('optgroup');
+              groupElement.label = groupLabel;
+
+              const sortedAccounts = [...accounts].sort((left, right) => {
+                const leftName = String(left.display_name || left.name || '').toLowerCase();
+                const rightName = String(right.display_name || right.name || '').toLowerCase();
+                return leftName.localeCompare(rightName, 'es', { sensitivity: 'base' });
+              });
+
+              sortedAccounts.forEach((account) => {
+                const option = document.createElement('option');
+                option.value = account.id;
+                const accountLabel = String(account.display_name || account.name || '').trim();
+                option.textContent = `${accountLabel} (${account.currency})`;
+                option.dataset.currency = account.currency;
+                option.dataset.symbol = account.symbol;
+                option.dataset.balance = account.balance;
+                option.dataset.accountType = account.account_type;
+                groupElement.appendChild(option);
+              });
+
+              targetSelect.appendChild(groupElement);
             });
           };
 

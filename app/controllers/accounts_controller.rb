@@ -960,6 +960,7 @@ class AccountsController < ApplicationController
                                              .where.not(account_type: 'cashea')
                                              .ordered_by_group_and_name
                                              .map do |account|
+      group_label = Account.group_label_for_type(account.account_type)
       {
         id: account.id,
         name: account.name,
@@ -968,6 +969,8 @@ class AccountsController < ApplicationController
         symbol: account.currency_symbol,
         balance: account.balance.to_d.to_f,
         account_type: account.account_type,
+        group_label: group_label,
+        group_rank: Account::ACCOUNT_GROUP_LABELS.index(group_label) || 99,
       }
     end
 
