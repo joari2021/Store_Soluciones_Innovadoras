@@ -1484,13 +1484,13 @@ class DebtsController < ApplicationController
                                  .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
 
     active_scope = apply_payment_currency_filter(base_scope.where(active: true), group_currency)
-    active_accounts = active_scope.order(:currency, :name).to_a
+    active_accounts = active_scope.ordered_by_group_and_name.to_a
     return active_accounts if active_accounts.any?
 
     return active_accounts unless include_inactive_fallback
 
     @using_inactive_payment_accounts = true
-    apply_payment_currency_filter(base_scope, group_currency).order(:currency, :name).to_a
+    apply_payment_currency_filter(base_scope, group_currency).ordered_by_group_and_name.to_a
   end
 
   def apply_payment_currency_filter(scope, group_currency)
@@ -1528,11 +1528,11 @@ class DebtsController < ApplicationController
                          .where.not(account_type: 'cashea')
                          .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
 
-    active_accounts = base_scope.where(active: true).order(:currency, :name).to_a
+    active_accounts = base_scope.where(active: true).ordered_by_group_and_name.to_a
     return active_accounts if active_accounts.any?
 
     @using_inactive_intercompany_mirror_accounts = true
-    base_scope.order(:currency, :name).to_a
+    base_scope.ordered_by_group_and_name.to_a
   end
 
   def convert_entry_amounts_to_group_currency!(entries)
