@@ -1469,7 +1469,7 @@ class DebtsController < ApplicationController
   end
 
   def loan_accounts_for_group_currency(group_currency)
-    scope = eligible_loan_accounts_scope.order(:name)
+    scope = eligible_loan_accounts_scope.ordered_by_group_and_name
 
     if group_currency.to_s.upcase == 'USDT'
       scope.where(currency: 'USDT')

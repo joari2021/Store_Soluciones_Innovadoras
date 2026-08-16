@@ -437,17 +437,21 @@
             </label>
             <div class="mt-3 hidden" data-add-debt-loan-fields="true">
               <label class="block text-xs font-semibold text-slate-500">Cuenta desde donde saldra el dinero</label>
+              <% loan_account_groups = Account.grouped_option_sets(@loan_accounts) do |account| %>
+                <% [
+                  "#{account.name} (#{account.currency}) - Disponible: #{format_money(account.balance, unit: "#{account.currency_symbol} ")}",
+                  account.id,
+                  {
+                    'data-loan-account': 'true',
+                    'data-account-currency': account.currency.to_s.upcase,
+                    'data-account-balance': account.balance.to_d.to_s('F'),
+                    'data-account-symbol': account.currency_symbol
+                  }
+                ] %>
+              <% end %>
               <select name="debt_entries[0][loan_account_id]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-add-debt-loan-account="true" disabled>
                 <option value="">Selecciona una cuenta</option>
-                <% @loan_accounts.each do |account| %>
-                  <option
-                    value="<%= account.id %>"
-                    data-loan-account="true"
-                    data-account-currency="<%= account.currency.to_s.upcase %>"
-                    data-account-balance="<%= account.balance.to_d.to_s('F') %>"
-                    data-account-symbol="<%= account.currency_symbol %>"
-                  ><%= account.name %> (<%= account.currency %>) - Disponible: <%= format_money(account.balance, unit: "#{account.currency_symbol} ") %></option>
-                <% end %>
+                <%= grouped_options_for_select(loan_account_groups) %>
               </select>
             </div>
           </div>
