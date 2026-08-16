@@ -27,7 +27,7 @@ class VentasController < ApplicationController
                                 .with_attached_small_logo
                                 .where(active: true)
                                 .where.not(account_type: "cash_box", cash_role: "cash_deposit")
-                                .order(:name)
+                                .ordered_by_group_and_name
     @open_cash_shift = current_open_shift_for_sales || current_business.cash_shifts.open.includes(:opened_by, :active_cashier).first
     @active_cashier = @open_cash_shift&.active_cashier
     @customer_pos_mode = customer_sales_mode?

@@ -100,21 +100,21 @@
         <% expected_payment_symbol = Account::CURRENCIES.dig(expected_payment_currency, :symbol) || expected_payment_currency %>
         <% pending_reference_total = line['display_pending_reference_total'].to_d %>
         <% line_payments = Array(@pending_cost_payments_by_line.to_h[line['line_id'].to_s]) %>
-        <% line_account_options = @pending_cost_accounts
-             .select { |account| account.currency.to_s.upcase == expected_payment_currency }
-             .map do |account|
-               [
-                 account.option_label,
-                 account.id,
-                 {
-                   data: {
-                     account_type: account.account_type,
-                     account_currency: account.currency,
-                     account_symbol: account.currency_symbol
-                   }
-                 }
-               ]
-             end %>
+        <% line_account_options = Account.grouped_option_sets(
+             @pending_cost_accounts.select { |account| account.currency.to_s.upcase == expected_payment_currency }
+           ) do |account| %>
+          <% [
+            account.option_label,
+            account.id,
+            {
+              data: {
+                account_type: account.account_type,
+                account_currency: account.currency,
+                account_symbol: account.currency_symbol
+              }
+            }
+          ] %>
+        <% end %>
         <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3"
              data-pending-cost-line-card="true"
              data-reference-currency-code="<%= reference_currency_code %>"
@@ -221,7 +221,7 @@
                 <div>
                   <%= label_tag nil, 'Cuenta', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
                   <%= select_tag :account_id,
-                                 options_for_select(line_account_options),
+                                 grouped_options_for_select(line_account_options),
                                  include_blank: line_account_options.present? ? 'Selecciona cuenta' : "No hay cuentas en #{expected_payment_currency}",
                                  class: 'mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700',
                                  data: { pending_cost_account: true } %>

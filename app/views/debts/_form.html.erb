@@ -74,8 +74,8 @@
     </div>
   </div>
   <% debt_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
-  <% loan_account_options = @accounts.map do |account| %>
-    <% [account.option_label, account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
+    <% loan_account_options = Account.grouped_option_sets(@accounts) do |account| %>
+     <% [account.option_label, account.id, { "data-account-currency": account.currency, "data-account-type": account.account_type }] %>
   <% end %>
   <% normalize_iso_date = lambda do |value|
        raw = value.to_s.strip
@@ -171,7 +171,7 @@
                 <div>
                   <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600">Cuenta del prestamo</label>
                   <%= select_tag "debt_entries[#{index}][loan_account_id]",
-                                 options_for_select(loan_account_options, row_loan_account_id),
+                                 grouped_options_for_select(loan_account_options, row_loan_account_id),
                                  include_blank: "Selecciona una cuenta",
                                  class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500",
                                  data: { debt_entry_loan_account: true } %>
@@ -256,7 +256,7 @@
                 <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600">Cuenta del prestamo</label>
                 <select name="debt_entries[__INDEX__][loan_account_id]" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500" data-debt-entry-loan-account="true">
                   <option value="">Selecciona una cuenta</option>
-                  <%= options_for_select(loan_account_options) %>
+                  <%= grouped_options_for_select(loan_account_options) %>
                 </select>
               </div>
               <p class="mt-1 text-[11px] text-slate-500">Al elegir cuenta se fija la moneda y simbolo del monto.</p>
@@ -395,8 +395,8 @@
         <% selected_payment_currency = params[:payment_currency].presence || selected_payment_account&.currency || primary_currency %>
         <% payment_currency_symbol = debt_currency_symbols[selected_payment_currency] || selected_currency_symbol %>
         <% show_payment_method = selected_payment_account&.account_type == "bank_account" %>
-        <% payment_account_options = @accounts.map do |account| %>
-          <% [account.option_label, account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+          <% payment_account_options = Account.grouped_option_sets(@accounts) do |account| %>
+           <% [account.option_label, account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
         <% end %>
         <% payment_date_display = normalize_display_date.call(params[:payment_occurred_on].presence) %>
         <% payment_date_display = Date.current.strftime('%d-%m-%Y') if payment_date_display.blank? %>
@@ -427,7 +427,7 @@
           <div>
             <label class="block text-sm font-medium text-slate-700">Cuenta</label>
             <%= select_tag :payment_account_id,
-                         options_for_select(payment_account_options, params[:payment_account_id]),
+                             grouped_options_for_select(payment_account_options, params[:payment_account_id]),
                          include_blank: "Selecciona una cuenta",
                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
                          data: { debt_payment_account: true } %>

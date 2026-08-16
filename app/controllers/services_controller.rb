@@ -1391,7 +1391,7 @@ class ServicesController < ApplicationController
   end
 
   def set_pending_cost_accounts
-    @pending_cost_accounts = current_business.accounts.where(active: true).order(:currency, :name)
+    @pending_cost_accounts = current_business.accounts.where(active: true).ordered_by_group_and_name
   end
 
   def pending_cost_filters_from_params

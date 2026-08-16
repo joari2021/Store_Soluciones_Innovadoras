@@ -535,7 +535,7 @@ class PurchaseInvoicesController < ApplicationController
     @source_accounts_map = @available_source_businesses.each_with_object({}) do |business, hash|
       hash[business.id] = business.accounts
               .where(account_type: 'bank_account', currency: 'VES')
-                              .order(:name)
+                  .ordered_by_group_and_name
                               .map do |account|
         {
           id: account.id,
@@ -549,7 +549,7 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def load_bs_accounts
-    @bs_accounts = current_business.accounts.where(active: true, currency: 'VES').order(:name)
+    @bs_accounts = current_business.accounts.where(active: true, currency: 'VES').ordered_by_group_and_name
   end
 
   def purchase_invoice_params

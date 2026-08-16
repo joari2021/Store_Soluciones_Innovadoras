@@ -96,22 +96,7 @@
     }
   </style>
   <% if @accounts.any? %>
-    <% prioritized_cash_boxes = {
-      ['cash_box', 'VES'] => 0,
-      ['cash_box', 'USD'] => 1,
-      ['cash_deposit', 'VES'] => 2,
-      ['cash_deposit', 'USD'] => 3
-    } %>
-    <% cash_accounts = @accounts.select { |account| account.account_type == 'cash_box' }
-                              .sort_by { |account| [prioritized_cash_boxes.fetch([account.cash_role, account.currency], 99), account.name.to_s.downcase] } %>
-    <% grouped_accounts = [
-      ['Cuentas bancarias', @accounts.select { |account| account.account_type == 'bank_account' }],
-      ['Metodos especiales', @accounts.select { |account| Account::SPECIAL_ACCOUNT_TYPES.include?(account.account_type) }],
-      ['Cajas', cash_accounts],
-      ['Billeteras cripto', @accounts.select { |account| account.account_type == 'crypto_wallet' }],
-      ['Billeteras digitales', @accounts.select { |account| account.account_type == 'digital_wallet' }],
-      ['Tarjetas', @accounts.select { |account| account.account_type == 'card' }]
-    ] %>
+    <% grouped_accounts = Account.grouped_for_lists(@accounts) %>
     <div class="space-y-6">
       <% grouped_accounts.each do |title, accounts| %>
         <% next if accounts.empty? %>

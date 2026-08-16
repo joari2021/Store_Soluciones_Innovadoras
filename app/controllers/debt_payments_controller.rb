@@ -214,11 +214,11 @@ class DebtPaymentsController < ApplicationController
                                  .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
 
     active_scope = apply_payment_currency_filter(base_scope.where(active: true))
-    @accounts = active_scope.order(:currency, :name).to_a
+    @accounts = active_scope.ordered_by_group_and_name.to_a
 
     if @accounts.empty? && intercompany_mode
       @using_inactive_accounts_for_intercompany = true
-      @accounts = apply_payment_currency_filter(base_scope).order(:currency, :name).to_a
+      @accounts = apply_payment_currency_filter(base_scope).ordered_by_group_and_name.to_a
     end
   end
 
@@ -250,10 +250,10 @@ class DebtPaymentsController < ApplicationController
                                               .where.not(account_type: 'cashea')
                                               .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
 
-    @mirror_accounts = base_scope.where(active: true).order(:currency, :name).to_a
+    @mirror_accounts = base_scope.where(active: true).ordered_by_group_and_name.to_a
     if @mirror_accounts.empty?
       @using_inactive_mirror_accounts_for_intercompany = true
-      @mirror_accounts = base_scope.order(:currency, :name).to_a
+      @mirror_accounts = base_scope.ordered_by_group_and_name.to_a
     end
   end
 

@@ -18,6 +18,18 @@ class Account < ApplicationRecord
 
   SPECIAL_ACCOUNT_TYPES = %w[biopago pos cashea].freeze
   SHARED_ACCOUNT_TYPES = (SPECIAL_ACCOUNT_TYPES + %w[cash_box]).freeze
+  ACCOUNT_TYPE_GROUP_LABELS = {
+    'bank_account' => 'Cuentas bancarias',
+    'biopago' => 'Metodos especiales',
+    'pos' => 'Metodos especiales',
+    'cashea' => 'Metodos especiales',
+    'cash_box' => 'Cajas',
+    'crypto_wallet' => 'Billeteras cripto',
+    'digital_wallet' => 'Billeteras digitales',
+    'card' => 'Tarjetas'
+  }.freeze
+  ACCOUNT_GROUP_LABELS = ACCOUNT_TYPE_GROUP_LABELS.values.uniq.sort_by { |label| I18n.transliterate(label).downcase }.freeze
+  ACCOUNT_TYPE_GROUP_RANK = ACCOUNT_TYPE_GROUP_LABELS.transform_values { |label| ACCOUNT_GROUP_LABELS.index(label) || 99 }.freeze
   CASH_ROLES = {
     'cash_box' => 'Caja',
     'cash_deposit' => 'Deposito'
@@ -124,6 +136,14 @@ class Account < ApplicationRecord
   before_validation :normalize_cash_role, if: :supports_cash_role?
   before_save :unset_other_primary_bank_accounts, if: :will_save_change_to_is_primary?
 
+  scope :ordered_by_group_and_name, lambda {
+    case_sql = ACCOUNT_TYPE_GROUP_RANK.map do |account_type, rank|
+      "WHEN '#{account_type}' THEN #{rank}"
+    end.join(' ')
+
+    order(Arel.sql("CASE accounts.account_type #{case_sql} ELSE 99 END"), Arel.sql('LOWER(accounts.name) ASC'), :id)
+  }
+
   def self.account_type_options(include_special: false)
     types = include_special ? ACCOUNT_TYPES : ACCOUNT_TYPES.except(*SPECIAL_ACCOUNT_TYPES)
     types.map { |key, data| [data[:label], key] }
@@ -135,6 +155,29 @@ class Account < ApplicationRecord
 
   def self.theme_color_options
     COLOR_THEMES.map { |key, data| [data[:label], key] }
+  end
+
+  def self.group_label_for_type(account_type)
+    ACCOUNT_TYPE_GROUP_LABELS[account_type.to_s] || 'Otros'
+  end
+
+  def self.grouped_for_lists(accounts)
+    grouped = Array(accounts).group_by { |account| group_label_for_type(account.account_type) }
+
+    grouped
+      .sort_by { |label, _accounts| [I18n.transliterate(label.to_s).downcase, label.to_s] }
+      .map do |label, grouped_accounts|
+        sorted_accounts = grouped_accounts.sort_by do |account|
+          [I18n.transliterate(account.name.to_s).downcase, account.name.to_s.downcase, account.id.to_i]
+        end
+        [label, sorted_accounts]
+      end
+  end
+
+  def self.grouped_option_sets(accounts)
+    grouped_for_lists(accounts).map do |label, grouped_accounts|
+      [label, grouped_accounts.map { |account| yield(account) }]
+    end
   end
 
   def self.ensure_special_accounts!(business)

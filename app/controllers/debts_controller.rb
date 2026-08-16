@@ -631,7 +631,7 @@ class DebtsController < ApplicationController
   end
 
   def load_accounts
-    @accounts = current_business.accounts.where(active: true).where.not(account_type: 'cashea').order(:name)
+    @accounts = current_business.accounts.where(active: true).where.not(account_type: 'cashea').ordered_by_group_and_name
   end
 
   def load_currency_rates

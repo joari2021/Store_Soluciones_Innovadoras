@@ -147,7 +147,7 @@ class ExpensesController < ApplicationController
   end
 
   def load_accounts
-    @accounts = current_business.accounts.where(active: true).order(:name)
+    @accounts = current_business.accounts.where(active: true).ordered_by_group_and_name
   end
 
   def expense_params

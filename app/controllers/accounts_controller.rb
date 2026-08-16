@@ -20,7 +20,7 @@ class AccountsController < ApplicationController
                                                                destroy_movement]
 
   def index
-    @accounts = accounts_visible_scope.with_attached_logo.order(name: :asc)
+    @accounts = accounts_visible_scope.with_attached_logo.ordered_by_group_and_name
     totals = accounts_visible_scope.group(:currency).sum(:balance)
     @currency_totals = Account::CURRENCIES.keys.index_with { |code| totals[code] || 0 }
   end
@@ -955,7 +955,11 @@ class AccountsController < ApplicationController
   def load_transfer_support_data
     return @transfer_accounts_payload = [] unless current_user_admin?
 
-    @transfer_accounts_payload = current_business.accounts.where(active: true).where.not(account_type: 'cashea').order(:name).map do |account|
+    @transfer_accounts_payload = current_business.accounts
+                                             .where(active: true)
+                                             .where.not(account_type: 'cashea')
+                                             .ordered_by_group_and_name
+                                             .map do |account|
       {
         id: account.id,
         name: account.name,
@@ -1022,7 +1026,7 @@ class AccountsController < ApplicationController
   def load_bank_accounts_ves
     @bank_accounts_ves = current_business.accounts
                                          .where(account_type: "bank_account", currency: "VES")
-                                         .order(:name)
+                                         .ordered_by_group_and_name
   end
 
   def load_cashea_categories
