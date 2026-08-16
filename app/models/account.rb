@@ -28,7 +28,18 @@ class Account < ApplicationRecord
     'digital_wallet' => 'Billeteras digitales',
     'card' => 'Tarjetas'
   }.freeze
-  ACCOUNT_GROUP_LABELS = ACCOUNT_TYPE_GROUP_LABELS.values.uniq.sort_by { |label| I18n.transliterate(label).downcase }.freeze
+  ACCOUNT_GROUP_PRIORITY = [
+    'Cuentas bancarias',
+    'Cajas',
+    'Metodos especiales',
+    'Billeteras digitales'
+  ].freeze
+  ACCOUNT_GROUP_LABELS = begin
+    known_labels = ACCOUNT_TYPE_GROUP_LABELS.values.uniq
+    ordered_priority = ACCOUNT_GROUP_PRIORITY.select { |label| known_labels.include?(label) }
+    remaining_labels = (known_labels - ordered_priority).sort_by { |label| I18n.transliterate(label).downcase }
+    (ordered_priority + remaining_labels).freeze
+  end
   ACCOUNT_TYPE_GROUP_RANK = ACCOUNT_TYPE_GROUP_LABELS.transform_values { |label| ACCOUNT_GROUP_LABELS.index(label) || 99 }.freeze
   CASH_ROLES = {
     'cash_box' => 'Caja',
@@ -165,7 +176,10 @@ class Account < ApplicationRecord
     grouped = Array(accounts).group_by { |account| group_label_for_type(account.account_type) }
 
     grouped
-      .sort_by { |label, _accounts| [I18n.transliterate(label.to_s).downcase, label.to_s] }
+      .sort_by do |label, _accounts|
+        rank = ACCOUNT_GROUP_LABELS.index(label.to_s)
+        [rank || ACCOUNT_GROUP_LABELS.length, I18n.transliterate(label.to_s).downcase, label.to_s]
+      end
       .map do |label, grouped_accounts|
         sorted_accounts = grouped_accounts.sort_by do |account|
           [I18n.transliterate(account.name.to_s).downcase, account.name.to_s.downcase, account.id.to_i]
