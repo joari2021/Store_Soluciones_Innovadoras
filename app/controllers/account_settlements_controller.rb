@@ -122,7 +122,9 @@ class AccountSettlementsController < ApplicationController
                          alert: 'Indica una fecha valida para procesar el cierre.'
     end
 
-    settlement_account = @settlement.settlement_account || @account.settlement_account
+    # Prefer the current account configuration so editing the POS/Biopago
+    # settlement account applies to pending, not-yet-processed closures.
+    settlement_account = @account.settlement_account || @settlement.settlement_account
     if @account.settlement_account_required? && settlement_account.blank?
       return redirect_to account_account_settlement_path(@account, @settlement),
                          alert: 'Asigna una cuenta bancaria en Bs antes de procesar este cierre.'

@@ -88,7 +88,15 @@ class AccountsController < ApplicationController
   def edit; end
 
   def update
+    previous_settlement_account_id = @account.settlement_account_id
+
     if @account.update(account_params)
+      if previous_settlement_account_id != @account.settlement_account_id
+        @account.account_settlements
+                .where(processed_at: nil)
+                .update_all(settlement_account_id: @account.settlement_account_id, updated_at: Time.current)
+      end
+
       Account.sync_shared_fields!(@account)
       redirect_to account_path(@account), notice: "Cuenta actualizada"
     else
