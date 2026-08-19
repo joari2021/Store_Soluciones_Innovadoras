@@ -283,9 +283,19 @@ class ServicesController < ApplicationController
     end
 
     amount_original = parse_pending_cost_decimal(params[:amount])
-    unless amount_original.positive?
+    payment_scope = params[:payment_scope].to_s
+    force_total_settlement = ActiveModel::Type::Boolean.new.cast(params[:force_total_settlement]) ||
+                             payment_scope == 'total'
+    zero_amount_entry = amount_original.zero?
+
+    if amount_original.negative?
       return redirect_to redirect_path,
-                         alert: 'Indica un monto valido mayor a 0.'
+                         alert: 'Indica un monto valido mayor o igual a 0.'
+    end
+
+    if zero_amount_entry && !force_total_settlement
+      return redirect_to redirect_path,
+                         notice: 'Monto en 0 registrado sin movimientos. Para cerrar la linea, usa Registrar pago total.'
     end
 
     payment_date = parse_pending_cost_payment_date(params[:payment_date])
@@ -338,9 +348,6 @@ class ServicesController < ApplicationController
     end
 
     amount_in_debt_currency = conversion[:amount].to_d.round(2)
-    payment_scope = params[:payment_scope].to_s
-    force_total_settlement = ActiveModel::Type::Boolean.new.cast(params[:force_total_settlement]) ||
-                             payment_scope == 'total'
 
     if !force_total_settlement && amount_in_debt_currency > pending_line_usd + 0.01.to_d
       return redirect_to redirect_path,
@@ -355,7 +362,9 @@ class ServicesController < ApplicationController
                          end
 
     amount_applied_to_line = if force_total_settlement
-                               if update_source_cost
+                               if zero_amount_entry
+                                 0.to_d
+                               elsif update_source_cost
                                  [pending_line_usd, amount_in_debt_currency].max
                                else
                                  pending_line_usd
@@ -366,7 +375,9 @@ class ServicesController < ApplicationController
 
     Debt.transaction do
       line['paid_usd'] = (line['paid_usd'].to_d + amount_applied_to_line).round(2).to_f
-      if force_total_settlement && update_source_cost
+      if force_total_settlement && zero_amount_entry
+        line['amount_usd'] = line['paid_usd'].to_d.round(2).to_f
+      elsif force_total_settlement && update_source_cost
         line['amount_usd'] = [line['amount_usd'].to_d, line['paid_usd'].to_d].max.round(2).to_f
       end
 
@@ -380,7 +391,7 @@ class ServicesController < ApplicationController
                          'pending'
                        end
 
-      if update_source_cost
+      if update_source_cost && !zero_amount_entry
         source_snapshot = update_pending_cost_source_row!(
           line: line,
           amount_usd: amount_applied_to_line,
@@ -389,7 +400,7 @@ class ServicesController < ApplicationController
           on_date: payment_date
         )
         apply_pending_cost_source_snapshot!(line: line, snapshot: source_snapshot, debt: debt)
-      else
+      elsif !zero_amount_entry
         lock_paid_pending_cost_line_snapshot!(
           line: line,
           paid_amount_original: amount_original,
@@ -425,32 +436,35 @@ class ServicesController < ApplicationController
 
       movement_occurred_at = pending_cost_movement_occurred_at(payment_date)
 
-      payment = debt.debt_payments.create!(
-        account: account,
-        amount: amount_original,
-        currency: account.currency,
-        payment_method: payment_method,
-        reference: reference,
-        occurred_at: payment_date,
-        movement_occurred_at_override: movement_occurred_at,
-        notes: "Pago costo servicio [DEBT:#{debt.id}] [LINE:#{line_id}]"
-      )
-
-      if force_total_settlement
-        effective_rate = if amount_original.to_d.positive?
-                           (amount_applied_to_line / amount_original.to_d).round(8)
-                         else
-                           conversion[:rate].to_d
-                         end
-
-        payment.update_columns(
-          amount_in_debt_currency: amount_applied_to_line.to_d,
-          exchange_rate_to_debt_currency: effective_rate,
-          updated_at: Time.current
+      payment = nil
+      unless zero_amount_entry
+        payment = debt.debt_payments.create!(
+          account: account,
+          amount: amount_original,
+          currency: account.currency,
+          payment_method: payment_method,
+          reference: reference,
+          occurred_at: payment_date,
+          movement_occurred_at_override: movement_occurred_at,
+          notes: "Pago costo servicio [DEBT:#{debt.id}] [LINE:#{line_id}]"
         )
+
+        if force_total_settlement
+          effective_rate = if amount_original.to_d.positive?
+                             (amount_applied_to_line / amount_original.to_d).round(8)
+                           else
+                             conversion[:rate].to_d
+                           end
+
+          payment.update_columns(
+            amount_in_debt_currency: amount_applied_to_line.to_d,
+            exchange_rate_to_debt_currency: effective_rate,
+            updated_at: Time.current
+          )
+        end
       end
 
-      if include_commission && commission_amount.positive? && account.account_type == 'bank_account'
+      if payment && include_commission && commission_amount.positive? && account.account_type == 'bank_account'
         commission_description = if payment_method == 'mobile'
                                    'Comision de pago movil'
                                  else
@@ -471,7 +485,7 @@ class ServicesController < ApplicationController
     end
 
     redirect_to pending_cost_redirect_path(debt: debt),
-                notice: 'Pago registrado en la linea de costo seleccionada.'
+          notice: (zero_amount_entry ? 'Linea exonerada con monto 0. No se registraron movimientos de cuenta.' : 'Pago registrado en la linea de costo seleccionada.')
   rescue ActiveRecord::RecordInvalid => e
     redirect_to pending_cost_redirect_path(debt: debt),
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
