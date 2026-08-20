@@ -763,7 +763,7 @@
           const conceptOk = String(conceptInput?.value || '').trim().length > 0;
           const dateOk = String(dateInput?.value || '').trim().length > 0;
           const referenceOk = !referenceInput || sanitizeReference().length === 4;
-          submitButton.disabled = hasError || amount <= 0 || !commissionOk || !conceptOk || !dateOk || !referenceOk;
+          submitButton.disabled = amount <= 0 || !commissionOk || !conceptOk || !dateOk || !referenceOk;
           submitButton.classList.toggle('opacity-60', submitButton.disabled);
           submitButton.classList.toggle('cursor-not-allowed', submitButton.disabled);
         }
