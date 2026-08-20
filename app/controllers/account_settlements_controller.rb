@@ -6,24 +6,24 @@ class AccountSettlementsController < ApplicationController
 
   def index
     @processed_settlements = @account.account_settlements.where.not(processed_at: nil)
-    @processed_settlements = if @account.account_type == 'biopago'
-                               @processed_settlements.order(period_start_at: :asc, processed_at: :asc)
-                             else
-                               @processed_settlements.order(processed_at: :desc)
-                             end
+    @processed_settlements = if @account.account_type == "biopago"
+        @processed_settlements.order(period_start_at: :asc, processed_at: :asc)
+      else
+        @processed_settlements.order(processed_at: :desc)
+      end
   end
 
   def show
     @settlement_movements = @settlement.account_movements.order(occurred_at: :desc, created_at: :desc)
 
     latest_movement = @settlement_movements.first
-    @settlement_latest_movement_at = latest_movement&.occurred_at&.in_time_zone('America/Caracas')
-    @suggested_settlement_date = (@settlement_latest_movement_at&.to_date || Time.current.in_time_zone('America/Caracas').to_date) + 1.day
+    @settlement_latest_movement_at = latest_movement&.occurred_at&.in_time_zone("America/Caracas")
+    @suggested_settlement_date = (@settlement_latest_movement_at&.to_date || Time.current.in_time_zone("America/Caracas").to_date) + 1.day
   end
 
   def create
-    unless @account.account_type == 'biopago'
-      return redirect_to account_path(@account), alert: 'Los cierres de esta cuenta se ejecutan al cerrar turno.'
+    unless @account.account_type == "biopago"
+      return redirect_to account_path(@account), alert: "Los cierres de esta cuenta se ejecutan al cerrar turno."
     end
 
     existing_pending_settlement = @account.account_settlements
@@ -32,12 +32,12 @@ class AccountSettlementsController < ApplicationController
                                           .first
 
     if existing_pending_settlement.present?
-      period_label = existing_pending_settlement.period_start_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y')
+      period_label = existing_pending_settlement.period_start_at&.in_time_zone("America/Caracas")&.strftime("%d/%m/%Y")
       message = if period_label.present?
-                  "Ya existe un cierre pendiente de Biopago para el #{period_label}. Debes procesarlo primero."
-                else
-                  'Ya existe un cierre pendiente de Biopago. Debes procesarlo primero.'
-                end
+          "Ya existe un cierre pendiente de Biopago para el #{period_label}. Debes procesarlo primero."
+        else
+          "Ya existe un cierre pendiente de Biopago. Debes procesarlo primero."
+        end
 
       return redirect_to account_account_settlement_path(@account, existing_pending_settlement), alert: message
     end
@@ -46,21 +46,21 @@ class AccountSettlementsController < ApplicationController
 
     pending_before_today = @account.account_movements
                                    .where(account_settlement_id: nil)
-                                   .where('occurred_at < ?', today_start)
+                                   .where("occurred_at < ?", today_start)
 
     if pending_before_today.blank?
       return redirect_to account_path(@account),
-                         alert: 'No hay movimientos pendientes de dias anteriores para cerrar en Biopago.'
+                         alert: "No hay movimientos pendientes de dias anteriores para cerrar en Biopago."
     end
 
     oldest_movement = pending_before_today.to_a.min_by do |movement|
-      occurred_at_caracas = movement.occurred_at&.in_time_zone('America/Caracas')
+      occurred_at_caracas = movement.occurred_at&.in_time_zone("America/Caracas")
       [occurred_at_caracas&.to_date, occurred_at_caracas, movement.id]
     end
 
-    oldest_day = oldest_movement.occurred_at.in_time_zone('America/Caracas').to_date
-    day_start = oldest_day.in_time_zone('America/Caracas').beginning_of_day
-    day_end = oldest_day.in_time_zone('America/Caracas').end_of_day
+    oldest_day = oldest_movement.occurred_at.in_time_zone("America/Caracas").to_date
+    day_start = oldest_day.in_time_zone("America/Caracas").beginning_of_day
+    day_end = oldest_day.in_time_zone("America/Caracas").end_of_day
 
     day_scope = @account.account_movements
                         .where(account_settlement_id: nil)
@@ -70,7 +70,7 @@ class AccountSettlementsController < ApplicationController
     movements_count = day_scope.count
     if movements_count.zero?
       return redirect_to account_path(@account),
-                         alert: 'No se encontraron movimientos pendientes para el dia seleccionado.'
+                         alert: "No se encontraron movimientos pendientes para el dia seleccionado."
     end
 
     total_amount = day_scope.sum(
@@ -79,7 +79,7 @@ class AccountSettlementsController < ApplicationController
 
     unless total_amount.positive?
       return redirect_to account_path(@account),
-                         alert: 'El total neto pendiente del dia no es mayor a cero y no puede cerrarse.'
+                         alert: "El total neto pendiente del dia no es mayor a cero y no puede cerrarse."
     end
 
     settlement = nil
@@ -91,7 +91,7 @@ class AccountSettlementsController < ApplicationController
         closed_at: Time.current,
         period_start_at: day_start,
         period_end_at: day_end,
-        settlement_account: (@account.settlement_account if @account.settlement_account.present?)
+        settlement_account: (@account.settlement_account if @account.settlement_account.present?),
       )
 
       day_scope.update_all(account_settlement_id: settlement.id, updated_at: Time.current)
@@ -99,13 +99,13 @@ class AccountSettlementsController < ApplicationController
     end
 
     redirect_to account_account_settlement_path(@account, settlement),
-                notice: "Cierre diario de Biopago generado para el #{oldest_day.strftime('%d/%m/%Y')}."
+                notice: "Cierre diario de Biopago generado para el #{oldest_day.strftime("%d/%m/%Y")}."
   end
 
   def update
     if @settlement.processed?
       return redirect_to account_account_settlement_path(@account, @settlement),
-                         alert: 'Este cierre ya fue procesado.'
+                         alert: "Este cierre ya fue procesado."
     end
 
     credited_amount = parse_decimal(settlement_params[:credited_amount]).to_d.round(2)
@@ -114,12 +114,12 @@ class AccountSettlementsController < ApplicationController
 
     if credited_amount.negative? || commission_amount.negative?
       return redirect_to account_account_settlement_path(@account, @settlement),
-                         alert: 'Acreditado y comision deben ser montos positivos.'
+                         alert: "Acreditado y comision deben ser montos positivos."
     end
 
     if settlement_date.blank?
       return redirect_to account_account_settlement_path(@account, @settlement),
-                         alert: 'Indica una fecha valida para procesar el cierre.'
+                         alert: "Indica una fecha valida para procesar el cierre."
     end
 
     # Prefer the current account configuration so editing the POS/Biopago
@@ -127,12 +127,12 @@ class AccountSettlementsController < ApplicationController
     settlement_account = @account.settlement_account || @settlement.settlement_account
     if @account.settlement_account_required? && settlement_account.blank?
       return redirect_to account_account_settlement_path(@account, @settlement),
-                         alert: 'Asigna una cuenta bancaria en Bs antes de procesar este cierre.'
+                         alert: "Asigna una cuenta bancaria en Bs antes de procesar este cierre."
     end
 
     processed_at = Time.current
-    processed_at_caracas = processed_at.in_time_zone('America/Caracas')
-    occurred_at = ActiveSupport::TimeZone['America/Caracas'].local(
+    processed_at_caracas = processed_at.in_time_zone("America/Caracas")
+    occurred_at = ActiveSupport::TimeZone["America/Caracas"].local(
       settlement_date.year,
       settlement_date.month,
       settlement_date.day,
@@ -147,34 +147,34 @@ class AccountSettlementsController < ApplicationController
         commission_amount: commission_amount,
         processed_at: processed_at,
         settlement_date: settlement_date,
-        settlement_account: settlement_account
+        settlement_account: settlement_account,
       )
 
       if settlement_account.present? && credited_amount.positive?
         settlement_account.account_movements.create!(
-          movement_kind: 'income',
+          movement_kind: "income",
           amount: credited_amount,
           description: "Liquidacion #{@account.account_type_label} (cierre ##{@settlement.id}) [ACCOUNT:#{@account.id}]",
           occurred_at: occurred_at,
-          payment_method: 'settlement',
-          account_settlement: @settlement
+          payment_method: "settlement",
+          account_settlement: @settlement,
         )
       end
 
       if settlement_account.present? && commission_amount.positive?
         settlement_account.account_movements.create!(
-          movement_kind: 'expense',
+          movement_kind: "expense",
           amount: commission_amount,
           description: "Comision #{@account.account_type_label} (cierre ##{@settlement.id}) [ACCOUNT:#{@account.id}]",
           occurred_at: occurred_at,
-          payment_method: 'settlement',
-          account_settlement: @settlement
+          payment_method: "settlement",
+          account_settlement: @settlement,
         )
       end
     end
 
     redirect_to account_account_settlement_path(@account, @settlement),
-                notice: 'Cierre procesado correctamente.'
+                notice: "Cierre procesado correctamente."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to account_account_settlement_path(@account, @settlement),
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
@@ -198,16 +198,16 @@ class AccountSettlementsController < ApplicationController
     return 0.to_d if value.nil?
     return value.to_d if value.is_a?(Numeric)
 
-    compact = value.to_s.strip.gsub(/\s+/, '').gsub(/[^\d.,-]/, '')
+    compact = value.to_s.strip.gsub(/\s+/, "").gsub(/[^\d.,-]/, "")
     return 0.to_d if compact.empty?
 
-    normalized = if compact.include?(',')
-                   compact.gsub('.', '').tr(',', '.')
-                 elsif compact.match?(/^\d{1,3}(\.\d{3})+$/)
-                   compact.tr('.', '')
-                 else
-                   compact
-                 end
+    normalized = if compact.include?(",")
+        compact.gsub(".", "").tr(",", ".")
+      elsif compact.match?(/^\d{1,3}(\.\d{3})+$/)
+        compact.tr(".", "")
+      else
+        compact
+      end
 
     BigDecimal(normalized)
   rescue ArgumentError
@@ -218,7 +218,7 @@ class AccountSettlementsController < ApplicationController
     return nil if raw_value.blank?
 
     normalized = raw_value.to_s.strip
-    return Date.strptime(normalized.tr('/', '-'), '%d-%m-%Y') if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
+    return Date.strptime(normalized.tr("/", "-"), "%d-%m-%Y") if normalized.match?(%r{\A\d{1,2}[/-]\d{1,2}[/-]\d{4}\z})
     return Date.iso8601(normalized) if normalized.match?(/\A\d{4}-\d{2}-\d{2}\z/)
 
     Date.parse(normalized)
