@@ -6,7 +6,7 @@
 <% selected_payment_currency = selected_payment_account&.currency %>
 <% selected_payment_symbol = currency_symbols[selected_payment_currency] || selected_payment_currency || '$' %>
 <% show_payment_method = selected_payment_account&.account_type == 'bank_account' && selected_payment_account&.currency == 'VES' %>
-<% selected_expense_type = form.object.expense_type.to_s.presence || 'variable' %>
+<% selected_expense_type = @expense.expense_type.to_s.presence || 'variable' %>
 <% programming_visible = !@expense.new_record? || selected_expense_type == 'fixed' %>
 <% variable_payment_visible = @expense.new_record? && selected_expense_type == 'variable' %>
 <%
