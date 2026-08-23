@@ -6,6 +6,9 @@
 <% selected_payment_currency = selected_payment_account&.currency %>
 <% selected_payment_symbol = currency_symbols[selected_payment_currency] || selected_payment_currency || '$' %>
 <% show_payment_method = selected_payment_account&.account_type == 'bank_account' && selected_payment_account&.currency == 'VES' %>
+<% selected_expense_type = form.object.expense_type.to_s.presence || 'variable' %>
+<% programming_visible = !@expense.new_record? || selected_expense_type == 'fixed' %>
+<% variable_payment_visible = @expense.new_record? && selected_expense_type == 'variable' %>
 <%
   initial_payment_date = begin
     raw_value = params[:payment_occurred_at].to_s.strip
@@ -55,7 +58,7 @@
       </div>
       <div>
         <%= form.label :expense_type, "Tipo", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.select :expense_type, Expense.expense_type_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
+        <%= form.select :expense_type, Expense.expense_type_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", data: { expense_type_select: true } %>
       </div>
       <div>
         <%= form.label :expense_category_id, "Categoria", class: "block text-sm font-medium text-slate-700" %>
@@ -70,11 +73,11 @@
       </div>
     </div>
   </div>
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Monto base</p>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm <%= programming_visible ? '' : 'hidden' %>" data-expense-programming-section="true">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Programacion</p>
     <div class="mt-4 grid gap-4 md:grid-cols-2">
       <div>
-        <%= form.label :amount, "Monto", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.label :amount, "Monto base", class: "block text-sm font-medium text-slate-700" %>
         <%= form.text_field :amount,
           value: form.object.amount.present? ? (Account::CURRENCIES[form.object.currency.to_s]&.dig(:symbol).to_s + ' ' + sprintf('%.2f', form.object.amount).gsub('.', ',')) : '',
           inputmode: 'decimal',
@@ -89,13 +92,10 @@
         %>
       </div>
       <div>
-        <%= form.label :currency, "Moneda", class: "block text-sm font-medium text-slate-700" %>
+        <%= form.label :currency, "Moneda base", class: "block text-sm font-medium text-slate-700" %>
         <%= form.select :currency, Account.currency_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
       </div>
     </div>
-  </div>
-  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Programacion</p>
     <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       <div>
         <%= form.label :frequency, "Frecuencia", class: "block text-sm font-medium text-slate-700" %>
@@ -124,16 +124,12 @@
     </div>
   </div>
   <% if @expense.new_record? %>
-    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm <%= variable_payment_visible ? '' : 'hidden' %>" data-expense-variable-payment-section="true">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pago inicial</p>
-          <p class="mt-1 text-sm text-slate-500">Registra un pago de inmediato si es un gasto unico.</p>
+          <p class="mt-1 text-sm text-slate-500">Para gastos variables, el pago inicial es obligatorio.</p>
         </div>
-        <label class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-          <%= check_box_tag :register_payment, "1", params[:register_payment] == "1", class: "h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" %>
-          Registrar pago ahora
-        </label>
       </div>
       <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div>
@@ -147,7 +143,7 @@
         <div class="<%= show_payment_method ? '' : 'hidden' %>" data-expense-payment-method-wrapper="true">
           <label class="block text-sm font-medium text-slate-700">Metodo (solo banco en Bs)</label>
           <%= select_tag :payment_method,
-                         options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile']], params[:payment_method]),
+                         options_for_select([['Transferencia', 'transfer'], ['Pago movil', 'mobile'], ['Tarjeta de debito', 'debit_card']], params[:payment_method]),
                          include_blank: "Selecciona",
                          class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
                          data: { expense_payment_method: true } %>
@@ -166,7 +162,7 @@
                                expense_payment_amount: true
                              } %>
         </div>
-        <div>
+        <div data-expense-payment-reference-wrapper="true">
           <label class="block text-sm font-medium text-slate-700">Referencia</label>
           <%= text_field_tag :payment_reference,
                              params[:payment_reference],
@@ -189,6 +185,28 @@
                              class: "js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500",
                              data: { expense_payment_date: true } %>
         </div>
+        <div class="hidden md:col-span-2 xl:col-span-3" data-expense-commission-section="true">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <%= check_box_tag :include_commission, '1', ActiveModel::Type::Boolean.new.cast(params[:include_commission]), class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500', data: { expense_commission_toggle: true } %>
+              El gasto incluye comision bancaria
+            </label>
+            <div class="mt-3 hidden" data-expense-commission-amount-wrapper="true">
+              <label class="block text-sm font-medium text-slate-700">Monto de comision</label>
+              <%= text_field_tag :commission_amount,
+                                 params[:commission_amount].presence || "#{selected_payment_symbol} 0,00",
+                                 inputmode: 'decimal',
+                                 autocomplete: 'off',
+                                 placeholder: "#{selected_payment_symbol} 0,00",
+                                 class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
+                                 data: {
+                                   money_mask: true,
+                                   money_symbol: selected_payment_symbol,
+                                   expense_commission_amount: true
+                                 } %>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   <% end %>
@@ -203,12 +221,20 @@
     if (!form || form.dataset.bound === "true") return;
     form.dataset.bound = "true";
 
+    const expenseTypeSelect = form.querySelector("[data-expense-type-select='true']");
+    const programmingSection = form.querySelector("[data-expense-programming-section='true']");
+    const variablePaymentSection = form.querySelector("[data-expense-variable-payment-section='true']");
     const accountSelect = form.querySelector("[data-expense-payment-account='true']");
     const methodWrapper = form.querySelector("[data-expense-payment-method-wrapper='true']");
     const methodSelect = form.querySelector("[data-expense-payment-method='true']");
+    const referenceWrapper = form.querySelector("[data-expense-payment-reference-wrapper='true']");
     const referenceInput = form.querySelector("[data-expense-payment-reference='true']");
     const amountInput = form.querySelector("[data-expense-payment-amount='true']");
-    const registerPaymentCheckbox = form.querySelector("#register_payment");
+    const paymentDateInput = form.querySelector("[data-expense-payment-date='true']");
+    const commissionSection = form.querySelector("[data-expense-commission-section='true']");
+    const commissionToggle = form.querySelector("[data-expense-commission-toggle='true']");
+    const commissionAmountWrapper = form.querySelector("[data-expense-commission-amount-wrapper='true']");
+    const commissionAmountInput = form.querySelector("[data-expense-commission-amount='true']");
     const currencySymbols = (() => {
       try {
         return JSON.parse(form.dataset.expenseCurrencySymbols || "{}");
@@ -217,7 +243,9 @@
       }
     })();
 
-    const registerPaymentEnabled = () => (registerPaymentCheckbox ? registerPaymentCheckbox.checked : true);
+    const selectedExpenseType = () => String(expenseTypeSelect?.value || "variable").toLowerCase();
+    const isVariableExpense = () => selectedExpenseType() === "variable";
+    const variablePaymentEnabled = () => Boolean(variablePaymentSection) && isVariableExpense();
 
     const parseMaskedValue = (input) => {
       if (!input) return 0;
@@ -244,11 +272,48 @@
       return isBank && isVes;
     };
 
+    const paymentMethodValue = () => String(methodSelect?.value || "").trim();
+
+    const methodSupportsCommission = () => {
+      return variablePaymentEnabled() && isBsBankAccountSelected() && ["transfer", "mobile"].includes(paymentMethodValue());
+    };
+
+    const shouldRequireReference = () => {
+      return variablePaymentEnabled() && isBsBankAccountSelected() && ["transfer", "mobile"].includes(paymentMethodValue());
+    };
+
+    const syncSectionsByExpenseType = () => {
+      const variable = isVariableExpense();
+
+      if (variablePaymentSection) {
+        if (programmingSection) {
+          programmingSection.classList.toggle("hidden", variable);
+        }
+        variablePaymentSection.classList.toggle("hidden", !variable);
+      } else if (programmingSection) {
+        programmingSection.classList.remove("hidden");
+      }
+
+      const enforceVariablePayment = Boolean(variablePaymentSection) && variable;
+      if (accountSelect) accountSelect.required = enforceVariablePayment;
+      if (amountInput) amountInput.required = enforceVariablePayment;
+      if (paymentDateInput) paymentDateInput.required = enforceVariablePayment;
+
+      if (!enforceVariablePayment) {
+        if (accountSelect) accountSelect.value = "";
+        if (methodSelect) methodSelect.value = "";
+        if (referenceInput) referenceInput.value = "";
+        if (commissionToggle) commissionToggle.checked = false;
+        if (commissionAmountInput) commissionAmountInput.value = "";
+      }
+    };
+
     const updateMethodVisibility = () => {
       if (!methodWrapper || !methodSelect) return;
 
-      const visible = isBsBankAccountSelected();
+      const visible = variablePaymentEnabled() && isBsBankAccountSelected();
       methodWrapper.classList.toggle("hidden", !visible);
+      methodSelect.required = visible;
 
       if (!visible) {
         methodSelect.value = "";
@@ -257,18 +322,30 @@
     };
 
     const updateAmountMaskByAccount = () => {
-      if (!amountInput) return;
+      if (!amountInput && !commissionAmountInput) return;
 
       const option = selectedOption();
       const currency = String(option?.dataset.accountCurrency || "USD").toUpperCase();
       const symbol = currencySymbols[currency] || currency || "$";
-      const currentValue = parseMaskedValue(amountInput);
 
-      amountInput.dataset.moneySymbol = symbol;
-      amountInput.placeholder = `${symbol} 0,00`;
+      if (amountInput) {
+        const currentValue = parseMaskedValue(amountInput);
+        amountInput.dataset.moneySymbol = symbol;
+        amountInput.placeholder = `${symbol} 0,00`;
 
-      if (window.MoneyInputMask?.setValue) {
-        window.MoneyInputMask.setValue(amountInput, currentValue, symbol);
+        if (window.MoneyInputMask?.setValue) {
+          window.MoneyInputMask.setValue(amountInput, currentValue, symbol);
+        }
+      }
+
+      if (commissionAmountInput) {
+        const currentCommissionValue = parseMaskedValue(commissionAmountInput);
+        commissionAmountInput.dataset.moneySymbol = symbol;
+        commissionAmountInput.placeholder = `${symbol} 0,00`;
+
+        if (window.MoneyInputMask?.setValue) {
+          window.MoneyInputMask.setValue(commissionAmountInput, currentCommissionValue, symbol);
+        }
       }
     };
 
@@ -286,56 +363,95 @@
       return digits;
     };
 
-    const referenceRequired = () => {
-      return registerPaymentEnabled() && isBsBankAccountSelected() && String(methodSelect?.value || "").trim().length > 0;
-    };
-
     const updateReferenceRules = () => {
-      if (!referenceInput) return;
+      if (!referenceInput || !referenceWrapper) return;
 
       const digits = sanitizeReference();
-      const requiresReference = referenceRequired();
-      const shouldValidate = registerPaymentEnabled() && (requiresReference || digits.length > 0);
+      const requiresReference = shouldRequireReference();
+      const showReference = variablePaymentEnabled() && isBsBankAccountSelected() && paymentMethodValue() !== "debit_card";
+      const shouldValidate = variablePaymentEnabled() && (requiresReference || digits.length > 0);
+
+      referenceWrapper.classList.toggle("hidden", !showReference);
 
       referenceInput.required = requiresReference;
       referenceInput.setCustomValidity(
         shouldValidate && digits.length !== 4 ? "La referencia debe tener exactamente 4 digitos." : ""
       );
+
+      if (!showReference) {
+        referenceInput.value = "";
+      }
     };
 
+    const updateCommissionRules = () => {
+      if (!commissionSection || !commissionToggle || !commissionAmountWrapper || !commissionAmountInput) return;
+
+      const applicable = variablePaymentEnabled() && methodSupportsCommission();
+      commissionSection.classList.toggle("hidden", !applicable);
+
+      if (!applicable) {
+        commissionToggle.checked = false;
+        commissionAmountWrapper.classList.add("hidden");
+        commissionAmountInput.value = "";
+        commissionAmountInput.required = false;
+        return;
+      }
+
+      const checked = commissionToggle.checked;
+      commissionAmountWrapper.classList.toggle("hidden", !checked);
+      commissionAmountInput.required = checked;
+    };
+
+    const syncAll = () => {
+      syncSectionsByExpenseType();
+      updateMethodVisibility();
+      updateAmountMaskByAccount();
+      updateReferenceRules();
+      updateCommissionRules();
+    };
+
+    if (expenseTypeSelect) {
+      expenseTypeSelect.addEventListener("change", syncAll);
+    }
+
     if (accountSelect) {
-      accountSelect.addEventListener("change", () => {
-        updateMethodVisibility();
-        updateAmountMaskByAccount();
-        updateReferenceRules();
-      });
+      accountSelect.addEventListener("change", syncAll);
     }
 
     if (methodSelect) {
-      methodSelect.addEventListener("change", updateReferenceRules);
+      methodSelect.addEventListener("change", () => {
+        updateReferenceRules();
+        updateCommissionRules();
+      });
     }
 
     if (referenceInput) {
       referenceInput.addEventListener("input", updateReferenceRules);
     }
 
-    if (registerPaymentCheckbox) {
-      registerPaymentCheckbox.addEventListener("change", updateReferenceRules);
+    if (commissionToggle) {
+      commissionToggle.addEventListener("change", updateCommissionRules);
     }
 
     form.addEventListener("submit", (event) => {
+      syncAll();
       updateReferenceRules();
+      updateCommissionRules();
 
       const digits = sanitizeReference();
-      const shouldValidate = registerPaymentEnabled() && (referenceRequired() || digits.length > 0);
+      const shouldValidate = variablePaymentEnabled() && (shouldRequireReference() || digits.length > 0);
       if (shouldValidate && digits.length !== 4) {
         event.preventDefault();
         referenceInput?.focus();
+        return;
+      }
+
+      if (commissionToggle?.checked && parseMaskedValue(commissionAmountInput) <= 0) {
+        event.preventDefault();
+        commissionAmountInput?.focus();
       }
     });
 
-    updateMethodVisibility();
-    updateAmountMaskByAccount();
-    updateReferenceRules();
+    syncAll();
   })();
 </script>
