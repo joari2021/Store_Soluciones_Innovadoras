@@ -15,7 +15,6 @@
         <% end %>
       </div>
     </div>
-
     <%= form_with url: replenishment_history_loss_recoveries_path, method: :get, local: true, class: "mt-4 grid gap-3 md:grid-cols-3 md:items-end" do %>
       <div>
         <label class="block text-sm font-medium text-slate-700">Desde</label>
@@ -31,7 +30,6 @@
       </div>
     <% end %>
   </div>
-
   <div class="grid gap-4 md:grid-cols-3">
     <div class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
       <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Movimientos</p>
@@ -46,7 +44,6 @@
       <p class="mt-2 text-2xl font-extrabold text-sky-700"><%= number_with_precision(@replenishment_summary[:quantity_remaining], precision: 3, strip_insignificant_zeros: true) %></p>
     </div>
   </div>
-
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-x-auto">
     <table class="min-w-full text-sm text-slate-700">
       <thead>
@@ -94,3 +91,32 @@
     </table>
   </div>
 </div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-turbo-confirm]').forEach(function(form) {
+      form.addEventListener('submit', function(e) {
+        var message = form.getAttribute('data-turbo-confirm') || '¿Deseas continuar?';
+        e.preventDefault();
+        if (typeof Swal === 'undefined') {
+          // Fallback to native confirm if SweetAlert is not loaded
+          if (window.confirm(message)) form.submit();
+          return;
+        }
+
+        Swal.fire({
+          title: '',
+          text: message,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Aceptar',
+          cancelButtonText: 'Cancelar',
+          reverseButtons: true
+        }).then(function(result) {
+          if (result.isConfirmed) {
+            form.submit();
+          }
+        });
+      });
+    });
+  });
+</script>
