@@ -676,13 +676,6 @@
                 <span id="ventas-sale-total-bs" class="block text-xs text-emerald-600">Bs 0,00</span>
               </span>
             </div>
-            <div id="ventas-loss-recovery-row" class="hidden flex justify-between rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-700">
-              <span>Recuperacion de perdida</span>
-              <span class="text-right">
-                <span id="ventas-loss-recovery-usd" class="block font-semibold text-amber-700"><%= format_money(0, unit: '$') %></span>
-                <span id="ventas-loss-recovery-bs" class="block text-xs text-amber-600">Bs 0,00</span>
-              </span>
-            </div>
             <div class="flex justify-between text-xl font-bold text-slate-800 pt-2">
               <span>Total</span>
               <span class="text-right">
@@ -1643,9 +1636,7 @@
       const openPaymentModalWithConfig = (config = {}) => {
         const modalTotals = config.totals || {};
         const totalBase = Number(modalTotals.totalBase || 0);
-        const lossRecoveryExtraBase = Number(modalTotals.lossRecoveryExtraBase || 0);
-        const lossRecoveryApplied = modalTotals.lossRecoveryApplied === true;
-        const subtotalBase = Number(modalTotals.subtotalBase || 0);
+        const subtotalBase = Number(modalTotals.subtotalBase || 0) + Number(modalTotals.lossRecoveryExtraBase || 0);
         const exentoBase = Number(modalTotals.exentoBase || 0);
         const vatBase = Number(modalTotals.vatBase || 0);
         const vatLabel = String(config.vatLabel || 'Sin IVA');
@@ -1969,9 +1960,6 @@
                 <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Subtotal gravado: <span class="font-semibold text-slate-700">${formatBaseMoney(subtotalBase)}</span></div>
                 <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Exento: <span class="font-semibold text-slate-700">${formatBaseMoney(exentoBase)}</span></div>
                 <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">IVA: <span class="font-semibold text-slate-700">${formatBaseMoney(vatBase)}</span></div>
-                ${lossRecoveryApplied && lossRecoveryExtraBase > 0
-                  ? `<div class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700 ring-1 ring-amber-200">Recuperacion: <span class="font-semibold text-amber-800">${formatBaseMoney(lossRecoveryExtraBase)}</span></div>`
-                  : ''}
               </div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
@@ -5331,16 +5319,13 @@
       const renderTotals = () => {
         const vatMode = getVatMode();
         const totals = calculateCartTotals();
-        const subtotalBase = totals.taxableSubtotalBase;
+        const subtotalBase = roundTo(totals.taxableSubtotalBase + (totals.lossRecoveryExtraBase || 0), 2);
         const exentoBase = totals.exentoSubtotalBase;
         const vatBase = totals.vatBase;
         const totalBase = totals.totalBase;
-        const lossRecoveryExtraBase = totals.lossRecoveryExtraBase;
-        const lossRecoveryApplied = totals.lossRecoveryApplied;
         const saleTotalBase = calculateSalePriceTotalBase();
         const costPricingEnabled = isCostPricingEnabled(selectedClient);
         const saleTotalCard = document.getElementById('ventas-sale-total-card');
-        const lossRecoveryRow = document.getElementById('ventas-loss-recovery-row');
 
         const setText = (id, value) => {
           const el = document.getElementById(id);
@@ -5355,12 +5340,6 @@
         setText('ventas-iva-bs', formatAltFromBase(vatBase));
         setText('ventas-total-usd', formatBaseMoney(totalBase));
         setText('ventas-total-bs', formatAltFromBase(totalBase));
-        setText('ventas-loss-recovery-usd', formatBaseMoney(lossRecoveryExtraBase));
-        setText('ventas-loss-recovery-bs', formatAltFromBase(lossRecoveryExtraBase));
-
-        if (lossRecoveryRow) {
-          lossRecoveryRow.classList.toggle('hidden', !(lossRecoveryApplied && lossRecoveryExtraBase > 0));
-        }
 
         if (saleTotalCard) {
           const showSaleTotal = costPricingEnabled && saleTotalBase > 0;
