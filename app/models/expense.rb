@@ -48,6 +48,17 @@ class Expense < ApplicationRecord
     expense_category&.name.to_s.strip.presence || 'Sin categoria'
   end
 
+  def commission_expense?
+    commission_origin_expense_id.present?
+  end
+
+  def commission_origin_expense_id
+    match = description.to_s.match(/Comision bancaria asociada al gasto\s+#(\d+)/i)
+    return nil if match.blank?
+
+    match[1].to_i
+  end
+
   def schedule_enabled?
     frequency != 'once'
   end

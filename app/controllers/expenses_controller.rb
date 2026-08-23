@@ -123,18 +123,35 @@ class ExpensesController < ApplicationController
   def destroy
     destination_path = destroy_return_path
 
+    if @expense.commission_expense?
+      redirect_to destination_path, alert: 'Este gasto de comision bancaria se elimina automaticamente al borrar el gasto principal.'
+      return
+    end
+
     if should_archive_expense?(@expense)
       @expense.update!(active: false, next_due_on: nil, end_date: Date.current)
       redirect_to destination_path, notice: 'Gasto archivado para conservar su historial de pagos.'
       return
     end
 
+    deleted_commissions_count = 0
     Expense.transaction do
+      commission_linked_expenses_for(@expense).find_each do |commission_expense|
+        remove_account_movements_for_expense!(commission_expense)
+        commission_expense.destroy!
+        deleted_commissions_count += 1
+      end
+
       remove_account_movements_for_expense!(@expense)
       @expense.destroy!
     end
 
-    redirect_to destination_path, notice: 'Gasto eliminado.'
+    notice_message = if deleted_commissions_count.positive?
+                       "Gasto eliminado junto a #{deleted_commissions_count} gasto(s) de comision relacionado(s)."
+                     else
+                       'Gasto eliminado.'
+                     end
+    redirect_to destination_path, notice: notice_message
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to destination_path, alert: "No se pudo eliminar el gasto: #{e.message}"
   end
@@ -381,6 +398,14 @@ class ExpensesController < ApplicationController
 
   def destroy_return_path
     params[:return_to].to_s == 'history' ? history_expenses_path : expenses_path
+  end
+
+  def commission_linked_expenses_for(origin_expense)
+    return Expense.none if origin_expense.id.blank?
+
+    current_business.expenses
+                    .where.not(id: origin_expense.id)
+                    .where('description LIKE ?', "Comision bancaria asociada al gasto ##{origin_expense.id}%")
   end
 
   def remove_account_movements_for_expense!(expense)
