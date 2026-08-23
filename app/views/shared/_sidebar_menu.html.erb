@@ -60,6 +60,12 @@
     <span class="sidebar-label">Gastos</span>
   <% end %>
 <% end %>
+<% if current_user_admin? %>
+  <%= link_to loss_recoveries_path, close_attrs.merge(class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Recuperacion de Perdidas' }) do %>
+    <i data-lucide="shield-alert" class="w-5 h-5 text-amber-600"></i>
+    <span class="sidebar-label">Recuperacion</span>
+  <% end %>
+<% end %>
 <% if can_access_module?(:accounts) %>
   <%= link_to accounts_path, close_attrs.merge(class: "nav-btn w-full flex items-center gap-4 p-3.5 rounded-2xl transition-all hover:bg-sky-50 group no-underline hover:no-underline text-slate-700", data: { tooltip: 'Cuentas' }) do %>
     <i data-lucide="wallet" class="w-5 h-5 group-hover:text-sky-500 transition-colors"></i>

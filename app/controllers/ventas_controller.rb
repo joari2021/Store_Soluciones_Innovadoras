@@ -97,6 +97,7 @@ class VentasController < ApplicationController
     end
 
     @drafts_payload = drafts_payload
+    @loss_recovery_setting = current_business.loss_recovery_setting || current_business.build_loss_recovery_setting
   end
 
   def catalog_products
@@ -876,6 +877,15 @@ class VentasController < ApplicationController
 
     venta.valid?
     server_totals = calculated_sale_totals_for(venta)
+    loss_recovery_context = loss_recovery_charge_context(
+      totals: server_totals,
+      base_currency: base_currency,
+      tasa_dolar: tasa_dolar,
+      has_products: venta.venta_items.any? { |item| item.producto_id.present? },
+    )
+    server_totals[:charged_total_base] = loss_recovery_context[:charged_total_base]
+    server_totals[:charged_total_usd] = loss_recovery_context[:charged_total_usd]
+    server_totals[:loss_recovery_extra_base] = loss_recovery_context[:excess_base]
 
     has_fractional_product_quantity = items.any? do |entry|
       item_hash = entry.respond_to?(:to_h) ? entry.to_h : {}
@@ -893,6 +903,7 @@ class VentasController < ApplicationController
         server_totals: server_totals,
         tolerance: totals_tolerance,
         has_fractional_product_quantity: has_fractional_product_quantity,
+        loss_recovery_context: loss_recovery_context,
       )
       if totals_mismatch_message.present?
         return render json: { error: totals_mismatch_message }, status: :unprocessable_entity
@@ -1313,6 +1324,21 @@ class VentasController < ApplicationController
         else
           notes_payload.delete("checkout_discount")
         end
+        if loss_recovery_context[:applied]
+          notes_payload["loss_recovery"] = {
+            "applied" => true,
+            "percent" => loss_recovery_context[:percent].to_d.round(4).to_f,
+            "min_invoice_total_usd" => loss_recovery_context[:min_invoice_total_usd].to_d.round(2).to_f,
+            "real_total_base" => loss_recovery_context[:real_total_base].to_d.round(2).to_f,
+            "charged_total_base" => loss_recovery_context[:charged_total_base].to_d.round(2).to_f,
+            "excess_base" => loss_recovery_context[:excess_base].to_d.round(2).to_f,
+            "real_total_usd" => loss_recovery_context[:real_total_usd].to_d.round(2).to_f,
+            "charged_total_usd" => loss_recovery_context[:charged_total_usd].to_d.round(2).to_f,
+            "excess_usd" => loss_recovery_context[:excess_usd].to_d.round(2).to_f,
+          }
+        else
+          notes_payload.delete("loss_recovery")
+        end
         if cashea_sale[:enabled]
           notes_payload["cashea_sale"] = {
             "enabled" => true,
@@ -1409,6 +1435,12 @@ class VentasController < ApplicationController
             end
             account.account_movements.create!(commission_attrs)
           end
+
+          record_loss_recovery_entry_for_sale!(
+            venta: venta,
+            payment_rows: payment_rows,
+            context: loss_recovery_context,
+          )
         end
 
         register_service_cost_settlements_for_sale!(
@@ -1591,6 +1623,8 @@ class VentasController < ApplicationController
       movement_attrs[:reference] = row.reference.presence if supports_movement_reference && row.reference.present?
       account.account_movements.create!(movement_attrs)
     end
+
+    record_loss_recovery_entry_for_approved_order!(venta)
   end
 
   def create_pending_credit_debt_for_approved_order!(venta)
@@ -3327,7 +3361,15 @@ class VentasController < ApplicationController
         :total_with_commission_usd,
         { installments: %i[amount_usd due_on] },
       ],
-      totals: %i[taxable_subtotal_base exento_subtotal_base vat_base total_base],
+      totals: %i[
+        taxable_subtotal_base
+        exento_subtotal_base
+        vat_base
+        total_base
+        charged_total_base
+        loss_recovery_extra_base
+        loss_recovery_applied
+      ],
       service_cost_payments: %i[
         service_id
         pay_now
@@ -4486,14 +4528,16 @@ class VentasController < ApplicationController
 
   def total_due_in_currency(venta, currency, tasa_dolar, calculated_totals: nil)
     totals = calculated_totals || calculated_sale_totals_for(venta)
-    return totals[:total_usd] unless currency == "VES"
+    total_usd = totals[:charged_total_usd].presence || totals[:total_usd]
+    total_base = totals[:charged_total_base].presence || totals[:total_base]
+    return total_usd unless currency == "VES"
 
-    return totals[:total_base] if venta.base_currency.to_s.upcase == "VES"
+    return total_base if venta.base_currency.to_s.upcase == "VES"
 
     rate = tasa_dolar.to_d
     return 0.to_d unless rate.positive?
 
-    (totals[:total_usd] * rate).round(2)
+    (total_usd * rate).round(2)
   end
 
   def parsed_totals_payload(raw_totals)
@@ -4507,6 +4551,10 @@ class VentasController < ApplicationController
                                           default: 0).to_d.round(2),
       vat_base: parse_decimal(source[:vat_base] || source["vat_base"], default: 0).to_d.round(2),
       total_base: parse_decimal(source[:total_base] || source["total_base"], default: 0).to_d.round(2),
+      charged_total_base: parse_decimal(source[:charged_total_base] || source["charged_total_base"], default: 0).to_d.round(2),
+      loss_recovery_extra_base: parse_decimal(source[:loss_recovery_extra_base] || source["loss_recovery_extra_base"],
+                                              default: 0).to_d.round(2),
+      loss_recovery_applied: ActiveModel::Type::Boolean.new.cast(source[:loss_recovery_applied] || source["loss_recovery_applied"]),
     }
   end
 
@@ -4546,7 +4594,8 @@ class VentasController < ApplicationController
   end
 
   def validate_client_totals_against_server(client_totals:, server_totals:, tolerance:,
-                                            has_fractional_product_quantity: false)
+                                            has_fractional_product_quantity: false,
+                                            loss_recovery_context: nil)
     checks = if has_fractional_product_quantity
         {
           vat_base: "IVA",
@@ -4563,7 +4612,11 @@ class VentasController < ApplicationController
 
     checks.each do |key, label|
       client_value = client_totals[key].to_d.round(2)
-      server_value = server_totals[key].to_d.round(2)
+      server_value = if key == :total_base && loss_recovery_context.present?
+          loss_recovery_context[:charged_total_base].to_d.round(2)
+        else
+          server_totals[key].to_d.round(2)
+        end
       delta = (client_value - server_value).abs
       next unless delta > tolerance.to_d
 
@@ -4583,6 +4636,106 @@ class VentasController < ApplicationController
     else
       item.producto.present? && item.producto.respond_to?(:exento?) && item.producto.exento?
     end
+  end
+
+  def loss_recovery_charge_context(totals:, base_currency:, tasa_dolar:, has_products:)
+    setting = current_business.loss_recovery_setting
+
+    real_total_base = totals[:total_base].to_d.round(2)
+    real_total_usd = if base_currency.to_s.upcase == "VES"
+        rate = tasa_dolar.to_d
+        rate.positive? ? (real_total_base / rate).round(2) : 0.to_d
+      else
+        real_total_base
+      end
+
+    percent = setting&.surcharge_percent.to_d
+    min_usd = setting&.min_invoice_total_usd.to_d
+    active = setting&.active == true
+    eligible = has_products && active && percent.positive? && real_total_usd >= min_usd
+
+    excess_base = eligible ? ((real_total_base * percent) / 100).round(2) : 0.to_d
+    charged_total_base = (real_total_base + excess_base).round(2)
+
+    charged_total_usd = if base_currency.to_s.upcase == "VES"
+        rate = tasa_dolar.to_d
+        rate.positive? ? (charged_total_base / rate).round(2) : 0.to_d
+      else
+        charged_total_base
+      end
+
+    {
+      applied: eligible,
+      active: active,
+      percent: percent,
+      min_invoice_total_usd: min_usd,
+      real_total_base: real_total_base,
+      charged_total_base: charged_total_base,
+      excess_base: excess_base,
+      real_total_usd: real_total_usd,
+      charged_total_usd: charged_total_usd,
+      excess_usd: (charged_total_usd - real_total_usd).round(2),
+      base_currency: base_currency.to_s.upcase,
+      tasa_dolar: tasa_dolar.to_d.round(4),
+    }
+  end
+
+  def record_loss_recovery_entry_for_sale!(venta:, payment_rows:, context:)
+    return unless context[:applied]
+    return unless context[:excess_base].to_d.positive?
+
+    account_id = Array(payment_rows)
+      .max_by { |row| row[:amount_original].to_d }&.dig(:account_id)
+    occurred_at = Array(payment_rows)
+      .max_by { |row| row[:amount_original].to_d }&.dig(:payment_date)
+    occurred_at = account_movement_occurred_at_from_payment_date(occurred_at)
+
+    entry = current_business.loss_recovery_entries.find_or_initialize_by(venta_id: venta.id)
+    entry.assign_attributes(
+      account_id: account_id,
+      occurred_at: occurred_at,
+      base_currency: context[:base_currency],
+      tasa_dolar: context[:tasa_dolar],
+      real_total_base: context[:real_total_base],
+      charged_total_base: context[:charged_total_base],
+      excess_base: context[:excess_base],
+      real_total_usd: context[:real_total_usd],
+      charged_total_usd: context[:charged_total_usd],
+      excess_usd: context[:excess_usd],
+      notes: "Recuperacion aplicada a venta ##{venta.id}.",
+    )
+    entry.save!
+  end
+
+  def record_loss_recovery_entry_for_approved_order!(venta)
+    notes_payload = parse_notes_payload(venta.notes)
+    loss_payload = notes_payload["loss_recovery"]
+    return unless loss_payload.is_a?(Hash)
+    return unless ActiveModel::Type::Boolean.new.cast(loss_payload["applied"])
+
+    sale_rows = venta.venta_payments.where(payment_kind: "in")
+    return if sale_rows.blank?
+
+    account_id = sale_rows.max_by { |row| row.amount_original.to_d }&.account_id
+    occurred_at = account_movement_occurred_at_from_payment_date(
+      sale_rows.max_by { |row| row.amount_original.to_d }&.payment_date,
+    )
+
+    entry = current_business.loss_recovery_entries.find_or_initialize_by(venta_id: venta.id)
+    entry.assign_attributes(
+      account_id: account_id,
+      occurred_at: occurred_at,
+      base_currency: venta.base_currency.to_s.upcase,
+      tasa_dolar: venta.tasa_dolar.to_d.round(4),
+      real_total_base: parse_decimal(loss_payload["real_total_base"], default: 0).to_d.round(2),
+      charged_total_base: parse_decimal(loss_payload["charged_total_base"], default: 0).to_d.round(2),
+      excess_base: parse_decimal(loss_payload["excess_base"], default: 0).to_d.round(2),
+      real_total_usd: parse_decimal(loss_payload["real_total_usd"], default: 0).to_d.round(2),
+      charged_total_usd: parse_decimal(loss_payload["charged_total_usd"], default: 0).to_d.round(2),
+      excess_usd: parse_decimal(loss_payload["excess_usd"], default: 0).to_d.round(2),
+      notes: "Recuperacion aplicada a venta ##{venta.id} (pedido aprobado).",
+    )
+    entry.save!
   end
 
   def valid_reference?(value)

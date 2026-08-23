@@ -3,7 +3,8 @@
 <% service_systems = @service_systems || [] %>
 <% can_use_cash_exchange = current_user_admin? || current_user_manager? %>
 <% customer_pos_mode = @customer_pos_mode == true %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>">
+<% loss_recovery_setting = @loss_recovery_setting || current_business&.loss_recovery_setting %>
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>" data-loss-recovery-active="<%= loss_recovery_setting&.active ? 'true' : 'false' %>" data-loss-recovery-percent="<%= loss_recovery_setting&.surcharge_percent.to_d.to_s('F') %>" data-loss-recovery-min-usd="<%= loss_recovery_setting&.min_invoice_total_usd.to_d.to_s('F') %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -675,6 +676,13 @@
                 <span id="ventas-sale-total-bs" class="block text-xs text-emerald-600">Bs 0,00</span>
               </span>
             </div>
+            <div id="ventas-loss-recovery-row" class="hidden flex justify-between rounded-2xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-sm text-amber-700">
+              <span>Recuperacion de perdida</span>
+              <span class="text-right">
+                <span id="ventas-loss-recovery-usd" class="block font-semibold text-amber-700"><%= format_money(0, unit: '$') %></span>
+                <span id="ventas-loss-recovery-bs" class="block text-xs text-amber-600">Bs 0,00</span>
+              </span>
+            </div>
             <div class="flex justify-between text-xl font-bold text-slate-800 pt-2">
               <span>Total</span>
               <span class="text-right">
@@ -1148,6 +1156,9 @@
       };
 
       const bcvRate = parseRate(root.dataset.bcvRate);
+      const lossRecoveryActive = String(root.dataset.lossRecoveryActive || '').toLowerCase() === 'true';
+      const lossRecoveryPercent = Number(root.dataset.lossRecoveryPercent || 0);
+      const lossRecoveryMinUsd = Number(root.dataset.lossRecoveryMinUsd || 5);
 
       let baseCurrency = 'ves';
       const getBaseCurrencyInputs = () => Array.from(root.querySelectorAll('input[name="ventas-base-currency"]'));
@@ -1622,6 +1633,8 @@
       const openPaymentModalWithConfig = (config = {}) => {
         const modalTotals = config.totals || {};
         const totalBase = Number(modalTotals.totalBase || 0);
+        const lossRecoveryExtraBase = Number(modalTotals.lossRecoveryExtraBase || 0);
+        const lossRecoveryApplied = modalTotals.lossRecoveryApplied === true;
         const subtotalBase = Number(modalTotals.subtotalBase || 0);
         const exentoBase = Number(modalTotals.exentoBase || 0);
         const vatBase = Number(modalTotals.vatBase || 0);
@@ -1946,6 +1959,9 @@
                 <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Subtotal gravado: <span class="font-semibold text-slate-700">${formatBaseMoney(subtotalBase)}</span></div>
                 <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">Exento: <span class="font-semibold text-slate-700">${formatBaseMoney(exentoBase)}</span></div>
                 <div class="rounded-xl bg-white px-3 py-2 text-xs text-slate-500 ring-1 ring-slate-200">IVA: <span class="font-semibold text-slate-700">${formatBaseMoney(vatBase)}</span></div>
+                ${lossRecoveryApplied && lossRecoveryExtraBase > 0
+                  ? `<div class="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700 ring-1 ring-amber-200">Recuperacion: <span class="font-semibold text-amber-800">${formatBaseMoney(lossRecoveryExtraBase)}</span></div>`
+                  : ''}
               </div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5">
@@ -4107,6 +4123,7 @@
       const calculateCartTotals = () => {
         let taxableSubtotalBase = 0;
         let exentoSubtotalBase = 0;
+        let hasProductItems = false;
         const vatMode = getVatMode();
 
         cart.forEach((item) => {
@@ -4122,6 +4139,7 @@
 
           const product = productsById.get(String(item.productId));
           if (!product) return;
+          hasProductItems = true;
 
           const isExento = Boolean(product.exento);
           const pricing = computeProductPricing(product, item);
@@ -4133,13 +4151,31 @@
         });
 
         const vatBase = vatMode === 'none' ? 0 : roundTo(taxableSubtotalBase * vatRate, 2);
-        const totalBase = roundTo(taxableSubtotalBase + exentoSubtotalBase + vatBase, 2);
+        const realTotalBase = roundTo(taxableSubtotalBase + exentoSubtotalBase + vatBase, 2);
+        const effectiveBaseCurrency = getSelectedBaseCurrency();
+        const realTotalUsd = effectiveBaseCurrency === 'ves'
+          ? (bcvRate > 0 ? roundTo(realTotalBase / bcvRate, 2) : 0)
+          : realTotalBase;
+        const lossRecoveryApplied = lossRecoveryActive
+          && hasProductItems
+          && Number.isFinite(lossRecoveryPercent)
+          && lossRecoveryPercent > 0
+          && Number.isFinite(lossRecoveryMinUsd)
+          && realTotalUsd >= lossRecoveryMinUsd;
+        const lossRecoveryExtraBase = lossRecoveryApplied
+          ? roundTo(realTotalBase * (lossRecoveryPercent / 100), 2)
+          : 0;
+        const chargedTotalBase = roundTo(realTotalBase + lossRecoveryExtraBase, 2);
 
         return {
           taxableSubtotalBase,
           exentoSubtotalBase,
           vatBase,
-          totalBase,
+          totalBase: chargedTotalBase,
+          chargedTotalBase,
+          realTotalBase,
+          lossRecoveryExtraBase,
+          lossRecoveryApplied,
         };
       };
 
@@ -5280,9 +5316,12 @@
         const exentoBase = totals.exentoSubtotalBase;
         const vatBase = totals.vatBase;
         const totalBase = totals.totalBase;
+        const lossRecoveryExtraBase = totals.lossRecoveryExtraBase;
+        const lossRecoveryApplied = totals.lossRecoveryApplied;
         const saleTotalBase = calculateSalePriceTotalBase();
         const costPricingEnabled = isCostPricingEnabled(selectedClient);
         const saleTotalCard = document.getElementById('ventas-sale-total-card');
+        const lossRecoveryRow = document.getElementById('ventas-loss-recovery-row');
 
         const setText = (id, value) => {
           const el = document.getElementById(id);
@@ -5297,6 +5336,12 @@
         setText('ventas-iva-bs', formatAltFromBase(vatBase));
         setText('ventas-total-usd', formatBaseMoney(totalBase));
         setText('ventas-total-bs', formatAltFromBase(totalBase));
+        setText('ventas-loss-recovery-usd', formatBaseMoney(lossRecoveryExtraBase));
+        setText('ventas-loss-recovery-bs', formatAltFromBase(lossRecoveryExtraBase));
+
+        if (lossRecoveryRow) {
+          lossRecoveryRow.classList.toggle('hidden', !(lossRecoveryApplied && lossRecoveryExtraBase > 0));
+        }
 
         if (saleTotalCard) {
           const showSaleTotal = costPricingEnabled && saleTotalBase > 0;
@@ -7530,6 +7575,9 @@
           exentoSubtotalBase: roundTo(Number(computedPayloadTotals?.exentoSubtotalBase) || 0, 2),
           vatBase: roundTo(Number(computedPayloadTotals?.vatBase) || 0, 2),
           totalBase: roundTo(Number(computedPayloadTotals?.totalBase) || 0, 2),
+          chargedTotalBase: roundTo(Number(computedPayloadTotals?.chargedTotalBase) || 0, 2),
+          lossRecoveryExtraBase: roundTo(Number(computedPayloadTotals?.lossRecoveryExtraBase) || 0, 2),
+          lossRecoveryApplied: Boolean(computedPayloadTotals?.lossRecoveryApplied),
         };
 
         const payload = {
@@ -7545,6 +7593,9 @@
             exento_subtotal_base: payloadTotals.exentoSubtotalBase,
             vat_base: payloadTotals.vatBase,
             total_base: payloadTotals.totalBase,
+            charged_total_base: payloadTotals.chargedTotalBase,
+            loss_recovery_extra_base: payloadTotals.lossRecoveryExtraBase,
+            loss_recovery_applied: payloadTotals.lossRecoveryApplied,
           },
           items: items,
           payments: payments || [],

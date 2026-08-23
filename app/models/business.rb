@@ -263,6 +263,8 @@ class Business < ApplicationRecord
   has_many :discount_schedules, dependent: :destroy
   has_many :expenses, dependent: :destroy
   has_many :expense_payments, through: :expenses
+  has_one :loss_recovery_setting, dependent: :destroy
+  has_many :loss_recovery_entries, dependent: :destroy
   has_many :debts, dependent: :destroy
   has_many :debt_payments, through: :debts
   has_many :hidden_debt_groups, dependent: :destroy

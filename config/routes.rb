@@ -95,6 +95,12 @@ Rails.application.routes.draw do
     resources :expense_payments, only: %i[new create destroy]
     post 'convert_amount', to: 'api/expense_payments#convert_amount', on: :member
   end
+  resources :loss_recoveries, path: 'recuperacion-perdidas', only: %i[index] do
+    collection do
+      patch :update_settings
+      get :history
+    end
+  end
   resources :debts, path: 'deudas', except: %i[edit update] do
     collection do
       get :prepare_group, path: 'preparar-grupo'

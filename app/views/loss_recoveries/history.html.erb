@@ -1,0 +1,80 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Recuperacion de perdidas</p>
+        <h1 class="text-2xl font-extrabold text-slate-800">Historial de excesos</h1>
+      </div>
+      <%= link_to "Volver", loss_recoveries_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
+    </div>
+
+    <%= form_with url: history_loss_recoveries_path, method: :get, local: true, class: "mt-4 grid gap-3 md:grid-cols-3 md:items-end" do %>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Desde</label>
+        <input type="date" name="from" value="<%= @from&.iso8601 %>" class="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Hasta</label>
+        <input type="date" name="to" value="<%= @to&.iso8601 %>" class="mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700">
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Filtrar</button>
+        <%= link_to "Limpiar", history_loss_recoveries_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
+      </div>
+    <% end %>
+  </div>
+
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Exceso acumulado USD</p>
+      <p class="mt-2 text-2xl font-extrabold text-emerald-700"><%= number_to_currency(@summary[:total_excess_usd], unit: "$ ") %></p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Movimientos</p>
+      <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @summary[:count] %></p>
+    </div>
+    <div class="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Exceso acumulado base</p>
+      <p class="mt-2 text-2xl font-extrabold text-cyan-700"><%= number_to_currency(@summary[:total_excess_base], unit: "") %></p>
+    </div>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-x-auto">
+    <table class="min-w-full text-sm text-slate-700">
+      <thead>
+        <tr class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+          <th class="px-3 py-2 text-left">Fecha</th>
+          <th class="px-3 py-2 text-left">Venta</th>
+          <th class="px-3 py-2 text-left">Cuenta</th>
+          <th class="px-3 py-2 text-right">Total real</th>
+          <th class="px-3 py-2 text-right">Total con recargo</th>
+          <th class="px-3 py-2 text-right">Exceso</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @entries.any? %>
+          <% @entries.each do |entry| %>
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2"><%= entry.occurred_at&.in_time_zone&.strftime('%d/%m/%Y %H:%M') %></td>
+              <td class="px-3 py-2"><%= link_to "Venta ##{entry.venta_id}", venta_path(entry.venta_id), class: "font-semibold text-sky-700 hover:text-sky-600" %></td>
+              <td class="px-3 py-2">
+                <% if entry.account.present? %>
+                  <%= link_to entry.account.name, account_path(entry.account), class: "text-cyan-700 hover:text-cyan-600" %>
+                <% else %>
+                  <span class="text-slate-400">Sin cuenta</span>
+                <% end %>
+              </td>
+              <td class="px-3 py-2 text-right"><%= number_to_currency(entry.real_total_base, unit: "") %> <%= entry.base_currency %></td>
+              <td class="px-3 py-2 text-right"><%= number_to_currency(entry.charged_total_base, unit: "") %> <%= entry.base_currency %></td>
+              <td class="px-3 py-2 text-right font-semibold text-emerald-700"><%= number_to_currency(entry.excess_base, unit: "") %> <%= entry.base_currency %></td>
+            </tr>
+          <% end %>
+        <% else %>
+          <tr>
+            <td colspan="6" class="px-3 py-6 text-center text-slate-400">No hay movimientos para el rango seleccionado.</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
