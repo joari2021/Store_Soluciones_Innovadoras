@@ -109,12 +109,25 @@ class LossRecoveriesController < ApplicationController
       )
       lot.sync_quantity_remaining_from_variations!
     end
-
-    redirect_to replenishments_loss_recoveries_path,
-                notice: "Se agregaron #{quantity.to_s('F')} unidad(es) a #{producto.descripcion} (#{variation.description})."
+    respond_to do |format|
+      format.html do
+        redirect_to replenishments_loss_recoveries_path,
+                    notice: "Se agregaron #{quantity.to_s('F')} unidad(es) a #{producto.descripcion} (#{variation.description})."
+      end
+      format.json do
+        render json: { success: true, message: "Se agregaron #{quantity.to_s('F')} unidad(es) a #{producto.descripcion} (#{variation.description})." , lot_id: lot.id, producto_id: producto.id, variation_id: variation.id }, status: :ok
+      end
+    end
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to replenishments_loss_recoveries_path,
-                alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+    respond_to do |format|
+      format.html do
+        redirect_to replenishments_loss_recoveries_path,
+                    alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+      end
+      format.json do
+        render json: { success: false, error: e.record&.errors&.full_messages&.to_sentence.presence || e.message }, status: :unprocessable_entity
+      end
+    end
   end
 
   def replenishment_history

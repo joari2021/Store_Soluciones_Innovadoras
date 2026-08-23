@@ -207,8 +207,8 @@
       if (event.key === 'Escape') closeModal();
     });
   })();
-  
-  // Spinner toggle for modal submit
+
+  // AJAX submit with spinner for modal submit
   (function() {
     const modal = document.getElementById('loss-recovery-replenish-modal');
     if (!modal) return;
@@ -217,13 +217,73 @@
     const submitButton = form.querySelector('[data-replenish-submit-button="true"]');
     const submitText = submitButton && submitButton.querySelector('[data-replenish-submit-text]');
 
-    form.addEventListener('submit', function(e) {
-      // Allow normal submission to proceed, but update UI immediately
+    function getCSRFToken() {
+      const el = document.querySelector('meta[name="csrf-token"]');
+      return el ? el.getAttribute('content') : '';
+    }
+
+    function enableButton() {
+      if (!submitButton) return;
+      submitButton.removeAttribute('disabled');
+      if (submitText) submitText.textContent = 'Registrar reposicion';
+    }
+
+    function disableButtonProcessing() {
       if (!submitButton) return;
       submitButton.setAttribute('disabled', 'disabled');
       if (submitText) {
         submitText.innerHTML = '<svg class="inline-block mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>Procesando...';
       }
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (!submitButton) return;
+      disableButtonProcessing();
+
+      const action = form.getAttribute('action') || window.location.href;
+      const method = (form.getAttribute('method') || 'POST').toUpperCase();
+      const formData = new FormData(form);
+
+      fetch(action, {
+        method: method,
+        headers: {
+          'X-CSRF-Token': getCSRFToken(),
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData,
+        credentials: 'same-origin'
+      }).then(async function(response) {
+        let payload = {};
+        try { payload = await response.json(); } catch (err) { payload = {}; }
+
+        if (response.ok && payload && payload.success) {
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Reposicion registrada', text: payload.message || 'Se registró la reposición.', timer: 1500, showConfirmButton: false });
+          }
+          // Cerrar modal
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          // Recargar para actualizar cantidades (rápido)
+          setTimeout(function() { window.location.reload(); }, 600);
+        } else {
+          const errMsg = (payload && (payload.error || payload.message)) || 'Ocurrió un error al registrar la reposición.';
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'Error', text: errMsg });
+          } else {
+            alert(errMsg);
+          }
+          enableButton();
+        }
+      }).catch(function(error) {
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Ocurrió un error de red.' });
+        } else {
+          alert(error.message || 'Ocurrió un error de red.');
+        }
+        enableButton();
+      });
     });
   })();
 </script>
