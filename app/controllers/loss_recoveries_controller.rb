@@ -115,7 +115,7 @@ class LossRecoveriesController < ApplicationController
                     notice: "Se agregaron #{quantity.to_s('F')} unidad(es) a #{producto.descripcion} (#{variation.description})."
       end
       format.json do
-        render json: { success: true, message: "Se agregaron #{quantity.to_s('F')} unidad(es) a #{producto.descripcion} (#{variation.description})." , lot_id: lot.id, producto_id: producto.id, variation_id: variation.id }, status: :ok
+        render json: { success: true, message: "Se agregaron #{quantity.to_s('F')} unidad(es) a #{producto.descripcion} (#{variation.description}).", lot_id: lot.id, producto_id: producto.id, variation_id: variation.id, quantity: quantity.to_s('F') }, status: :ok
       end
     end
   rescue ActiveRecord::RecordInvalid => e

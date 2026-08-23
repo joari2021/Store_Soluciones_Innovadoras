@@ -257,25 +257,95 @@
       }).then(async function(response) {
         let payload = {};
         try { payload = await response.json(); } catch (err) { payload = {}; }
+        // helper: parse localized number string to float
+        function parseLocaleNumber(value) {
+          if (value == null) return 0;
+          const s = String(value).trim();
+          if (s === '') return 0;
+          // remove non numeric except dot and comma and minus
+          const cleaned = s.replace(/[^0-9,.-]/g, '');
+          if (cleaned.indexOf(',') > -1 && cleaned.indexOf('.') > -1) {
+            // assume dot is thousand separator, remove dots
+            return parseFloat(cleaned.replace(/\./g, '').replace(/,/g, '.')) || 0;
+          }
+          if (cleaned.indexOf(',') > -1) {
+            return parseFloat(cleaned.replace(/,/g, '.')) || 0;
+          }
+          return parseFloat(cleaned) || 0;
+        }
+
+        function updateProductRow(productId, variationId, addedQty) {
+          try {
+            const row = document.querySelector('[data-replenish-product-row][data-product-id="' + String(productId) + '"]');
+            if (!row) return;
+            // update total quantity cell (3rd td)
+            const tds = row.querySelectorAll('td');
+            if (tds && tds.length >= 3) {
+              const qtyCell = tds[2];
+              const current = parseLocaleNumber(qtyCell.textContent || qtyCell.innerText || '0');
+              const newVal = current + Number(addedQty || 0);
+              // show with up to 3 decimals, remove trailing zeros
+              const display = (Math.round(newVal * 1000) / 1000).toString().replace('.', ',');
+              qtyCell.textContent = display;
+            }
+
+            // update data-variations attribute and option dataset if present
+            const variationsRaw = row.dataset.variations || '[]';
+            let variations = [];
+            try { variations = JSON.parse(variationsRaw); } catch (e) { variations = []; }
+            let changed = false;
+            variations = variations.map(function(v) {
+              if (String(v.id) === String(variationId)) {
+                const old = parseLocaleNumber(v.available || 0);
+                const updated = old + Number(addedQty || 0);
+                v.available = (Math.round(updated * 1000) / 1000).toString();
+                changed = true;
+              }
+              return v;
+            });
+            if (changed) {
+              row.dataset.variations = JSON.stringify(variations);
+            }
+
+            // if modal still has option for that variation, update its dataset and availability label
+            const option = variationSelect.querySelector('option[value="' + String(variationId) + '"]');
+            if (option) {
+              const oldOpt = parseLocaleNumber(option.dataset.available || 0);
+              const newOpt = oldOpt + Number(addedQty || 0);
+              option.dataset.available = (Math.round(newOpt * 1000) / 1000).toString();
+              // if the variation is currently selected, update the availability label
+              if (String(variationSelect.value) === String(variationId)) {
+                availabilityLabel.textContent = `Existencia actual en variacion: ${option.dataset.available}`;
+              }
+            }
+          } catch (err) {
+            // noop on any DOM errors
+            console.error('updateProductRow error', err);
+          }
+        }
 
         if (response.ok && payload && payload.success) {
+          const addedQty = payload.quantity ? parseLocaleNumber(payload.quantity) : parseLocaleNumber(formData.get('quantity'));
           if (typeof Swal !== 'undefined') {
-            Swal.fire({ icon: 'success', title: 'Reposicion registrada', text: payload.message || 'Se registró la reposición.', timer: 1500, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'Reposicion registrada', text: payload.message || 'Se registró la reposición.', timer: 1200, showConfirmButton: false });
           }
           // Cerrar modal
           modal.classList.add('hidden');
           modal.classList.remove('flex');
-          // Recargar para actualizar cantidades (rápido)
-          setTimeout(function() { window.location.reload(); }, 600);
+          // actualizar fila sin recargar
+          updateProductRow(payload.producto_id || formData.get('producto_id'), payload.variation_id || formData.get('product_variation_id'), addedQty);
+          return;
         } else if (response.status >= 500) {
           // Fallback: en algunos casos el servidor responde 500 pero la reposicion
           // ya fue creada. Mostrar confirmación de éxito para no confundir al usuario.
+          const addedQty = payload.quantity ? parseLocaleNumber(payload.quantity) : parseLocaleNumber(formData.get('quantity'));
           if (typeof Swal !== 'undefined') {
-            Swal.fire({ icon: 'success', title: 'Reposición registrada', text: payload && payload.message ? payload.message : 'Se registró la reposición.', timer: 1500, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'Reposición registrada', text: payload && payload.message ? payload.message : 'Se registró la reposición.', timer: 1200, showConfirmButton: false });
           }
           modal.classList.add('hidden');
           modal.classList.remove('flex');
-          setTimeout(function() { window.location.reload(); }, 600);
+          updateProductRow(payload.producto_id || formData.get('producto_id'), payload.variation_id || formData.get('product_variation_id'), addedQty);
+          return;
         } else {
           const errMsg = (payload && (payload.error || payload.message)) || 'Ocurrió un error al registrar la reposición.';
           if (typeof Swal !== 'undefined') {
