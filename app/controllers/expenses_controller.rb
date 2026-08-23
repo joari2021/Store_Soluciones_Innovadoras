@@ -69,6 +69,7 @@ class ExpensesController < ApplicationController
 
   def create
     @expense = current_business.expenses.new(expense_params)
+    @expense.frequency = 'once' if @expense.expense_type.to_s == 'variable'
     normalize_schedule(@expense)
 
     if @expense.expense_type.to_s == 'variable'
@@ -245,6 +246,8 @@ class ExpensesController < ApplicationController
 
     payment.save!
     create_account_movement(account, expense, amount, payment_method, reference, occurred_at)
+    expense.amount = amount
+    expense.currency = account.currency
     expense.register_payment!(occurred_at.to_date)
     true
   rescue ActiveRecord::RecordInvalid => e
