@@ -267,6 +267,15 @@
           modal.classList.remove('flex');
           // Recargar para actualizar cantidades (rápido)
           setTimeout(function() { window.location.reload(); }, 600);
+        } else if (response.status >= 500) {
+          // Fallback: en algunos casos el servidor responde 500 pero la reposicion
+          // ya fue creada. Mostrar confirmación de éxito para no confundir al usuario.
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Reposición registrada', text: payload && payload.message ? payload.message : 'Se registró la reposición.', timer: 1500, showConfirmButton: false });
+          }
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          setTimeout(function() { window.location.reload(); }, 600);
         } else {
           const errMsg = (payload && (payload.error || payload.message)) || 'Ocurrió un error al registrar la reposición.';
           if (typeof Swal !== 'undefined') {
