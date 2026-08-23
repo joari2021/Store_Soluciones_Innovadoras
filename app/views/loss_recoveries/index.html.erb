@@ -28,11 +28,21 @@
       </div>
       <div>
         <%= form.label :surcharge_percent, "Porcentaje extra (%)", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.number_field :surcharge_percent, step: 0.01, min: 0, max: 100, class: "mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" %>
+        <%= form.text_field :surcharge_percent,
+                            value: format_money(form.object.surcharge_percent, unit: "%"),
+                            inputmode: "decimal",
+                            autocomplete: "off",
+                            class: "mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700",
+                            data: { money_mask: true, money_symbol: "%" } %>
       </div>
       <div>
         <%= form.label :min_invoice_total_usd, "Minimo de factura (USD)", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.number_field :min_invoice_total_usd, step: 0.01, min: 0, class: "mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700" %>
+        <%= form.text_field :min_invoice_total_usd,
+                            value: format_money(form.object.min_invoice_total_usd, unit: "$"),
+                            inputmode: "decimal",
+                            autocomplete: "off",
+                            class: "mt-1 block w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700",
+                            data: { money_mask: true, money_symbol: "$" } %>
       </div>
       <div>
         <%= form.submit "Guardar configuracion", class: "inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800" %>

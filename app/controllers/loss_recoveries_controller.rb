@@ -33,6 +33,9 @@ class LossRecoveriesController < ApplicationController
   def update_settings
     attrs = params.require(:loss_recovery_setting).permit(:active, :surcharge_percent, :min_invoice_total_usd)
 
+    attrs[:surcharge_percent] = parse_decimal(attrs[:surcharge_percent]) if attrs.key?(:surcharge_percent)
+    attrs[:min_invoice_total_usd] = parse_decimal(attrs[:min_invoice_total_usd]) if attrs.key?(:min_invoice_total_usd)
+
     @setting.assign_attributes(attrs)
     @setting.active = ActiveModel::Type::Boolean.new.cast(attrs[:active])
 
@@ -66,5 +69,21 @@ class LossRecoveriesController < ApplicationController
     Date.parse(value.to_s)
   rescue ArgumentError
     nil
+  end
+
+  def parse_decimal(value)
+    return 0.to_d if value.nil?
+    return value.to_d if value.is_a?(Numeric)
+
+    cleaned = value.to_s.strip.gsub(/[^\d,.-]/, "")
+    if cleaned.include?(",") && cleaned.include?(".")
+      cleaned = cleaned.gsub(".", "").tr(",", ".")
+    elsif cleaned.include?(",")
+      cleaned = cleaned.tr(",", ".")
+    end
+
+    BigDecimal(cleaned)
+  rescue ArgumentError
+    0.to_d
   end
 end
