@@ -327,7 +327,7 @@ class ExpensesController < ApplicationController
 
   def load_expense_categories
     ensure_default_expense_categories!
-    @expense_categories = current_business.expense_categories.order(:name)
+    @expense_categories = ExpenseCategory.order(Arel.sql('LOWER(name) ASC'))
   end
 
   def apply_expense_filters(scope)
@@ -411,10 +411,10 @@ class ExpensesController < ApplicationController
   end
 
   def ensure_default_expense_categories!
-    return if current_business.expense_categories.exists?
-
     DEFAULT_EXPENSE_CATEGORIES.each do |name|
-      current_business.expense_categories.create!(name: name)
+      next if ExpenseCategory.where('LOWER(name) = ?', name.downcase).exists?
+
+      ExpenseCategory.create!(name: name, business: current_business)
     end
   end
 

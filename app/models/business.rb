@@ -266,7 +266,7 @@ class Business < ApplicationRecord
   has_many :debts, dependent: :destroy
   has_many :debt_payments, through: :debts
   has_many :hidden_debt_groups, dependent: :destroy
-  has_many :expense_categories, dependent: :destroy
+  has_many :expense_categories, dependent: :nullify
   has_one_attached :logo
   has_one_attached :banner
 

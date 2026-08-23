@@ -1,8 +1,8 @@
 class ExpenseCategory < ApplicationRecord
-  belongs_to :business
+  belongs_to :business, optional: true
   has_many :expenses, dependent: :restrict_with_error
 
-  validates :name, presence: true, uniqueness: { scope: :business_id, case_sensitive: false }
+  validates :name, presence: true, uniqueness: { case_sensitive: false }
 
   before_validation :normalize_name
 
