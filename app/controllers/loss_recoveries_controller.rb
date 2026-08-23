@@ -135,7 +135,12 @@ class LossRecoveriesController < ApplicationController
   def parse_filter_date(value)
     return nil if value.blank?
 
-    Date.parse(value.to_s)
+    normalized = value.to_s.strip
+    return nil if normalized.blank?
+
+    Date.strptime(normalized, '%Y-%m-%d')
+  rescue ArgumentError
+    Date.strptime(normalized, '%d-%m-%Y')
   rescue ArgumentError
     nil
   end
