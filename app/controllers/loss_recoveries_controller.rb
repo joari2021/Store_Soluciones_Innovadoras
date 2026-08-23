@@ -166,7 +166,10 @@ class LossRecoveriesController < ApplicationController
   end
 
   def build_replenishment_lot_description
-    actor_name = Current.user&.name.to_s.strip
+    actor_name = Current.user&.display_name.to_s.strip
+    actor_name = Current.user&.full_name.to_s.strip if actor_name.blank?
+    actor_name = Current.user&.username.to_s.strip if actor_name.blank?
+    actor_name = Current.user&.email.to_s.strip if actor_name.blank?
     actor_suffix = actor_name.present? ? " - #{actor_name}" : ''
     "#{REPLENISHMENT_LOT_PREFIX}#{actor_suffix}"
   end
