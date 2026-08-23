@@ -102,6 +102,7 @@ Rails.application.routes.draw do
       get :replenishments, path: 'reposicion-productos'
       post :replenishments, action: :create_replenishment, path: 'reposicion-productos'
       get :replenishment_history, path: 'reposicion-productos/historial'
+      delete 'reposicion-productos/:id', action: :destroy_replenishment, as: :destroy_replenishment
     end
   end
   resources :debts, path: 'deudas', except: %i[edit update] do

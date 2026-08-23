@@ -57,12 +57,14 @@
           <th class="px-3 py-2 text-right">Ingresado</th>
           <th class="px-3 py-2 text-right">Disponible</th>
           <th class="px-3 py-2 text-right">Costo USD</th>
+          <th class="px-3 py-2 text-right">Accion</th>
         </tr>
       </thead>
       <tbody>
         <% if @replenishment_lots.any? %>
           <% @replenishment_lots.each do |lot| %>
             <% variation_names = lot.stock_lot_variations.map { |row| row.variation_description.to_s.strip.presence }.compact %>
+            <% reversible = lot.quantity_remaining.to_d.round(3) >= lot.quantity_in.to_d.round(3) %>
             <tr class="border-b border-slate-100">
               <td class="px-3 py-2"><%= lot.purchased_at&.in_time_zone&.strftime('%d/%m/%Y %H:%M') %></td>
               <td class="px-3 py-2 font-semibold text-slate-800"><%= lot.producto&.display_name_with_presentation || lot.producto&.descripcion %></td>
@@ -70,11 +72,22 @@
               <td class="px-3 py-2 text-right"><%= number_with_precision(lot.quantity_in.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
               <td class="px-3 py-2 text-right"><%= number_with_precision(lot.quantity_remaining.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
               <td class="px-3 py-2 text-right"><%= number_to_currency(lot.unit_cost_usd.to_d, unit: '$ ') %></td>
+              <td class="px-3 py-2 text-right">
+                <% if reversible %>
+                  <%= button_to "Eliminar",
+                                destroy_replenishment_loss_recoveries_path(lot, from: @from&.strftime('%d-%m-%Y'), to: @to&.strftime('%d-%m-%Y')),
+                                method: :delete,
+                                form: { data: { turbo_confirm: 'Se eliminara este ingreso de reposicion. Deseas continuar?' } },
+                                class: "inline-flex items-center justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" %>
+                <% else %>
+                  <span class="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">No reversible</span>
+                <% end %>
+              </td>
             </tr>
           <% end %>
         <% else %>
           <tr>
-            <td colspan="6" class="px-3 py-6 text-center text-slate-400">No hay reposiciones registradas para el rango seleccionado.</td>
+            <td colspan="7" class="px-3 py-6 text-center text-slate-400">No hay reposiciones registradas para el rango seleccionado.</td>
           </tr>
         <% end %>
       </tbody>

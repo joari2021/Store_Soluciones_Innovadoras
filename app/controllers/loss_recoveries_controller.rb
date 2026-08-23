@@ -144,6 +144,37 @@ class LossRecoveriesController < ApplicationController
     }
   end
 
+  def destroy_replenishment
+    lot = StockLot
+          .joins(:producto)
+          .where(productos: { business_id: current_business.id })
+          .where("stock_lots.description LIKE ?", "#{REPLENISHMENT_LOT_PREFIX}%")
+          .find_by(id: params[:id])
+
+    if lot.blank?
+      return redirect_to replenishment_history_loss_recoveries_path(history_redirect_params),
+                         alert: 'No se encontro el ingreso de reposicion seleccionado.'
+    end
+
+    quantity_in = lot.quantity_in.to_d.round(3)
+    quantity_remaining = lot.quantity_remaining.to_d.round(3)
+
+    if quantity_remaining < quantity_in
+      return redirect_to replenishment_history_loss_recoveries_path(history_redirect_params),
+                         alert: 'No se puede revertir este ingreso porque ya se registro una venta donde se vendio una unidad de ese lote.'
+    end
+
+    ActiveRecord::Base.transaction do
+      lot.destroy!
+    end
+
+    redirect_to replenishment_history_loss_recoveries_path(history_redirect_params),
+                notice: 'Ingreso de reposicion eliminado y lote revertido correctamente.'
+  rescue ActiveRecord::RecordNotDestroyed => e
+    redirect_to replenishment_history_loss_recoveries_path(history_redirect_params),
+                alert: e.record&.errors&.full_messages&.to_sentence.presence || 'No se pudo eliminar el ingreso de reposicion.'
+  end
+
   private
 
   def load_setting
@@ -199,5 +230,9 @@ class LossRecoveriesController < ApplicationController
     actor_name = Current.user&.email.to_s.strip if actor_name.blank?
     actor_suffix = actor_name.present? ? " - #{actor_name}" : ''
     "#{REPLENISHMENT_LOT_PREFIX}#{actor_suffix}"
+  end
+
+  def history_redirect_params
+    params.permit(:from, :to).to_h
   end
 end
