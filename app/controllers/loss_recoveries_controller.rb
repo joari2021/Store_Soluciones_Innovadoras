@@ -50,6 +50,67 @@ class LossRecoveriesController < ApplicationController
     end
   end
 
+  # GET /recuperacion-perdidas/facturar-perdida
+  def new_recovery_invoice
+    @query_text = params[:query_text].to_s.strip
+    scope = current_business.productos.includes(:product_variations, foto_attachment: :blob).order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+    if @query_text.present?
+      terms = @query_text.downcase.split(/\s+/).map(&:strip).reject(&:blank?).uniq
+      if terms.any?
+        where_clauses = terms.map.with_index { |_, idx| "LOWER(productos.descripcion) LIKE :term#{idx}" }
+        bind_values = terms.each_with_index.to_h { |term, idx| ["term#{idx}".to_sym, "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"] }
+        scope = scope.where(where_clauses.join(' AND '), bind_values)
+      end
+    end
+
+    @productos = scope.limit(400)
+  end
+
+  # POST /recuperacion-perdidas/facturar-perdida
+  def create_recovery_invoice
+    items_json = params[:items_json].to_s
+    if items_json.blank?
+      return redirect_to new_recovery_invoice_loss_recoveries_path, alert: 'No se proporcionaron items para la factura.'
+    end
+
+    items = JSON.parse(items_json) rescue nil
+    return redirect_to new_recovery_invoice_loss_recoveries_path, alert: 'Formato de items inválido.' if items.blank?
+
+    ActiveRecord::Base.transaction do
+      invoice = current_business.recovery_invoices.create!(user: Current.user, occurred_at: Time.current)
+      total = 0.to_d
+
+      items.each do |it|
+        producto = current_business.productos.find_by(id: it['producto_id'])
+        raise ActiveRecord::RecordNotFound, 'Producto no encontrado' unless producto
+
+        variation_id = it['product_variation_id']
+        quantity = parse_decimal(it['quantity']).to_d
+        unit_price = parse_decimal(it['unit_price_usd']).to_d
+        line_total = (quantity * unit_price).round(2)
+
+        invoice.recovery_invoice_items.create!(producto: producto, product_variation_id: variation_id, quantity: quantity, unit_price_usd: unit_price, total_price_usd: line_total)
+
+        # consume inventory
+        producto.consume_variation_stock!(variation_id: variation_id, quantity_units: quantity)
+
+        total += line_total
+      end
+
+      invoice.update!(total_usd: total)
+    end
+
+    redirect_to recovery_invoices_loss_recoveries_path, notice: 'Factura de recuperación registrada correctamente.'
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
+    redirect_to new_recovery_invoice_loss_recoveries_path, alert: e.message
+  end
+
+  # GET /recuperacion-perdidas/facturas-perdida
+  def recovery_invoices
+    scope = current_business.recovery_invoices.order(occurred_at: :desc)
+    @recovery_invoices = scope.limit(500)
+  end
+
   def replenishments
     @query_text = params[:query_text].to_s.strip
 
@@ -196,8 +257,10 @@ class LossRecoveriesController < ApplicationController
 
   def loss_recovery_summary
     entries = current_business.loss_recovery_entries
+    invoices_total = current_business.recovery_invoices.sum(:total_usd).to_d
+    total_excess = entries.sum(:excess_usd).to_d - invoices_total
     {
-      total_excess_usd: entries.sum(:excess_usd).to_d.round(2),
+      total_excess_usd: total_excess.round(2),
       total_base_usd: entries.sum(:charged_total_usd).to_d.round(2),
       count: entries.count,
     }

@@ -103,6 +103,10 @@ Rails.application.routes.draw do
       post :replenishments, action: :create_replenishment, path: 'reposicion-productos'
       get :replenishment_history, path: 'reposicion-productos/historial'
       delete 'reposicion-productos/:id', action: :destroy_replenishment, as: :destroy_replenishment
+      # Recovery invoices (facturar perdida)
+      get 'facturar-perdida', action: :new_recovery_invoice, as: :new_recovery_invoice
+      post 'facturar-perdida', action: :create_recovery_invoice, as: :create_recovery_invoice
+      get 'facturas-perdida', action: :recovery_invoices, as: :recovery_invoices
     end
   end
   resources :debts, path: 'deudas', except: %i[edit update] do

@@ -1,0 +1,193 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Recuperacion de perdidas</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl">Facturar pérdida</h1>
+        <p class="mt-1 text-sm text-slate-500">Crea una factura de recuperación y deduce del saldo de recuperación.</p>
+      </div>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+        <%= link_to replenishments_loss_recoveries_path,
+                    class: "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto" do %>
+          <i data-lucide="arrow-left" class="h-4 w-4"></i>
+          Volver a reposicion
+        <% end %>
+        <%= link_to recovery_invoices_loss_recoveries_path,
+                    class: "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 sm:w-auto" do %>
+          <i data-lucide="history" class="h-4 w-4"></i>
+          Ver facturas
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div class="mb-3 flex items-center justify-between">
+        <div class="w-1/2">
+          <input id="recovery-product-search" placeholder="Buscar producto..." type="text" class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-slate-700" id="recovery-products-table">
+          <thead>
+            <tr class="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
+              <th class="px-4 py-3 text-left">Producto</th>
+              <th class="px-4 py-3 text-left">Variaciones</th>
+              <th class="px-4 py-3 text-right">Existencia</th>
+              <th class="px-4 py-3 text-right">Accion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @productos.each do |producto| %>
+              <% variations_payload = producto.product_variations.order(:id).map { |variation| { id: variation.id, name: variation.description.to_s, available: number_with_precision(producto.stock_lot_variations.where(product_variation_id: variation.id).sum(:quantity_remaining).to_d, precision: 3, strip_insignificant_zeros: true), price: format_money(variation.try(:precio_venta_usd) || producto.precio_venta_usd, unit: "") } } %>
+              <tr class="border-b border-slate-100" data-product-row data-product-id="<%= producto.id %>" data-product-name="<%= producto.display_name_with_presentation %>" data-variations="<%= json_escape(variations_payload.to_json) %>">
+                <td class="px-4 py-3"><%= producto.display_name_with_presentation %></td>
+                <td class="px-4 py-3 text-xs text-slate-500"><%= producto.product_variations.order(:id).map { |v| v.description.to_s }.join(', ') %></td>
+                <td class="px-4 py-3 text-right font-semibold text-slate-700"><%= number_with_precision(producto.total_quantity.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
+                <td class="px-4 py-3 text-right"><button type="button" class="inline-flex items-center rounded-xl bg-cyan-600 px-3 py-1 text-xs text-white" data-add-to-invoice>Agregar</button></td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 class="text-sm font-semibold text-slate-700">Factura de recuperación</h3>
+      <div class="mt-3">
+        <table class="w-full text-sm text-slate-700" id="invoice-items">
+          <thead>
+            <tr class="text-xs text-slate-500">
+              <th>Producto</th>
+              <th class="text-right">Cant</th>
+              <th class="text-right">Precio USD</th>
+              <th class="text-right">Total USD</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="mt-4 border-t pt-3">
+          <div class="flex justify-between items-center"><span class="text-sm text-slate-600">Subtotal</span><strong id="invoice-subtotal" class="text-lg">$ 0,00</strong></div>
+          <div class="mt-3">
+            <form id="recovery-invoice-form" action="<%= create_recovery_invoice_loss_recoveries_path %>" method="post">
+              <input type="hidden" name="authenticity_token" value="<%= form_authenticity_token %>">
+              <input type="hidden" name="items_json" id="items_json" />
+              <div class="flex gap-2 mt-4">
+                <a href="#" class="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" id="cancel-invoice">Cancelar</a>
+                <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white" id="save-invoice">Guardar factura</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal to choose variation and quantity -->
+<div id="recovery-add-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/55 px-3">
+  <div class="w-full max-w-md rounded-2xl border border-cyan-100 bg-white p-5 shadow-2xl">
+    <h3 class="text-lg font-bold" id="modal-product-title">Añadir producto</h3>
+    <div class="mt-3 space-y-3">
+      <div>
+        <label class="block text-sm">Variación</label>
+        <select id="modal-variation-select" class="mt-1 block w-full rounded-xl border px-3 py-2"></select>
+      </div>
+      <div>
+        <label class="block text-sm">Cantidad</label>
+        <input id="modal-quantity" type="number" min="0.001" step="0.001" value="1" class="mt-1 block w-full rounded-xl border px-3 py-2" />
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" class="rounded-xl border px-4 py-2" id="modal-cancel">Cancelar</button>
+        <button type="button" class="rounded-xl bg-cyan-600 px-4 py-2 text-white" id="modal-add">Agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const productsTable = document.getElementById('recovery-products-table');
+    const addModal = document.getElementById('recovery-add-modal');
+    const modalTitle = document.getElementById('modal-product-title');
+    const variationSelect = document.getElementById('modal-variation-select');
+    const quantityInput = document.getElementById('modal-quantity');
+    const modalCancel = document.getElementById('modal-cancel');
+    const modalAdd = document.getElementById('modal-add');
+    const invoiceTbody = document.querySelector('#invoice-items tbody');
+    const itemsJsonInput = document.getElementById('items_json');
+    const invoiceForm = document.getElementById('recovery-invoice-form');
+    const subtotalEl = document.getElementById('invoice-subtotal');
+
+    let currentProduct = null;
+    let items = [];
+
+    function openModalForRow(row){
+      const prodId = row.dataset.productId;
+      const prodName = row.dataset.productName;
+      const variations = JSON.parse(row.dataset.variations || '[]');
+      currentProduct = { id: prodId, name: prodName, variations };
+      modalTitle.textContent = `Agregar: ${prodName}`;
+      variationSelect.innerHTML = '';
+      variations.forEach(v => {
+        const opt = document.createElement('option'); opt.value = v.id; opt.textContent = `${v.name} — ${v.available} uds — $ ${v.price}`; opt.dataset.price = v.price; opt.dataset.available = v.available; variationSelect.appendChild(opt);
+      });
+      quantityInput.value = 1;
+      addModal.classList.remove('hidden'); addModal.classList.add('flex');
+    }
+
+    function closeModal(){ addModal.classList.add('hidden'); addModal.classList.remove('flex'); }
+
+    productsTable.addEventListener('click', function(e){
+      const btn = e.target.closest('[data-add-to-invoice]');
+      if(!btn) return;
+      const row = btn.closest('tr[data-product-row]');
+      if(!row) return;
+      openModalForRow(row);
+    });
+
+    modalCancel.addEventListener('click', closeModal);
+
+    modalAdd.addEventListener('click', function(){
+      if(!currentProduct) return;
+      const variationId = variationSelect.value;
+      const variationText = variationSelect.options[variationSelect.selectedIndex].textContent || '';
+      const unitPrice = parseFloat(variationSelect.options[variationSelect.selectedIndex].dataset.price || '0') || 0;
+      const qty = parseFloat(quantityInput.value) || 0;
+      if(qty <= 0) return alert('Cantidad inválida');
+      const lineTotal = +(qty * unitPrice).toFixed(2);
+      const item = { producto_id: currentProduct.id, product_variation_id: variationId, quantity: qty, unit_price_usd: unitPrice, line_total: lineTotal, name: currentProduct.name, variation_text: variationText };
+      items.push(item);
+      renderItems();
+      closeModal();
+    });
+
+    function renderItems(){
+      invoiceTbody.innerHTML = '';
+      let subtotal = 0;
+      items.forEach((it, idx) => {
+        subtotal += Number(it.line_total || 0);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="py-2 text-sm">${it.name}<div class="text-xs text-slate-400">${it.variation_text}</div></td><td class="py-2 text-right">${it.quantity}</td><td class="py-2 text-right">$ ${it.unit_price_usd}</td><td class="py-2 text-right">$ ${it.line_total.toFixed(2)}</td><td class="py-2 text-right"><button data-remove-index="${idx}" class="text-rose-600 text-xs">Eliminar</button></td>`;
+        invoiceTbody.appendChild(tr);
+      });
+      subtotalEl.textContent = `$ ${subtotal.toFixed(2)}`;
+      itemsJsonInput.value = JSON.stringify(items.map(i=>({producto_id: i.producto_id, product_variation_id: i.product_variation_id, quantity: i.quantity, unit_price_usd: i.unit_price_usd})));
+    }
+
+    invoiceTbody.addEventListener('click', function(e){
+      const btn = e.target.closest('[data-remove-index]');
+      if(!btn) return;
+      const idx = Number(btn.getAttribute('data-remove-index'));
+      items.splice(idx,1);
+      renderItems();
+    });
+
+    invoiceForm.addEventListener('submit', function(e){
+      if(items.length === 0){ e.preventDefault(); alert('Agrega al menos un producto'); }
+    });
+  })();
+</script>
