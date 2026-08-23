@@ -99,6 +99,8 @@ Rails.application.routes.draw do
     collection do
       patch :update_settings
       get :history
+      get :replenishments, path: 'reposicion-productos'
+      post :replenishments, action: :create_replenishment, path: 'reposicion-productos'
     end
   end
   resources :debts, path: 'deudas', except: %i[edit update] do
