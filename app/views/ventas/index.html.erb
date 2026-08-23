@@ -752,6 +752,16 @@
         }
       }
 
+      const lossRecoveryCotidianaCategoryIds = Array.from(new Set(
+        accounts
+          .filter((account) => String(account?.account_type || '').toLowerCase() === 'cashea')
+          .flatMap((account) => Array.isArray(account?.cashea_cotidiana_category_ids) ? account.cashea_cotidiana_category_ids : [])
+          .map((value) => Number(value))
+          .filter((value) => Number.isFinite(value) && value > 0)
+      ));
+      const lossRecoveryCotidianaCategorySet = new Set(lossRecoveryCotidianaCategoryIds);
+      const lossRecoveryRequiredUnits = 4;
+
       const cashBoxesDataEl = document.getElementById('ventas-cash-boxes-data');
       let cashBoxes = [];
       if (cashBoxesDataEl) {
@@ -4124,6 +4134,7 @@
         let taxableSubtotalBase = 0;
         let exentoSubtotalBase = 0;
         let hasProductItems = false;
+        let qualifyingCotidianaUnits = 0;
         const vatMode = getVatMode();
 
         cart.forEach((item) => {
@@ -4143,6 +4154,12 @@
 
           const isExento = Boolean(product.exento);
           const pricing = computeProductPricing(product, item);
+          const itemQuantity = Number(item.quantity || 0);
+          const productCategoryId = Number(product?.category_id || 0);
+          if (lossRecoveryCotidianaCategorySet.has(productCategoryId) && Number.isFinite(itemQuantity) && itemQuantity > 0) {
+            qualifyingCotidianaUnits = roundTo(qualifyingCotidianaUnits + itemQuantity, 4);
+          }
+
           if (isExento) {
             exentoSubtotalBase = roundTo(exentoSubtotalBase + pricing.lineNet, 2);
           } else {
@@ -4158,6 +4175,7 @@
           : realTotalBase;
         const lossRecoveryApplied = lossRecoveryActive
           && hasProductItems
+          && qualifyingCotidianaUnits >= lossRecoveryRequiredUnits
           && Number.isFinite(lossRecoveryPercent)
           && lossRecoveryPercent > 0
           && Number.isFinite(lossRecoveryMinUsd)
@@ -4176,6 +4194,7 @@
           realTotalBase,
           lossRecoveryExtraBase,
           lossRecoveryApplied,
+          qualifyingCotidianaUnits,
         };
       };
 

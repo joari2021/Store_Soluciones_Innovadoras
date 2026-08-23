@@ -882,6 +882,7 @@ class VentasController < ApplicationController
       base_currency: base_currency,
       tasa_dolar: tasa_dolar,
       has_products: venta.venta_items.any? { |item| item.producto_id.present? },
+      qualifying_cotidiana_units: qualifying_cotidiana_units_for_loss_recovery(venta),
     )
     server_totals[:charged_total_base] = loss_recovery_context[:charged_total_base]
     server_totals[:charged_total_usd] = loss_recovery_context[:charged_total_usd]
@@ -4638,8 +4639,9 @@ class VentasController < ApplicationController
     end
   end
 
-  def loss_recovery_charge_context(totals:, base_currency:, tasa_dolar:, has_products:)
+  def loss_recovery_charge_context(totals:, base_currency:, tasa_dolar:, has_products:, qualifying_cotidiana_units:)
     setting = current_business.loss_recovery_setting
+    required_units = 4.to_d
 
     real_total_base = totals[:total_base].to_d.round(2)
     real_total_usd = if base_currency.to_s.upcase == "VES"
@@ -4652,7 +4654,8 @@ class VentasController < ApplicationController
     percent = setting&.surcharge_percent.to_d
     min_usd = setting&.min_invoice_total_usd.to_d
     active = setting&.active == true
-    eligible = has_products && active && percent.positive? && real_total_usd >= min_usd
+    enough_cotidiana_units = qualifying_cotidiana_units.to_d >= required_units
+    eligible = has_products && enough_cotidiana_units && active && percent.positive? && real_total_usd >= min_usd
 
     excess_base = eligible ? ((real_total_base * percent) / 100).round(2) : 0.to_d
     charged_total_base = (real_total_base + excess_base).round(2)
@@ -4669,6 +4672,8 @@ class VentasController < ApplicationController
       active: active,
       percent: percent,
       min_invoice_total_usd: min_usd,
+      qualifying_cotidiana_units: qualifying_cotidiana_units.to_d.round(4),
+      required_cotidiana_units: required_units,
       real_total_base: real_total_base,
       charged_total_base: charged_total_base,
       excess_base: excess_base,
@@ -4678,6 +4683,22 @@ class VentasController < ApplicationController
       base_currency: base_currency.to_s.upcase,
       tasa_dolar: tasa_dolar.to_d.round(4),
     }
+  end
+
+  def qualifying_cotidiana_units_for_loss_recovery(venta)
+    cotidiana_category_ids = current_business.accounts
+                                          .where(account_type: "cashea", active: true)
+                                          .flat_map(&:cashea_cotidiana_only_category_ids)
+                                          .map(&:to_i)
+                                          .select(&:positive?)
+                                          .uniq
+    return 0.to_d if cotidiana_category_ids.empty?
+
+    venta
+      .venta_items
+      .select { |item| item.producto_id.present? && cotidiana_category_ids.include?(item.producto&.categoria_id.to_i) }
+      .sum { |item| item.quantity.to_d }
+      .to_d
   end
 
   def record_loss_recovery_entry_for_sale!(venta:, payment_rows:, context:)
