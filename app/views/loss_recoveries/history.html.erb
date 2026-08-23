@@ -32,8 +32,8 @@
       <p class="mt-2 text-2xl font-extrabold text-slate-800"><%= @summary[:count] %></p>
     </div>
     <div class="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
-      <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Exceso acumulado base</p>
-      <p class="mt-2 text-2xl font-extrabold text-cyan-700"><%= number_to_currency(@summary[:total_excess_base], unit: "") %></p>
+      <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Base acumulada (USD)</p>
+      <p class="mt-2 text-2xl font-extrabold text-cyan-700"><%= number_to_currency(@summary[:total_base_usd], unit: "$ ") %></p>
     </div>
   </div>
   <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-x-auto">

@@ -25,7 +25,7 @@ class LossRecoveriesController < ApplicationController
     @entries = scope
     @summary = {
       total_excess_usd: @entries.sum(:excess_usd).to_d.round(2),
-      total_excess_base: @entries.sum(:excess_base).to_d.round(2),
+      total_base_usd: @entries.sum(:charged_total_usd).to_d.round(2),
       count: @entries.count,
     }
   end
@@ -58,7 +58,7 @@ class LossRecoveriesController < ApplicationController
     entries = current_business.loss_recovery_entries
     {
       total_excess_usd: entries.sum(:excess_usd).to_d.round(2),
-      total_excess_base: entries.sum(:excess_base).to_d.round(2),
+      total_base_usd: entries.sum(:charged_total_usd).to_d.round(2),
       count: entries.count,
     }
   end
