@@ -117,6 +117,33 @@ class LossRecoveriesController < ApplicationController
                 alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
+  def replenishment_history
+    @from = parse_filter_date(params[:from])
+    @to = parse_filter_date(params[:to])
+
+    scope = StockLot
+            .joins(:producto)
+            .includes(:producto, stock_lot_variations: :product_variation)
+            .where(productos: { business_id: current_business.id })
+            .where("stock_lots.description LIKE ?", "#{REPLENISHMENT_LOT_PREFIX}%")
+            .order(purchased_at: :desc, created_at: :desc)
+
+    if @from.present?
+      scope = scope.where("stock_lots.purchased_at >= ?", @from.in_time_zone.beginning_of_day)
+    end
+
+    if @to.present?
+      scope = scope.where("stock_lots.purchased_at <= ?", @to.in_time_zone.end_of_day)
+    end
+
+    @replenishment_lots = scope.limit(500)
+    @replenishment_summary = {
+      count: scope.count,
+      quantity_in: scope.sum(:quantity_in).to_d.round(3),
+      quantity_remaining: scope.sum(:quantity_remaining).to_d.round(3),
+    }
+  end
+
   private
 
   def load_setting
