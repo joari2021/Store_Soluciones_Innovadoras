@@ -115,13 +115,13 @@ class LossRecoveriesController < ApplicationController
     ActiveRecord::Base.transaction do
       # Restore inventory based on lot_breakdown saved in items
       invoice.recovery_invoice_items.each do |item|
-        breakdown = item.lot_breakdown || []
-        if breakdown.blank?
-          raise ActiveRecord::RecordInvalid.new(item), 'No hay información de lotes para restaurar esta línea.'
-        end
+        breakdown = normalized_recovery_invoice_lot_breakdown_for(item)
 
         breakdown.each do |entry|
-          lot = StockLot.find_by(id: entry['stock_lot_id'])
+          lot = StockLot
+                .joins(:producto)
+                .where(productos: { business_id: current_business.id })
+                .find_by(id: entry['stock_lot_id'])
           raise ActiveRecord::RecordNotFound, "Lote #{entry['stock_lot_id']} no encontrado. No se puede restaurar." unless lot
 
           # find variation row in that lot
@@ -363,5 +363,34 @@ class LossRecoveriesController < ApplicationController
 
   def history_redirect_params
     params.permit(:from, :to).to_h
+  end
+
+  def normalized_recovery_invoice_lot_breakdown_for(item)
+    raw_rows = item.lot_breakdown
+    parsed_rows = if raw_rows.is_a?(String)
+                    JSON.parse(raw_rows) rescue []
+                  else
+                    Array(raw_rows)
+                  end
+
+    rows = parsed_rows.filter_map do |row|
+      source = row.respond_to?(:to_h) ? row.to_h : {}
+      stock_lot_id = source['stock_lot_id'] || source[:stock_lot_id]
+      quantity = parse_decimal(source['quantity'] || source[:quantity]).to_d
+
+      next if stock_lot_id.blank? || !quantity.positive?
+
+      {
+        'stock_lot_id' => stock_lot_id.to_i,
+        'quantity' => quantity,
+      }
+    end
+
+    if rows.blank?
+      raise ActiveRecord::RecordInvalid.new(item),
+            "La factura contiene una linea sin detalle de lotes valido (item ##{item.id})."
+    end
+
+    rows
   end
 end
