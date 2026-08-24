@@ -107,6 +107,7 @@ Rails.application.routes.draw do
       get 'facturar-perdida', action: :new_recovery_invoice, as: :new_recovery_invoice
       post 'facturar-perdida', action: :create_recovery_invoice, as: :create_recovery_invoice
       get 'facturas-perdida', action: :recovery_invoices, as: :recovery_invoices
+      delete 'facturas-perdida/:id', action: :destroy_recovery_invoice, as: :destroy_recovery_invoice
     end
   end
   resources :debts, path: 'deudas', except: %i[edit update] do
