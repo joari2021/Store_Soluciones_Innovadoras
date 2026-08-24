@@ -151,17 +151,11 @@ class LossRecoveriesController < ApplicationController
 
   # GET /recuperacion-perdidas/facturas-perdida
   def recovery_invoices
-    scope = current_business.recovery_invoices.order(occurred_at: :desc)
+    scope = current_business
+            .recovery_invoices
+            .includes(:user, recovery_invoice_items: %i[producto product_variation])
+            .order(occurred_at: :desc)
     @recovery_invoices = scope.limit(500)
-
-    selected_id = params[:invoice_id].to_i
-    @selected_recovery_invoice = if selected_id.positive?
-                                   current_business
-                                     .recovery_invoices
-                                     .includes(:user, recovery_invoice_items: %i[producto product_variation])
-                                     .find_by(id: selected_id)
-                                 end
-    @selected_recovery_invoice_items = @selected_recovery_invoice&.recovery_invoice_items&.order(:id) || []
   end
 
   def replenishments
