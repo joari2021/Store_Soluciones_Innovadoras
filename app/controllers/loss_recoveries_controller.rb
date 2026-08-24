@@ -89,10 +89,10 @@ class LossRecoveriesController < ApplicationController
         unit_price = parse_decimal(it['unit_price_usd']).to_d
         line_total = (quantity * unit_price).round(2)
 
-        invoice.recovery_invoice_items.create!(producto: producto, product_variation_id: variation_id, quantity: quantity, unit_price_usd: unit_price, total_price_usd: line_total)
+        # consume inventory with breakdown so we can restore later
+        breakdown = producto.consume_variation_stock_with_breakdown!(variation_id: variation_id, quantity_units: quantity) || []
 
-        # consume inventory
-        producto.consume_variation_stock!(variation_id: variation_id, quantity_units: quantity)
+        invoice.recovery_invoice_items.create!(producto: producto, product_variation_id: variation_id, quantity: quantity, unit_price_usd: unit_price, total_price_usd: line_total, lot_breakdown: breakdown)
 
         total += line_total
       end
@@ -103,6 +103,50 @@ class LossRecoveriesController < ApplicationController
     redirect_to recovery_invoices_loss_recoveries_path, notice: 'Factura de recuperación registrada correctamente.'
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
     redirect_to new_recovery_invoice_loss_recoveries_path, alert: e.message
+  end
+
+  # DELETE /recuperacion-perdidas/facturas-perdida/:id
+  def destroy_recovery_invoice
+    invoice = current_business.recovery_invoices.find_by(id: params[:id])
+    if invoice.blank?
+      return redirect_to recovery_invoices_loss_recoveries_path, alert: 'Factura no encontrada.'
+    end
+
+    ActiveRecord::Base.transaction do
+      # Restore inventory based on lot_breakdown saved in items
+      invoice.recovery_invoice_items.each do |item|
+        breakdown = item.lot_breakdown || []
+        if breakdown.blank?
+          raise ActiveRecord::RecordInvalid.new(item), 'No hay información de lotes para restaurar esta línea.'
+        end
+
+        breakdown.each do |entry|
+          lot = StockLot.find_by(id: entry['stock_lot_id'])
+          raise ActiveRecord::RecordNotFound, "Lote #{entry['stock_lot_id']} no encontrado. No se puede restaurar." unless lot
+
+          # find variation row in that lot
+          if item.product_variation_id.present?
+            row = lot.stock_lot_variations.find_by(product_variation_id: item.product_variation_id)
+          else
+            row = lot.stock_lot_variations.first
+          end
+
+          raise ActiveRecord::RecordNotFound, "No se encuentra la variación en el lote #{lot.id}." unless row
+
+          # add back the consumed quantity
+          row.quantity_remaining = row.quantity_remaining.to_d + BigDecimal(entry['quantity'].to_s)
+          row.save!
+
+          lot.sync_quantity_remaining_from_variations!
+        end
+      end
+
+      invoice.destroy!
+    end
+
+    redirect_to recovery_invoices_loss_recoveries_path, notice: 'Factura eliminada y stock restaurado correctamente.'
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotFound => e
+    redirect_to recovery_invoices_loss_recoveries_path, alert: e.message
   end
 
   # GET /recuperacion-perdidas/facturas-perdida
