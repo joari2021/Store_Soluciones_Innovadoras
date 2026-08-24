@@ -3,7 +3,8 @@ class RecoveryInvoiceItem < ApplicationRecord
   belongs_to :producto
   belongs_to :product_variation, optional: true
 
+  attribute :lot_breakdown, :json, default: []
+
   validates :quantity, numericality: { greater_than: 0 }
   validates :unit_price_usd, :total_price_usd, numericality: { greater_than_or_equal_to: 0 }
-  serialize :lot_breakdown, JSON
 end
