@@ -115,6 +115,7 @@
 <script>
   (function(){
     const productsTable = document.getElementById('recovery-products-table');
+    const productSearchInput = document.getElementById('recovery-product-search');
     const addModal = document.getElementById('recovery-add-modal');
     const modalTitle = document.getElementById('modal-product-title');
     const variationSelect = document.getElementById('modal-variation-select');
@@ -128,6 +129,26 @@
 
     let currentProduct = null;
     let items = [];
+
+    function normalizeSearchText(value){
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+    }
+
+    function applyProductFilter(){
+      const query = normalizeSearchText(productSearchInput?.value);
+      const rows = productsTable?.querySelectorAll('tbody tr[data-product-row]') || [];
+
+      rows.forEach((row) => {
+        const productName = normalizeSearchText(row.dataset.productName);
+        const variationText = normalizeSearchText(row.children?.[1]?.textContent || '');
+        const matches = query.length === 0 || productName.includes(query) || variationText.includes(query);
+        row.classList.toggle('hidden', !matches);
+      });
+    }
 
     function formatUsd(value){
       const amount = Number(value || 0);
@@ -165,6 +186,11 @@
     });
 
     modalCancel.addEventListener('click', closeModal);
+
+    if (productSearchInput) {
+      productSearchInput.addEventListener('input', applyProductFilter);
+      productSearchInput.addEventListener('keyup', applyProductFilter);
+    }
 
     modalAdd.addEventListener('click', function(){
       if(!currentProduct) return;
