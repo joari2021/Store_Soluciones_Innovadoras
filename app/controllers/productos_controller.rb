@@ -89,6 +89,8 @@ class ProductosController < ApplicationController
     @low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
     @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
     @catalog_hidden_filter = ActiveModel::Type::Boolean.new.cast(params[:catalog_hidden])
+    @global_supplier_options = global_supplier_filter_options
+    @selected_global_supplier_id = parse_global_supplier_filter_id(params[:global_supplier_id])
     @categorias = current_business.categorias.order(nombre: :asc)
     @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
     @selected_categoria_id = @selected_categoria&.id
@@ -101,7 +103,7 @@ class ProductosController < ApplicationController
                    .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
 
     @has_productos = current_business.productos.exists?
-    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @catalog_hidden_filter || @selected_categoria_id.present?
+    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @catalog_hidden_filter || @selected_categoria_id.present? || @selected_global_supplier_id.present?
 
     filtered_scope = if @query_text.present?
                        base_scope.whose_name_starts_with(@query_text)
@@ -110,6 +112,12 @@ class ProductosController < ApplicationController
                      end
 
     filtered_scope = filtered_scope.where(categoria_id: @selected_categoria_id) if @selected_categoria_id.present?
+    if @selected_global_supplier_id.present?
+      supplier_global_product_ids = GlobalSupplierProduct
+                                    .where(global_supplier_id: @selected_global_supplier_id, active: true)
+                                    .select(:global_product_id)
+      filtered_scope = filtered_scope.where(global_product_id: supplier_global_product_ids)
+    end
     filtered_scope = filtered_scope.where(show_in_catalog: false) if @catalog_hidden_filter && Producto.column_names.include?('show_in_catalog')
 
     filtered_scope = filter_by_low_stock(filtered_scope) if @low_stock_filter
@@ -1469,9 +1477,16 @@ class ProductosController < ApplicationController
     low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
     below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
     category_id = params[:category_id].to_s.strip
+    global_supplier_id = parse_global_supplier_filter_id(params[:global_supplier_id])
 
     scope = scope.whose_name_starts_with(query_text) if query_text.present?
     scope = scope.where(categoria_id: category_id.to_i) if category_id.present?
+    if global_supplier_id.present?
+      supplier_global_product_ids = GlobalSupplierProduct
+                                    .where(global_supplier_id: global_supplier_id, active: true)
+                                    .select(:global_product_id)
+      scope = scope.where(global_product_id: supplier_global_product_ids)
+    end
     scope = filter_by_low_stock(scope) if low_stock_filter
     scope = filter_by_below_target_margin(scope) if below_target_margin_filter
 
@@ -1486,13 +1501,15 @@ class ProductosController < ApplicationController
     @query_text = params[:query_text].to_s.strip
     @low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
     @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
+    @global_supplier_options = global_supplier_filter_options
+    @selected_global_supplier_id = parse_global_supplier_filter_id(params[:global_supplier_id])
     @categorias = current_business.categorias.order(nombre: :asc)
     @selected_categoria = @categorias.find_by(id: params[:category_id]) if params[:category_id].present?
     @selected_categoria_id = @selected_categoria&.id
     @product_counts_by_categoria_id = current_business.productos.group(:categoria_id).count
 
     @has_productos = current_business.productos.exists?
-    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present?
+    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @selected_categoria_id.present? || @selected_global_supplier_id.present?
     @matching_productos_count = current_filtered_products_count_for_live_update
     @productos = []
     @next_page = nil
@@ -1504,12 +1521,41 @@ class ProductosController < ApplicationController
     low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
     below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
     category_id = params[:category_id].to_s.strip
+    global_supplier_id = parse_global_supplier_filter_id(params[:global_supplier_id])
 
     scope = scope.whose_name_starts_with(query_text) if query_text.present?
     scope = scope.where(categoria_id: category_id.to_i) if category_id.present?
+    if global_supplier_id.present?
+      supplier_global_product_ids = GlobalSupplierProduct
+                                    .where(global_supplier_id: global_supplier_id, active: true)
+                                    .select(:global_product_id)
+      scope = scope.where(global_product_id: supplier_global_product_ids)
+    end
     scope = filter_by_low_stock(scope) if low_stock_filter
     scope = filter_by_below_target_margin(scope) if below_target_margin_filter
     scope
+  end
+
+  def global_supplier_filter_options
+    GlobalSupplier
+      .joins(global_supplier_products: :global_product)
+      .joins('INNER JOIN productos ON productos.global_product_id = global_products.id')
+      .where(productos: { business_id: current_business.id })
+      .where(global_supplier_products: { active: true })
+      .distinct
+      .order(:name)
+      .pluck(:name, :id)
+  end
+
+  def parse_global_supplier_filter_id(raw_value)
+    value = raw_value.to_s.strip
+    return nil if value.blank?
+
+    id = value.to_i
+    return nil unless id.positive?
+
+    allowed_ids = @global_supplier_options.present? ? @global_supplier_options.map { |_name, supplier_id| supplier_id.to_i } : global_supplier_filter_options.map { |_name, supplier_id| supplier_id.to_i }
+    allowed_ids.include?(id) ? id : nil
   end
 
   def low_stock_product_ids_for_scope(scope)

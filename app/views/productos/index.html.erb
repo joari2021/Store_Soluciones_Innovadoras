@@ -86,6 +86,7 @@
       <% active_filter_params[:low_stock] = 1 if @low_stock_filter %>
       <% active_filter_params[:below_target_margin] = 1 if @below_target_margin_filter %>
       <% active_filter_params[:catalog_hidden] = 1 if @catalog_hidden_filter %>
+      <% active_filter_params[:global_supplier_id] = @selected_global_supplier_id if @selected_global_supplier_id.present? %>
       <div class="mb-4 rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
         <div class="flex items-center justify-between gap-3">
           <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Filtrar por categoria</p>
@@ -116,7 +117,7 @@
           <% end %>
         </div>
       </div>
-      <%= form_with url: productos_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,18rem)_minmax(0,14rem)_minmax(0,14rem)_minmax(0,14rem)_auto_auto] md:items-end md:justify-start', data: { products_search_form: true } do %>
+      <%= form_with url: productos_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,18rem)_minmax(0,14rem)_minmax(0,14rem)_minmax(0,14rem)_minmax(0,16rem)_auto_auto] md:items-end md:justify-start', data: { products_search_form: true } do %>
         <%= hidden_field_tag :category_id, @selected_categoria_id if @selected_categoria_id.present? %>
         <div class="w-full md:w-[18rem]">
           <label for="products_query_text" class="block text-sm font-medium text-slate-700">Buscar producto</label>
@@ -174,6 +175,13 @@
                          class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
                          data: { products_catalog_hidden_input: true } %>
         </div>
+        <div class="w-full md:w-[16rem]">
+          <label for="products_global_supplier_id" class="block text-sm font-medium text-slate-700">Proveedor global</label>
+          <%= select_tag :global_supplier_id,
+                         options_for_select([['Todos', '']] + @global_supplier_options, @selected_global_supplier_id),
+                         id: 'products_global_supplier_id',
+                         class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+        </div>
         <button type="submit" data-products-submit="true" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-70">
           Buscar
         </button>
@@ -182,6 +190,7 @@
              low_stock: (@low_stock_filter ? 1 : 0),
              below_target_margin: (@below_target_margin_filter ? 1 : 0),
              category_id: @selected_categoria_id.presence,
+             global_supplier_id: @selected_global_supplier_id.presence,
              catalog_hidden: 1
            }.compact %>
         <%= link_to productos_path(hidden_catalog_button_params),
