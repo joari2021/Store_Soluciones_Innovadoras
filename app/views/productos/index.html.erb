@@ -792,8 +792,16 @@
             url.searchParams.set("below_target_margin", "1");
           }
 
+          if (root.dataset.productsCatalogHidden === "true") {
+            url.searchParams.set("catalog_hidden", "1");
+          }
+
           if (root.dataset.productsCategoryId) {
             url.searchParams.set("category_id", root.dataset.productsCategoryId);
+          }
+
+          if (root.dataset.productsGlobalSupplierId) {
+            url.searchParams.set("global_supplier_id", root.dataset.productsGlobalSupplierId);
           }
 
           url.searchParams.set("page", String(page));

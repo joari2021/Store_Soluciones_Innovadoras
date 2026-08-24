@@ -22,7 +22,7 @@
     </div>
   <% end %>
   <% if @productos.any? %>
-    <div class="space-y-4" data-products-index="true" data-products-url="<%= productos_path %>" data-products-query-text="<%= @query_text %>" data-products-low-stock="<%= @low_stock_filter %>" data-products-below-target-margin="<%= @below_target_margin_filter %>" data-products-category-id="<%= @selected_categoria_id %>">
+    <div class="space-y-4" data-products-index="true" data-products-url="<%= productos_path %>" data-products-query-text="<%= @query_text %>" data-products-low-stock="<%= @low_stock_filter %>" data-products-below-target-margin="<%= @below_target_margin_filter %>" data-products-catalog-hidden="<%= @catalog_hidden_filter %>" data-products-global-supplier-id="<%= @selected_global_supplier_id %>" data-products-category-id="<%= @selected_categoria_id %>">
       <div class="relative" data-products-table-shell="true">
         <div data-products-table-loading="true" class="pointer-events-none absolute inset-0 z-20 hidden items-center justify-center rounded-2xl bg-white/70 backdrop-blur-[1px]">
           <div class="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-white px-4 py-2 text-sm font-semibold text-sky-700 shadow-sm">
