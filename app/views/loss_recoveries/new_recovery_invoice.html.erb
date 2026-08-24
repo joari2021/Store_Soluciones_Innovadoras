@@ -39,7 +39,16 @@
           </thead>
           <tbody>
             <% @productos.each do |producto| %>
-              <% variations_payload = producto.product_variations.order(:id).map { |variation| { id: variation.id, name: variation.description.to_s, available: number_with_precision(producto.stock_lot_variations.where(product_variation_id: variation.id).sum(:quantity_remaining).to_d, precision: 3, strip_insignificant_zeros: true), price: format_money(variation.try(:precio_venta_usd) || producto.precio_venta_usd, unit: "") } } %>
+              <% variations_payload = producto.product_variations.order(:id).map do |variation|
+                   raw_price = (variation.try(:precio_venta_usd) || producto.precio_venta_usd).to_d
+                   {
+                     id: variation.id,
+                     name: variation.description.to_s,
+                     available: number_with_precision(producto.stock_lot_variations.where(product_variation_id: variation.id).sum(:quantity_remaining).to_d, precision: 3, strip_insignificant_zeros: true),
+                     price_value: raw_price.to_s('F'),
+                     price_label: number_with_precision(raw_price, precision: 2, delimiter: '.', separator: ',')
+                   }
+                 end %>
               <tr class="border-b border-slate-100" data-product-row data-product-id="<%= producto.id %>" data-product-name="<%= producto.display_name_with_presentation %>" data-variations="<%= json_escape(variations_payload.to_json) %>">
                 <td class="px-4 py-3"><%= producto.display_name_with_presentation %></td>
                 <td class="px-4 py-3 text-xs text-slate-500"><%= producto.product_variations.order(:id).map { |v| v.description.to_s }.join(', ') %></td>
@@ -120,6 +129,12 @@
     let currentProduct = null;
     let items = [];
 
+    function formatUsd(value){
+      const amount = Number(value || 0);
+      const safe = Number.isFinite(amount) ? amount : 0;
+      return `$ ${safe.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
+
     function openModalForRow(row){
       const prodId = row.dataset.productId;
       const prodName = row.dataset.productName;
@@ -128,7 +143,12 @@
       modalTitle.textContent = `Agregar: ${prodName}`;
       variationSelect.innerHTML = '';
       variations.forEach(v => {
-        const opt = document.createElement('option'); opt.value = v.id; opt.textContent = `${v.name} — ${v.available} uds — $ ${v.price}`; opt.dataset.price = v.price; opt.dataset.available = v.available; variationSelect.appendChild(opt);
+        const opt = document.createElement('option');
+        opt.value = v.id;
+        opt.textContent = `${v.name} — ${v.available} uds — ${formatUsd(v.price_value)}`;
+        opt.dataset.priceValue = v.price_value;
+        opt.dataset.available = v.available;
+        variationSelect.appendChild(opt);
       });
       quantityInput.value = 1;
       addModal.classList.remove('hidden'); addModal.classList.add('flex');
@@ -150,7 +170,7 @@
       if(!currentProduct) return;
       const variationId = variationSelect.value;
       const variationText = variationSelect.options[variationSelect.selectedIndex].textContent || '';
-      const unitPrice = parseFloat(variationSelect.options[variationSelect.selectedIndex].dataset.price || '0') || 0;
+      const unitPrice = parseFloat(variationSelect.options[variationSelect.selectedIndex].dataset.priceValue || '0') || 0;
       const qty = parseFloat(quantityInput.value) || 0;
       if(qty <= 0) return alert('Cantidad inválida');
       const lineTotal = +(qty * unitPrice).toFixed(2);
@@ -166,10 +186,10 @@
       items.forEach((it, idx) => {
         subtotal += Number(it.line_total || 0);
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td class="py-2 text-sm">${it.name}<div class="text-xs text-slate-400">${it.variation_text}</div></td><td class="py-2 text-right">${it.quantity}</td><td class="py-2 text-right">$ ${it.unit_price_usd}</td><td class="py-2 text-right">$ ${it.line_total.toFixed(2)}</td><td class="py-2 text-right"><button data-remove-index="${idx}" class="text-rose-600 text-xs">Eliminar</button></td>`;
+        tr.innerHTML = `<td class="py-2 text-sm">${it.name}<div class="text-xs text-slate-400">${it.variation_text}</div></td><td class="py-2 text-right">${it.quantity}</td><td class="py-2 text-right">${formatUsd(it.unit_price_usd)}</td><td class="py-2 text-right">${formatUsd(it.line_total)}</td><td class="py-2 text-right"><button data-remove-index="${idx}" class="text-rose-600 text-xs">Eliminar</button></td>`;
         invoiceTbody.appendChild(tr);
       });
-      subtotalEl.textContent = `$ ${subtotal.toFixed(2)}`;
+      subtotalEl.textContent = formatUsd(subtotal);
       itemsJsonInput.value = JSON.stringify(items.map(i=>({producto_id: i.producto_id, product_variation_id: i.product_variation_id, quantity: i.quantity, unit_price_usd: i.unit_price_usd})));
     }
 

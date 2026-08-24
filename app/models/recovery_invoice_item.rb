@@ -13,15 +13,15 @@ class RecoveryInvoiceItem < ApplicationRecord
 
   def lot_breakdown_shape
     rows = Array(lot_breakdown)
-    return errors.add(:lot_breakdown, 'debe incluir al menos un lote') if rows.empty?
+    return errors.add(:lot_breakdown, "debe incluir al menos un lote") if rows.empty?
 
     valid = rows.all? do |row|
       source = row.respond_to?(:to_h) ? row.to_h : {}
-      stock_lot_id = source['stock_lot_id'] || source[:stock_lot_id]
-      quantity = source['quantity'] || source[:quantity]
+      stock_lot_id = source["stock_lot_id"] || source[:stock_lot_id]
+      quantity = source["quantity"] || source[:quantity]
       stock_lot_id.present? && quantity.present?
     end
 
-    errors.add(:lot_breakdown, 'tiene un formato invalido') unless valid
+    errors.add(:lot_breakdown, "tiene un formato invalido") unless valid
   end
 end
