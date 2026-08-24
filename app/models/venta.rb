@@ -25,6 +25,7 @@ class Venta < ApplicationRecord
   belongs_to :cliente, optional: true
   has_many :venta_items, dependent: :destroy, inverse_of: :venta
   has_many :venta_payments, dependent: :destroy, inverse_of: :venta
+  has_one :loss_recovery_entry, dependent: :destroy
   has_many :service_cost_debts, class_name: "Debt", dependent: :nullify
 
   accepts_nested_attributes_for :venta_items, allow_destroy: true

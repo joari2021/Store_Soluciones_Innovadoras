@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_15_093000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_23_120100) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -326,11 +326,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_15_093000) do
   end
 
   create_table "expense_categories", force: :cascade do |t|
-    t.bigint "business_id", null: false
+    t.bigint "business_id"
     t.string "name", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["business_id", "name"], name: "index_expense_categories_on_business_id_and_name", unique: true
+    t.index "lower((name)::text)", name: "index_expense_categories_on_lower_name", unique: true
     t.index ["business_id"], name: "index_expense_categories_on_business_id"
   end
 
@@ -568,6 +568,38 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_15_093000) do
     t.datetime "updated_at", null: false
     t.boolean "disponible", default: true
     t.string "link_trailer"
+  end
+
+  create_table "loss_recovery_entries", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "venta_id", null: false
+    t.bigint "account_id"
+    t.datetime "occurred_at", null: false
+    t.string "base_currency", null: false
+    t.decimal "tasa_dolar", precision: 14, scale: 4, default: "0.0", null: false
+    t.decimal "real_total_base", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "charged_total_base", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "excess_base", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "real_total_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "charged_total_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "excess_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_loss_recovery_entries_on_account_id"
+    t.index ["business_id", "occurred_at"], name: "index_loss_recovery_entries_on_business_id_and_occurred_at"
+    t.index ["business_id"], name: "index_loss_recovery_entries_on_business_id"
+    t.index ["venta_id"], name: "index_loss_recovery_entries_on_venta_id", unique: true
+  end
+
+  create_table "loss_recovery_settings", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.boolean "active", default: false, null: false
+    t.decimal "surcharge_percent", precision: 8, scale: 4, default: "0.0", null: false
+    t.decimal "min_invoice_total_usd", precision: 12, scale: 2, default: "5.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_loss_recovery_settings_on_business_id", unique: true
   end
 
   create_table "managers", force: :cascade do |t|
@@ -1166,6 +1198,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_15_093000) do
   add_foreign_key "inventory_absorption_simulations", "businesses", column: "destination_business_id"
   add_foreign_key "inventory_absorption_simulations", "businesses", column: "source_business_id"
   add_foreign_key "inventory_absorption_simulations", "users"
+  add_foreign_key "loss_recovery_entries", "accounts"
+  add_foreign_key "loss_recovery_entries", "businesses"
+  add_foreign_key "loss_recovery_entries", "ventas"
+  add_foreign_key "loss_recovery_settings", "businesses"
   add_foreign_key "pack_unwrap_items", "pack_unwraps"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id"
   add_foreign_key "pack_unwrap_items", "product_variations", column: "source_product_variation_id"

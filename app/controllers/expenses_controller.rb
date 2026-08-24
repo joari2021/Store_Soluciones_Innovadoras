@@ -69,13 +69,17 @@ class ExpensesController < ApplicationController
 
   def create
     @expense = current_business.expenses.new(expense_params)
+    @expense.frequency = 'once' if @expense.expense_type.to_s == 'variable'
     normalize_schedule(@expense)
 
-    if register_payment_now?
+    if @expense.expense_type.to_s == 'variable'
       success = false
       Expense.transaction do
         @expense.save!
         success = record_initial_payment(@expense)
+        raise ActiveRecord::Rollback unless success
+
+        success = record_variable_expense_commission!(@expense)
         raise ActiveRecord::Rollback unless success
       end
 
@@ -119,18 +123,35 @@ class ExpensesController < ApplicationController
   def destroy
     destination_path = destroy_return_path
 
+    if @expense.commission_expense?
+      redirect_to destination_path, alert: 'Este gasto de comision bancaria se elimina automaticamente al borrar el gasto principal.'
+      return
+    end
+
     if should_archive_expense?(@expense)
       @expense.update!(active: false, next_due_on: nil, end_date: Date.current)
       redirect_to destination_path, notice: 'Gasto archivado para conservar su historial de pagos.'
       return
     end
 
+    deleted_commissions_count = 0
     Expense.transaction do
+      commission_linked_expenses_for(@expense).find_each do |commission_expense|
+        remove_account_movements_for_expense!(commission_expense)
+        commission_expense.destroy!
+        deleted_commissions_count += 1
+      end
+
       remove_account_movements_for_expense!(@expense)
       @expense.destroy!
     end
 
-    redirect_to destination_path, notice: 'Gasto eliminado.'
+    notice_message = if deleted_commissions_count.positive?
+                       "Gasto eliminado junto a #{deleted_commissions_count} gasto(s) de comision relacionado(s)."
+                     else
+                       'Gasto eliminado.'
+                     end
+    redirect_to destination_path, notice: notice_message
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to destination_path, alert: "No se pudo eliminar el gasto: #{e.message}"
   end
@@ -168,12 +189,16 @@ class ExpensesController < ApplicationController
     permitted
   end
 
-  def register_payment_now?
-    params[:register_payment].to_s == '1'
-  end
-
   def payment_params
-    params.permit(:payment_account_id, :payment_amount, :payment_method, :payment_reference, :payment_occurred_at)
+    params.permit(
+      :payment_account_id,
+      :payment_amount,
+      :payment_method,
+      :payment_reference,
+      :payment_occurred_at,
+      :include_commission,
+      :commission_amount
+    )
   end
 
   def normalize_schedule(expense)
@@ -214,12 +239,12 @@ class ExpensesController < ApplicationController
     amount = parse_decimal(payment_params[:payment_amount])
 
     if account.nil? || amount <= 0
-      expense.errors.add(:base, 'Completa el pago inicial para registrarlo.')
+      expense.errors.add(:base, 'Completa el pago para registrar el gasto variable.')
       return false
     end
 
-    payment_method = payment_params[:payment_method].presence
-    reference = payment_params[:payment_reference].presence
+    payment_method = normalized_variable_payment_method(account, payment_params[:payment_method])
+    reference = normalized_reference_for_method(payment_params[:payment_reference], payment_method)
     occurred_at = parse_datetime(payment_params[:payment_occurred_at]) || Time.current
 
     payment = expense.expense_payments.new(
@@ -238,11 +263,101 @@ class ExpensesController < ApplicationController
 
     payment.save!
     create_account_movement(account, expense, amount, payment_method, reference, occurred_at)
+    expense.amount = amount
+    expense.currency = account.currency
     expense.register_payment!(occurred_at.to_date)
     true
   rescue ActiveRecord::RecordInvalid => e
     expense.errors.add(:base, e.message)
     false
+  end
+
+  def record_variable_expense_commission!(origin_expense)
+    include_commission = ActiveModel::Type::Boolean.new.cast(payment_params[:include_commission])
+    return true unless include_commission
+
+    account = current_business.accounts.find_by(id: payment_params[:payment_account_id])
+    if account.blank?
+      origin_expense.errors.add(:base, 'Selecciona una cuenta valida para registrar la comision bancaria.')
+      return false
+    end
+
+    payment_method = normalized_variable_payment_method(account, payment_params[:payment_method])
+    unless commission_applicable_for_method?(payment_method)
+      origin_expense.errors.add(:base, 'La comision bancaria solo aplica para transferencia o pago movil.')
+      return false
+    end
+
+    commission_amount = parse_decimal(payment_params[:commission_amount])
+    if commission_amount <= 0
+      origin_expense.errors.add(:base, 'Indica un monto de comision mayor a cero.')
+      return false
+    end
+
+    reference = normalized_reference_for_method(payment_params[:payment_reference], payment_method)
+    occurred_at = parse_datetime(payment_params[:payment_occurred_at]) || Time.current
+    category = bank_service_expense_category
+
+    commission_expense = current_business.expenses.new(
+      name: "Comision bancaria - #{origin_expense.name}",
+      description: "Comision bancaria asociada al gasto ##{origin_expense.id}",
+      expense_type: 'variable',
+      frequency: 'once',
+      amount: commission_amount,
+      currency: account.currency,
+      start_date: occurred_at.to_date,
+      expense_category: category,
+    )
+
+    commission_expense.save!
+
+    payment = commission_expense.expense_payments.new(
+      account: account,
+      amount: commission_amount,
+      currency: account.currency,
+      payment_method: payment_method,
+      reference: reference,
+      occurred_at: occurred_at,
+      notes: "Comision de gasto ##{origin_expense.id}",
+    )
+
+    unless payment.valid?
+      payment.errors.full_messages.each { |message| origin_expense.errors.add(:base, message) }
+      return false
+    end
+
+    payment.save!
+    create_account_movement(account, commission_expense, commission_amount, payment_method, reference, occurred_at)
+    commission_expense.register_payment!(occurred_at.to_date)
+    true
+  rescue ActiveRecord::RecordInvalid => e
+    origin_expense.errors.add(:base, e.message)
+    false
+  end
+
+  def normalized_variable_payment_method(account, raw_method)
+    method = raw_method.to_s.strip
+    return '' unless account&.account_type == 'bank_account' && account.currency.to_s.upcase == 'VES'
+
+    method
+  end
+
+  def normalized_reference_for_method(raw_reference, payment_method)
+    return '' if payment_method.to_s == 'debit_card'
+
+    raw_reference.to_s.strip
+  end
+
+  def commission_applicable_for_method?(payment_method)
+    %w[transfer mobile].include?(payment_method.to_s)
+  end
+
+  def bank_service_expense_category
+    category_name = 'Servicio bancario'
+    existing = ExpenseCategory.where('LOWER(name) = ?', category_name.downcase).first
+    return existing if existing.present?
+
+    ExpenseCategory.create!(name: category_name, business: current_business)
   end
 
   def create_account_movement(account, expense, amount, method, reference, occurred_at)
@@ -283,6 +398,14 @@ class ExpensesController < ApplicationController
 
   def destroy_return_path
     params[:return_to].to_s == 'history' ? history_expenses_path : expenses_path
+  end
+
+  def commission_linked_expenses_for(origin_expense)
+    return Expense.none if origin_expense.id.blank?
+
+    current_business.expenses
+                    .where.not(id: origin_expense.id)
+                    .where('description LIKE ?', "Comision bancaria asociada al gasto ##{origin_expense.id}%")
   end
 
   def remove_account_movements_for_expense!(expense)
@@ -327,7 +450,7 @@ class ExpensesController < ApplicationController
 
   def load_expense_categories
     ensure_default_expense_categories!
-    @expense_categories = current_business.expense_categories.order(:name)
+    @expense_categories = ExpenseCategory.order(Arel.sql('LOWER(name) ASC'))
   end
 
   def apply_expense_filters(scope)
@@ -411,10 +534,10 @@ class ExpensesController < ApplicationController
   end
 
   def ensure_default_expense_categories!
-    return if current_business.expense_categories.exists?
-
     DEFAULT_EXPENSE_CATEGORIES.each do |name|
-      current_business.expense_categories.create!(name: name)
+      next if ExpenseCategory.where('LOWER(name) = ?', name.downcase).exists?
+
+      ExpenseCategory.create!(name: name, business: current_business)
     end
   end
 

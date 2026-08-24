@@ -2,6 +2,7 @@ class ExpensePayment < ApplicationRecord
   PAYMENT_METHODS = {
     "transfer" => "Transferencia",
     "mobile" => "Pago movil",
+    "debit_card" => "Tarjeta de debito",
   }.freeze
 
   belongs_to :expense
@@ -34,6 +35,7 @@ class ExpensePayment < ApplicationRecord
     return if account.blank?
     return unless account.account_type == "bank_account" && account.currency == "VES"
     return if payment_method.blank?
+    return if payment_method == "debit_card"
 
     if reference.blank?
       errors.add(:reference, "es requerido")

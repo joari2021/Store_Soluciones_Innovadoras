@@ -95,6 +95,20 @@ Rails.application.routes.draw do
     resources :expense_payments, only: %i[new create destroy]
     post 'convert_amount', to: 'api/expense_payments#convert_amount', on: :member
   end
+  resources :loss_recoveries, path: 'recuperacion-perdidas', only: %i[index] do
+    collection do
+      patch :update_settings
+      get :history
+      get :replenishments, path: 'reposicion-productos'
+      post :replenishments, action: :create_replenishment, path: 'reposicion-productos'
+      get :replenishment_history, path: 'reposicion-productos/historial'
+      delete 'reposicion-productos/:id', action: :destroy_replenishment, as: :destroy_replenishment
+      # Recovery invoices (facturar perdida)
+      get 'facturar-perdida', action: :new_recovery_invoice, as: :new_recovery_invoice
+      post 'facturar-perdida', action: :create_recovery_invoice, as: :create_recovery_invoice
+      get 'facturas-perdida', action: :recovery_invoices, as: :recovery_invoices
+    end
+  end
   resources :debts, path: 'deudas', except: %i[edit update] do
     collection do
       get :prepare_group, path: 'preparar-grupo'

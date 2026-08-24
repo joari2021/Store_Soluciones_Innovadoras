@@ -1,0 +1,122 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Recuperacion de perdidas</p>
+        <h1 class="text-2xl font-extrabold text-slate-800">Historial de reposiciones de inventario</h1>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <%= link_to replenishments_loss_recoveries_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" do %>
+          <i data-lucide="arrow-left" class="mr-1 h-4 w-4"></i>
+          Volver a reposicion
+        <% end %>
+        <%= link_to loss_recoveries_path, class: "inline-flex items-center justify-center rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-semibold text-cyan-700 hover:bg-cyan-100" do %>
+          Configuracion
+        <% end %>
+      </div>
+    </div>
+    <%= form_with url: replenishment_history_loss_recoveries_path, method: :get, local: true, class: "mt-4 grid gap-3 md:grid-cols-3 md:items-end" do %>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Desde</label>
+        <input type="text" name="from" value="<%= @from&.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Hasta</label>
+        <input type="text" name="to" value="<%= @to&.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Filtrar</button>
+        <%= link_to "Limpiar", replenishment_history_loss_recoveries_path, class: "inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" %>
+      </div>
+    <% end %>
+  </div>
+  <div class="grid gap-4 md:grid-cols-3">
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Movimientos</p>
+      <p class="mt-2 text-2xl font-extrabold text-emerald-700"><%= @replenishment_summary[:count] %></p>
+    </div>
+    <div class="rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Unidades ingresadas</p>
+      <p class="mt-2 text-2xl font-extrabold text-cyan-700"><%= number_with_precision(@replenishment_summary[:quantity_in], precision: 3, strip_insignificant_zeros: true) %></p>
+    </div>
+    <div class="rounded-2xl border border-sky-200 bg-sky-50/60 p-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-sky-700">Unidades disponibles</p>
+      <p class="mt-2 text-2xl font-extrabold text-sky-700"><%= number_with_precision(@replenishment_summary[:quantity_remaining], precision: 3, strip_insignificant_zeros: true) %></p>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-x-auto">
+    <table class="min-w-full text-sm text-slate-700">
+      <thead>
+        <tr class="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500">
+          <th class="px-3 py-2 text-left">Fecha</th>
+          <th class="px-3 py-2 text-left">Producto</th>
+          <th class="px-3 py-2 text-left">Variacion(es)</th>
+          <th class="px-3 py-2 text-right">Ingresado</th>
+          <th class="px-3 py-2 text-right">Disponible</th>
+          <th class="px-3 py-2 text-right">Costo USD</th>
+          <th class="px-3 py-2 text-right">Accion</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if @replenishment_lots.any? %>
+          <% @replenishment_lots.each do |lot| %>
+            <% variation_names = lot.stock_lot_variations.map { |row| row.variation_description.to_s.strip.presence }.compact %>
+            <% reversible = lot.quantity_remaining.to_d.round(3) >= lot.quantity_in.to_d.round(3) %>
+            <tr class="border-b border-slate-100">
+              <td class="px-3 py-2"><%= lot.purchased_at&.in_time_zone&.strftime('%d/%m/%Y %H:%M') %></td>
+              <td class="px-3 py-2 font-semibold text-slate-800"><%= lot.producto&.display_name_with_presentation || lot.producto&.descripcion %></td>
+              <td class="px-3 py-2"><%= variation_names.presence&.join(', ') || 'Sin variacion' %></td>
+              <td class="px-3 py-2 text-right"><%= number_with_precision(lot.quantity_in.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
+              <td class="px-3 py-2 text-right"><%= number_with_precision(lot.quantity_remaining.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
+              <td class="px-3 py-2 text-right"><%= number_to_currency(lot.unit_cost_usd.to_d, unit: '$ ') %></td>
+              <td class="px-3 py-2 text-right">
+                <% if reversible %>
+                  <%= button_to "Eliminar",
+                                destroy_replenishment_loss_recoveries_path(lot, from: @from&.strftime('%d-%m-%Y'), to: @to&.strftime('%d-%m-%Y')),
+                                method: :delete,
+                                form: { data: { turbo_confirm: 'Se eliminara este ingreso de reposicion. Deseas continuar?' } },
+                                class: "inline-flex items-center justify-center rounded-lg border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100" %>
+                <% else %>
+                  <span class="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700">No reversible</span>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        <% else %>
+          <tr>
+            <td colspan="7" class="px-3 py-6 text-center text-slate-400">No hay reposiciones registradas para el rango seleccionado.</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-turbo-confirm]').forEach(function(form) {
+      form.addEventListener('submit', function(e) {
+        var message = form.getAttribute('data-turbo-confirm') || '¿Deseas continuar?';
+        e.preventDefault();
+        if (typeof Swal === 'undefined') {
+          // Fallback to native confirm if SweetAlert is not loaded
+          if (window.confirm(message)) form.submit();
+          return;
+        }
+
+        Swal.fire({
+          title: '',
+          text: message,
+          icon: 'warning',
+          showCancelButton: true,
+          confirmButtonText: 'Aceptar',
+          cancelButtonText: 'Cancelar',
+          reverseButtons: true
+        }).then(function(result) {
+          if (result.isConfirmed) {
+            form.submit();
+          }
+        });
+      });
+    });
+  });
+</script>

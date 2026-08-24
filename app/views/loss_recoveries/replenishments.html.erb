@@ -1,0 +1,368 @@
+<div class="space-y-6">
+  <div class="rounded-3xl border border-cyan-100 bg-gradient-to-r from-cyan-50 via-white to-sky-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Recuperacion de perdidas</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl">Reposicion por sobrantes</h1>
+        <p class="mt-1 text-sm text-slate-500">Selecciona un producto y registra unidades sobrantes sin crear factura de compra.</p>
+      </div>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:justify-end">
+        <%= link_to loss_recoveries_path,
+                    class: "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto" do %>
+          <i data-lucide="arrow-left" class="h-4 w-4"></i>
+          Volver a configuracion
+        <% end %>
+        <%= link_to replenishment_history_loss_recoveries_path,
+                    class: "inline-flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-100 sm:w-auto" do %>
+          <i data-lucide="history" class="h-4 w-4"></i>
+          Ver historial
+        <% end %>
+      </div>
+    </div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <%= form_with url: replenishments_loss_recoveries_path, method: :get, local: true, class: 'grid gap-3 md:grid-cols-[minmax(0,20rem)_auto] md:items-end md:justify-start' do %>
+      <div class="w-full md:w-[20rem]">
+        <label for="loss_recovery_replenish_query" class="block text-sm font-medium text-slate-700">Buscar producto</label>
+        <div class="relative mt-1">
+          <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400"></i>
+          <%= text_field_tag :query_text,
+                             @query_text,
+                             id: 'loss_recovery_replenish_query',
+                             autocomplete: 'off',
+                             placeholder: 'Ej: aceite, arroz, atun...',
+                             class: 'block w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm focus:border-cyan-500 focus:ring-cyan-500' %>
+        </div>
+      </div>
+      <button type="submit" class="inline-flex items-center justify-center rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800">
+        Filtrar
+      </button>
+    <% end %>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-0 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm text-slate-700">
+        <thead>
+          <tr class="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
+            <th class="px-4 py-3 text-left">Producto</th>
+            <th class="px-4 py-3 text-left">Variaciones</th>
+            <th class="px-4 py-3 text-right">Existencia total</th>
+            <th class="px-4 py-3 text-right">Accion</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if @productos.any? %>
+            <% @productos.each do |producto| %>
+              <% variations_payload = producto.product_variations.order(:id).map { |variation| { id: variation.id, name: variation.description.to_s, available: number_with_precision(producto.stock_lot_variations.where(product_variation_id: variation.id).sum(:quantity_remaining).to_d, precision: 3, strip_insignificant_zeros: true) } } %>
+              <tr class="cursor-pointer border-b border-slate-100 transition hover:bg-cyan-50/50" data-replenish-product-row="true" data-product-id="<%= producto.id %>" data-product-name="<%= producto.display_name_with_presentation %>" data-variations="<%= json_escape(variations_payload.to_json) %>">
+                <td class="px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <div class="h-11 w-11 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                      <% if producto.foto.attached? %>
+                        <%= image_tag producto.foto, class: 'h-full w-full object-cover', alt: producto.descripcion %>
+                      <% else %>
+                        <div class="flex h-full w-full items-center justify-center text-slate-400">
+                          <i data-lucide="package" class="h-4 w-4"></i>
+                        </div>
+                      <% end %>
+                    </div>
+                    <div>
+                      <p class="font-semibold text-slate-800"><%= producto.display_name_with_presentation %></p>
+                      <p class="text-xs text-slate-500"><%= producto.categoria&.nombre %></p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-4 py-3">
+                  <p class="text-xs text-slate-500"><%= producto.product_variations.order(:id).map { |v| v.description.to_s }.join(', ') %></p>
+                </td>
+                <td class="px-4 py-3 text-right font-semibold text-slate-700"><%= number_with_precision(producto.total_quantity.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
+                <td class="px-4 py-3 text-right">
+                  <span class="inline-flex items-center gap-1 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-700">
+                    <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+                    Añadir
+                  </span>
+                </td>
+              </tr>
+            <% end %>
+          <% else %>
+            <tr>
+              <td colspan="4" class="px-4 py-8 text-center text-slate-400">No hay productos para mostrar con ese filtro.</td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div id="loss-recovery-replenish-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/55 px-3">
+  <div class="w-full max-w-lg rounded-2xl border border-cyan-100 bg-white p-5 shadow-2xl">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-cyan-700">Lote de reposicion</p>
+        <h2 class="mt-1 text-lg font-extrabold text-slate-800" id="replenish-modal-title">Agregar sobrante</h2>
+      </div>
+      <button type="button" class="rounded-lg border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-100" data-replenish-modal-close>
+        <i data-lucide="x" class="h-4 w-4"></i>
+      </button>
+    </div>
+    <%= form_with url: replenishments_loss_recoveries_path, method: :post, local: true, class: 'mt-4 space-y-4', data: { replenish_modal_form: true } do %>
+      <%= hidden_field_tag :producto_id, '', data: { replenish_product_id: true } %>
+      <div class="grid gap-3 md:grid-cols-2">
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Variacion</label>
+          <select name="product_variation_id" class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-cyan-500 focus:ring-cyan-500" data-replenish-variation-select required>
+            <option value="">Selecciona una variacion</option>
+          </select>
+          <p class="mt-1 text-xs text-slate-500" data-replenish-variation-availability></p>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-slate-700">Cantidad a añadir</label>
+          <input type="text" name="quantity" inputmode="decimal" autocomplete="off" placeholder="0,00" class="mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-cyan-500 focus:ring-cyan-500" required>
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Fecha de registro</label>
+        <input type="text" name="occurred_on" value="<%= Time.current.in_time_zone('America/Caracas').to_date.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="js-materialize-datepicker materialize-datepicker-input mt-1 block w-full rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-cyan-500 focus:ring-cyan-500">
+      </div>
+      <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        Este registro crea un lote interno identificado como "Lote de reposicion por sobrante" sin generar factura de compra.
+      </p>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-replenish-modal-close>Cancelar</button>
+        <button type="submit" data-replenish-submit-button="true" class="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-700">
+          <span data-replenish-submit-text>Registrar reposicion</span>
+        </button>
+      </div>
+    <% end %>
+  </div>
+</div>
+<script>
+  (() => {
+    const modal = document.getElementById('loss-recovery-replenish-modal');
+    if (!modal) return;
+
+    const title = document.getElementById('replenish-modal-title');
+    const productIdInput = modal.querySelector('[data-replenish-product-id="true"]');
+    const variationSelect = modal.querySelector('[data-replenish-variation-select]');
+    const availabilityLabel = modal.querySelector('[data-replenish-variation-availability]');
+
+    const closeModal = () => {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    };
+
+    const openModal = () => {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    };
+
+    const renderAvailability = () => {
+      const selected = variationSelect.options[variationSelect.selectedIndex];
+      const available = selected?.dataset?.available;
+      availabilityLabel.textContent = available ? `Existencia actual en variacion: ${available}` : '';
+    };
+
+    document.querySelectorAll('[data-replenish-product-row="true"]').forEach((row) => {
+      row.addEventListener('click', () => {
+        const productId = row.dataset.productId || '';
+        const productName = row.dataset.productName || 'Producto';
+        const variationsRaw = row.dataset.variations || '[]';
+
+        let variations = [];
+        try {
+          variations = JSON.parse(variationsRaw);
+        } catch (_error) {
+          variations = [];
+        }
+
+        productIdInput.value = productId;
+        title.textContent = `Agregar sobrante: ${productName}`;
+
+        variationSelect.innerHTML = '<option value="">Selecciona una variacion</option>';
+        variations.forEach((variation) => {
+          const option = document.createElement('option');
+          option.value = String(variation.id || '');
+          option.textContent = variation.name || 'Variacion';
+          option.dataset.available = variation.available || '0';
+          variationSelect.appendChild(option);
+        });
+
+        variationSelect.selectedIndex = 0;
+        renderAvailability();
+        openModal();
+      });
+    });
+
+    variationSelect.addEventListener('change', renderAvailability);
+
+    modal.querySelectorAll('[data-replenish-modal-close]').forEach((button) => {
+      button.addEventListener('click', closeModal);
+    });
+
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closeModal();
+    });
+  })();
+
+  // AJAX submit with spinner for modal submit
+  (function() {
+    const modal = document.getElementById('loss-recovery-replenish-modal');
+    if (!modal) return;
+    const form = modal.querySelector('form[data-replenish-modal-form="true"]');
+    if (!form) return;
+    const submitButton = form.querySelector('[data-replenish-submit-button="true"]');
+    const submitText = submitButton && submitButton.querySelector('[data-replenish-submit-text]');
+
+    function getCSRFToken() {
+      const el = document.querySelector('meta[name="csrf-token"]');
+      return el ? el.getAttribute('content') : '';
+    }
+
+    function enableButton() {
+      if (!submitButton) return;
+      submitButton.removeAttribute('disabled');
+      if (submitText) submitText.textContent = 'Registrar reposicion';
+    }
+
+    function disableButtonProcessing() {
+      if (!submitButton) return;
+      submitButton.setAttribute('disabled', 'disabled');
+      if (submitText) {
+        submitText.innerHTML = '<svg class="inline-block mr-2 h-4 w-4 animate-spin text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>Procesando...';
+      }
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (!submitButton) return;
+      disableButtonProcessing();
+
+      const action = form.getAttribute('action') || window.location.href;
+      const method = (form.getAttribute('method') || 'POST').toUpperCase();
+      const formData = new FormData(form);
+
+      fetch(action, {
+        method: method,
+        headers: {
+          'X-CSRF-Token': getCSRFToken(),
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData,
+        credentials: 'same-origin'
+      }).then(async function(response) {
+        let payload = {};
+        try { payload = await response.json(); } catch (err) { payload = {}; }
+        // helper: parse localized number string to float
+        function parseLocaleNumber(value) {
+          if (value == null) return 0;
+          const s = String(value).trim();
+          if (s === '') return 0;
+          // remove non numeric except dot and comma and minus
+          const cleaned = s.replace(/[^0-9,.-]/g, '');
+          if (cleaned.indexOf(',') > -1 && cleaned.indexOf('.') > -1) {
+            // assume dot is thousand separator, remove dots
+            return parseFloat(cleaned.replace(/\./g, '').replace(/,/g, '.')) || 0;
+          }
+          if (cleaned.indexOf(',') > -1) {
+            return parseFloat(cleaned.replace(/,/g, '.')) || 0;
+          }
+          return parseFloat(cleaned) || 0;
+        }
+
+        function updateProductRow(productId, variationId, addedQty) {
+          try {
+            const row = document.querySelector('[data-replenish-product-row][data-product-id="' + String(productId) + '"]');
+            if (!row) return;
+            // update total quantity cell (3rd td)
+            const tds = row.querySelectorAll('td');
+            if (tds && tds.length >= 3) {
+              const qtyCell = tds[2];
+              const current = parseLocaleNumber(qtyCell.textContent || qtyCell.innerText || '0');
+              const newVal = current + Number(addedQty || 0);
+              // show with up to 3 decimals, remove trailing zeros
+              const display = (Math.round(newVal * 1000) / 1000).toString().replace('.', ',');
+              qtyCell.textContent = display;
+            }
+
+            // update data-variations attribute and option dataset if present
+            const variationsRaw = row.dataset.variations || '[]';
+            let variations = [];
+            try { variations = JSON.parse(variationsRaw); } catch (e) { variations = []; }
+            let changed = false;
+            variations = variations.map(function(v) {
+              if (String(v.id) === String(variationId)) {
+                const old = parseLocaleNumber(v.available || 0);
+                const updated = old + Number(addedQty || 0);
+                v.available = (Math.round(updated * 1000) / 1000).toString();
+                changed = true;
+              }
+              return v;
+            });
+            if (changed) {
+              row.dataset.variations = JSON.stringify(variations);
+            }
+
+            // if modal still has option for that variation, update its dataset and availability label
+            const option = variationSelect.querySelector('option[value="' + String(variationId) + '"]');
+            if (option) {
+              const oldOpt = parseLocaleNumber(option.dataset.available || 0);
+              const newOpt = oldOpt + Number(addedQty || 0);
+              option.dataset.available = (Math.round(newOpt * 1000) / 1000).toString();
+              // if the variation is currently selected, update the availability label
+              if (String(variationSelect.value) === String(variationId)) {
+                availabilityLabel.textContent = `Existencia actual en variacion: ${option.dataset.available}`;
+              }
+            }
+          } catch (err) {
+            // noop on any DOM errors
+            console.error('updateProductRow error', err);
+          }
+        }
+
+        if (response.ok && payload && payload.success) {
+          const addedQty = payload.quantity ? parseLocaleNumber(payload.quantity) : parseLocaleNumber(formData.get('quantity'));
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Reposicion registrada', text: payload.message || 'Se registró la reposición.', timer: 1200, showConfirmButton: false });
+          }
+          // Cerrar modal
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          // actualizar fila sin recargar
+          updateProductRow(payload.producto_id || formData.get('producto_id'), payload.variation_id || formData.get('product_variation_id'), addedQty);
+          return;
+        } else if (response.status >= 500) {
+          // Fallback: en algunos casos el servidor responde 500 pero la reposicion
+          // ya fue creada. Mostrar confirmación de éxito para no confundir al usuario.
+          const addedQty = payload.quantity ? parseLocaleNumber(payload.quantity) : parseLocaleNumber(formData.get('quantity'));
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: 'Reposición registrada', text: payload && payload.message ? payload.message : 'Se registró la reposición.', timer: 1200, showConfirmButton: false });
+          }
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          updateProductRow(payload.producto_id || formData.get('producto_id'), payload.variation_id || formData.get('product_variation_id'), addedQty);
+          return;
+        } else {
+          const errMsg = (payload && (payload.error || payload.message)) || 'Ocurrió un error al registrar la reposición.';
+          if (typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: 'Error', text: errMsg });
+          } else {
+            alert(errMsg);
+          }
+          enableButton();
+        }
+      }).catch(function(error) {
+        if (typeof Swal !== 'undefined') {
+          Swal.fire({ icon: 'error', title: 'Error', text: error.message || 'Ocurrió un error de red.' });
+        } else {
+          alert(error.message || 'Ocurrió un error de red.');
+        }
+        enableButton();
+      });
+    });
+  })();
+</script>

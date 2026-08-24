@@ -1,4 +1,3 @@
-<% currency_symbol = Account::CURRENCIES.dig(expense.currency, :symbol) || expense.currency %>
 <% overdue = expense.overdue_count %>
 <% amount_usd_bcv = @expense_amount_usd_bcv_by_id.to_h[expense.id] %>
 <% display_type_label = local_assigns.fetch(:display_type_label, expense.expense_type_label) %>
@@ -6,6 +5,14 @@
 <% return_to_key = local_assigns.fetch(:return_to, 'index').to_s == 'history' ? 'history' : 'index' %>
 <% last_payment = expense.expense_payments.max_by { |payment| [payment.occurred_at || Time.zone.at(0), payment.id.to_i] } %>
 <% last_payment_date = last_payment&.occurred_at&.in_time_zone&.strftime('%d/%m/%Y') || expense.last_paid_on&.strftime('%d/%m/%Y') %>
+<% display_amount = expense.amount %>
+<% display_currency = expense.currency %>
+<% commission_expense = expense.commission_expense? %>
+<% if expense.expense_type.to_s == 'variable' && last_payment.present? %>
+  <% display_amount = last_payment.amount %>
+  <% display_currency = last_payment.currency %>
+<% end %>
+<% currency_symbol = Account::CURRENCIES.dig(display_currency, :symbol) || display_currency %>
 <% card_classes = if card_state == :finalized
   'border-amber-200 bg-amber-50/30'
 else
@@ -43,7 +50,7 @@ end %>
     <div>
       <p class="uppercase tracking-wider">Monto</p>
       <p class="mt-1 text-sm font-semibold text-slate-700">
-        <%= expense.amount.present? ? number_to_currency(expense.amount, unit: "#{currency_symbol} ") : 'Monto libre' %>
+        <%= display_amount.present? ? number_to_currency(display_amount, unit: "#{currency_symbol} ") : 'Monto libre' %>
         <% if amount_usd_bcv.present? && amount_usd_bcv.positive? %>
           <span class="text-xs font-medium text-slate-500">| $ <%= number_with_precision(amount_usd_bcv, precision: 2, delimiter: '.', separator: ',') %> BCV</span>
         <% end %>
@@ -67,9 +74,11 @@ end %>
       <i data-lucide="pencil" class="h-4 w-4"></i>
       Editar
     <% end %>
-    <%= link_to expense_path(expense, return_to: return_to_key), class: 'inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 cursor-pointer', data: { turbo_method: :delete, swal_delete: 'expense' } do %>
-      <i data-lucide="trash" class="h-4 w-4"></i>
-      Eliminar
+    <% unless commission_expense %>
+      <%= link_to expense_path(expense, return_to: return_to_key), class: 'inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-100 cursor-pointer', data: { turbo_method: :delete, swal_delete: 'expense' } do %>
+        <i data-lucide="trash" class="h-4 w-4"></i>
+        Eliminar
+      <% end %>
     <% end %>
   </div>
 </article>
