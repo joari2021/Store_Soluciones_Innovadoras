@@ -24,11 +24,19 @@
     <div class="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <div class="mb-3 flex items-center justify-between">
         <div class="w-1/2">
-          <input id="recovery-product-search" placeholder="Buscar producto..." type="text" class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+          <input id="recovery-product-search" value="<%= @query_text %>" placeholder="Buscar producto..." type="text" class="block w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" />
+        </div>
+        <div class="text-xs text-slate-500" id="recovery-products-meta"
+             data-page="<%= @products_page %>"
+             data-total-pages="<%= @products_total_pages %>"
+             data-total-count="<%= @products_total_count %>"
+             data-per-page="<%= normalized_products_per_page %>">
+          Mostrando página <span data-products-page><%= @products_page %></span> de <span data-products-total-pages><%= @products_total_pages %></span>
+          (<span data-products-total-count><%= @products_total_count %></span> productos)
         </div>
       </div>
       <div class="overflow-x-auto">
-        <table class="min-w-full text-sm text-slate-700" id="recovery-products-table">
+        <table class="min-w-full text-sm text-slate-700" id="recovery-products-table" data-products-url="<%= new_recovery_invoice_loss_recoveries_path(format: :json) %>">
           <thead>
             <tr class="border-b border-slate-200 bg-slate-50/80 text-xs uppercase tracking-wide text-slate-500">
               <th class="px-4 py-3 text-left">Producto</th>
@@ -39,25 +47,20 @@
           </thead>
           <tbody>
             <% @productos.each do |producto| %>
-              <% variations_payload = producto.product_variations.order(:id).map do |variation|
-                   raw_price = (variation.try(:precio_venta_usd) || producto.precio_venta_usd).to_d
-                   {
-                     id: variation.id,
-                     name: variation.description.to_s,
-                     available: number_with_precision(producto.stock_lot_variations.where(product_variation_id: variation.id).sum(:quantity_remaining).to_d, precision: 3, strip_insignificant_zeros: true),
-                     price_value: raw_price.to_s('F'),
-                     price_label: number_with_precision(raw_price, precision: 2, delimiter: '.', separator: ',')
-                   }
-                 end %>
-              <tr class="border-b border-slate-100" data-product-row data-product-id="<%= producto.id %>" data-product-name="<%= producto.display_name_with_presentation %>" data-variations="<%= json_escape(variations_payload.to_json) %>">
-                <td class="px-4 py-3"><%= producto.display_name_with_presentation %></td>
-                <td class="px-4 py-3 text-xs text-slate-500"><%= producto.product_variations.order(:id).map { |v| v.description.to_s }.join(', ') %></td>
-                <td class="px-4 py-3 text-right font-semibold text-slate-700"><%= number_with_precision(producto.total_quantity.to_d, precision: 3, strip_insignificant_zeros: true) %></td>
+              <% product_payload = recovery_invoice_product_payload(producto) %>
+              <tr class="border-b border-slate-100" data-product-row data-product-id="<%= producto.id %>" data-product-name="<%= product_payload[:name] %>" data-variations="<%= json_escape(product_payload[:variations].to_json) %>">
+                <td class="px-4 py-3"><%= product_payload[:name] %></td>
+                <td class="px-4 py-3 text-xs text-slate-500"><%= product_payload[:variations_label] %></td>
+                <td class="px-4 py-3 text-right font-semibold text-slate-700"><%= number_with_precision(product_payload[:total_quantity].to_d, precision: 3, strip_insignificant_zeros: true) %></td>
                 <td class="px-4 py-3 text-right"><button type="button" class="inline-flex items-center rounded-xl bg-cyan-600 px-3 py-1 text-xs text-white" data-add-to-invoice>Agregar</button></td>
               </tr>
             <% end %>
           </tbody>
         </table>
+      </div>
+      <div class="mt-3 flex items-center justify-end gap-2">
+        <button type="button" id="recovery-products-prev" class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Anterior</button>
+        <button type="button" id="recovery-products-next" class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50">Siguiente</button>
       </div>
     </div>
     <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -115,6 +118,11 @@
 <script>
   (function(){
     const productsTable = document.getElementById('recovery-products-table');
+    const productsTbody = productsTable?.querySelector('tbody');
+    const productsMeta = document.getElementById('recovery-products-meta');
+    const prevPageBtn = document.getElementById('recovery-products-prev');
+    const nextPageBtn = document.getElementById('recovery-products-next');
+    const productsUrl = productsTable?.dataset?.productsUrl;
     const productSearchInput = document.getElementById('recovery-product-search');
     const addModal = document.getElementById('recovery-add-modal');
     const modalTitle = document.getElementById('modal-product-title');
@@ -129,6 +137,11 @@
 
     let currentProduct = null;
     let items = [];
+    let currentPage = Number(productsMeta?.dataset?.page || 1);
+    let totalPages = Number(productsMeta?.dataset?.totalPages || 1);
+    let totalCount = Number(productsMeta?.dataset?.totalCount || 0);
+    const perPage = Number(productsMeta?.dataset?.perPage || 40);
+    let searchDebounceTimer = null;
 
     function normalizeSearchText(value){
       return String(value || '')
@@ -138,16 +151,109 @@
         .trim();
     }
 
-    function applyProductFilter(){
-      const query = normalizeSearchText(productSearchInput?.value);
-      const rows = productsTable?.querySelectorAll('tbody tr[data-product-row]') || [];
+    function escapeHtml(value){
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
 
-      rows.forEach((row) => {
-        const productName = normalizeSearchText(row.dataset.productName);
-        const variationText = normalizeSearchText(row.children?.[1]?.textContent || '');
-        const matches = query.length === 0 || productName.includes(query) || variationText.includes(query);
-        row.classList.toggle('hidden', !matches);
+    function formatQuantity(value){
+      const amount = Number(value || 0);
+      if (!Number.isFinite(amount)) return '0';
+      return amount.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
+    }
+
+    function renderProductsRows(products){
+      if (!productsTbody) return;
+
+      productsTbody.innerHTML = '';
+
+      if (!Array.isArray(products) || products.length === 0) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.innerHTML = '<td colspan="4" class="px-4 py-6 text-center text-sm text-slate-500">No se encontraron productos.</td>';
+        productsTbody.appendChild(emptyRow);
+        return;
+      }
+
+      products.forEach((product) => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b border-slate-100';
+        tr.dataset.productRow = 'true';
+        tr.dataset.productId = String(product.id);
+        tr.dataset.productName = String(product.name || '');
+        tr.dataset.variations = JSON.stringify(Array.isArray(product.variations) ? product.variations : []);
+
+        tr.innerHTML = `
+          <td class="px-4 py-3">${escapeHtml(product.name)}</td>
+          <td class="px-4 py-3 text-xs text-slate-500">${escapeHtml(product.variations_label || '')}</td>
+          <td class="px-4 py-3 text-right font-semibold text-slate-700">${escapeHtml(formatQuantity(product.total_quantity))}</td>
+          <td class="px-4 py-3 text-right"><button type="button" class="inline-flex items-center rounded-xl bg-cyan-600 px-3 py-1 text-xs text-white" data-add-to-invoice>Agregar</button></td>
+        `;
+
+        productsTbody.appendChild(tr);
       });
+    }
+
+    function updatePaginationUi(){
+      if (productsMeta) {
+        const pageEl = productsMeta.querySelector('[data-products-page]');
+        const totalPagesEl = productsMeta.querySelector('[data-products-total-pages]');
+        const totalCountEl = productsMeta.querySelector('[data-products-total-count]');
+        if (pageEl) pageEl.textContent = String(currentPage);
+        if (totalPagesEl) totalPagesEl.textContent = String(totalPages);
+        if (totalCountEl) totalCountEl.textContent = String(totalCount);
+      }
+
+      if (prevPageBtn) prevPageBtn.disabled = currentPage <= 1;
+      if (nextPageBtn) nextPageBtn.disabled = currentPage >= totalPages;
+    }
+
+    async function loadProducts(page = 1){
+      if (!productsUrl) return;
+
+      const queryText = String(productSearchInput?.value || '').trim();
+      const params = new URLSearchParams({
+        page: String(page),
+        per_page: String(perPage),
+      });
+      if (queryText.length > 0) {
+        params.set('query_text', queryText);
+      }
+
+      const response = await fetch(`${productsUrl}?${params.toString()}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+
+      if (!response.ok) {
+        throw new Error('No se pudieron cargar los productos.');
+      }
+
+      const payload = await response.json();
+      const products = Array.isArray(payload?.products) ? payload.products : [];
+      const meta = payload?.meta || {};
+
+      currentPage = Number(meta.page || page || 1);
+      totalPages = Number(meta.total_pages || 1);
+      totalCount = Number(meta.total_count || 0);
+
+      renderProductsRows(products);
+      updatePaginationUi();
+    }
+
+    function queueProductsSearch(){
+      if (searchDebounceTimer) {
+        window.clearTimeout(searchDebounceTimer);
+      }
+
+      searchDebounceTimer = window.setTimeout(() => {
+        loadProducts(1).catch((error) => {
+          window.alert(error?.message || 'No se pudo filtrar el listado de productos.');
+        });
+      }, 250);
     }
 
     function formatUsd(value){
@@ -188,9 +294,29 @@
     modalCancel.addEventListener('click', closeModal);
 
     if (productSearchInput) {
-      productSearchInput.addEventListener('input', applyProductFilter);
-      productSearchInput.addEventListener('keyup', applyProductFilter);
+      productSearchInput.addEventListener('input', queueProductsSearch);
+      productSearchInput.addEventListener('keyup', queueProductsSearch);
     }
+
+    if (prevPageBtn) {
+      prevPageBtn.addEventListener('click', () => {
+        if (currentPage <= 1) return;
+        loadProducts(currentPage - 1).catch((error) => {
+          window.alert(error?.message || 'No se pudo cargar la página anterior.');
+        });
+      });
+    }
+
+    if (nextPageBtn) {
+      nextPageBtn.addEventListener('click', () => {
+        if (currentPage >= totalPages) return;
+        loadProducts(currentPage + 1).catch((error) => {
+          window.alert(error?.message || 'No se pudo cargar la siguiente página.');
+        });
+      });
+    }
+
+    updatePaginationUi();
 
     modalAdd.addEventListener('click', function(){
       if(!currentProduct) return;

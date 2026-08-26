@@ -1,6 +1,7 @@
 class LossRecoveriesController < ApplicationController
   REPLENISHMENT_LOT_PREFIX = 'Lote de reposicion por sobrante [RECUPERACION]'.freeze
   RECOVERY_INVOICE_RESTORE_LOT_PREFIX = 'Lote de restauracion por eliminar factura [RECUPERACION]'.freeze
+  RECOVERY_INVOICE_PRODUCTS_PER_PAGE = 40
 
   before_action :require_business
   before_action :require_admin
@@ -54,17 +55,27 @@ class LossRecoveriesController < ApplicationController
   # GET /recuperacion-perdidas/facturar-perdida
   def new_recovery_invoice
     @query_text = params[:query_text].to_s.strip
-    scope = current_business.productos.includes(:product_variations, foto_attachment: :blob).order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
-    if @query_text.present?
-      terms = @query_text.downcase.split(/\s+/).map(&:strip).reject(&:blank?).uniq
-      if terms.any?
-        where_clauses = terms.map.with_index { |_, idx| "LOWER(productos.descripcion) LIKE :term#{idx}" }
-        bind_values = terms.each_with_index.to_h { |term, idx| ["term#{idx}".to_sym, "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"] }
-        scope = scope.where(where_clauses.join(' AND '), bind_values)
-      end
-    end
+    scope = recovery_invoice_products_scope(@query_text)
+    per_page = normalized_products_per_page
+    @products_page = normalized_products_page
+    @products_total_count = scope.count
+    @products_total_pages = [(@products_total_count.to_f / per_page).ceil, 1].max
+    @products_page = @products_total_pages if @products_page > @products_total_pages
+    offset = (@products_page - 1) * per_page
+    @productos = scope.offset(offset).limit(per_page)
 
-    @productos = scope.limit(400)
+    if request.format.json?
+      render json: {
+        products: @productos.map { |producto| recovery_invoice_product_payload(producto) },
+        meta: {
+          page: @products_page,
+          per_page: per_page,
+          total_pages: @products_total_pages,
+          total_count: @products_total_count,
+        },
+      }
+      return
+    end
   end
 
   # POST /recuperacion-perdidas/facturar-perdida
@@ -363,6 +374,60 @@ class LossRecoveriesController < ApplicationController
 
   def history_redirect_params
     params.permit(:from, :to).to_h
+  end
+
+  def recovery_invoice_products_scope(query_text)
+    scope = current_business.productos.includes(:product_variations, :stock_lot_variations, foto_attachment: :blob)
+                          .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
+
+    normalized_query = query_text.to_s.strip
+    return scope if normalized_query.blank?
+
+    terms = normalized_query.downcase.split(/\s+/).map(&:strip).reject(&:blank?).uniq
+    return scope if terms.blank?
+
+    where_clauses = terms.map.with_index { |_, idx| "LOWER(productos.descripcion) LIKE :term#{idx}" }
+    bind_values = terms.each_with_index.to_h do |term, idx|
+      ["term#{idx}".to_sym, "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"]
+    end
+    scope.where(where_clauses.join(' AND '), bind_values)
+  end
+
+  def normalized_products_page
+    page = params[:page].to_i
+    page.positive? ? page : 1
+  end
+
+  def normalized_products_per_page
+    requested = params[:per_page].to_i
+    return RECOVERY_INVOICE_PRODUCTS_PER_PAGE if requested <= 0
+
+    [requested, 100].min
+  end
+
+  def recovery_invoice_product_payload(producto)
+    variations = producto.product_variations.sort_by(&:id).map do |variation|
+      raw_price = (variation.try(:precio_venta_usd) || producto.precio_venta_usd).to_d
+      available_qty = producto.stock_lot_variations
+                             .select { |row| row.product_variation_id == variation.id }
+                             .sum { |row| row.quantity_remaining.to_d }
+
+      {
+        id: variation.id,
+        name: variation.description.to_s,
+        available: available_qty.to_s('F'),
+        price_value: raw_price.to_s('F'),
+        price_label: helpers.number_with_precision(raw_price, precision: 2, delimiter: '.', separator: ','),
+      }
+    end
+
+    {
+      id: producto.id,
+      name: producto.display_name_with_presentation,
+      variations_label: producto.product_variations.sort_by(&:id).map { |v| v.description.to_s }.join(', '),
+      total_quantity: producto.total_quantity.to_d.to_s('F'),
+      variations: variations,
+    }
   end
 
   def normalized_recovery_invoice_lot_breakdown_for(item)
