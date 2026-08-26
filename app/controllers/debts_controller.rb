@@ -548,8 +548,16 @@ class DebtsController < ApplicationController
     debts_to_delete = delete_group ? grouped_debts : [original_debt]
     remove_movements = params[:delete_mode].to_s == 'with_movements'
     movements_to_remove = remove_movements ? linked_account_movements_for_debts(debts_to_delete) : []
+    reassigned_payments_count = 0
 
     Debt.transaction do
+      unless remove_movements
+        reassigned_payments_count = reassign_deleted_debt_payments!(
+          debts_to_delete: debts_to_delete,
+          grouped_debts: grouped_debts,
+        )
+      end
+
       movements_to_remove.each(&:destroy!)
       debts_to_delete.each(&:destroy!)
     end
@@ -560,6 +568,9 @@ class DebtsController < ApplicationController
              else
                "#{notice} Los movimientos en cuentas se conservaron."
              end
+    if reassigned_payments_count.positive?
+      notice = "#{notice} #{reassigned_payments_count} pagos reasignados al resto del grupo."
+    end
 
     redirect_after_debt_destroy(notice: notice, delete_group: delete_group)
   end
@@ -1305,6 +1316,27 @@ class DebtsController < ApplicationController
     end
 
     movements.compact.uniq { |movement| movement.id }
+  end
+
+  def reassign_deleted_debt_payments!(debts_to_delete:, grouped_debts:)
+    target_debts = sort_debts(grouped_debts.reject { |debt| debts_to_delete.any? { |deleted| deleted.id == debt.id } })
+    return 0 if target_debts.blank?
+
+    payments = debts_to_delete.flat_map { |debt| debt.debt_payments.to_a }
+    payments = payments.uniq { |payment| payment.id }
+    payments.sort_by! { |payment| [payment.occurred_at || Date.new(1970, 1, 1), payment.created_at || Time.zone.at(0), payment.id.to_i] }
+
+    reassigned_count = 0
+
+    payments.each do |payment|
+      target_debt = target_debts.find { |debt| debt.reload.balance.to_d > 0.01.to_d } || target_debts.first
+      next if target_debt.blank?
+
+      payment.update!(debt: target_debt)
+      reassigned_count += 1
+    end
+
+    reassigned_count
   end
 
   def loan_account_movements_for_debt(debt)

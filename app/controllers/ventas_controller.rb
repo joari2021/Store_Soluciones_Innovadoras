@@ -2064,15 +2064,82 @@ class VentasController < ApplicationController
 
   def delete_receivable_debts_for_sale!(venta)
     debts_scope = current_business.debts.where(debt_kind: "receivable")
-
-    debts_scope
-      .where(venta_id: venta.id)
-      .find_each(&:destroy!)
-
     pattern = "%[VENTA:#{venta.id}]%"
-    debts_scope
-      .where("description LIKE ?", pattern)
-      .find_each(&:destroy!)
+
+    debt_ids = debts_scope.where(venta_id: venta.id).pluck(:id)
+    debt_ids += debts_scope.where("description LIKE ?", pattern).pluck(:id)
+    debt_ids.uniq!
+    return if debt_ids.blank?
+
+    debts_scope.where(id: debt_ids).find_each do |debt|
+      reassign_deleted_receivable_debt_payments!(debt)
+      debt.destroy!
+    end
+  end
+
+  def reassign_deleted_receivable_debt_payments!(debt)
+    payments = debt.debt_payments.to_a
+    return if payments.blank?
+
+    target_debts = receivable_debts_in_same_group_for_reassignment(debt)
+                   .reject { |candidate| candidate.id == debt.id }
+    target_debts = sort_receivable_debts_for_reassignment(target_debts)
+    return if target_debts.blank?
+
+    payments.sort_by! do |payment|
+      [payment.occurred_at || Date.new(1970, 1, 1), payment.created_at || Time.zone.at(0), payment.id.to_i]
+    end
+
+    payments.each do |payment|
+      target_debt = target_debts.find { |candidate| candidate.reload.balance.to_d > 0.01.to_d } || target_debts.first
+      next if target_debt.blank?
+
+      payment.update!(debt: target_debt)
+    end
+  end
+
+  def receivable_debts_in_same_group_for_reassignment(debt)
+    scope = current_business.debts.where(debt_kind: "receivable")
+
+    token = debt.group_token.to_s.strip
+    if token.present?
+      grouped = scope.where(group_token: token, currency: receivable_group_scope_currencies_for_reassignment(debt.currency)).to_a
+      return grouped if grouped.present?
+    end
+
+    root_id = debt.group_root_debt_id
+    return [debt] if root_id.blank?
+
+    grouped = scope.where(cliente_id: debt.cliente_id).to_a.select do |candidate|
+      candidate.group_root_debt_id == root_id
+    end
+
+    grouped.presence || [debt]
+  end
+
+  def receivable_group_scope_currencies_for_reassignment(currency)
+    normalized_currency = currency.to_s.strip.upcase
+    return [normalized_currency].reject(&:blank?) if normalized_currency.blank?
+    return %w[USD VES] if normalized_currency == "USD"
+
+    [normalized_currency]
+  end
+
+  def sort_receivable_debts_for_reassignment(debts)
+    debts.sort_by do |item|
+      issued_on = item.issued_on || item.created_at&.to_date || Date.new(1970, 1, 1)
+      created_at = item.created_at || Time.zone.at(0)
+      normalized_name = item.display_name.to_s.strip.downcase
+      normalized_cliente = item.counterparty_display_name.to_s.strip.downcase
+
+      [
+        -issued_on.jd,
+        -created_at.to_i,
+        -item.id.to_i,
+        normalized_name,
+        normalized_cliente,
+      ]
+    end
   end
 
   def reconcile_sale_account_settlement_after_delete!(settlement_id)
