@@ -115,6 +115,10 @@ Rails.application.routes.draw do
       get :prepare_group, path: "preparar-grupo"
       post :create_cliente, path: "crear-cliente"
       delete :hide_paid_group, path: "ocultar-pagada"
+      get :transfer_destination_clients, path: "clientes-destino-transferencia"
+    end
+    member do
+      post :transfer_group, path: "transferir-grupo"
     end
     resources :debt_payments, only: %i[new create destroy]
   end

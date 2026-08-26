@@ -1,11 +1,14 @@
 class DebtsController < ApplicationController
+  TRANSFER_SOURCE_CLIENT_SENTINEL = '__transfer_source_cliente__'.freeze
+
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
   helper_method :oldest_overdue_due_on_for_group, :overdue_count_for_group, :overdue_badges_for_group
   before_action :ensure_can_create_debt!, only: %i[new create prepare_group]
   before_action :ensure_can_edit_debt!, only: %i[edit update]
   before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
-  before_action :set_debt, only: %i[show edit update destroy]
+  before_action :ensure_can_transfer_debt!, only: %i[transfer_group transfer_destination_clients]
+  before_action :set_debt, only: %i[show edit update destroy transfer_group]
   before_action :load_parties, only: %i[new create edit update]
   before_action :load_accounts, only: %i[new create edit update]
   before_action :load_currency_rates, only: %i[new create edit update]
@@ -417,6 +420,111 @@ class DebtsController < ApplicationController
 
     @loan_accounts = loan_accounts_for_group_currency(@show_group_currency)
     @show_currency_options = [@show_group_currency]
+    @transfer_target_businesses = transfer_target_businesses
+    @transfer_source_client_sentinel = TRANSFER_SOURCE_CLIENT_SENTINEL
+  end
+
+  def transfer_destination_clients
+    destination_business = transfer_target_businesses.find_by(id: params[:destination_business_id])
+    if destination_business.blank?
+      render json: { error: 'Negocio destino no valido.' }, status: :unprocessable_entity
+      return
+    end
+
+    clientes = destination_business.clientes.order(:name).map do |cliente|
+      {
+        id: cliente.id,
+        name: cliente.name,
+        document: cliente.document_label,
+      }
+    end
+
+    render json: { clientes: clientes }
+  end
+
+  def transfer_group
+    destination_business = transfer_target_businesses.find_by(id: transfer_group_params[:destination_business_id])
+    if destination_business.blank?
+      return redirect_back_with_transfer_error('Selecciona un negocio destino valido.')
+    end
+
+    group_debts = sort_debts(debts_for_show(@debt)).uniq { |item| item.id }
+    if group_debts.blank?
+      return redirect_back_with_transfer_error('No se encontro un grupo de deudas para transferir.')
+    end
+
+    source_cliente = group_debts.find(&:receivable?)&.cliente || group_debts.first&.cliente
+    destination_cliente = resolve_destination_cliente_for_transfer(
+      destination_business: destination_business,
+      source_cliente: source_cliente,
+      selected_cliente_id: transfer_group_params[:destination_cliente_id],
+    )
+
+    if group_debts.any?(&:receivable?) && destination_cliente.blank?
+      return redirect_back_with_transfer_error('Debes seleccionar o transferir un cliente para mover deudas por cobrar.')
+    end
+
+    moved_debts_count = 0
+    moved_payments_count = 0
+
+    Debt.transaction do
+      destination_group_debts = build_destination_transfer_group_debts(
+        destination_business: destination_business,
+        destination_cliente: destination_cliente,
+        source_debts: group_debts,
+      )
+
+      destination_group_token = resolved_destination_group_token_for_transfer(
+        destination_group_debts: destination_group_debts,
+        source_debts: group_debts,
+      )
+
+      group_debts.each do |debt|
+        moved_debts_count += 1
+        debt.update!(
+          business_id: destination_business.id,
+          cliente_id: destination_cliente_for_debt_kind(destination_cliente, debt),
+          group_token: destination_group_token,
+          mirror_debt_id: nil,
+          mirror_account_id: nil,
+          mirror_sync_enabled: false,
+        )
+      end
+
+      moved_group_debts = Debt.where(id: group_debts.map(&:id)).includes(:debt_payments).to_a
+      moved_group_payments = moved_group_debts.flat_map(&:debt_payments)
+      moved_group_payments.sort_by! { |payment| payment_sort_key_for_transfer(payment) }
+
+      destination_group_after_transfer = build_destination_transfer_group_debts(
+        destination_business: destination_business,
+        destination_cliente: destination_cliente,
+        source_debts: moved_group_debts,
+      )
+      ordered_destination_debts = sort_debts(destination_group_after_transfer)
+
+      moved_group_payments.each do |payment|
+        target_debt = next_destination_debt_for_payment_transfer(ordered_destination_debts)
+        next if target_debt.blank?
+
+        transfer_account = debt_transfer_virtual_account_for(
+          business: destination_business,
+          currency: payment.currency,
+        )
+
+        payment.notes = [payment.notes.to_s, "[TRANSFER_NO_MOVEMENT]", "[TRANSFER_FROM_BUSINESS:#{current_business.id}]"].reject(&:blank?).join(' ')
+        payment.update!(
+          debt_id: target_debt.id,
+          account_id: transfer_account.id,
+          payment_method: nil,
+        )
+        moved_payments_count += 1
+      end
+    end
+
+    redirect_to debts_path,
+                notice: "Transferencia completada: #{moved_debts_count} deudas y #{moved_payments_count} pagos movidos a #{destination_business.name}."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back_with_transfer_error(e.message)
   end
 
   def edit
@@ -598,6 +706,12 @@ class DebtsController < ApplicationController
 
   private
 
+  def ensure_can_transfer_debt!
+    return if current_user_admin?
+
+    deny_access('Solo el administrador puede transferir deudas entre negocios.')
+  end
+
   def ensure_can_create_debt!
     return if can_manage_action?(:create_debt)
 
@@ -664,6 +778,123 @@ class DebtsController < ApplicationController
       :cliente_id,
       :acreedor
     )
+  end
+
+  def transfer_group_params
+    params.require(:debt_transfer).permit(:destination_business_id, :destination_cliente_id)
+  end
+
+  def transfer_target_businesses
+    Business.where.not(id: current_business.id).order(:name)
+  end
+
+  def resolve_destination_cliente_for_transfer(destination_business:, source_cliente:, selected_cliente_id:)
+    cliente_selector = selected_cliente_id.to_s.strip
+    return nil if cliente_selector.blank?
+
+    if cliente_selector == TRANSFER_SOURCE_CLIENT_SENTINEL
+      return nil if source_cliente.blank?
+
+      by_document = if source_cliente.document_number.to_s.strip.present?
+                      destination_business.clientes.find_by(
+                        document_type: source_cliente.document_type,
+                        document_number: source_cliente.document_number,
+                      )
+                    end
+      return by_document if by_document.present?
+
+      return destination_business.clientes.create!(
+        document_type: source_cliente.document_type,
+        document_number: source_cliente.document_number,
+        name: source_cliente.name,
+        phone: source_cliente.phone,
+        address: source_cliente.address,
+        benefits_config: source_cliente.benefits_config,
+      )
+    end
+
+    destination_business.clientes.find_by(id: cliente_selector.to_i)
+  end
+
+  def destination_cliente_for_debt_kind(destination_cliente, debt)
+    return destination_cliente&.id if debt.receivable?
+
+    destination_cliente&.id
+  end
+
+  def build_destination_transfer_group_debts(destination_business:, destination_cliente:, source_debts:)
+    sample_debt = source_debts.first
+    return [] if sample_debt.blank?
+
+    scope = destination_business.debts.excluding_service_cost_records.where(debt_kind: sample_debt.debt_kind)
+    if sample_debt.receivable?
+      scope = scope.where(currency: group_scope_currencies_for(currency: sample_debt.currency, debt_kind: sample_debt.debt_kind))
+      scope = scope.where(cliente_id: destination_cliente&.id)
+      scope = scope.where("debts.description IS NULL OR debts.description NOT LIKE ?", "%[IC_MIRROR]%")
+    else
+      scope = scope.where(currency: sample_debt.currency)
+      scope = scope.where("LOWER(COALESCE(acreedor, '')) = ?", sample_debt.acreedor.to_s.strip.downcase)
+      scope = scope.where(cliente_id: destination_cliente&.id) if destination_cliente.present?
+      scope = scope.where(cliente_id: nil) if destination_cliente.blank?
+    end
+
+    scope.includes(:debt_payments).to_a
+  end
+
+  def resolved_destination_group_token_for_transfer(destination_group_debts:, source_debts:)
+    active_debts = destination_group_debts.select { |debt| debt.balance.to_d > 0.01.to_d }
+    base_debts = active_debts.presence || destination_group_debts
+
+    token = base_debts.map { |debt| debt_group_token(debt).to_s.strip }.find(&:present?)
+    return token if token.present?
+
+    source_token = source_debts.map { |debt| debt_group_token(debt).to_s.strip }.find(&:present?)
+    return source_token if source_token.present?
+
+    generate_debt_group_token
+  end
+
+  def next_destination_debt_for_payment_transfer(ordered_destination_debts)
+    ordered_destination_debts.find { |debt| debt.reload.balance.to_d > 0.01.to_d } || ordered_destination_debts.first
+  end
+
+  def debt_transfer_virtual_account_for(business:, currency:)
+    normalized_currency = currency.to_s.upcase
+    account = business
+              .accounts
+              .where(account_type: 'cash_box', currency: normalized_currency)
+              .where("name LIKE ?", "%Transferencia de deuda%")
+              .order(:id)
+              .first
+    return account if account.present?
+
+    business.accounts.create!(
+      name: "Transferencia de deuda #{normalized_currency}",
+      account_type: 'cash_box',
+      currency: normalized_currency,
+      balance: 0,
+      active: false,
+      theme_color: 'slate',
+      notes: 'Cuenta tecnica para pagos historicos transferidos sin movimientos bancarios',
+    )
+  end
+
+  def payment_sort_key_for_transfer(payment)
+    [
+      payment.occurred_at || Date.new(1970, 1, 1),
+      payment.created_at || Time.zone.at(0),
+      payment.id.to_i,
+    ]
+  end
+
+  def redirect_back_with_transfer_error(message)
+    redirect_to debt_path(
+      @debt,
+      group_currency: params[:group_currency],
+      group_cliente_id: params[:group_cliente_id],
+      only_active: params[:only_active],
+      group_token: params[:group_token],
+    ), alert: message
   end
 
   def shared_debt_params

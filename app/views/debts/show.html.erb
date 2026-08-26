@@ -10,6 +10,16 @@
         <p class="mt-1 text-sm text-slate-500"><%= @grouped_debts.size %> deudas asociadas en este registro.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        <% if current_user_admin? %>
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
+            data-debt-transfer-open="true"
+          >
+            <i data-lucide="send" class="h-4 w-4"></i>
+            Transferir deuda
+          </button>
+        <% end %>
         <%= link_to debts_path, class: "inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50" do %>
           Volver
         <% end %>
@@ -304,6 +314,51 @@
       <div data-venta-modal-target="content"></div>
     </div>
   </div>
+  <% if current_user_admin? %>
+    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-debt-transfer-modal="true">
+      <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+        <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-debt-transfer-close="true">&times;</button>
+        <div class="mb-4">
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Transferencia entre negocios</p>
+          <h3 class="text-lg font-bold text-slate-800">Mover grupo de deudas</h3>
+          <p class="mt-1 text-xs text-slate-500">Se moverán deudas y pagos al negocio destino sin generar movimientos bancarios nuevos.</p>
+        </div>
+        <%= form_with url: transfer_group_debt_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]), method: :post, local: true, class: "space-y-4", data: { debt_transfer_form: true, debt_transfer_clients_url: transfer_destination_clients_debts_path } do |form| %>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label class="block text-xs font-semibold text-slate-500">Negocio destino</label>
+              <%= form.select :destination_business_id,
+                              options_from_collection_for_select(@transfer_target_businesses, :id, :name),
+                              { prompt: "Selecciona un negocio" },
+                              name: 'debt_transfer[destination_business_id]',
+                              class: 'mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm',
+                              data: { debt_transfer_business_select: true },
+                              required: true %>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-500">Cliente destino</label>
+              <select
+                name="debt_transfer[destination_cliente_id]"
+                class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                data-debt-transfer-client-select="true"
+                required
+              >
+                <option value="">Selecciona un negocio primero</option>
+                <option value="<%= @transfer_source_client_sentinel %>">Transferir cliente</option>
+              </select>
+            </div>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+            Si eliges "Transferir cliente", se creará un cliente nuevo en el negocio destino con los datos del cliente del negocio origen.
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-debt-transfer-close="true">Cancelar</button>
+            <button type="submit" class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Transferir grupo</button>
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
   <% unless customer_debt_view %>
   <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-register-payment-modal="true">
     <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
@@ -1236,4 +1291,115 @@
                 });
               })();
             </script>
+            <% if current_user_admin? %>
+              <script>
+                (() => {
+                  const root = document.querySelector("[data-controller='venta-modal']");
+                  if (!root) return;
+
+                  const transferModal = root.querySelector("[data-debt-transfer-modal='true']");
+                  const transferForm = root.querySelector("[data-debt-transfer-form='true']");
+                  const openButtons = root.querySelectorAll("[data-debt-transfer-open='true']");
+                  const closeButtons = root.querySelectorAll("[data-debt-transfer-close='true']");
+                  const businessSelect = root.querySelector("[data-debt-transfer-business-select='true']");
+                  const clientSelect = root.querySelector("[data-debt-transfer-client-select='true']");
+                  const clientsUrl = transferForm?.dataset?.debtTransferClientsUrl;
+                  const transferClientOptionValue = "<%= @transfer_source_client_sentinel %>";
+
+                  if (!transferModal || !transferForm || !businessSelect || !clientSelect) return;
+
+                  const setClientOptions = (clientes) => {
+                    clientSelect.innerHTML = "";
+
+                    const placeholder = document.createElement("option");
+                    placeholder.value = "";
+                    placeholder.textContent = clientes.length ? "Selecciona un cliente" : "No hay clientes registrados";
+                    clientSelect.appendChild(placeholder);
+
+                    const transferOption = document.createElement("option");
+                    transferOption.value = transferClientOptionValue;
+                    transferOption.textContent = "Transferir cliente";
+                    clientSelect.appendChild(transferOption);
+
+                    clientes.forEach((cliente) => {
+                      const option = document.createElement("option");
+                      option.value = String(cliente.id);
+                      const label = [cliente.name, cliente.document].filter(Boolean).join(" - ");
+                      option.textContent = label || `Cliente ${cliente.id}`;
+                      clientSelect.appendChild(option);
+                    });
+                  };
+
+                  const showTransferError = (message) => {
+                    if (window.Swal) {
+                      window.Swal.fire({
+                        icon: "error",
+                        title: "No se pudo cargar clientes",
+                        text: message,
+                        confirmButtonText: "Entendido",
+                        heightAuto: false,
+                        scrollbarPadding: false,
+                      });
+                      return;
+                    }
+
+                    window.alert(message);
+                  };
+
+                  const openTransferModal = () => {
+                    transferModal.classList.remove("hidden");
+                    transferModal.classList.add("flex");
+                  };
+
+                  const closeTransferModal = () => {
+                    transferModal.classList.add("hidden");
+                    transferModal.classList.remove("flex");
+                  };
+
+                  const loadDestinationClients = async () => {
+                    const businessId = String(businessSelect.value || "").trim();
+                    if (!businessId) {
+                      setClientOptions([]);
+                      return;
+                    }
+
+                    if (!clientsUrl) {
+                      showTransferError("No se pudo determinar la ruta para cargar clientes destino.");
+                      return;
+                    }
+
+                    const query = new URLSearchParams({ destination_business_id: businessId }).toString();
+
+                    try {
+                      const response = await fetch(`${clientsUrl}?${query}`, {
+                        headers: { Accept: "application/json" },
+                        credentials: "same-origin",
+                      });
+
+                      if (!response.ok) {
+                        throw new Error("El negocio destino no es válido.");
+                      }
+
+                      const payload = await response.json();
+                      const clientes = Array.isArray(payload?.clientes) ? payload.clientes : [];
+                      setClientOptions(clientes);
+                    } catch (error) {
+                      setClientOptions([]);
+                      showTransferError(error?.message || "Ocurrió un error cargando clientes.");
+                    }
+                  };
+
+                  openButtons.forEach((button) => button.addEventListener("click", openTransferModal));
+                  closeButtons.forEach((button) => button.addEventListener("click", closeTransferModal));
+
+                  transferModal.addEventListener("click", (event) => {
+                    if (event.target === transferModal) {
+                      closeTransferModal();
+                    }
+                  });
+
+                  businessSelect.addEventListener("change", loadDestinationClients);
+                })();
+              </script>
+            <% end %>
           </div>
