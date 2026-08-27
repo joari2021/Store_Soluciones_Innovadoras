@@ -2505,8 +2505,9 @@ class DebtsController < ApplicationController
           next
         end
 
-        # Para monedas distintas de USD se muestra el saldo original y su equivalente en Bs.
-        display_total = debts_in_currency.sum { |debt| debt.balance.to_d }.round(2)
+        # Para monedas distintas de USD usamos el saldo del grupo colapsado para no
+        # perder deudas asociadas cuando la representante individual tiene otro balance.
+        display_total = debts_in_currency.sum { |debt| debt.card_total_balance.to_d }.round(2)
         ves_conversion = CurrencyConverter.convert(
           amount: display_total,
           from_currency: normalized_currency,
