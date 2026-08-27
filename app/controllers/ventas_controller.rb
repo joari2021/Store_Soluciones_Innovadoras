@@ -141,7 +141,10 @@ class VentasController < ApplicationController
     unidad_vi = @unidad_VI.is_a?(Numeric) ? @unidad_VI.to_d : nil
     effective_bcv_rate = tasa_dolar.to_d.positive? ? tasa_dolar.to_d : TasaCambio.latest_value("Dolar BCV").to_d
 
-    scope = ventas_services_scope
+    scope = filtered_ventas_services_scope(
+      query: params[:q],
+      system_name: params[:system],
+    )
     total_count = scope.count
     services = paginate_scope(scope, page: page, items: POS_CATALOG_ITEMS_PER_PAGE)
     payload = build_services_payload(
@@ -2751,6 +2754,29 @@ class VentasController < ApplicationController
       .where(available: true)
       .visible_for_user(Current.user)
       .order("system_services.name ASC, services.description ASC")
+  end
+
+  def filtered_ventas_services_scope(query:, system_name:)
+    scope = ventas_services_scope
+
+    system_value = system_name.to_s.strip
+    if system_value.present?
+      scope = scope.joins(:system_service).where("LOWER(system_services.name) = ?", system_value.downcase)
+    end
+
+    query_value = query.to_s.strip
+    return scope if query_value.blank?
+
+    sanitized_query = ActiveRecord::Base.sanitize_sql_like(query_value)
+    pattern = "%#{sanitized_query}%"
+
+    scope
+      .joins(:system_service)
+      .where(
+        "services.description ILIKE :query OR COALESCE(services.print_sale_description, '') ILIKE :query OR COALESCE(system_services.name, '') ILIKE :query",
+        query: pattern,
+      )
+      .distinct
   end
 
   def paginate_scope(scope, page:, items:)

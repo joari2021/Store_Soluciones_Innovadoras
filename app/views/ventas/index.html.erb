@@ -891,9 +891,13 @@
       let activeProductCategory = '';
       let activeServiceSystem = '';
       let activeProductSearchQuery = '';
+      let activeServiceSearchQuery = '';
       let productSearchDebounceTimer = null;
+      let serviceSearchDebounceTimer = null;
       let productCatalogAbortController = null;
+      let serviceCatalogAbortController = null;
       let lastProductsSearchSignature = null;
+      let lastServicesSearchSignature = null;
       let catalogInfiniteObserver = null;
       const cart = new Map();
       const syncedReservedProductQuantities = new Map();
@@ -4283,6 +4287,7 @@
       };
 
       const normalizeCategoryFilterValue = (value) => normalizeSearchValue(value);
+      const normalizeSystemFilterValue = (value) => normalizeSearchValue(value);
 
       const productsSearchSignature = (queryValue = activeProductSearchQuery, categoryValue = activeProductCategory) => {
         return `${normalizeSearchValue(queryValue)}|${normalizeCategoryFilterValue(categoryValue)}`;
@@ -4299,6 +4304,23 @@
         if (categoryValue.length > 0) params.set('category', categoryValue);
 
         return `${productsCatalogUrl}?${params.toString()}`;
+      };
+
+      const servicesSearchSignature = (queryValue = activeServiceSearchQuery, systemValue = activeServiceSystem) => {
+        return `${normalizeSearchValue(queryValue)}|${normalizeSystemFilterValue(systemValue)}`;
+      };
+
+      const servicesCatalogRequestUrl = (pageValue) => {
+        const params = new URLSearchParams();
+        params.set('page', String(pageValue));
+
+        const queryValue = String(activeServiceSearchQuery || '').trim();
+        if (queryValue.length > 0) params.set('q', queryValue);
+
+        const systemValue = String(activeServiceSystem || '').trim();
+        if (systemValue.length > 0) params.set('system', systemValue);
+
+        return `${servicesCatalogUrl}?${params.toString()}`;
       };
 
       const isElementInViewport = (element) => {
@@ -4452,26 +4474,46 @@
         }, 240);
       };
 
-      const loadMoreServicesCatalog = async () => {
-        if (loadingServicesCatalog) return;
-        if (!(Number.isInteger(nextServicesPage) && nextServicesPage > 0)) return;
+      const loadMoreServicesCatalog = async ({ reset = false } = {}) => {
+        if (!reset && loadingServicesCatalog) return;
+        if (!reset && !(Number.isInteger(nextServicesPage) && nextServicesPage > 0)) return;
         if (!servicesCatalogUrl || !servicesGrid) return;
+
+        const requestedPage = reset ? 1 : nextServicesPage;
+        if (!(Number.isInteger(requestedPage) && requestedPage > 0)) return;
+
+        const requestSignature = servicesSearchSignature();
+        if (reset && requestSignature === lastServicesSearchSignature && servicesGrid.querySelector('[data-service-query]')) {
+          return;
+        }
+
+        if (reset && serviceCatalogAbortController) {
+          serviceCatalogAbortController.abort();
+        }
+
+        const abortController = new AbortController();
+        if (reset) serviceCatalogAbortController = abortController;
 
         loadingServicesCatalog = true;
         syncCatalogInfiniteSentinels();
 
         try {
-          const response = await fetch(`${servicesCatalogUrl}?page=${encodeURIComponent(nextServicesPage)}`, {
+          const response = await fetch(servicesCatalogRequestUrl(requestedPage), {
             headers: {
               Accept: 'application/json',
             },
             credentials: 'same-origin',
+            signal: abortController.signal,
           });
 
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(String(data.error || 'No se pudo cargar más servicios.'));
 
-          servicesGrid.querySelectorAll('[data-services-placeholder]').forEach((node) => node.remove());
+          if (reset) {
+            servicesGrid.innerHTML = '';
+          } else {
+            servicesGrid.querySelectorAll('[data-services-placeholder]').forEach((node) => node.remove());
+          }
 
           if (String(data.cards_html || '').trim()) {
             servicesGrid.insertAdjacentHTML('beforeend', String(data.cards_html));
@@ -4486,8 +4528,10 @@
             window.lucide.createIcons();
           }
 
-                      refreshCatalogSearch();
+          lastServicesSearchSignature = requestSignature;
         } catch (error) {
+          if (error?.name === 'AbortError') return;
+
           nextServicesPage = null;
           root.dataset.servicesNextPage = '';
           if (window.Swal) {
@@ -4499,10 +4543,21 @@
             });
           }
         } finally {
+          if (reset) serviceCatalogAbortController = null;
           loadingServicesCatalog = false;
           syncCatalogInfiniteSentinels();
-                      maybeAutoLoadVisibleCatalog();
+          maybeAutoLoadVisibleCatalog();
         }
+      };
+
+      const queueServicesSearch = (rawQueryValue) => {
+        const nextQuery = String(rawQueryValue || '').trim();
+        if (serviceSearchDebounceTimer) clearTimeout(serviceSearchDebounceTimer);
+
+        serviceSearchDebounceTimer = setTimeout(() => {
+          activeServiceSearchQuery = nextQuery;
+          loadMoreServicesCatalog({ reset: true });
+        }, 240);
       };
 
       const setVatModeSelection = (nextMode, options = {}) => {
@@ -5213,6 +5268,7 @@
         const updateSearchEmptyStates = ({ query, visibleProducts, visibleServices }) => {
           const hasQuery = query.length > 0;
           const hasProductFilters = hasQuery || normalizeCategoryFilterValue(activeProductCategory).length > 0;
+          const hasServiceFilters = hasQuery || normalizeSystemFilterValue(activeServiceSystem).length > 0;
 
           if (productsNoResultsEl) {
             const totalProductCards = productsGrid ? productsGrid.querySelectorAll('[data-product-query]').length : 0;
@@ -5223,7 +5279,7 @@
           if (servicesNoResultsEl) {
             const totalServiceCards = servicesGrid ? servicesGrid.querySelectorAll('[data-service-query]').length : 0;
             const servicesLoading = Boolean(servicesGrid?.querySelector('[data-services-placeholder]'));
-            const showServicesEmpty = hasQuery && !servicesLoading && totalServiceCards > 0 && visibleServices === 0;
+            const showServicesEmpty = activeTab === 'services' && hasServiceFilters && !loadingServicesCatalog && !servicesLoading && totalServiceCards === 0;
             servicesNoResultsEl.classList.toggle('hidden', !showServicesEmpty);
           }
         };
@@ -5237,17 +5293,12 @@
             queueProductsSearch(rawQuery);
           }
 
-          const visibleProducts = productsGrid ? productsGrid.querySelectorAll('[data-product-query]').length : 0;
-          let visibleServices = 0;
+          if (activeTab === 'services') {
+            queueServicesSearch(rawQuery);
+          }
 
-          document.querySelectorAll('[data-service-query]').forEach((card) => {
-            const cardValue = normalizeSearchValue(card.dataset.serviceQuery);
-            const cardSystem = normalizeSearchValue(card.dataset.serviceSystem || '');
-            const matchesSystem = activeServiceSystem.length === 0 || cardSystem === activeServiceSystem;
-            const visible = !((query.length > 0 && !cardValue.includes(query)) || !matchesSystem);
-            card.classList.toggle('hidden', !visible);
-            if (visible) visibleServices += 1;
-          });
+          const visibleProducts = productsGrid ? productsGrid.querySelectorAll('[data-product-query]').length : 0;
+          const visibleServices = servicesGrid ? servicesGrid.querySelectorAll('[data-service-query]').length : 0;
 
           updateSearchEmptyStates({ query, visibleProducts, visibleServices });
 
@@ -5296,8 +5347,8 @@
 
         const updateServiceSystemFilterStyles = () => {
           serviceSystemButtons.forEach((button) => {
-            const systemValue = normalizeSearchValue(button.dataset.serviceSystemFilter || '');
-            const isActive = systemValue === activeServiceSystem;
+            const systemValue = String(button.dataset.serviceSystemFilter || '').trim();
+            const isActive = normalizeSystemFilterValue(systemValue) === normalizeSystemFilterValue(activeServiceSystem);
 
             button.classList.toggle('bg-sky-600', isActive);
             button.classList.toggle('text-white', isActive);
@@ -5322,11 +5373,6 @@
           updateTabStyles();
           syncCatalogInfiniteSentinels();
           applySearch();
-          if (activeTab === 'services' && servicesGrid && servicesGrid.children.length === 0) {
-            if (!loadingServicesCatalog && Number.isInteger(nextServicesPage) && nextServicesPage > 0) {
-              loadMoreServicesCatalog();
-            }
-          }
         };
 
         searchInput.addEventListener('input', applySearch);
@@ -5352,7 +5398,7 @@
 
         serviceSystemButtons.forEach((button) => {
           button.addEventListener('click', () => {
-            activeServiceSystem = normalizeSearchValue(button.dataset.serviceSystemFilter || '');
+            activeServiceSystem = String(button.dataset.serviceSystemFilter || '').trim();
             updateServiceSystemFilterStyles();
             applySearch();
           });

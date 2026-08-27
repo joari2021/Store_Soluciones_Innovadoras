@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_26_093000) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -970,6 +970,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_093000) do
     t.decimal "recarga_profit_percent", precision: 5, scale: 2
     t.boolean "warn_digital_only_delivery_in_sales", default: false, null: false
     t.boolean "use_custom_image_for_display", default: false, null: false
+    t.index "lower((description)::text) gin_trgm_ops", name: "index_services_on_lower_description_trgm", using: :gin
     t.index ["auto_cost_stock_discount"], name: "index_services_on_auto_cost_stock_discount"
     t.index ["business_id"], name: "index_services_on_business_id"
     t.index ["caution_service"], name: "index_services_on_caution_service"
@@ -1056,6 +1057,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_093000) do
     t.decimal "recarga_min_amount", precision: 12, scale: 2
     t.decimal "recarga_multiple_amount", precision: 12, scale: 2
     t.decimal "recarga_profit_percent", precision: 5, scale: 2
+    t.index "lower((name)::text) gin_trgm_ops", name: "index_system_services_on_lower_name_trgm", using: :gin
   end
 
   create_table "tasa_cambios", force: :cascade do |t|
