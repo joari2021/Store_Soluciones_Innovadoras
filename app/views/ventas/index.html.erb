@@ -10941,6 +10941,7 @@
 
       const refreshLiveProducts = async ({ silent = true } = {}) => {
         if (liveProductsSyncInFlight) return;
+        if (draftLoadInProgress) return;
         if (!document.body.contains(root)) return;
 
         liveProductsSyncInFlight = true;

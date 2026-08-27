@@ -219,7 +219,7 @@ class VentasController < ApplicationController
         client: draft_client_payload(@draft_venta),
       ),
       drafts: drafts_payload,
-      products: products_payload_for_business,
+      products: products_payload_for_draft(@draft_venta),
     }
   end
 
@@ -2493,6 +2493,32 @@ class VentasController < ApplicationController
       .order(:descripcion, :id)
 
     build_products_payload(productos)
+  end
+
+  def products_payload_for_draft(draft)
+    ids = draft_product_ids_for_payload(draft)
+    return [] if ids.empty?
+
+    productos = current_business
+      .productos
+      .where(id: ids)
+      .includes(:product_variations, :stock_lot_variations, :stock_lots)
+      .order(:descripcion, :id)
+
+    build_products_payload(productos)
+  end
+
+  def draft_product_ids_for_payload(draft)
+    return [] if draft.blank?
+
+    direct_ids = draft.venta_items.pluck(:producto_id).compact
+    state_ids = Array(draft_state_payload(draft)["items"]).filter_map do |entry|
+      value = entry.is_a?(Hash) ? entry["product_id"] || entry[:product_id] : nil
+      integer_id = value.to_i
+      integer_id.positive? ? integer_id : nil
+    end
+
+    (direct_ids + state_ids).uniq
   end
 
   def build_products_payload(productos)
