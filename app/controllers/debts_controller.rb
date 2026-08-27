@@ -453,11 +453,18 @@ class DebtsController < ApplicationController
       return redirect_back_with_transfer_error('No se encontro un grupo de deudas para transferir.')
     end
 
-    source_cliente = group_debts.find(&:receivable?)&.cliente || group_debts.first&.cliente
+    selected_destination_cliente_id = transfer_group_params[:destination_cliente_id].to_s.strip
+    transfer_source_cliente_selected = selected_destination_cliente_id == TRANSFER_SOURCE_CLIENT_SENTINEL
+    source_cliente = resolve_source_cliente_for_transfer(group_debts)
+
+    if transfer_source_cliente_selected && group_debts.any?(&:receivable?) && source_cliente.blank?
+      return redirect_back_with_transfer_error('No se pudo identificar el cliente origen para transferirlo al negocio destino.')
+    end
+
     destination_cliente = resolve_destination_cliente_for_transfer(
       destination_business: destination_business,
       source_cliente: source_cliente,
-      selected_cliente_id: transfer_group_params[:destination_cliente_id],
+      selected_cliente_id: selected_destination_cliente_id,
     )
 
     if group_debts.any?(&:receivable?) && destination_cliente.blank?
@@ -520,6 +527,19 @@ class DebtsController < ApplicationController
           payment_method: nil,
         )
         moved_payments_count += 1
+      end
+
+      moved_scope = Debt.where(id: group_debts.map(&:id), business_id: destination_business.id)
+      if moved_scope.count != group_debts.size
+        raise ActiveRecord::RecordInvalid.new(@debt), 'No se pudieron mover todas las deudas al negocio destino.'
+      end
+
+      receivable_debts_count = group_debts.count(&:receivable?)
+      if receivable_debts_count.positive?
+        assigned_receivable_count = moved_scope.where(debt_kind: 'receivable', cliente_id: destination_cliente&.id).count
+        if assigned_receivable_count != receivable_debts_count
+          raise ActiveRecord::RecordInvalid.new(@debt), 'No se pudo asociar correctamente el cliente transferido a todas las deudas por cobrar.'
+        end
       end
     end
 
@@ -818,6 +838,18 @@ class DebtsController < ApplicationController
     destination_business.clientes.find_by(id: cliente_selector.to_i)
   end
 
+  def resolve_source_cliente_for_transfer(source_debts)
+    receivable_cliente = source_debts.find(&:receivable?)&.cliente
+    return receivable_cliente if receivable_cliente.present?
+
+    any_cliente = source_debts.map(&:cliente).compact.first
+    return any_cliente if any_cliente.present?
+
+    return nil unless @debt.cliente_id.present?
+
+    Cliente.find_by(id: @debt.cliente_id)
+  end
+
   def destination_cliente_for_debt_kind(destination_cliente, debt)
     return destination_cliente&.id if debt.receivable?
 
@@ -851,14 +883,14 @@ class DebtsController < ApplicationController
   end
 
   def resolved_destination_group_token_for_transfer(destination_group_debts:, source_debts:, preferred_source_token: nil)
-    preferred_token = preferred_source_token.to_s.strip
-    return preferred_token if preferred_token.present?
-
     active_debts = destination_group_debts.select { |debt| debt.balance.to_d > 0.01.to_d }
     base_debts = active_debts.presence || destination_group_debts
 
-    token = base_debts.map { |debt| debt_group_token(debt).to_s.strip }.find(&:present?)
-    return token if token.present?
+    destination_token = base_debts.map { |debt| debt_group_token(debt).to_s.strip }.find(&:present?)
+    return destination_token if destination_token.present?
+
+    preferred_token = preferred_source_token.to_s.strip
+    return preferred_token if preferred_token.present?
 
     source_token = source_debts.map { |debt| debt_group_token(debt).to_s.strip }.find(&:present?)
     return source_token if source_token.present?
