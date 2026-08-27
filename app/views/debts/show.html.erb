@@ -10,7 +10,7 @@
         <p class="mt-1 text-sm text-slate-500"><%= @grouped_debts.size %> deudas asociadas en este registro.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <% if current_user_admin? %>
+        <% if current_user_admin? && @debt.persisted? %>
           <button
             type="button"
             class="inline-flex items-center gap-2 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm hover:bg-indigo-100"
@@ -314,7 +314,7 @@
       <div data-venta-modal-target="content"></div>
     </div>
   </div>
-  <% if current_user_admin? %>
+  <% if current_user_admin? && @debt.persisted? %>
     <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-debt-transfer-modal="true">
       <div class="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
         <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-debt-transfer-close="true">&times;</button>
