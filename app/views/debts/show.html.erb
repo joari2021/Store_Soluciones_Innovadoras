@@ -1,6 +1,14 @@
 <% action_label = @debt.receivable? ? "Registrar cobro" : "Registrar pago" %>
 <% payment_currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
 <% customer_debt_view = current_user_customer_mode? %>
+<% group_is_usdt = @show_group_currency.to_s.upcase == 'USDT' %>
+<% group_currency_code = @show_group_currency.to_s.upcase.presence || @debt.currency.to_s.upcase %>
+<% group_currency_symbol = Account::CURRENCIES.dig(group_currency_code, :symbol) || group_currency_code %>
+<% if group_is_usdt %>
+  <% @show_total_amount_native = @grouped_debts.sum { |item| item.amount.to_d }.round(2) %>
+  <% @show_total_paid_native = @grouped_debts.sum { |item| item.paid_amount.to_d }.round(2) %>
+  <% @show_total_balance_native = @grouped_debts.sum { |item| item.balance.to_d }.round(2) %>
+<% end %>
 <div class="space-y-6" data-controller="venta-modal">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -44,7 +52,7 @@
         </div>
         <div class="flex items-center justify-between">
           <dt>Estado</dt>
-          <% paid_group = @show_total_balance_usd_bcv.to_d <= 0.01.to_d %>
+          <% paid_group = group_is_usdt ? (@show_total_balance_native.to_d <= 0.01.to_d) : (@show_total_balance_usd_bcv.to_d <= 0.01.to_d) %>
           <dd class="font-semibold <%= paid_group ? 'text-emerald-700' : 'text-slate-800' %>"><%= paid_group ? 'Pagado' : 'Pendiente' %></dd>
         </div>
         <div class="flex items-center justify-between">
@@ -66,25 +74,41 @@
       </dl>
     </div>
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Montos reales $ (BCV)</p>
+      <p class="text-xs font-semibold uppercase tracking-widest text-slate-400"><%= group_is_usdt ? 'Montos reales USDT' : 'Montos reales $ (BCV)' %></p>
       <dl class="mt-4 grid gap-3 text-sm text-slate-600">
         <div class="flex items-center justify-between">
           <dt>Monto total real</dt>
-          <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_amount_usd_bcv, unit: "$ ") %></dd>
+          <% if group_is_usdt %>
+            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_amount_native, unit: "#{group_currency_symbol} ") %></dd>
+          <% else %>
+            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_amount_usd_bcv, unit: "$ ") %></dd>
+          <% end %>
         </div>
         <div class="flex items-center justify-between">
           <dt>Pagado real</dt>
-          <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_paid_usd_bcv, unit: "$ ") %></dd>
+          <% if group_is_usdt %>
+            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_paid_native, unit: "#{group_currency_symbol} ") %></dd>
+          <% else %>
+            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_paid_usd_bcv, unit: "$ ") %></dd>
+          <% end %>
         </div>
         <div class="flex items-center justify-between">
           <dt>Saldo real</dt>
-          <% balance_abs_usd = @show_total_balance_usd_bcv.to_d.abs %>
-          <% balance_equivalent_ves = CurrencyConverter.convert(amount: balance_abs_usd, from_currency: 'USD', to_currency: 'VES', on_date: Date.current)&.dig(:amount) %>
-          <% balance_ves_label = balance_equivalent_ves.present? ? " (#{number_to_currency(balance_equivalent_ves.to_d, unit: 'Bs ')})" : '' %>
-          <% if @show_total_balance_usd_bcv.negative? %>
-            <dd class="font-semibold text-emerald-700">Excedente pagado: <%= number_to_currency(@show_total_balance_usd_bcv.abs, unit: "$ ") %><%= balance_ves_label %></dd>
+          <% if group_is_usdt %>
+            <% if @show_total_balance_native.to_d.negative? %>
+              <dd class="font-semibold text-emerald-700">Excedente pagado: <%= number_to_currency(@show_total_balance_native.to_d.abs, unit: "#{group_currency_symbol} ") %></dd>
+            <% else %>
+              <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_native, unit: "#{group_currency_symbol} ") %></dd>
+            <% end %>
           <% else %>
-            <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: "$ ") %><%= balance_ves_label %></dd>
+            <% balance_abs_usd = @show_total_balance_usd_bcv.to_d.abs %>
+            <% balance_equivalent_ves = CurrencyConverter.convert(amount: balance_abs_usd, from_currency: 'USD', to_currency: 'VES', on_date: Date.current)&.dig(:amount) %>
+            <% balance_ves_label = balance_equivalent_ves.present? ? " (#{number_to_currency(balance_equivalent_ves.to_d, unit: 'Bs ')})" : '' %>
+            <% if @show_total_balance_usd_bcv.negative? %>
+              <dd class="font-semibold text-emerald-700">Excedente pagado: <%= number_to_currency(@show_total_balance_usd_bcv.abs, unit: "$ ") %><%= balance_ves_label %></dd>
+            <% else %>
+              <dd class="font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: "$ ") %><%= balance_ves_label %></dd>
+            <% end %>
           <% end %>
         </div>
       </dl>
@@ -125,8 +149,10 @@
                 <th class="px-4 py-3 text-left">Emision</th>
                 <th class="px-4 py-3 text-left">Vencimiento</th>
                 <th class="px-4 py-3 text-left">Descripcion</th>
-                <th class="px-4 py-3 text-right">Monto USD</th>
-                <th class="px-4 py-3 text-right">Monto VES / Bs</th>
+                <th class="px-4 py-3 text-right"><%= is_usdt ? 'Monto USDT' : 'Monto USD' %></th>
+                <% unless is_usdt %>
+                  <th class="px-4 py-3 text-right">Monto VES / Bs</th>
+                <% end %>
                 <th class="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
@@ -164,8 +190,12 @@
                       </p>
                     <% end %>
                   </td>
-                  <td class="px-4 py-3 text-right"><%= number_to_currency(amount_usd, unit: "$ ") %></td>
-                  <td class="px-4 py-3 text-right"><%= number_to_currency(amount_ves, unit: "Bs ") %></td>
+                  <% if is_usdt %>
+                    <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount.to_d, unit: "#{debt_symbol} ") %></td>
+                  <% else %>
+                    <td class="px-4 py-3 text-right"><%= number_to_currency(amount_usd, unit: "$ ") %></td>
+                    <td class="px-4 py-3 text-right"><%= number_to_currency(amount_ves, unit: "Bs ") %></td>
+                  <% end %>
                   <td class="px-4 py-3 text-right">
                     <% if sale_id.present? %>
                       <button
@@ -263,7 +293,9 @@
               <th class="px-4 py-3 text-left">Metodo</th>
               <th class="px-4 py-3 text-left">Referencia</th>
               <th class="px-4 py-3 text-right">Monto pago</th>
-              <th class="px-4 py-3 text-right">Equivalente $ (BCV)</th>
+              <% unless group_is_usdt %>
+                <th class="px-4 py-3 text-right">Equivalente $ (BCV)</th>
+              <% end %>
               <th class="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
@@ -279,7 +311,9 @@
                 <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>
                 <td class="px-4 py-3"><%= payment.reference.presence || '-' %></td>
                 <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount, unit: "#{payment_symbol} ") %></td>
-                <td class="px-4 py-3 text-right"><%= number_to_currency(row[:equivalent_usd_bcv], unit: "$ ") %></td>
+                <% unless group_is_usdt %>
+                  <td class="px-4 py-3 text-right"><%= number_to_currency(row[:equivalent_usd_bcv], unit: "$ ") %></td>
+                <% end %>
                 <td class="px-4 py-3 text-right">
                   <% if row[:delete_allowed] %>
                     <%= link_to debt_debt_payment_path(
