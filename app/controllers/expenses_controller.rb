@@ -110,6 +110,18 @@ class ExpensesController < ApplicationController
 
   def update
     @expense.assign_attributes(expense_params)
+    # Si el usuario no envía parámetros de programación y el gasto es de tipo 'variable',
+    # forzamos que no tenga programación (frequency = 'once') para evitar conversiones accidentales.
+    frequency_param_present = params[:expense].present? && (params[:expense].key?('frequency') || params[:expense].key?(:frequency))
+
+    if @expense.expense_type.to_s == 'variable' && !frequency_param_present
+      @expense.frequency = 'once'
+      @expense.next_due_on = nil
+      @expense.active = false
+      @expense.occurrences_limit = nil
+      @expense.start_date = @expense.start_date.presence || Date.current
+    end
+
     normalize_schedule(@expense)
     recalculate_schedule_if_needed(@expense)
 
