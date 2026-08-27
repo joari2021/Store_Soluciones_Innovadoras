@@ -391,6 +391,7 @@ class DebtPaymentsController < ApplicationController
       {
         debt: debt,
         balance_in_debt_currency: persisted_balance_in_debt_currency(debt),
+        paid_in_debt_currency: persisted_debt_payments_for(debt).sum { |p| p.amount_in_debt_currency.to_d },
         amount_usd_bcv: debt_amount_usd_bcv(debt),
         paid_usd_bcv: paid_amount_usd_bcv_for_debt(debt),
         balance_usd_bcv: balance_usd_bcv_for_debt(debt),

@@ -114,7 +114,13 @@ class ExpensesController < ApplicationController
       original_type = @expense.expense_type
       @expense.assign_attributes(expense_params)
       @expense.expense_type = original_type if @expense.persisted?
-    frequency_param_present = params[:expense].present? && (params[:expense].key?('frequency') || params[:expense].key?(:frequency))
+    # Consider frequency param present only if the form explicitly indicates programming was edited.
+    frequency_param_present = false
+    if params[:expense].present?
+      freq_key = (params[:expense].key?('frequency') || params[:expense].key?(:frequency))
+      prog_edited = params[:expense].key?('programming_edited') && params[:expense]['programming_edited'].to_s == '1'
+      frequency_param_present = freq_key && prog_edited
+    end
 
     if @expense.expense_type.to_s == 'variable' && !frequency_param_present
       @expense.frequency = 'once'

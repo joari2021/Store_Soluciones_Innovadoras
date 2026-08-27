@@ -84,6 +84,7 @@
   <% if programming_visible %>
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-expense-programming-section="true">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Programacion</p>
+      <%= hidden_field_tag 'expense[programming_edited]', '0', data: { expense_programming_edited: true } %>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
         <div>
           <%= form.label :amount, "Monto base", class: "block text-sm font-medium text-slate-700" %>
@@ -436,6 +437,22 @@
     if (expenseTypeSelect) {
       expenseTypeSelect.addEventListener("change", syncAll);
     }
+
+      // Marcar si el usuario edita campos de programación
+      const programmingEditedInput = form.querySelector('[data-expense-programming-edited]');
+      const programmingInputs = [
+        form.querySelector('[name="expense[frequency]"]'),
+        form.querySelector('[name="expense[start_date]"]'),
+        form.querySelector('[name="expense[end_date]"]'),
+        form.querySelector('[name="expense[occurrences_limit]"]'),
+        form.querySelector('[data-expense-base-amount]')
+      ].filter(Boolean);
+
+      programmingInputs.forEach((input) => {
+        input.addEventListener('change', () => {
+          if (programmingEditedInput) programmingEditedInput.value = '1';
+        });
+      });
 
     if (accountSelect) {
       accountSelect.addEventListener("change", syncAll);

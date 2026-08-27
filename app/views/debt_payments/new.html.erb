@@ -15,7 +15,11 @@
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400"><%= action_label %></p>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @debt.counterparty_display_name %></h1>
         <p class="mt-1 text-sm text-slate-500">Puedes registrar un <%= @debt.receivable? ? 'cobro' : 'pago' %> sobre el total agrupado de las deudas asociadas.</p>
-        <p class="mt-1 text-xs text-slate-400">Saldo pendiente real total $ (BCV): <%= number_to_currency(@grouped_total_balance_usd_bcv, unit: "$ ") %></p>
+        <% if @show_group_currency.to_s.upcase == 'USDT' %>
+          <p class="mt-1 text-xs text-slate-400">Saldo pendiente real total (USDT): <%= number_to_currency(@grouped_total_balance_in_selected_currency, unit: (Account::CURRENCIES.dig('USDT', :symbol) || 'USDT') + ' ') %></p>
+        <% else %>
+          <p class="mt-1 text-xs text-slate-400">Saldo pendiente real total $ (BCV): <%= number_to_currency(@grouped_total_balance_usd_bcv, unit: "$ ") %></p>
+        <% end %>
       </div>
       <%= link_to debt_path(@debt), class: "inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50" do %>
         Volver
@@ -48,8 +52,20 @@
               <td class="px-4 py-3"><%= debt.description.to_s.strip.presence || "Deuda sin descripcion" %></td>
               <td class="px-4 py-3"><%= debt.currency %></td>
               <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount, unit: "#{debt_symbol} ") %></td>
-              <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %></td>
-              <td class="px-4 py-3 text-right"><%= number_to_currency(row[:balance_usd_bcv], unit: "$ ") %></td>
+              <td class="px-4 py-3 text-right">
+                <% if debt.currency.to_s.upcase == 'USDT' %>
+                  <%= number_to_currency(row[:paid_in_debt_currency], unit: "#{debt_symbol} ") %>
+                <% else %>
+                  <%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %>
+                <% end %>
+              </td>
+              <td class="px-4 py-3 text-right">
+                <% if debt.currency.to_s.upcase == 'USDT' %>
+                  <%= number_to_currency(row[:balance_in_debt_currency], unit: "#{debt_symbol} ") %>
+                <% else %>
+                  <%= number_to_currency(row[:balance_usd_bcv], unit: "$ ") %>
+                <% end %>
+              </td>
             </tr>
           <% end %>
         </tbody>
@@ -62,7 +78,7 @@
                   class: "space-y-6",
                   data: {
                     debt_payment_form: true,
-                    debt_grouped_balances: @payment_rows.map { |row| { balance: row[:balance_usd_bcv].to_d.to_f, currency: 'USD' } }.to_json,
+                    debt_grouped_balances: @payment_rows.map { |row| { balance: (row[:balance_in_debt_currency] || row[:balance_usd_bcv]).to_d.to_f, currency: (row[:debt]&.currency || 'USD') } }.to_json,
                     debt_total_usd_bcv: @grouped_total_balance_usd_bcv.to_d.to_f,
                     debt_rates_to_ves: @currency_rates_to_ves.to_json,
                     currency_symbols: currency_symbols.to_json,
