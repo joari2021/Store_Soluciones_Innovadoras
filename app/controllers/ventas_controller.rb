@@ -104,7 +104,10 @@ class VentasController < ApplicationController
     page = params[:page].to_i
     page = 1 if page < 1
 
-    scope = ventas_products_scope
+    scope = filtered_ventas_products_scope(
+      query: params[:q],
+      category_name: params[:category],
+    )
     total_count = scope.count
     productos = paginate_scope(scope, page: page, items: POS_CATALOG_ITEMS_PER_PAGE)
     payload = build_products_payload(productos)
@@ -2705,6 +2708,29 @@ class VentasController < ApplicationController
       .with_attached_foto
       .includes(:categoria, :product_variations, :stock_lot_variations, :stock_lots)
       .order(:descripcion, :id)
+  end
+
+  def filtered_ventas_products_scope(query:, category_name:)
+    scope = ventas_products_scope
+
+    category_value = category_name.to_s.strip
+    if category_value.present?
+      scope = scope.joins(:categoria).where("LOWER(categorias.nombre) = ?", category_value.downcase)
+    end
+
+    query_value = query.to_s.strip
+    return scope if query_value.blank?
+
+    sanitized_query = ActiveRecord::Base.sanitize_sql_like(query_value)
+    pattern = "%#{sanitized_query}%"
+
+    scope
+      .left_joins(:product_variations, :categoria)
+      .where(
+        "productos.descripcion ILIKE :query OR COALESCE(product_variations.description, '') ILIKE :query OR COALESCE(categorias.nombre, '') ILIKE :query",
+        query: pattern,
+      )
+      .distinct
   end
 
   def ventas_services_scope

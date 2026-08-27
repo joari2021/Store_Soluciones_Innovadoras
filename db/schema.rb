@@ -10,8 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_23_120100) do
+ActiveRecord::Schema[7.1].define(version: 2026_08_26_093000) do
   # These are extensions that must be enabled in order to support this database
+  enable_extension "pg_trgm"
   enable_extension "plpgsql"
 
   create_table "account_movements", force: :cascade do |t|
@@ -723,6 +724,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_23_120100) do
     t.integer "general_safety_stock", default: 0, null: false
     t.bigint "global_product_id"
     t.boolean "show_in_catalog", default: true, null: false
+    t.index "lower(descripcion) gin_trgm_ops", name: "index_productos_on_lower_descripcion_trgm", using: :gin
     t.index ["allow_unpack"], name: "index_productos_on_allow_unpack"
     t.index ["business_id", "global_product_id"], name: "index_productos_on_business_and_global_product"
     t.index ["business_id", "source_business_id", "source_product_id"], name: "index_productos_on_business_and_source_product", unique: true
@@ -750,6 +752,34 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_23_120100) do
     t.datetime "updated_at", null: false
     t.index ["pelicula_id"], name: "index_rankings_on_pelicula_id"
     t.index ["plataforma_pelicula_id"], name: "index_rankings_on_plataforma_pelicula_id"
+  end
+
+  create_table "recovery_invoice_items", force: :cascade do |t|
+    t.bigint "recovery_invoice_id", null: false
+    t.bigint "producto_id", null: false
+    t.bigint "product_variation_id"
+    t.decimal "quantity", precision: 12, scale: 3, default: "0.0", null: false
+    t.decimal "unit_price_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "total_price_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.jsonb "lot_breakdown", default: []
+    t.index ["lot_breakdown"], name: "index_recovery_invoice_items_on_lot_breakdown", using: :gin
+    t.index ["product_variation_id"], name: "index_recovery_invoice_items_on_product_variation_id"
+    t.index ["producto_id"], name: "index_recovery_invoice_items_on_producto_id"
+    t.index ["recovery_invoice_id"], name: "index_recovery_invoice_items_on_recovery_invoice_id"
+  end
+
+  create_table "recovery_invoices", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "user_id"
+    t.datetime "occurred_at", null: false
+    t.decimal "total_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.text "notes"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_recovery_invoices_on_business_id"
+    t.index ["user_id"], name: "index_recovery_invoices_on_user_id"
   end
 
   create_table "saime_users", force: :cascade do |t|
@@ -1225,6 +1255,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_23_120100) do
   add_foreign_key "profit_margin_presets", "businesses"
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
+  add_foreign_key "recovery_invoice_items", "product_variations"
+  add_foreign_key "recovery_invoice_items", "productos"
+  add_foreign_key "recovery_invoice_items", "recovery_invoices"
+  add_foreign_key "recovery_invoices", "businesses"
+  add_foreign_key "recovery_invoices", "users"
   add_foreign_key "saime_users", "users"
   add_foreign_key "service_expense_structures", "services"
   add_foreign_key "service_manager_expenses", "managers"
