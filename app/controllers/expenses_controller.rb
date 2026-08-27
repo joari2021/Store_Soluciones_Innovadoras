@@ -110,8 +110,10 @@ class ExpensesController < ApplicationController
 
   def update
     @expense.assign_attributes(expense_params)
-    # Si el usuario no envía parámetros de programación y el gasto es de tipo 'variable',
-    # forzamos que no tenga programación (frequency = 'once') para evitar conversiones accidentales.
+      # Preserve original expense_type for persisted records: prevent changing variable<->fixed on edit.
+      original_type = @expense.expense_type
+      @expense.assign_attributes(expense_params)
+      @expense.expense_type = original_type if @expense.persisted?
     frequency_param_present = params[:expense].present? && (params[:expense].key?('frequency') || params[:expense].key?(:frequency))
 
     if @expense.expense_type.to_s == 'variable' && !frequency_param_present
@@ -221,8 +223,8 @@ class ExpensesController < ApplicationController
   end
 
   def recalculate_schedule_if_needed(expense)
-    return if expense.payments_count.to_i.zero?
-
+    # Allow handling schedule changes even if there are no payments, so explicit
+    # frequency changes (eg. selecting 'once') are applied immediately.
     schedule_changed =
       expense.will_save_change_to_frequency? ||
       expense.will_save_change_to_start_date? ||

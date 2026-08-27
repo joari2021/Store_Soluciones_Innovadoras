@@ -59,7 +59,14 @@
       </div>
       <div>
         <%= form.label :expense_type, "Tipo", class: "block text-sm font-medium text-slate-700" %>
-        <%= form.select :expense_type, Expense.expense_type_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", data: { expense_type_select: true } %>
+        <% if @expense.persisted? %>
+          <div class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <%= @expense.expense_type_label %>
+          </div>
+          <%= form.hidden_field :expense_type %>
+        <% else %>
+          <%= form.select :expense_type, Expense.expense_type_options, {}, class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500", data: { expense_type_select: true } %>
+        <% end %>
       </div>
       <div>
         <%= form.label :expense_category_id, "Categoria", class: "block text-sm font-medium text-slate-700" %>
@@ -101,8 +108,16 @@
       <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div>
           <%= form.label :frequency, "Frecuencia", class: "block text-sm font-medium text-slate-700" %>
+          <% frequency_options = if programming_visible
+                                   # Si estamos mostrando la sección de programación (por ejemplo al editar
+                                   # un gasto que actualmente tiene asignada una frecuencia), permitir
+                                   # elegir también 'once' (Unico) para permitir convertir a gasto unico.
+                                   Expense.frequency_options
+                                 else
+                                   Expense.frequency_options.reject { |(_label, value)| value == 'once' }
+                                 end %>
           <%= form.select :frequency,
-              Expense.frequency_options.reject { |(_label, value)| value == 'once' },
+              frequency_options,
               {},
               class: "mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" %>
         </div>
