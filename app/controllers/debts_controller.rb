@@ -466,6 +466,7 @@ class DebtsController < ApplicationController
 
     moved_debts_count = 0
     moved_payments_count = 0
+    source_group_token = resolved_source_group_token_for_transfer(group_debts)
 
     Debt.transaction do
       destination_group_debts = build_destination_transfer_group_debts(
@@ -477,6 +478,7 @@ class DebtsController < ApplicationController
       destination_group_token = resolved_destination_group_token_for_transfer(
         destination_group_debts: destination_group_debts,
         source_debts: group_debts,
+        preferred_source_token: source_group_token,
       )
 
       group_debts.each do |debt|
@@ -841,7 +843,17 @@ class DebtsController < ApplicationController
     scope.includes(:debt_payments).to_a
   end
 
-  def resolved_destination_group_token_for_transfer(destination_group_debts:, source_debts:)
+  def resolved_source_group_token_for_transfer(source_debts)
+    tokens = Array(source_debts).map { |debt| debt_group_token(debt).to_s.strip }.reject(&:blank?).uniq
+    return tokens.first if tokens.size == 1
+
+    generate_debt_group_token
+  end
+
+  def resolved_destination_group_token_for_transfer(destination_group_debts:, source_debts:, preferred_source_token: nil)
+    preferred_token = preferred_source_token.to_s.strip
+    return preferred_token if preferred_token.present?
+
     active_debts = destination_group_debts.select { |debt| debt.balance.to_d > 0.01.to_d }
     base_debts = active_debts.presence || destination_group_debts
 
