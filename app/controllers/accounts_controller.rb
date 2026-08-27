@@ -149,22 +149,33 @@ class AccountsController < ApplicationController
   end
 
   def transfer
-    if @account.account_type == 'cashea'
+    if @account.account_type == "cashea"
       return redirect_to accounts_path, alert: "La cuenta Cashea no puede usarse para transferencias."
     end
 
-    target_account = current_business.accounts.find_by(id: params[:target_account_id])
-    return redirect_to accounts_path, alert: "Selecciona una cuenta destino valida." if target_account.blank?
+    transfer_scope = params[:transfer_scope].to_s
 
-    if target_account.account_type == 'cashea'
+    if transfer_scope == "other_business"
+      target_business = Business.find_by(id: params[:target_business_id])
+      return redirect_to accounts_path, alert: "Selecciona un negocio destino valido." if target_business.blank?
+
+      target_account = target_business.accounts.find_by(id: params[:target_account_id])
+      return redirect_to accounts_path, alert: "Selecciona una cuenta destino valida." if target_account.blank?
+    else
+      target_business = current_business
+      target_account = current_business.accounts.find_by(id: params[:target_account_id])
+      return redirect_to accounts_path, alert: "Selecciona una cuenta destino valida." if target_account.blank?
+    end
+
+    if target_account.account_type == "cashea"
       return redirect_to accounts_path, alert: "No puedes transferir hacia una cuenta Cashea."
     end
 
-    if target_account.id == @account.id
+    if target_account.id == @account.id && target_business.id == current_business.id
       return redirect_to accounts_path, alert: "La cuenta destino debe ser diferente a la cuenta origen."
     end
 
-    origin_is_cash_box = @account.account_type == 'cash_box'
+    origin_is_cash_box = @account.account_type == "cash_box"
     allow_negative_balance = ActiveModel::Type::Boolean.new.cast(params[:allow_negative_balance])
 
     transfer_date = parse_transfer_date(params[:transfer_date])
@@ -174,16 +185,16 @@ class AccountsController < ApplicationController
     return redirect_to accounts_path, alert: "Indica un monto origen valido mayor a 0." unless amount_from.positive?
 
     transfer_payment_method = if origin_is_cash_box
-                                'transfer'
-                              else
-                                normalize_transfer_payment_method(params[:transfer_payment_method])
-                              end
+        "transfer"
+      else
+        normalize_transfer_payment_method(params[:transfer_payment_method])
+      end
     if !origin_is_cash_box && transfer_payment_method.blank?
       return redirect_to accounts_path,
                          alert: "Selecciona un metodo de pago valido para la transferencia."
     end
 
-    reference = origin_is_cash_box ? '' : params[:reference].to_s.strip
+    reference = origin_is_cash_box ? "" : params[:reference].to_s.strip
     if !origin_is_cash_box && !valid_bank_reference?(reference)
       return redirect_to accounts_path,
                          alert: "La referencia debe tener exactamente 4 digitos."
@@ -208,13 +219,13 @@ class AccountsController < ApplicationController
     commission_account = nil
 
     if !origin_is_cash_box && transfer_commission_applicable?(transfer_payment_method)
-      commission_account = current_business.accounts.find_by(id: params[:commission_account_id])
+      commission_account = Account.find_by(id: params[:commission_account_id])
       if commission_account.blank? || ![target_account.id, @account.id].include?(commission_account.id)
         return redirect_to accounts_path,
                            alert: "Selecciona cual cuenta asumira la comision de la transferencia."
       end
 
-      if commission_account.account_type == 'cashea'
+      if commission_account.account_type == "cashea"
         return redirect_to accounts_path,
                            alert: "La cuenta Cashea no puede usarse para comisiones de transferencia."
       end
@@ -283,7 +294,7 @@ class AccountsController < ApplicationController
   end
 
   def register_payment
-      allow_negative_balance = ActiveModel::Type::Boolean.new.cast(params[:allow_negative_balance])
+    allow_negative_balance = ActiveModel::Type::Boolean.new.cast(params[:allow_negative_balance])
     if Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type)
       return redirect_to account_path(@account), alert: "No se pueden registrar pagos en cuentas especiales."
     end
@@ -333,7 +344,7 @@ class AccountsController < ApplicationController
         payment_method: payment_method,
         reference: reference.presence,
         description: transfer_movement_description(
-          base: "#{movement_kind == 'expense' ? 'Pago' : 'Credito manual'}: #{concept}",
+          base: "#{movement_kind == "expense" ? "Pago" : "Credito manual"}: #{concept}",
           reference: reference,
         ),
       )
@@ -406,7 +417,7 @@ class AccountsController < ApplicationController
       payment_method: payment_method,
       reference: reference.presence,
       description: transfer_movement_description(
-        base: "#{movement_kind == 'expense' ? 'Pago' : 'Credito manual'}: #{concept}",
+        base: "#{movement_kind == "expense" ? "Pago" : "Credito manual"}: #{concept}",
         reference: reference,
       ),
     )
@@ -451,10 +462,10 @@ class AccountsController < ApplicationController
 
     if request.format.json?
       return render json: {
-        updated_ids: updated_targets.map(&:id),
-        occurred_at_iso: updated_occurred_at.in_time_zone("America/Caracas").iso8601,
-        occurred_at_label: movement_occurred_at_label(updated_occurred_at),
-      }, status: :ok
+                      updated_ids: updated_targets.map(&:id),
+                      occurred_at_iso: updated_occurred_at.in_time_zone("America/Caracas").iso8601,
+                      occurred_at_label: movement_occurred_at_label(updated_occurred_at),
+                    }, status: :ok
     end
 
     redirect_to account_path(@account, movement_id: @movement.id),
@@ -500,8 +511,7 @@ class AccountsController < ApplicationController
     end
 
     scope = @account.account_movements.where(
-      occurred_at: from_date.in_time_zone("America/Caracas").beginning_of_day..
-                   to_date.in_time_zone("America/Caracas").end_of_day,
+      occurred_at: from_date.in_time_zone("America/Caracas").beginning_of_day..to_date.in_time_zone("America/Caracas").end_of_day,
     )
 
     updated_count = scope.where(verified: false).update_all(verified: true, updated_at: Time.current)
@@ -563,7 +573,7 @@ class AccountsController < ApplicationController
     @movement_filters_applied = [
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip,
-      (@selected_verificado == 'all' ? '' : @selected_verificado),
+      (@selected_verificado == "all" ? "" : @selected_verificado),
     ].any?(&:present?)
   end
 
@@ -585,12 +595,12 @@ class AccountsController < ApplicationController
 
   def apply_movement_verification_filters(scope)
     return scope unless scope.respond_to?(:where)
-    return scope unless @account.account_type == 'bank_account'
+    return scope unless @account.account_type == "bank_account"
 
     case @selected_verificado
-    when 'verified'
+    when "verified"
       scope.where(verified: true)
-    when 'unverified'
+    when "unverified"
       scope.where(verified: false)
     else
       scope
@@ -619,16 +629,16 @@ class AccountsController < ApplicationController
     {}.tap do |hash|
       hash[:fecha_desde] = @selected_fecha_desde_value if @selected_fecha_desde_value.present?
       hash[:fecha_hasta] = @selected_fecha_hasta_value if @selected_fecha_hasta_value.present?
-      hash[:verificado] = @selected_verificado if @selected_verificado.present? && @selected_verificado != 'all'
+      hash[:verificado] = @selected_verificado if @selected_verificado.present? && @selected_verificado != "all"
     end
   end
 
   def normalize_verified_filter(raw_value)
     value = raw_value.to_s.strip.downcase
-    return 'verified' if value == 'verified'
-    return 'unverified' if value == 'unverified'
+    return "verified" if value == "verified"
+    return "unverified" if value == "unverified"
 
-    'all'
+    "all"
   end
 
   def parse_transfer_date(raw_value)
@@ -841,10 +851,10 @@ class AccountsController < ApplicationController
 
   def transfer_side_description_for(movement:, counterpart:, reference:)
     base = if movement.movement_kind == "expense"
-             "Transferencia a cuenta #{counterpart.account.name} [ACCOUNT:#{counterpart.account_id}] [AM:#{counterpart.id}]"
-           else
-             "Transferencia desde cuenta #{counterpart.account.name} [ACCOUNT:#{counterpart.account_id}] [AM:#{counterpart.id}]"
-           end
+        "Transferencia a cuenta #{counterpart.account.name} [ACCOUNT:#{counterpart.account_id}] [AM:#{counterpart.id}]"
+      else
+        "Transferencia desde cuenta #{counterpart.account.name} [ACCOUNT:#{counterpart.account_id}] [AM:#{counterpart.id}]"
+      end
     transfer_movement_description(base: base, reference: reference)
   end
 
@@ -964,10 +974,10 @@ class AccountsController < ApplicationController
     return @transfer_accounts_payload = [] unless current_user_admin?
 
     @transfer_accounts_payload = current_business.accounts
-                                             .where(active: true)
-                                             .where.not(account_type: 'cashea')
-                                             .ordered_by_group_and_name
-                                             .map do |account|
+      .where(active: true)
+      .where.not(account_type: "cashea")
+      .ordered_by_group_and_name
+      .map do |account|
       group_label = Account.group_label_for_type(account.account_type)
       {
         id: account.id,
@@ -986,12 +996,40 @@ class AccountsController < ApplicationController
       hash[currency] = CurrencyConverter.rate_to_ves(currency, on_date: nil).to_d.to_f
     end
     @transfer_latest_rates["VES"] = 1.0
+    # Lista de negocios y sus cuentas (para transferencias a otros negocios)
+    @transfer_businesses_payload = Business.order(:name).map do |b|
+      next if b.id == current_business.id
+
+      accounts = b.accounts
+                  .where(active: true)
+                  .where.not(account_type: "cashea")
+                  .ordered_by_group_and_name
+                  .map do |account|
+        {
+                      id: account.id,
+                      name: account.name,
+                      display_name: account.name_with_cash_role,
+                      currency: account.currency,
+                      symbol: account.currency_symbol,
+                      balance: account.balance.to_d.to_f,
+                      account_type: account.account_type,
+                      group_label: Account.group_label_for_type(account.account_type),
+                      group_rank: Account::ACCOUNT_GROUP_LABELS.index(Account.group_label_for_type(account.account_type)) || 99,
+                    }
+      end
+
+      {
+        id: b.id,
+        name: b.respond_to?(:nombre) ? b.nombre : (b.name || "Negocio #{b.id}"),
+        accounts: accounts,
+      }
+    end.compact
   end
 
   def ensure_accounts_management_allowed!
     return if current_user_admin?
 
-    deny_access('Solo el administrador puede gestionar cuentas o registrar movimientos.')
+    deny_access("Solo el administrador puede gestionar cuentas o registrar movimientos.")
   end
 
   def accounts_visible_scope
@@ -1000,9 +1038,9 @@ class AccountsController < ApplicationController
     return scope.none unless current_user_manager?
 
     scope.where(
-      'accounts.account_type IN (:types) OR LOWER(accounts.name) LIKE :payall',
-      types: Account::SPECIAL_ACCOUNT_TYPES + ['cash_box'],
-      payall: '%payall%'
+      "accounts.account_type IN (:types) OR LOWER(accounts.name) LIKE :payall",
+      types: Account::SPECIAL_ACCOUNT_TYPES + ["cash_box"],
+      payall: "%payall%",
     )
   end
 
@@ -1025,7 +1063,7 @@ class AccountsController < ApplicationController
       :logo,
       :small_logo,
       :payment_method_image,
-      cashea_cotidiana_category_ids: []
+      cashea_cotidiana_category_ids: [],
     )
   end
 

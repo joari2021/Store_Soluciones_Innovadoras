@@ -267,6 +267,19 @@
               <input type="text" class="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700" data-transfer-origin-field readonly>
             </div>
             <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Transferencia</label>
+              <select name="transfer_scope" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-transfer-scope>
+                <option value="same_business" selected>Transferencia del mismo negocio</option>
+                <option value="other_business">Transferencia a otro negocio</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Negocio destino</label>
+              <select name="target_business_id" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-transfer-business hidden>
+                <option value="">Selecciona un negocio</option>
+              </select>
+            </div>
+            <div>
               <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Cuenta destino</label>
               <select name="target_account_id" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-transfer-target required>
                 <option value="">Selecciona una cuenta</option>
@@ -344,6 +357,9 @@
       <script type="application/json" id="accounts-transfer-data">
         <%= raw ERB::Util.json_escape((@transfer_accounts_payload || []).to_json) %>
       </script>
+      <script type="application/json" id="accounts-transfer-businesses">
+        <%= raw ERB::Util.json_escape((@transfer_businesses_payload || []).to_json) %>
+      </script>
       <script type="application/json" id="accounts-transfer-rates">
         <%= raw ERB::Util.json_escape((@transfer_latest_rates || {}).to_json) %>
       </script>
@@ -360,9 +376,32 @@
           };
 
           const transferAccounts = parseJsonEl('accounts-transfer-data', []);
+          const transferBusinesses = parseJsonEl('accounts-transfer-businesses', []);
           const latestRates = parseJsonEl('accounts-transfer-rates', { VES: 1 });
-          const accountsById = new Map(transferAccounts.map((account) => [String(account.id), account]));
+          let accountsById = new Map(transferAccounts.map((account) => [String(account.id), account]));
           const ratesCache = {};
+
+          // Estado de alcance: 'same_business' | 'other_business'
+          let currentTransferScope = 'same_business';
+          let selectedBusinessId = null;
+
+          const rebuildAccountsMapForScope = () => {
+            let sourceAccounts = [];
+            if (currentTransferScope === 'same_business') {
+              sourceAccounts = transferAccounts.slice();
+            } else {
+              const biz = transferBusinesses.find((b) => String(b.id) === String(selectedBusinessId));
+              sourceAccounts = biz ? (biz.accounts || []) : [];
+            }
+
+            // Merge in any existing origin placeholder (keeps current origin data when modal open)
+            if (typeof currentOrigin !== 'undefined' && currentOrigin && currentOrigin.id) {
+              const exists = sourceAccounts.find((a) => String(a.id) === String(currentOrigin.id));
+              if (!exists) sourceAccounts.unshift(currentOrigin);
+            }
+
+            accountsById = new Map(sourceAccounts.map((account) => [String(account.id), account]));
+          };
 
           const parseDecimal = (raw, inputEl = null) => {
             if (inputEl && window.MoneyInputMask?.parseValue) {
@@ -502,6 +541,8 @@
           const hint = modal.querySelector('[data-transfer-hint]');
           const methodSelect = modal.querySelector('[data-transfer-method]');
           const referenceInput = modal.querySelector('[data-transfer-reference]');
+          const scopeSelect = modal.querySelector('[data-transfer-scope]');
+          const businessSelect = modal.querySelector('[data-transfer-business]');
           const commissionAmountInput = modal.querySelector('[data-transfer-commission-amount]');
           const commissionAccountSelect = modal.querySelector('[data-transfer-commission-account]');
           const commissionHint = modal.querySelector('[data-transfer-commission-hint]');
@@ -533,7 +574,7 @@
 
             const groupedAccounts = new Map();
 
-            transferAccounts.forEach((account) => {
+            Array.from(accountsById.values()).forEach((account) => {
               if (!currentOrigin || String(account.id) === String(currentOrigin.id)) return;
 
               const label = String(account.group_label || 'Otros').trim() || 'Otros';
@@ -572,6 +613,22 @@
 
               targetSelect.appendChild(groupElement);
             });
+          };
+
+          // Construir opciones de negocios en el select (solo negocios externos)
+          const buildBusinessOptions = () => {
+            if (!businessSelect) return;
+            const previous = businessSelect.value;
+            businessSelect.innerHTML = '<option value="">Selecciona un negocio</option>';
+            transferBusinesses.forEach((b) => {
+              const opt = document.createElement('option');
+              opt.value = b.id;
+              opt.textContent = String(b.name || `Negocio ${b.id}`);
+              businessSelect.appendChild(opt);
+            });
+            if (previous && businessSelect.querySelector(`option[value="${previous}"]`)) {
+              businessSelect.value = previous;
+            }
           };
 
           const rebuildCommissionPayerOptions = () => {
@@ -835,6 +892,18 @@
             if (originField) originField.value = `${originData.name} (${originData.currency})`;
             if (originLabel) originLabel.textContent = `Origen: ${originData.name} · Moneda ${originData.currency}`;
 
+            // Inicializar selects de alcance/negocio y reconstruir cuentas disponibles
+            if (scopeSelect) {
+              currentTransferScope = 'same_business';
+              scopeSelect.value = 'same_business';
+            }
+            if (businessSelect) {
+              businessSelect.value = '';
+              businessSelect.hidden = true;
+              buildBusinessOptions();
+            }
+
+            rebuildAccountsMapForScope();
             rebuildTargetOptions();
             if (targetSelect) targetSelect.value = '';
             if (methodSelect) methodSelect.value = '';
@@ -919,6 +988,34 @@
             if (closeTrigger) {
               closeModal();
             }
+          });
+
+          scopeSelect?.addEventListener('change', () => {
+            currentTransferScope = scopeSelect.value || 'same_business';
+            if (currentTransferScope === 'other_business') {
+              if (businessSelect) businessSelect.hidden = false;
+              buildBusinessOptions();
+            } else {
+              if (businessSelect) {
+                businessSelect.hidden = true;
+                businessSelect.value = '';
+              }
+              selectedBusinessId = null;
+            }
+
+            rebuildAccountsMapForScope();
+            rebuildTargetOptions();
+            rebuildCommissionPayerOptions();
+            updateBalanceSummaries();
+          });
+
+          businessSelect?.addEventListener('change', () => {
+            selectedBusinessId = businessSelect.value || null;
+            rebuildAccountsMapForScope();
+            rebuildTargetOptions();
+            rebuildCommissionPayerOptions();
+            updateSuggestedAmount();
+            syncSuggestedCommission(true);
           });
 
           targetSelect?.addEventListener('change', () => {
