@@ -2213,8 +2213,14 @@ class DebtsController < ApplicationController
                   representative.card_total_amount = total_usd_amount(grouped_debts)
                   representative.card_total_balance = total_usd_balance_for_card(grouped_debts)
                   representative.card_currency = card_currency_for_index_group(grouped_debts)
+                  native_currency = representative.card_currency.to_s.upcase
+                  native_balance = grouped_debts
+                                   .select { |item| item.currency.to_s.upcase == native_currency }
+                                   .sum { |item| item.balance.to_d }
+                                   .round(2)
                   grouped_count = grouped_debts.size
                   representative.define_singleton_method(:card_debts_count) { grouped_count }
+                  representative.define_singleton_method(:card_native_balance) { native_balance }
                   representative.card_description_summary = card_description_summary_for(grouped_debts)
                   last_activity_at = group_last_activity_at_for(grouped_debts)
                   last_payment_at = group_last_payment_at_for(grouped_debts)
@@ -2505,9 +2511,14 @@ class DebtsController < ApplicationController
           next
         end
 
-        # Para monedas distintas de USD usamos el saldo del grupo colapsado para no
-        # perder deudas asociadas cuando la representante individual tiene otro balance.
-        display_total = debts_in_currency.sum { |debt| debt.card_total_balance.to_d }.round(2)
+        # Para monedas distintas de USD se muestra saldo nativo de la moneda del grupo.
+        display_total = debts_in_currency.sum do |debt|
+          if debt.respond_to?(:card_native_balance)
+            debt.card_native_balance.to_d
+          else
+            debt.balance.to_d
+          end
+        end.round(2)
         ves_conversion = CurrencyConverter.convert(
           amount: display_total,
           from_currency: normalized_currency,
