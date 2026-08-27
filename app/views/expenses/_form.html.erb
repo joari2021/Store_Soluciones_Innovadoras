@@ -7,7 +7,8 @@
 <% selected_payment_symbol = currency_symbols[selected_payment_currency] || selected_payment_currency || '$' %>
 <% show_payment_method = selected_payment_account&.account_type == 'bank_account' && selected_payment_account&.currency == 'VES' %>
 <% selected_expense_type = @expense.expense_type.to_s.presence || 'variable' %>
-<% programming_visible = !@expense.new_record? || selected_expense_type == 'fixed' %>
+<% # Mostrar la sección de programación solo si el tipo es 'fixed' o si el gasto tiene programación activa (frequency != 'once') %>
+<% programming_visible = (selected_expense_type == 'fixed') || (@expense.persisted? && @expense.schedule_enabled?) %>
 <% variable_payment_visible = @expense.new_record? && selected_expense_type == 'variable' %>
 <%
   initial_payment_date = begin
@@ -288,14 +289,16 @@
     const syncSectionsByExpenseType = () => {
       const variable = isVariableExpense();
 
-      if (variablePaymentSection) {
-        if (programmingSection) {
+        if (variablePaymentSection) {
+          if (programmingSection) {
+            programmingSection.classList.toggle("hidden", variable);
+          }
+          variablePaymentSection.classList.toggle("hidden", !variable);
+        } else if (programmingSection) {
+          // Cuando el formulario de pago variable no está presente (por ejemplo al editar),
+          // mostrar u ocultar la sección de programación según el tipo seleccionado.
           programmingSection.classList.toggle("hidden", variable);
         }
-        variablePaymentSection.classList.toggle("hidden", !variable);
-      } else if (programmingSection) {
-        programmingSection.classList.remove("hidden");
-      }
 
       const enforceVariablePayment = Boolean(variablePaymentSection) && variable;
       if (accountSelect) accountSelect.required = enforceVariablePayment;
