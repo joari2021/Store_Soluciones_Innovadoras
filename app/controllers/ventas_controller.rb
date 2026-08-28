@@ -1532,7 +1532,8 @@ class VentasController < ApplicationController
     VentaPayment.where(venta_id: venta_id).delete_all
     Debt.where(venta_id: venta_id).update_all(venta_id: nil)
 
-    Venta.where(id: venta_id).delete_all
+    # Use destroy_all to ensure dependent callbacks run and child records are removed
+    Venta.where(id: venta_id).destroy_all
   end
 
   def customer_sales_vip_mode?
