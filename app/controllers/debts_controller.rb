@@ -521,9 +521,12 @@ class DebtsController < ApplicationController
         )
 
         payment.notes = [payment.notes.to_s, "[TRANSFER_NO_MOVEMENT]", "[TRANSFER_FROM_BUSINESS:#{current_business.id}]"].reject(&:blank?).join(' ')
+
+        new_account_id = transfer_account.present? ? transfer_account.id : payment.account_id
+
         payment.update!(
           debt_id: target_debt.id,
-          account_id: transfer_account.id,
+          account_id: new_account_id,
           payment_method: nil,
         )
         moved_payments_count += 1
@@ -904,23 +907,23 @@ class DebtsController < ApplicationController
 
   def debt_transfer_virtual_account_for(business:, currency:)
     normalized_currency = currency.to_s.upcase
+
+    # Do not create technical "Transferencia de deuda" accounts anymore.
+    # Prefer an existing real cash_box for the business+currency, avoiding any technical transfer accounts.
     account = business
               .accounts
               .where(account_type: 'cash_box', currency: normalized_currency)
-              .where("name LIKE ?", "%Transferencia de deuda%")
+              .where.not("name LIKE ?", "%Transferencia de deuda%")
               .order(:id)
               .first
     return account if account.present?
 
-    business.accounts.create!(
-      name: "Transferencia de deuda #{normalized_currency}",
-      account_type: 'cash_box',
-      currency: normalized_currency,
-      balance: 0,
-      active: false,
-      theme_color: 'slate',
-      notes: 'Cuenta tecnica para pagos historicos transferidos sin movimientos bancarios',
-    )
+    # Fallback: any active cash_box with the same currency.
+    fallback = business.accounts.where(account_type: 'cash_box', currency: normalized_currency, active: true).order(:id).first
+    return fallback if fallback.present?
+
+    # Final fallback: any cash_box for the business.
+    business.accounts.where(account_type: 'cash_box').order(:id).first
   end
 
   def payment_sort_key_for_transfer(payment)
