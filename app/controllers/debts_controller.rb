@@ -2501,10 +2501,11 @@ class DebtsController < ApplicationController
       debts.group_by { |debt| debt.card_currency.to_s.upcase }.each do |currency, debts_in_currency|
         normalized_currency = currency.to_s.upcase
         rate_reference = CurrencyConverter.reference_for_currency(normalized_currency)
-        rate_symbol = TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence
         fallback_symbol = Account::CURRENCIES.dig(normalized_currency, :symbol) || normalized_currency
-        display_symbol = rate_symbol.presence || fallback_symbol
 
+        # For USD groups we show BCV-based USD totals; for other currencies we
+        # prefer the native currency symbol from Account::CURRENCIES to avoid
+        # showing a '$' BCV symbol for tokens like USDT.
         if normalized_currency == 'USD'
           display_total = debts_in_currency.sum { |debt| debt.card_total_balance.to_d }.round(2)
           ves_conversion = CurrencyConverter.convert(
@@ -2516,14 +2517,13 @@ class DebtsController < ApplicationController
           totals[group_totals_key(cliente, currency)] = {
             display_total: display_total,
             display_unit: 'USD',
-            display_symbol: display_symbol,
-            badge_label: "USD #{display_symbol}",
+            display_symbol: (TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence || fallback_symbol),
+            badge_label: "USD #{TasaCambio.latest_for(rate_reference)&.symbol.to_s.strip.presence || fallback_symbol}",
             ves_total: ves_conversion&.dig(:amount).to_d.round(2)
           }
           next
         end
-
-        # Para monedas distintas de USD se muestra saldo nativo de la moneda del grupo.
+        # For non-USD currencies show native totals and use native symbol.
         display_total = debts_in_currency.sum do |debt|
           if debt.respond_to?(:card_native_balance)
             debt.card_native_balance.to_d
@@ -2537,13 +2537,11 @@ class DebtsController < ApplicationController
           to_currency: 'VES'
         )
 
-        badge_name = rate_reference.presence || normalized_currency
-
         totals[group_totals_key(cliente, currency)] = {
           display_total: display_total,
           display_unit: normalized_currency,
-          display_symbol: display_symbol,
-          badge_label: "#{badge_name} #{display_symbol}",
+          display_symbol: fallback_symbol,
+          badge_label: "#{normalized_currency} #{fallback_symbol}",
           ves_total: ves_conversion&.dig(:amount).to_d.round(2)
         }
       end
