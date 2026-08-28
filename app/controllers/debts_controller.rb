@@ -2222,10 +2222,23 @@ class DebtsController < ApplicationController
                                      sorted_group.first
                                    end
 
-                  representative.card_total_amount = total_usd_amount(grouped_debts)
-                  representative.card_total_balance = total_usd_balance_for_card(grouped_debts)
+                  # Decide which currency to display on the card and compute totals
                   representative.card_currency = card_currency_for_index_group(grouped_debts)
-                  native_currency = representative.card_currency.to_s.upcase
+                  display_currency = representative.card_currency.to_s.upcase
+
+                  if display_currency == 'USD'
+                    # For USD groups show USD totals (converted via BCV logic already present)
+                    representative.card_total_amount = total_usd_amount(grouped_debts)
+                    representative.card_total_balance = total_usd_balance_for_card(grouped_debts)
+                  else
+                    # For non-USD groups show native totals (sum of amounts/balances in their own currency)
+                    native_total_amount = grouped_debts.sum { |d| d.amount.to_d }.round(2)
+                    native_total_balance = grouped_debts.sum { |d| d.balance.to_d }.round(2)
+                    representative.card_total_amount = native_total_amount
+                    representative.card_total_balance = native_total_balance
+                  end
+
+                  native_currency = display_currency
                   native_balance = grouped_debts
                                    .select { |item| item.currency.to_s.upcase == native_currency }
                                    .sum { |item| item.balance.to_d }
