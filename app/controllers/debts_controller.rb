@@ -364,6 +364,15 @@ class DebtsController < ApplicationController
                                               0.to_d
                                             end
     @show_last_payment_at = @payments.first&.occurred_at
+    # Total balance in the group's native currency (used for non-USD groups like USDT, EUR)
+    @show_total_balance_in_group_currency = if @show_group_currency.to_s.upcase == 'USD'
+                                              0.to_d
+                                            else
+                                              @grouped_debts.sum do |debt|
+                                                paid = debt.debt_payments.loaded? ? debt.debt_payments.sum { |p| p.amount_in_debt_currency.to_d } : debt.debt_payments.to_a.sum { |p| p.amount_in_debt_currency.to_d }
+                                                (debt.amount.to_d - paid)
+                                              end.round(2)
+                                            end
     @show_last_activity_at = group_last_activity_at_for(@grouped_debts)
     @show_overdue_count = @grouped_debts.count(&:overdue?)
     @can_register_group_payment = current_user_admin? || current_user_manager?

@@ -478,11 +478,15 @@
           </div>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" data-register-payment-summary="true" data-base-usd="<%= @show_total_balance_usd_bcv.to_d.to_s('F') %>">
-          <p class="text-xs text-slate-500">Saldo pendiente real total $ (BCV)</p>
-          <p class="text-sm font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: '$ ') %></p>
           <% if @show_group_currency.to_s.upcase == 'USD' %>
+            <p class="text-xs text-slate-500">Saldo pendiente real total $ (BCV)</p>
+            <p class="text-sm font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_usd_bcv, unit: '$ ') %></p>
             <p class="mt-1 text-xs text-slate-500">Equivalente en Bs</p>
             <p class="text-sm font-semibold text-slate-800" data-register-payment-pending-bs="true"><%= number_to_currency(@show_total_balance_ves_for_usd_group, unit: 'Bs ') %></p>
+          <% else %>
+            <% group_symbol = Account::CURRENCIES.dig(@show_group_currency.to_s.upcase, :symbol) || @show_group_currency.to_s.upcase %>
+            <p class="text-xs text-slate-500">Saldo pendiente real total (<%= @show_group_currency.to_s.upcase %>)</p>
+            <p class="text-sm font-semibold text-slate-800"><%= number_to_currency(@show_total_balance_in_group_currency, unit: "#{group_symbol} ") %></p>
           <% end %>
         </div>
         <div>
