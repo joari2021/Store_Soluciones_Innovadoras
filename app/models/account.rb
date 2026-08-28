@@ -146,6 +146,7 @@ class Account < ApplicationRecord
   before_validation :apply_special_defaults
   before_validation :normalize_cash_role, if: :supports_cash_role?
   before_save :unset_other_primary_bank_accounts, if: :will_save_change_to_is_primary?
+  before_destroy :purge_account_references!
 
   scope :ordered_by_group_and_name, lambda {
     case_sql = ACCOUNT_TYPE_GROUP_RANK.map do |account_type, rank|
@@ -371,6 +372,43 @@ class Account < ApplicationRecord
 
   def account_type_label
     ACCOUNT_TYPES.dig(account_type, :label) || account_type.to_s.humanize
+  end
+
+  private
+
+  # Remove any rows in the database that reference this account via columns
+  # named `account_id` or ending with `_account_id` so the account can be
+  # destroyed even if foreign keys exist. This performs direct SQL deletes
+  # across all tables (except `accounts`) and runs inside a transaction.
+  def purge_account_references!
+    conn = ActiveRecord::Base.connection
+    conn.transaction do
+      conn.tables.each do |table_name|
+        next if table_name.to_s == 'accounts'
+
+        cols = conn.columns(table_name).map(&:name).select { |n| n == 'account_id' || n.end_with?('_account_id') }
+        next if cols.empty?
+
+        cols.each do |col|
+          sql = "DELETE FROM #{conn.quote_table_name(table_name)} WHERE #{conn.quote_column_name(col)} = #{id.to_i}"
+          begin
+            conn.execute(sql)
+          rescue StandardError
+            # Swallow errors to avoid preventing account destroy in unexpected cases.
+            # If something goes wrong, fallback to trying a direct delete of the table rows
+            # via ActiveRecord as a last resort.
+            begin
+              model_name = table_name.singularize.camelize
+              if Object.const_defined?(model_name)
+                Object.const_get(model_name).where(col => id).delete_all
+              end
+            rescue StandardError
+              # ignore
+            end
+          end
+        end
+      end
+    end
   end
 
   def account_type_icon
