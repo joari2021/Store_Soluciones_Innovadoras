@@ -374,13 +374,11 @@ class Account < ApplicationRecord
     ACCOUNT_TYPES.dig(account_type, :label) || account_type.to_s.humanize
   end
 
-  private
-
   # Remove any rows in the database that reference this account via columns
   # named `account_id` or ending with `_account_id` so the account can be
   # destroyed even if foreign keys exist. This performs direct SQL deletes
   # across all tables (except `accounts`) and runs inside a transaction.
-  def purge_account_references!
+  private def purge_account_references!
     conn = ActiveRecord::Base.connection
     conn.transaction do
       conn.tables.each do |table_name|
