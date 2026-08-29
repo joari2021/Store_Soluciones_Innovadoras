@@ -5,6 +5,7 @@
 <% total_ves = @total_ves || @ventas.sum { |venta| (sales_reference_by_id.dig(venta.id, :ves_total) || venta.total_bs).to_d } %>
 <% historial_query_params = @historial_query_params || {} %>
 <% selected_cliente_query = @cliente_query.to_s %>
+<% selected_venta_id = @venta_id_query.to_s %>
 <% selected_cash_shift_id = @selected_cash_shift_id.to_s.presence %>
 <% selected_fecha_desde_value = @selected_fecha_desde&.strftime('%d-%m-%Y') %>
 <% selected_fecha_hasta_value = @selected_fecha_hasta&.strftime('%d-%m-%Y') %>
@@ -13,7 +14,7 @@
 <% default_invoice_status = { label: 'Pagada', badge_class: 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200' } %>
 <% historial_cash_exchanges = @historial_cash_exchanges || [] %>
 <% customer_history_restricted_ui = current_user_customer_mode? || current_user_customer_vip_mode? %>
-<% historial_filters_grid_class = customer_history_restricted_ui ? 'grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' : 'grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,14rem)_minmax(0,12rem)_minmax(0,12rem)_auto_auto] md:items-end' %>
+<% historial_filters_grid_class = customer_history_restricted_ui ? 'grid gap-3 md:grid-cols-[minmax(0,10rem)_minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end' : 'grid gap-3 md:grid-cols-[minmax(0,14rem)_minmax(0,10rem)_minmax(0,14rem)_minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end' %>
 <div class="space-y-6 fade-in">
   <div class="relative overflow-hidden rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="absolute -top-16 right-0 h-48 w-48 rounded-full bg-cyan-200/30 blur-3xl"></div>
@@ -57,11 +58,32 @@
                                class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
           </div>
           <div>
+            <label for="historial_venta_id" class="block text-xs font-bold uppercase tracking-wider text-slate-500">ID venta</label>
+            <%= text_field_tag :venta_id,
+                               selected_venta_id,
+                               id: 'historial_venta_id',
+                               inputmode: 'numeric',
+                               autocomplete: 'off',
+                               placeholder: 'Ej: 1234',
+                               class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          </div>
+          <div>
             <label for="historial_cash_shift_id" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Turno</label>
             <%= select_tag :cash_shift_id,
                            options_for_select(cash_shift_options, selected_cash_shift_id),
                            id: 'historial_cash_shift_id',
                            class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
+          </div>
+        <% else %>
+          <div>
+            <label for="historial_venta_id" class="block text-xs font-bold uppercase tracking-wider text-slate-500">ID venta</label>
+            <%= text_field_tag :venta_id,
+                               selected_venta_id,
+                               id: 'historial_venta_id',
+                               inputmode: 'numeric',
+                               autocomplete: 'off',
+                               placeholder: 'Ej: 1234',
+                               class: 'mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
           </div>
         <% end %>
         <div>

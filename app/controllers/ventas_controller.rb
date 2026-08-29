@@ -1738,6 +1738,8 @@ class VentasController < ApplicationController
 
   def apply_historial_filters(scope, include_client_filter: true)
     @cliente_query = params[:cliente_query].to_s.strip.presence
+    @venta_id_query = params[:venta_id].to_s.strip
+    @venta_id_query = nil unless @venta_id_query.match?(/\A\d+\z/)
     @selected_cash_shift_id = params[:cash_shift_id].to_s.strip.presence
     unless params.key?(:cash_shift_id)
       latest_shift_id = current_business.cash_shifts.order(opened_at: :desc).limit(1).pick(:id)
@@ -1754,6 +1756,7 @@ class VentasController < ApplicationController
 
     filters_explicitly_present = [
       (include_client_filter ? @cliente_query : nil),
+      @venta_id_query,
       @selected_cash_shift_id,
       params[:fecha_desde].to_s.strip,
       params[:fecha_hasta].to_s.strip,
@@ -1770,6 +1773,10 @@ class VentasController < ApplicationController
           "clientes.name ILIKE :query OR clientes.document_number ILIKE :query OR clientes.document_type ILIKE :query",
           query: query_value,
         )
+    end
+
+    if @venta_id_query.present?
+      filtered_scope = filtered_scope.where(ventas: { id: @venta_id_query.to_i })
     end
 
     if @selected_cash_shift_id.present?
@@ -1872,6 +1879,7 @@ class VentasController < ApplicationController
   def build_historial_query_params
     {}.tap do |hash|
       hash[:cliente_query] = @cliente_query if @cliente_query.present?
+      hash[:venta_id] = @venta_id_query if @venta_id_query.present?
       hash[:producto_query] = @producto_query if @producto_query.present?
       hash[:cash_shift_id] = @selected_cash_shift_id if @selected_cash_shift_id.present?
       hash[:fecha_desde] = format_historial_date(@selected_fecha_desde) if @selected_fecha_desde.present?
