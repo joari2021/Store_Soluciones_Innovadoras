@@ -140,4 +140,81 @@ namespace :debts do
 
     puts "\nFinalizado."
   end
+
+  desc "Audita grupos transferidos y detecta posibles faltantes de cobros (solo lectura)"
+  task audit_transferred_groups: :environment do
+    business_id_filter = ENV["BUSINESS_ID"].to_i
+    business_id_filter = nil unless business_id_filter.positive?
+    min_delta = ENV["MIN_DELTA"].to_d
+    min_delta = 0.01.to_d if min_delta <= 0
+
+    puts "== Auditoria de grupos transferidos =="
+    puts "Filtro business_id: #{business_id_filter || 'ninguno'}"
+    puts "Delta minimo reportado: #{min_delta.to_s('F')}"
+
+    scope = Debt.where("description LIKE ? OR description LIKE ?", "%[TRANSFER_FROM_BUSINESS:%", "%[IC_MIRROR]%")
+    scope = scope.where(business_id: business_id_filter) if business_id_filter.present?
+
+    debts = scope.includes(:debt_payments).to_a
+    if debts.empty?
+      puts "No se encontraron deudas marcadas como transferidas en el alcance indicado."
+      next
+    end
+
+    grouped = debts.group_by do |debt|
+      token = debt.group_token.to_s.strip
+      token = "legacy-#{debt.group_root_debt_id}" if token.blank? && debt.group_root_debt_id.present?
+      token = "debt-#{debt.id}" if token.blank?
+      [debt.business_id, debt.debt_kind, token, debt.currency.to_s.upcase, debt.cliente_id, debt.acreedor.to_s.strip.downcase]
+    end
+
+    rows = []
+    grouped.each do |key, group_debts|
+      business_id, debt_kind, token, currency, cliente_id, acreedor_key = key
+      total_amount = group_debts.sum { |d| d.amount.to_d }.round(2)
+      total_paid = group_debts.sum { |d| d.debt_payments.to_a.sum { |p| p.amount_in_debt_currency.to_d } }.round(2)
+      total_balance = (total_amount - total_paid).round(2)
+
+      transfer_notes_count = group_debts.sum do |d|
+        d.debt_payments.to_a.count { |p| p.notes.to_s.include?("[TRANSFER_FROM_BUSINESS:") }
+      end
+
+      rows << {
+        business_id: business_id,
+        debt_kind: debt_kind,
+        group_token: token,
+        currency: currency,
+        cliente_id: cliente_id,
+        acreedor_key: acreedor_key,
+        debts_count: group_debts.size,
+        amount_total: total_amount,
+        paid_total: total_paid,
+        balance_total: total_balance,
+        transfer_payments_marked: transfer_notes_count,
+      }
+    end
+
+    suspicious = rows.select do |row|
+      row[:balance_total] > min_delta && row[:transfer_payments_marked].zero?
+    end
+
+    puts "Grupos analizados: #{rows.size}"
+    puts "Grupos sospechosos (saldo > #{min_delta.to_s('F')} y sin pagos marcados de transferencia): #{suspicious.size}"
+
+    suspicious.first(200).each do |row|
+      puts [
+        "business_id=#{row[:business_id]}",
+        "kind=#{row[:debt_kind]}",
+        "token=#{row[:group_token]}",
+        "currency=#{row[:currency]}",
+        "debts=#{row[:debts_count]}",
+        "amount=#{row[:amount_total].to_s('F')}",
+        "paid=#{row[:paid_total].to_s('F')}",
+        "balance=#{row[:balance_total].to_s('F')}",
+        "transfer_payments_marked=#{row[:transfer_payments_marked]}",
+      ].join(" | ")
+    end
+
+    puts "\nFinalizado."
+  end
 end
