@@ -6,6 +6,7 @@ class LossRecoveriesController < ApplicationController
   before_action :require_business
   before_action :require_admin
   before_action :load_setting
+  helper_method :normalized_products_per_page, :normalized_products_page
 
   def index
     @recent_entries = current_business.loss_recovery_entries.includes(:venta, :account).order(occurred_at: :desc).limit(20)
