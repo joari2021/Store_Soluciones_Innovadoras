@@ -416,7 +416,7 @@ class LossRecoveriesController < ApplicationController
       {
         id: variation.id,
         name: variation.description.to_s,
-        available: available_qty.to_s('F'),
+          available: available_qty.to_d.to_s('F'),
         price_value: raw_price.to_s('F'),
         price_label: helpers.number_with_precision(raw_price, precision: 2, delimiter: '.', separator: ','),
       }
