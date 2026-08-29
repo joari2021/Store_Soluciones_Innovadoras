@@ -217,4 +217,166 @@ namespace :debts do
 
     puts "\nFinalizado."
   end
+
+  desc "Recupera cobros faltantes para un cliente transferido usando movimientos del negocio origen (dry-run por defecto)"
+  task recover_transferred_client_payments: :environment do
+    source_business_id = ENV["SOURCE_BUSINESS_ID"].to_i
+    destination_business_id = ENV["DESTINATION_BUSINESS_ID"].to_i
+    destination_cliente_id = ENV["DESTINATION_CLIENTE_ID"].to_i
+    apply = ActiveModel::Type::Boolean.new.cast(ENV["APPLY"])
+
+    unless source_business_id.positive? && destination_business_id.positive? && destination_cliente_id.positive?
+      puts "Debes enviar SOURCE_BUSINESS_ID, DESTINATION_BUSINESS_ID y DESTINATION_CLIENTE_ID."
+      next
+    end
+
+    source_business = Business.find_by(id: source_business_id)
+    destination_business = Business.find_by(id: destination_business_id)
+
+    if source_business.blank? || destination_business.blank?
+      puts "No se encontraron los negocios indicados."
+      next
+    end
+
+    puts "== Reparacion por cliente transferido =="
+    puts "source_business_id=#{source_business_id} destination_business_id=#{destination_business_id} destination_cliente_id=#{destination_cliente_id}"
+    puts "Modo: #{apply ? 'APLICAR CAMBIOS' : 'DRY-RUN (sin escribir)'}"
+
+    destination_debts = destination_business
+                        .debts
+                        .excluding_service_cost_records
+                        .where(debt_kind: 'receivable', cliente_id: destination_cliente_id)
+                        .includes(:debt_payments)
+
+    debt_ids = destination_debts.map(&:id)
+    if debt_ids.empty?
+      puts "No hay deudas por cobrar del cliente destino en el negocio destino."
+      next
+    end
+
+    select_target_account = lambda do |business:, preferred_currency:|
+      normalized_currency = preferred_currency.to_s.upcase
+      base_scope = business.accounts.where.not(account_type: 'cashea')
+
+      base_scope.where(account_type: 'cash_box', currency: normalized_currency, active: true).order(:id).first ||
+        base_scope.where(account_type: 'cash_box', currency: normalized_currency).order(:id).first ||
+        base_scope.where(account_type: 'cash_box', active: true).order(:id).first ||
+        base_scope.where(account_type: 'cash_box').order(:id).first ||
+        base_scope.where(currency: normalized_currency, active: true).order(:id).first ||
+        base_scope.where(currency: normalized_currency).order(:id).first ||
+        base_scope.where(active: true).order(:id).first ||
+        base_scope.order(:id).first
+    end
+
+    source_movements = AccountMovement
+                       .joins(:account)
+                       .includes(:account)
+                       .where(accounts: { business_id: source_business.id })
+                       .where(movement_kind: 'income')
+                       .where("description LIKE ?", "%[DEBT:%")
+                       .where("description LIKE ?", "%[DP:%")
+
+    stats = {
+      scanned_movements: 0,
+      matching_movements: 0,
+      candidate_missing: 0,
+      already_present: 0,
+      already_recovered: 0,
+      skipped_no_target_account: 0,
+      recovered: 0,
+      failed: 0,
+    }
+
+    details = []
+
+    source_movements.find_each do |movement|
+      stats[:scanned_movements] += 1
+      description = movement.description.to_s
+      debt_id = description[/\[DEBT:(\d+)\]/, 1].to_i
+      dp_id = description[/\[DP:(\d+)\]/, 1].to_i
+      next unless debt_id.positive? && dp_id.positive?
+      next unless debt_ids.include?(debt_id)
+
+      stats[:matching_movements] += 1
+
+      if DebtPayment.exists?(id: dp_id)
+        stats[:already_present] += 1
+        next
+      end
+
+      recovery_note_pattern = "%[RECOVERED_FROM_AM:#{movement.id}]%"
+      if DebtPayment.where("notes LIKE ?", recovery_note_pattern).exists?
+        stats[:already_recovered] += 1
+        next
+      end
+
+      stats[:candidate_missing] += 1
+
+      debt = destination_debts.find { |d| d.id == debt_id }
+      preferred_currency = movement.account&.currency.to_s.upcase.presence || debt.currency.to_s.upcase
+      target_account = select_target_account.call(business: destination_business, preferred_currency: preferred_currency)
+
+      if target_account.blank?
+        stats[:skipped_no_target_account] += 1
+        details << {
+          movement_id: movement.id,
+          debt_id: debt_id,
+          dp_id: dp_id,
+          status: 'skipped_no_target_account',
+        }
+        next
+      end
+
+      attrs = {
+        debt_id: debt.id,
+        account_id: target_account.id,
+        amount: movement.amount.to_d,
+        occurred_at: movement.occurred_at&.to_date || Date.current,
+        notes: [
+          "[TRANSFER_REPAIR]",
+          "[RECOVERED_FROM_SOURCE_BUSINESS:#{source_business.id}]",
+          "[RECOVERED_FROM_AM:#{movement.id}]",
+          "[RECOVERED_FROM_DP:#{dp_id}]",
+          "[MIRROR_SYNC]",
+        ].join(' '),
+      }
+
+      if apply
+        payment = DebtPayment.new(attrs)
+        payment.skip_account_movement = true
+        payment.save!
+      end
+
+      stats[:recovered] += 1
+      details << {
+        movement_id: movement.id,
+        debt_id: debt.id,
+        dp_id: dp_id,
+        amount: movement.amount.to_d.round(2).to_s('F'),
+        movement_currency: movement.account&.currency,
+        target_account_id: target_account.id,
+        target_account_currency: target_account.currency,
+        status: apply ? 'recovered' : 'candidate',
+      }
+    rescue StandardError => e
+      stats[:failed] += 1
+      details << {
+        movement_id: movement.id,
+        debt_id: debt_id,
+        dp_id: dp_id,
+        status: 'failed',
+        error: e.message,
+      }
+    end
+
+    puts "\n== Resumen =="
+    stats.each { |k, v| puts "#{k}: #{v}" }
+
+    puts "\n== Detalle (max 200) =="
+    details.first(200).each do |row|
+      puts row.map { |k, v| "#{k}=#{v}" }.join(' | ')
+    end
+
+    puts "\nFinalizado."
+  end
 end
