@@ -419,7 +419,7 @@ class CashShiftsController < ApplicationController
 
   def ensure_can_close_shift!
     return unless @cash_shift.open?
-    return if current_user_admin?
+    return if current_user_admin? || current_user_manager?
     return if @cash_shift.active_cashier_id.present? && @cash_shift.active_cashier_id == Current.user&.id
 
     active_cashier = @cash_shift.active_cashier
