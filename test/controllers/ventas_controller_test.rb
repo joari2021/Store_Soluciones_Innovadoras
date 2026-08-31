@@ -193,29 +193,29 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference('Venta.where(status: "paid").count', 1) do
       post "/ventas", params: {
-        venta: {
-          vat_mode: "none",
-          vat_rate: "0.16",
-          tasa_dolar: "40",
-          base_currency: "USD",
-          items: [
-            {
-              item_type: "service",
-              service_id: service.id,
-              quantity: "1",
-              unit_price_usd: "20",
-            },
-          ],
-          payments: [
-            {
-              method: "cash",
-              amount: "800.00",
-              account_id: @cash_account.id,
-              currency: "VES",
-            },
-          ],
-        },
-      }, as: :json
+                   venta: {
+                     vat_mode: "none",
+                     vat_rate: "0.16",
+                     tasa_dolar: "40",
+                     base_currency: "USD",
+                     items: [
+                       {
+                         item_type: "service",
+                         service_id: service.id,
+                         quantity: "1",
+                         unit_price_usd: "20",
+                       },
+                     ],
+                     payments: [
+                       {
+                         method: "cash",
+                         amount: "800.00",
+                         account_id: @cash_account.id,
+                         currency: "VES",
+                       },
+                     ],
+                   },
+                 }, as: :json
     end
 
     assert_response :created
@@ -239,47 +239,47 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference('Venta.where(status: "paid").count', 1) do
       post "/ventas", params: {
-        venta: {
-          vat_mode: "none",
-          vat_rate: "0.16",
-          tasa_dolar: "40",
-          base_currency: "VES",
-          totals: {
-            taxable_subtotal_base: "792.00",
-            exento_subtotal_base: "0.00",
-            vat_base: "0.00",
-            total_base: "792.00",
-          },
-          items: [
-            {
-              item_type: "service",
-              service_id: service.id,
-              quantity: "22",
-              unit_price_usd: "0.90",
-              unit_price_base_amount: "36.00",
-              unit_price_base_currency: "VES",
-              selected_print_unit_price_bs: "40.00",
-              printing_discount_percent: "10",
-              selected_print_material_rows: [
-                {
-                  product_id: material_product.id,
-                  variation_id: material_variation.id,
-                  label: material_product.descripcion,
-                  quantity: "1",
-                },
-              ],
-            },
-          ],
-          payments: [
-            {
-              method: "cash",
-              amount: "792.00",
-              account_id: @cash_account.id,
-              currency: "VES",
-            },
-          ],
-        },
-      }, as: :json
+                   venta: {
+                     vat_mode: "none",
+                     vat_rate: "0.16",
+                     tasa_dolar: "40",
+                     base_currency: "VES",
+                     totals: {
+                       taxable_subtotal_base: "792.00",
+                       exento_subtotal_base: "0.00",
+                       vat_base: "0.00",
+                       total_base: "792.00",
+                     },
+                     items: [
+                       {
+                         item_type: "service",
+                         service_id: service.id,
+                         quantity: "22",
+                         unit_price_usd: "0.90",
+                         unit_price_base_amount: "36.00",
+                         unit_price_base_currency: "VES",
+                         selected_print_unit_price_bs: "40.00",
+                         printing_discount_percent: "10",
+                         selected_print_material_rows: [
+                           {
+                             product_id: material_product.id,
+                             variation_id: material_variation.id,
+                             label: material_product.descripcion,
+                             quantity: "1",
+                           },
+                         ],
+                       },
+                     ],
+                     payments: [
+                       {
+                         method: "cash",
+                         amount: "792.00",
+                         account_id: @cash_account.id,
+                         currency: "VES",
+                       },
+                     ],
+                   },
+                 }, as: :json
     end
 
     assert_response :created
@@ -545,38 +545,38 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
     assert_difference('Venta.where(status: "paid").count', 1) do
       post "/ventas", params: {
-        venta: {
-          vat_mode: "none",
-          vat_rate: "0.16",
-          tasa_dolar: "40",
-          base_currency: "VES",
-          totals: {
-            taxable_subtotal_base: line_total.to_s("F"),
-            exento_subtotal_base: "0",
-            vat_base: "0",
-            total_base: line_total.to_s("F"),
-          },
-          items: [
-            {
-              item_type: "product",
-              product_id: @product.id,
-              variation_id: @variation.id,
-              quantity: quantity.to_s("F"),
-              unit_price_usd: "10.0",
-              unit_price_base_amount: unit_base.to_s("F"),
-              unit_price_base_currency: "VES",
-            },
-          ],
-          payments: [
-            {
-              method: "cash",
-              amount: line_total.to_s("F"),
-              account_id: @cash_account.id,
-              currency: "VES",
-            },
-          ],
-        },
-      }, as: :json
+                   venta: {
+                     vat_mode: "none",
+                     vat_rate: "0.16",
+                     tasa_dolar: "40",
+                     base_currency: "VES",
+                     totals: {
+                       taxable_subtotal_base: line_total.to_s("F"),
+                       exento_subtotal_base: "0",
+                       vat_base: "0",
+                       total_base: line_total.to_s("F"),
+                     },
+                     items: [
+                       {
+                         item_type: "product",
+                         product_id: @product.id,
+                         variation_id: @variation.id,
+                         quantity: quantity.to_s("F"),
+                         unit_price_usd: "10.0",
+                         unit_price_base_amount: unit_base.to_s("F"),
+                         unit_price_base_currency: "VES",
+                       },
+                     ],
+                     payments: [
+                       {
+                         method: "cash",
+                         amount: line_total.to_s("F"),
+                         account_id: @cash_account.id,
+                         currency: "VES",
+                       },
+                     ],
+                   },
+                 }, as: :json
     end
 
     assert_response :created
@@ -1243,10 +1243,10 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     )
 
     get historial_productos_ventas_path, params: {
-      producto_query: "producto ventas",
-      fecha_desde: "2026-04-20",
-      fecha_hasta: "2026-04-21",
-    }
+                                       producto_query: "producto ventas",
+                                       fecha_desde: "2026-04-20",
+                                       fecha_hasta: "2026-04-21",
+                                     }
 
     assert_response :success
     assert_includes response.body, "Ver venta ##{matching_sale.id}"
