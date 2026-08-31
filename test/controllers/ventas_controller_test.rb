@@ -85,11 +85,15 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     drafts = payload.fetch("drafts")
     visibilities = drafts.map { |draft| draft.fetch("visibility") }
+    loss_recovery_setting = payload.fetch("loss_recovery_setting")
 
     assert payload.fetch("products").is_a?(Array)
     assert_equal 2, drafts.size
     assert_includes visibilities, "hidden"
     assert_includes visibilities, "visible"
+    assert_equal false, loss_recovery_setting.fetch("active")
+    assert loss_recovery_setting.key?("surcharge_percent")
+    assert loss_recovery_setting.key?("min_invoice_total_usd")
     assert_equal 7.to_d, stock_remaining_units
   end
 

@@ -1166,10 +1166,16 @@
         return Math.round(parsed * 100) / 100;
       };
 
+      const parseLossRecoveryNumber = (value, fallback = 0) => {
+        const normalized = String(value ?? '').replace(',', '.');
+        const parsed = Number.parseFloat(normalized);
+        return Number.isFinite(parsed) ? parsed : fallback;
+      };
+
       const bcvRate = parseRate(root.dataset.bcvRate);
-      const lossRecoveryActive = String(root.dataset.lossRecoveryActive || '').toLowerCase() === 'true';
-      const lossRecoveryPercent = Number(root.dataset.lossRecoveryPercent || 0);
-      const lossRecoveryMinUsd = Number(root.dataset.lossRecoveryMinUsd || 5);
+      let lossRecoveryActive = String(root.dataset.lossRecoveryActive || '').toLowerCase() === 'true';
+      let lossRecoveryPercent = parseLossRecoveryNumber(root.dataset.lossRecoveryPercent, 0);
+      let lossRecoveryMinUsd = parseLossRecoveryNumber(root.dataset.lossRecoveryMinUsd, 5);
 
       let baseCurrency = 'ves';
       const getBaseCurrencyInputs = () => Array.from(root.querySelectorAll('input[name="ventas-base-currency"]'));
@@ -1200,6 +1206,37 @@
       const roundTo = (value, digits = 2) => {
         const factor = 10 ** digits;
         return Math.round((Number(value) || 0) * factor) / factor;
+      };
+
+      const applyLossRecoverySetting = (setting, { render = false, syncDraft = false } = {}) => {
+        if (!setting || typeof setting !== 'object') return false;
+
+        const nextActive = setting.active === true;
+        const nextPercent = parseLossRecoveryNumber(setting.surcharge_percent, 0);
+        const nextMinUsd = parseLossRecoveryNumber(setting.min_invoice_total_usd, 5);
+        const hasChanged = nextActive !== lossRecoveryActive
+          || nextPercent !== lossRecoveryPercent
+          || nextMinUsd !== lossRecoveryMinUsd;
+
+        if (!hasChanged) return false;
+
+        lossRecoveryActive = nextActive;
+        lossRecoveryPercent = nextPercent;
+        lossRecoveryMinUsd = nextMinUsd;
+
+        root.dataset.lossRecoveryActive = lossRecoveryActive ? 'true' : 'false';
+        root.dataset.lossRecoveryPercent = String(lossRecoveryPercent);
+        root.dataset.lossRecoveryMinUsd = String(lossRecoveryMinUsd);
+
+        if (render) {
+          renderCart();
+        }
+
+        if (syncDraft && activeDraftId) {
+          queueActiveDraftSync();
+        }
+
+        return true;
       };
 
       const normalizeSearchValue = (value) =>
@@ -7827,6 +7864,10 @@
             syncProductsMap(data.products);
           }
 
+          if (Object.prototype.hasOwnProperty.call(data, 'loss_recovery_setting')) {
+            applyLossRecoverySetting(data.loss_recovery_setting, { render: false, syncDraft: false });
+          }
+
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
           if (draftSyncTimeout) {
             clearTimeout(draftSyncTimeout);
@@ -10703,6 +10744,10 @@
             syncProductsMap(data.products);
           }
 
+          if (Object.prototype.hasOwnProperty.call(data, 'loss_recovery_setting')) {
+            applyLossRecoverySetting(data.loss_recovery_setting, { render: false, syncDraft: false });
+          }
+
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
           const deletingActiveDraft = activeDraftId && String(activeDraftId) === safeId;
           if (deletingActiveDraft) {
@@ -11064,6 +11109,10 @@
             syncProductsMap(data.products);
           }
 
+          if (Object.prototype.hasOwnProperty.call(data, 'loss_recovery_setting')) {
+            applyLossRecoverySetting(data.loss_recovery_setting, { render: true, syncDraft: true });
+          }
+
           if (Array.isArray(data.drafts)) {
             drafts = data.drafts;
             renderDraftTags();
@@ -11393,6 +11442,10 @@
 
           if (Array.isArray(data.products)) {
             syncProductsMap(data.products);
+          }
+
+          if (Object.prototype.hasOwnProperty.call(data, 'loss_recovery_setting')) {
+            applyLossRecoverySetting(data.loss_recovery_setting, { render: false, syncDraft: false });
           }
 
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;

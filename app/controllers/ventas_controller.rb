@@ -177,12 +177,20 @@ class VentasController < ApplicationController
   end
 
   def drafts
-    return render json: { drafts: [], can_view_all_drafts: false, can_charge_sale: current_user_can_charge_sale_realtime? } if customer_sales_mode?
+    if customer_sales_mode?
+      return render json: {
+        drafts: [],
+        can_view_all_drafts: false,
+        can_charge_sale: current_user_can_charge_sale_realtime?,
+        loss_recovery_setting: loss_recovery_setting_payload_for_sales,
+      }
+    end
 
     render json: {
       drafts: drafts_payload,
       can_view_all_drafts: current_user_can_view_all_drafts?,
       can_charge_sale: current_user_can_charge_sale_realtime?,
+      loss_recovery_setting: loss_recovery_setting_payload_for_sales,
     }
   end
 
@@ -193,6 +201,7 @@ class VentasController < ApplicationController
       can_view_all_drafts: current_user_can_view_all_drafts?,
       can_charge_sale: current_user_can_charge_sale_realtime?,
       active_cashier: active_cashier_payload_for_sales,
+      loss_recovery_setting: loss_recovery_setting_payload_for_sales,
       generated_at: Time.current.to_i,
     }
   end
@@ -226,6 +235,7 @@ class VentasController < ApplicationController
       ),
       drafts: drafts_payload,
       products: products_payload_for_draft(@draft_venta),
+      loss_recovery_setting: loss_recovery_setting_payload_for_sales,
     }
   end
 
@@ -250,6 +260,7 @@ class VentasController < ApplicationController
       success: true,
       drafts: drafts_payload,
       products: products_payload_for_business,
+      loss_recovery_setting: loss_recovery_setting_payload_for_sales,
     }
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     render json: { error: e.message.presence || "No se pudo eliminar el borrador." }, status: :unprocessable_entity
@@ -2486,6 +2497,7 @@ class VentasController < ApplicationController
       ),
       drafts: drafts_payload,
       products: products_payload_for_business,
+      loss_recovery_setting: loss_recovery_setting_payload_for_sales,
     }
   end
 
@@ -2837,6 +2849,16 @@ class VentasController < ApplicationController
       .limit(120)
       .first(40)
       .map { |draft| draft_summary_payload(draft) }
+  end
+
+  def loss_recovery_setting_payload_for_sales
+    setting = current_business.loss_recovery_setting || current_business.build_loss_recovery_setting
+
+    {
+      active: setting.active?,
+      surcharge_percent: setting.surcharge_percent.to_d.to_f,
+      min_invoice_total_usd: setting.min_invoice_total_usd.to_d.to_f,
+    }
   end
 
   def draft_scope_for_current_user
