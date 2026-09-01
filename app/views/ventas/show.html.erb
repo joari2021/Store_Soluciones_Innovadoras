@@ -365,7 +365,7 @@
                     <span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600 ring-1 ring-slate-200"><%= item.variation_name.presence || item.product_variation&.description || 'Unica' %></span>
                   <% end %>
                 </td>
-                <td class="px-6 py-4 text-center font-semibold text-slate-700"><%= format_quantity(item.quantity, precision: 2) %></td>
+                <td class="px-6 py-4 text-center font-semibold text-slate-700"><%= format_sale_item_quantity(item.quantity, producto: item.producto) %></td>
                 <td class="px-6 py-4 text-right">
                   <span class="font-semibold text-slate-800"><%= format_money(unit_base, unit: base_symbol) %></span>
                   <div class="text-xs text-slate-400"><%= (base_is_ves || tasa.positive?) ? format_money(unit_alt, unit: alt_symbol) : '--' %></div>

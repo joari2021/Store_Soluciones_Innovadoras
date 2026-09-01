@@ -477,7 +477,7 @@
             </div>
           <% end %>
         </td>
-        <td class="text-center"><%= format_quantity(item.quantity, precision: 2) %></td>
+        <td class="text-center"><%= format_sale_item_quantity(item.quantity, producto: item.producto) %></td>
         <td class="text-right"><%= format_money(unit_base, unit: base_symbol) %></td>
         <td class="text-right"><%= format_money(subtotal_base, unit: base_symbol) %></td>
       </tr>

@@ -30,6 +30,18 @@ module ApplicationHelper
     )
   end
 
+  def format_sale_item_quantity(value, producto: nil)
+    is_kg = producto.respond_to?(:kg?) && producto.kg?
+
+    number_with_precision(
+      value || 0,
+      precision: is_kg ? 3 : 2,
+      separator: ',',
+      delimiter: '.',
+      strip_insignificant_zeros: !is_kg
+    )
+  end
+
   def account_movement_display_description(movement)
     description = movement.description.to_s.strip
     return 'Sin descripción' if description.blank?
