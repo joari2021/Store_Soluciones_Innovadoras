@@ -87,7 +87,16 @@ class Producto < ApplicationRecord
 
   def highest_active_lot_unit_cost_usd
     stock_lots
-      .select { |lot| lot.quantity_remaining.to_d.positive? }
+      .select do |lot|
+        variation_rows = lot.stock_lot_variations.to_a
+        available_quantity = if variation_rows.any?
+                               variation_rows.sum { |row| row.quantity_remaining.to_d }
+                             else
+                               lot.quantity_remaining.to_d
+                             end
+
+        available_quantity.positive?
+      end
       .map { |lot| lot.unit_cost_usd.to_d }
       .max
   end
