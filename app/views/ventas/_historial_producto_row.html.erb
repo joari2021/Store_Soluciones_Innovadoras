@@ -27,5 +27,5 @@
       Ver venta #<%= sold_item.venta_id %>
     <% end %>
   </td>
-  <td class="px-6 py-4 text-right font-semibold text-slate-800"><%= number_with_precision(sold_item.quantity.to_d, precision: 4, strip_insignificant_zeros: true) %></td>
+  <td class="px-6 py-4 text-right font-semibold text-slate-800"><%= format_sale_item_quantity(sold_item.quantity, producto: product) %></td>
 </tr>

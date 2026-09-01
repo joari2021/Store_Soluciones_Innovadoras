@@ -10,7 +10,7 @@
     <ul class="list-disc pl-5 text-xs text-slate-700">
       <% venta.venta_items.limit(5).each do |item| %>
         <% item_name = item.product_name.presence || item.producto&.descripcion || 'Producto' %>
-        <% item_qty = item.quantity.to_d %>
+        <% item_qty = format_sale_item_quantity(item.quantity, producto: item.producto) %>
         <% item_subtotal = item.subtotal_usd.to_d %>
         <li><%= item_name %> x <%= item_qty %> - <%= number_to_currency(item_subtotal, unit: '$') %></li>
       <% end %>

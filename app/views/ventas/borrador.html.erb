@@ -65,7 +65,7 @@
                 <p class="font-semibold text-slate-800"><%= item.product_name.presence || item.producto&.descripcion || 'Item' %></p>
               </td>
               <td class="px-6 py-4 text-slate-600"><%= item.variation_name.presence || item.product_variation&.description || '-' %></td>
-              <td class="px-6 py-4 text-right font-semibold text-slate-700"><%= format_quantity(item.quantity, precision: 2) %></td>
+              <td class="px-6 py-4 text-right font-semibold text-slate-700"><%= format_sale_item_quantity(item.quantity, producto: item.producto) %></td>
               <td class="px-6 py-4 text-right text-slate-700"><%= format_money(item.unit_price_usd.to_d, unit: '$') %></td>
               <td class="px-6 py-4 text-right font-semibold text-slate-800"><%= format_money(item.subtotal_usd.to_d, unit: '$') %></td>
             </tr>
