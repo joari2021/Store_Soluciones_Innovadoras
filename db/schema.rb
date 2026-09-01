@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_01_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -611,8 +611,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
 
   create_table "pack_unwrap_items", force: :cascade do |t|
     t.bigint "pack_unwrap_id", null: false
-    t.bigint "source_product_variation_id", null: false
-    t.bigint "destination_product_variation_id", null: false
+    t.bigint "source_product_variation_id"
+    t.bigint "destination_product_variation_id"
     t.bigint "source_stock_lot_id", null: false
     t.bigint "destination_stock_lot_id", null: false
     t.decimal "packs_opened", precision: 12, scale: 2, null: false
@@ -621,6 +621,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
     t.decimal "destination_unit_cost_usd", precision: 12, scale: 2, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "source_variation_name"
+    t.string "destination_variation_name"
     t.index ["destination_product_variation_id"], name: "index_pack_unwrap_items_on_destination_product_variation_id"
     t.index ["destination_stock_lot_id"], name: "index_pack_unwrap_items_on_destination_stock_lot_id"
     t.index ["pack_unwrap_id"], name: "index_pack_unwrap_items_on_pack_unwrap_id"
@@ -681,7 +683,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   create_table "product_usages", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.bigint "producto_id", null: false
-    t.bigint "product_variation_id", null: false
+    t.bigint "product_variation_id"
     t.bigint "user_id", null: false
     t.decimal "quantity", precision: 14, scale: 3, null: false
     t.date "used_on", null: false
@@ -689,6 +691,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "stock_lot_breakdown", default: [], null: false
+    t.string "variation_name"
     t.index ["business_id", "used_on"], name: "index_product_usages_on_business_id_and_used_on"
     t.index ["business_id"], name: "index_product_usages_on_business_id"
     t.index ["product_variation_id"], name: "index_product_usages_on_product_variation_id"
@@ -764,6 +767,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "lot_breakdown", default: []
+    t.string "variation_name"
     t.index ["lot_breakdown"], name: "index_recovery_invoice_items_on_lot_breakdown", using: :gin
     t.index ["product_variation_id"], name: "index_recovery_invoice_items_on_product_variation_id"
     t.index ["producto_id"], name: "index_recovery_invoice_items_on_producto_id"
@@ -1235,8 +1239,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   add_foreign_key "loss_recovery_entries", "ventas"
   add_foreign_key "loss_recovery_settings", "businesses"
   add_foreign_key "pack_unwrap_items", "pack_unwraps"
-  add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id"
-  add_foreign_key "pack_unwrap_items", "product_variations", column: "source_product_variation_id"
+  add_foreign_key "pack_unwrap_items", "product_variations", column: "destination_product_variation_id", on_delete: :nullify
+  add_foreign_key "pack_unwrap_items", "product_variations", column: "source_product_variation_id", on_delete: :nullify
   add_foreign_key "pack_unwrap_items", "stock_lots", column: "destination_stock_lot_id"
   add_foreign_key "pack_unwrap_items", "stock_lots", column: "source_stock_lot_id"
   add_foreign_key "pack_unwraps", "businesses"
@@ -1245,7 +1249,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   add_foreign_key "pack_unwraps", "users"
   add_foreign_key "peliculas", "users"
   add_foreign_key "product_usages", "businesses"
-  add_foreign_key "product_usages", "product_variations"
+  add_foreign_key "product_usages", "product_variations", on_delete: :nullify
   add_foreign_key "product_usages", "productos"
   add_foreign_key "product_usages", "users"
   add_foreign_key "product_variations", "productos"
@@ -1257,7 +1261,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   add_foreign_key "profit_margin_presets", "businesses"
   add_foreign_key "rankings", "peliculas"
   add_foreign_key "rankings", "plataforma_peliculas"
-  add_foreign_key "recovery_invoice_items", "product_variations"
+  add_foreign_key "recovery_invoice_items", "product_variations", on_delete: :nullify
   add_foreign_key "recovery_invoice_items", "productos"
   add_foreign_key "recovery_invoice_items", "recovery_invoices"
   add_foreign_key "recovery_invoices", "businesses"
@@ -1274,7 +1278,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   add_foreign_key "service_print_material_surcharges", "productos"
   add_foreign_key "service_print_material_surcharges", "services"
   add_foreign_key "service_print_volume_discounts", "services"
-  add_foreign_key "service_product_expenses", "product_variations"
+  add_foreign_key "service_product_expenses", "product_variations", on_delete: :nullify
   add_foreign_key "service_product_expenses", "productos"
   add_foreign_key "service_product_expenses", "service_expense_structures"
   add_foreign_key "service_variable_expenses", "service_expense_structures"
@@ -1282,7 +1286,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   add_foreign_key "services", "service_print_material_surcharges", column: "print_delivery_material_surcharge_id"
   add_foreign_key "services", "services", column: "print_delivery_service_id"
   add_foreign_key "services", "system_services"
-  add_foreign_key "stock_lot_variations", "product_variations"
+  add_foreign_key "stock_lot_variations", "product_variations", on_delete: :nullify
   add_foreign_key "stock_lot_variations", "stock_lots"
   add_foreign_key "stock_lots", "factura_items"
   add_foreign_key "stock_lots", "productos"
@@ -1293,7 +1297,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_26_100000) do
   add_foreign_key "suppliers", "businesses"
   add_foreign_key "suppliers", "global_suppliers"
   add_foreign_key "users", "businesses"
-  add_foreign_key "venta_items", "product_variations"
+  add_foreign_key "venta_items", "product_variations", on_delete: :nullify
   add_foreign_key "venta_items", "productos"
   add_foreign_key "venta_items", "ventas"
   add_foreign_key "venta_payments", "accounts"

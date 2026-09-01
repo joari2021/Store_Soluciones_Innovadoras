@@ -1,7 +1,7 @@
 class PackUnwrapItem < ApplicationRecord
   belongs_to :pack_unwrap
-  belongs_to :source_product_variation, class_name: 'ProductVariation'
-  belongs_to :destination_product_variation, class_name: 'ProductVariation'
+  belongs_to :source_product_variation, class_name: 'ProductVariation', optional: true
+  belongs_to :destination_product_variation, class_name: 'ProductVariation', optional: true
   belongs_to :source_stock_lot, class_name: 'StockLot'
   belongs_to :destination_stock_lot, class_name: 'StockLot'
 

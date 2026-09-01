@@ -1,7 +1,7 @@
 class ProductUsage < ApplicationRecord
   belongs_to :business
   belongs_to :producto
-  belongs_to :product_variation
+  belongs_to :product_variation, optional: true
   belongs_to :user
 
   attribute :stock_lot_breakdown, :json, default: []
