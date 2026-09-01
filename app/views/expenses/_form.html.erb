@@ -81,8 +81,8 @@
       </div>
     </div>
   </div>
-  <% if programming_visible %>
-    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" data-expense-programming-section="true">
+  <% if @expense.new_record? || programming_visible %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm <%= programming_visible ? '' : 'hidden' %>" data-expense-programming-section="true">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Programacion</p>
       <%= hidden_field_tag 'expense[programming_edited]', '0', data: { expense_programming_edited: true } %>
       <div class="mt-4 grid gap-4 md:grid-cols-2">
