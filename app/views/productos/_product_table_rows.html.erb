@@ -105,7 +105,7 @@
     <% end %>
   <% end %>
   <% can_expand = variations.any? %>
-  <% initial_cost_usd = sorted_lots.last&.unit_cost_usd %>
+  <% initial_cost_usd = producto.highest_active_lot_unit_cost_usd %>
   <% product_total_inventory_value = variation_groups.sum { |_variation, group| group[:total_value].to_d } %>
   <% product_total_quantity = producto.total_quantity.to_d %>
   <% product_sale_price_usd = producto.precio_venta_usd.to_d %>
