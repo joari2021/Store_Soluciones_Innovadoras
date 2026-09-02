@@ -420,14 +420,8 @@ class CashShiftsController < ApplicationController
   def ensure_can_close_shift!
     return unless @cash_shift.open?
     return if current_user_admin? || current_user_manager?
-    return if @cash_shift.active_cashier_id.present? && @cash_shift.active_cashier_id == Current.user&.id
 
-    active_cashier = @cash_shift.active_cashier
-    cashier_name = active_cashier&.display_name.presence || "el cajero activo del turno"
-    cashier_role = active_cashier&.role_label.to_s.strip.presence
-    role_suffix = cashier_role.present? ? " (#{cashier_role})" : ""
-
-    redirect_to cash_shift_path(@cash_shift), alert: "Este turno solo puede ser cerrado por #{cashier_name}#{role_suffix}."
+    redirect_to cash_shift_path(@cash_shift), alert: "Solo un encargado o administrador puede cerrar este turno."
   end
 
   def ensure_can_manage_cash_shifts!
