@@ -80,15 +80,26 @@ class ServicesController < ApplicationController
   end
 
   def printing_prices
-    @printing_services = current_business
-                         .services
-                         .includes(:system_service, :service_print_coverage_prices,
-                                   :service_print_volume_discounts,
-                                   service_print_material_surcharges: :producto)
-                         .printing_type_candidates
-                         .order(:description)
+    @supports_print_coverage_prices = ServicePrintCoveragePrice.table_exists?
+    @supports_print_volume_discounts = ServicePrintVolumeDiscount.table_exists?
+    @supports_print_material_surcharges = ServicePrintMaterialSurcharge.table_exists?
 
-    @products_for_expenses = current_business.productos.includes(:product_variations).order(:descripcion)
+    services_scope = current_business
+                     .services
+                     .includes(:system_service)
+                     .printing_type_candidates
+                     .order(:description)
+
+    services_scope = services_scope.includes(:service_print_coverage_prices) if @supports_print_coverage_prices
+    services_scope = services_scope.includes(:service_print_volume_discounts) if @supports_print_volume_discounts
+    services_scope = services_scope.includes(service_print_material_surcharges: :producto) if @supports_print_material_surcharges
+
+    @printing_services = services_scope
+    @products_for_expenses = if @supports_print_material_surcharges
+                               current_business.productos.includes(:product_variations).order(:descripcion)
+                             else
+                               []
+                             end
     rate = @tasa_dolar_bcv.is_a?(Numeric) ? @tasa_dolar_bcv.to_d : 0.to_d
     @service_expenses_bcv_rate = rate.positive? ? rate : TasaCambio.latest_value('Dolar BCV').to_d
   end
@@ -943,15 +954,20 @@ class ServicesController < ApplicationController
   end
 
   def printing_prices_params
+    material_fields = %i[id producto_id description surcharge_percent _destroy]
+    material_fields << :required_quantity if ServicePrintMaterialSurcharge.column_names.include?('required_quantity')
+    material_fields << :include_product_price_in_sale if ServicePrintMaterialSurcharge.column_names.include?('include_product_price_in_sale')
+
+    volume_discount_fields = %i[id min_quantity discount_percent _destroy]
+    coverage_fields = %i[id coverage_percent price_bs _destroy]
+
     params
       .require(:service)
       .permit(
         :print_sale_description,
-        service_print_coverage_prices_attributes: %i[id coverage_percent price_bs _destroy],
-        service_print_volume_discounts_attributes: %i[id min_quantity discount_percent _destroy],
-        service_print_material_surcharges_attributes: %i[id producto_id description surcharge_percent
-                                                         required_quantity
-                                                         include_product_price_in_sale _destroy]
+        service_print_coverage_prices_attributes: coverage_fields,
+        service_print_volume_discounts_attributes: volume_discount_fields,
+        service_print_material_surcharges_attributes: material_fields
       )
   end
 

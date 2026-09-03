@@ -1,4 +1,6 @@
 <div class="relative rounded-xl border border-slate-200 bg-white p-3 pr-12" data-print-material-surcharge-row data-nested-row>
+  <% supports_required_quantity = f.object.class.column_names.include?('required_quantity') %>
+  <% supports_include_product_price = f.object.class.column_names.include?('include_product_price_in_sale') %>
   <%= f.hidden_field :_destroy, data: { destroy_input: true } %>
   <%= f.hidden_field :id %>
   <%= f.select :producto_id,
@@ -46,9 +48,10 @@
                        value: (f.object.surcharge_percent.present? ? format_money(f.object.surcharge_percent, unit: '%') : '') %>
       <p class="mt-1 text-xs text-slate-500">Recargo adicional aplicado a este material.</p>
     </div>
+    <% if supports_required_quantity %>
     <div>
       <%= f.label :required_quantity, 'Cantidad', class: 'block text-xs font-semibold uppercase tracking-wide text-slate-500' %>
-      <% raw_required_quantity = f.object.respond_to?(:required_quantity) ? f.object.required_quantity.to_d : 1.to_d %>
+      <% raw_required_quantity = f.object.required_quantity.to_d %>
       <% selected_required_quantity = case raw_required_quantity
                                       when 0.25.to_d then '0.25'
                                       when 0.5.to_d then '0.5'
@@ -64,12 +67,15 @@
                    class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
       <p class="mt-1 text-xs text-slate-500">Stock descontado por impresion para este material.</p>
     </div>
+    <% end %>
   </div>
+  <% if supports_include_product_price %>
   <label class="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-700">
     <%= f.check_box :include_product_price_in_sale,
                     class: 'h-4 w-4 cursor-pointer rounded border-cyan-300 text-cyan-600 focus:ring-cyan-500' %>
     Sumar precio del producto material al precio final de cada impresion
   </label>
+  <% end %>
   <button type="button"
           class="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100"
           data-remove-print-material-surcharge-row>
