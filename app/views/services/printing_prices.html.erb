@@ -57,83 +57,83 @@
               <p class="mt-1 text-xs text-slate-500">Este texto se mostrara en el panel de cobro y en la factura/show de ventas.</p>
             </div>
             <% if @supports_print_coverage_prices %>
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Coberturas</p>
-                <p class="mt-1 text-xs text-slate-500">Define porcentaje y precio base en Bs.</p>
-              </div>
-              <button type="button"
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-widest text-slate-500">Coberturas</p>
+                  <p class="mt-1 text-xs text-slate-500">Define porcentaje y precio base en Bs.</p>
+                </div>
+                <button type="button"
                       class="inline-flex items-center gap-1 rounded-lg bg-cyan-100 px-2.5 py-1.5 text-xs font-semibold text-cyan-700 hover:bg-cyan-200"
                       data-add-print-coverage-row>
-                Agregar
-              </button>
-            </div>
-            <div class="mt-3 space-y-2" data-print-coverage-container>
-              <% sorted_coverage_prices = service.service_print_coverage_prices.sort_by { |row| [row.price_bs.to_d, row.coverage_percent.to_d, row.id.to_i] } %>
-              <%= form.fields_for :service_print_coverage_prices, sorted_coverage_prices do |coverage_fields| %>
-                <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-print-coverage-row>
-                  <%= coverage_fields.hidden_field :id %>
-                  <%= coverage_fields.hidden_field :_destroy, value: '0', data: { destroy_input: true } %>
-                  <div>
-                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
-                    <%= coverage_fields.text_field :coverage_percent,
+                  Agregar
+                </button>
+              </div>
+              <div class="mt-3 space-y-2" data-print-coverage-container>
+                <% sorted_coverage_prices = service.service_print_coverage_prices.sort_by { |row| [row.price_bs.to_d, row.coverage_percent.to_d, row.id.to_i] } %>
+                <%= form.fields_for :service_print_coverage_prices, sorted_coverage_prices do |coverage_fields| %>
+                  <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-print-coverage-row>
+                    <%= coverage_fields.hidden_field :id %>
+                    <%= coverage_fields.hidden_field :_destroy, value: '0', data: { destroy_input: true } %>
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
+                      <%= coverage_fields.text_field :coverage_percent,
                                                    autocomplete: 'off',
                                                    inputmode: 'decimal',
                                                    class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
                                                    data: { money_mask: true, money_symbol: '%' },
                                                    value: (coverage_fields.object.coverage_percent.present? ? format_money(coverage_fields.object.coverage_percent, unit: '%') : '') %>
-                  </div>
-                  <div>
-                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio (Bs)</label>
-                    <%= coverage_fields.text_field :price_bs,
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio (Bs)</label>
+                      <%= coverage_fields.text_field :price_bs,
                                                    autocomplete: 'off',
                                                    class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
                                                    data: { money_mask: true, money_symbol: 'Bs' } %>
-                  </div>
-                  <button type="button"
+                    </div>
+                    <button type="button"
                           class="self-center inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
                           data-remove-print-coverage-row
                           title="Eliminar cobertura"
                           aria-label="Eliminar cobertura">
-                    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
-                  </button>
-                </div>
-              <% end %>
-            </div>
-            <template data-print-coverage-template data-placeholder="NEW_PRINT_COVERAGE">
-              <%= form.fields_for :service_print_coverage_prices, ServicePrintCoveragePrice.new, child_index: 'NEW_PRINT_COVERAGE' do |coverage_fields| %>
-                <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-print-coverage-row>
-                  <%= coverage_fields.hidden_field :id %>
-                  <%= coverage_fields.hidden_field :_destroy, value: '0', data: { destroy_input: true } %>
-                  <div>
-                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
-                    <%= coverage_fields.text_field :coverage_percent,
+                      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                    </button>
+                  </div>
+                <% end %>
+              </div>
+              <template data-print-coverage-template data-placeholder="NEW_PRINT_COVERAGE">
+                <%= form.fields_for :service_print_coverage_prices, ServicePrintCoveragePrice.new, child_index: 'NEW_PRINT_COVERAGE' do |coverage_fields| %>
+                  <div class="grid gap-2 rounded-xl border border-slate-200 bg-white p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]" data-print-coverage-row>
+                    <%= coverage_fields.hidden_field :id %>
+                    <%= coverage_fields.hidden_field :_destroy, value: '0', data: { destroy_input: true } %>
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Cobertura (%)</label>
+                      <%= coverage_fields.text_field :coverage_percent,
                                                    autocomplete: 'off',
                                                    inputmode: 'decimal',
                                                    class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
                                                    data: { money_mask: true, money_symbol: '%' } %>
-                  </div>
-                  <div>
-                    <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio (Bs)</label>
-                    <%= coverage_fields.text_field :price_bs,
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Precio (Bs)</label>
+                      <%= coverage_fields.text_field :price_bs,
                                                    autocomplete: 'off',
                                                    class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700',
                                                    data: { money_mask: true, money_symbol: 'Bs' } %>
-                  </div>
-                  <button type="button"
+                    </div>
+                    <button type="button"
                           class="self-center inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100"
                           data-remove-print-coverage-row
                           title="Eliminar cobertura"
                           aria-label="Eliminar cobertura">
-                    <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
-                  </button>
-                </div>
-              <% end %>
-            </template>
+                      <i data-lucide="trash-2" class="h-3.5 w-3.5"></i>
+                    </button>
+                  </div>
+                <% end %>
+              </template>
             <% else %>
-            <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              La tabla de coberturas de impresion no esta disponible en este entorno. Ejecuta migraciones para habilitar esta seccion.
-            </div>
+              <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                La tabla de coberturas de impresion no esta disponible en este entorno. Ejecuta migraciones para habilitar esta seccion.
+              </div>
             <% end %>
           </div>
           <% if @supports_print_volume_discounts %>

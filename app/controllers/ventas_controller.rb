@@ -1283,7 +1283,7 @@ class VentasController < ApplicationController
     begin
       Venta.transaction do
         if source_draft
-          restore_stock_for_sale!(source_draft, strict: false)
+          restore_stock_for_sale!(source_draft, strict: true)
           relabel_payall_draft_movements!(source_draft, venta)
           purge_source_draft_sale!(source_draft)
         end
@@ -1679,7 +1679,7 @@ class VentasController < ApplicationController
 
   def destroy_draft_record!(draft)
     Venta.transaction do
-      restore_stock_for_sale!(draft, strict: false)
+      restore_stock_for_sale!(draft, strict: true)
       delete_payall_draft_movements!(draft)
       draft.destroy!
     end
@@ -2033,7 +2033,7 @@ class VentasController < ApplicationController
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.variation_row_for(variation_id, create_if_missing: true)
+      row = lot.variation_row_for(variation_id, create_if_missing: false)
       next unless row
 
       current_remaining = row.quantity_remaining.to_d
@@ -2234,7 +2234,7 @@ class VentasController < ApplicationController
     begin
       Venta.transaction do
         if draft.persisted?
-          restore_stock_for_sale!(draft, strict: false)
+          restore_stock_for_sale!(draft, strict: true)
           draft.venta_items.destroy_all
           draft.venta_payments.destroy_all
         end
@@ -2959,15 +2959,15 @@ class VentasController < ApplicationController
             "item_type" => "product",
             "product_id" => item.producto_id,
             "variation_id" => item.product_variation_id,
-            "quantity" => item.quantity.to_d.to_f,
-            "unit_price_usd" => item.unit_price_usd.to_d.to_f,
+            "quantity" => note_decimal_string(item.quantity),
+            "unit_price_usd" => note_decimal_string(item.unit_price_usd, precision: 6),
           }
         else
           {
             "item_type" => "service",
             "service_id" => nil,
-            "quantity" => item.quantity.to_d.to_f,
-            "unit_price_usd" => item.unit_price_usd.to_d.to_f,
+            "quantity" => note_decimal_string(item.quantity),
+            "unit_price_usd" => note_decimal_string(item.unit_price_usd, precision: 6),
           }
         end
       end,
@@ -2988,6 +2988,14 @@ class VentasController < ApplicationController
 
     compacted = payload.compact
     compacted.empty? ? nil : compacted.to_json
+  end
+
+  def note_decimal_string(value, precision: nil)
+    return nil if value.nil?
+
+    decimal = value.to_d
+    decimal = decimal.round(precision) if precision.present?
+    decimal.to_s('F')
   end
 
   def reserve_product_stock_for_sale!(venta)
@@ -3012,8 +3020,8 @@ class VentasController < ApplicationController
           "product_id" => producto_id,
           "variation_id" => variation_id,
           "stock_lot_id" => entry[:stock_lot_id],
-          "quantity" => entry[:quantity].to_d.to_f,
-          "unit_cost_usd" => entry[:unit_cost_usd].to_d.to_f,
+          "quantity" => note_decimal_string(entry[:quantity]),
+          "unit_cost_usd" => note_decimal_string(entry[:unit_cost_usd], precision: 6),
         }
       end
     end
@@ -3059,8 +3067,8 @@ class VentasController < ApplicationController
           "product_id" => producto_id,
           "variation_id" => variation_id,
           "stock_lot_id" => entry[:stock_lot_id],
-          "quantity" => entry[:quantity].to_d.to_f,
-          "unit_cost_usd" => entry[:unit_cost_usd].to_d.to_f,
+          "quantity" => note_decimal_string(entry[:quantity]),
+          "unit_cost_usd" => note_decimal_string(entry[:unit_cost_usd], precision: 6),
         }
       end
     end
@@ -3246,7 +3254,7 @@ class VentasController < ApplicationController
             "No se encontro el lote ##{stock_lot_id} para restaurar stock de la venta ##{venta.id}."
     end
 
-    row = lot.variation_row_for(variation_id, create_if_missing: true)
+    row = lot.variation_row_for(variation_id, create_if_missing: false)
     if row.blank?
       return false unless strict
 
@@ -3603,7 +3611,7 @@ class VentasController < ApplicationController
       {
         "product_id" => producto_id,
         "variation_id" => variation_id,
-        "quantity" => grouped_items.sum { |row| row.quantity.to_d }.to_d.to_f,
+        "quantity" => note_decimal_string(grouped_items.sum { |row| row.quantity.to_d }),
       }
     end
       .select { |row| row["quantity"].to_d.positive? }
