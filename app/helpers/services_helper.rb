@@ -134,6 +134,15 @@ module ServicesHelper
     )
   end
 
+  def print_material_products_options_for_select(products:, selected_id: nil)
+    options_for_select(
+      products.map do |product|
+        [product.descripcion.to_s, product.id]
+      end,
+      selected_id
+    )
+  end
+
   def product_variation_options_for_select(product:, selected_id: nil)
     return options_for_select([], selected_id) unless product
 

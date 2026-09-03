@@ -96,7 +96,7 @@ class ServicesController < ApplicationController
 
     @printing_services = services_scope
     @products_for_expenses = if @supports_print_material_surcharges
-                               current_business.productos.includes(:product_variations).order(:descripcion)
+                               current_business.productos.select(:id, :descripcion).order(:descripcion)
                              else
                                []
                              end
