@@ -105,10 +105,14 @@ class ServicesController < ApplicationController
   end
 
   def update_printing_prices
-    service = current_business
-              .services
-              .includes(:system_service, :service_print_coverage_prices, :service_print_material_surcharges)
-              .find(params[:id])
+    service_scope = current_business
+                    .services
+                    .includes(:system_service)
+
+    service_scope = service_scope.includes(:service_print_coverage_prices) if ServicePrintCoveragePrice.table_exists?
+    service_scope = service_scope.includes(:service_print_material_surcharges) if ServicePrintMaterialSurcharge.table_exists?
+
+    service = service_scope.find(params[:id])
 
     unless service.printing_type_service?
       return redirect_to printing_prices_services_path,
@@ -954,12 +958,15 @@ class ServicesController < ApplicationController
   end
 
   def printing_prices_params
-    material_fields = %i[id producto_id description surcharge_percent _destroy]
-    material_fields << :required_quantity if ServicePrintMaterialSurcharge.column_names.include?('required_quantity')
-    material_fields << :include_product_price_in_sale if ServicePrintMaterialSurcharge.column_names.include?('include_product_price_in_sale')
+    material_fields = []
+    if ServicePrintMaterialSurcharge.table_exists?
+      material_fields = %i[id producto_id description surcharge_percent _destroy]
+      material_fields << :required_quantity if ServicePrintMaterialSurcharge.column_names.include?('required_quantity')
+      material_fields << :include_product_price_in_sale if ServicePrintMaterialSurcharge.column_names.include?('include_product_price_in_sale')
+    end
 
-    volume_discount_fields = %i[id min_quantity discount_percent _destroy]
-    coverage_fields = %i[id coverage_percent price_bs _destroy]
+    volume_discount_fields = ServicePrintVolumeDiscount.table_exists? ? %i[id min_quantity discount_percent _destroy] : []
+    coverage_fields = ServicePrintCoveragePrice.table_exists? ? %i[id coverage_percent price_bs _destroy] : []
 
     params
       .require(:service)
