@@ -952,38 +952,27 @@ class ProductosController < ApplicationController
             "No se pudo restaurar en el lote ##{stock_lot.id}: variacion no encontrada."
     end
 
-    current_remaining = row.quantity_remaining.to_d
-    max_quantity = row.quantity_in.to_d
-    available_capacity = max_quantity - current_remaining
-
-    if quantity_units.to_d > available_capacity
+    restored = stock_lot.restore_variation_units!(
+      variation_id: variation_id,
+      quantity_units: quantity_units,
+    )
+    if quantity_units.to_d > restored
       return unless strict
 
       raise ActiveRecord::RecordInvalid.new(usage),
             "No se pudo restaurar en el lote ##{stock_lot.id}: capacidad insuficiente para revertir #{quantity_units.to_f.round(4)} unidad(es)."
     end
-
-    row.update!(quantity_remaining: current_remaining + quantity_units.to_d)
-    stock_lot.sync_quantity_remaining_from_variations!
   end
 
   def restore_variation_units_fifo!(producto:, variation_id:, quantity_units:, usage:, strict: true)
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.variation_row_for(variation_id, create_if_missing: true)
-      next unless row
-
-      current_remaining = row.quantity_remaining.to_d
-      max_quantity = row.quantity_in.to_d
-      available_capacity = max_quantity - current_remaining
-      next unless available_capacity.positive?
-
-      restored = [available_capacity, remaining_to_restore].min
+      restored = lot.restore_variation_units!(
+        variation_id: variation_id,
+        quantity_units: remaining_to_restore,
+      )
       next unless restored.positive?
-
-      row.update!(quantity_remaining: current_remaining + restored)
-      lot.sync_quantity_remaining_from_variations!
 
       remaining_to_restore -= restored
       break if remaining_to_restore <= 0

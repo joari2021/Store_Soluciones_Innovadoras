@@ -151,11 +151,13 @@ class LossRecoveriesController < ApplicationController
 
           raise ActiveRecord::RecordNotFound, "No se encuentra la variación en el lote #{lot.id}." unless row
 
-          # add back the consumed quantity
-          row.quantity_remaining = row.quantity_remaining.to_d + BigDecimal(entry['quantity'].to_s)
-          row.save!
-
-          lot.sync_quantity_remaining_from_variations!
+          restored = lot.restore_variation_units!(
+            variation_id: item.product_variation_id,
+            quantity_units: BigDecimal(entry['quantity'].to_s),
+          )
+          if restored < BigDecimal(entry['quantity'].to_s)
+            raise ActiveRecord::RecordInvalid.new(invoice), "No hay capacidad suficiente para restaurar el lote #{lot.id}."
+          end
         end
       end
 

@@ -1351,19 +1351,11 @@ class ServicesController < ApplicationController
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.variation_row_for(variation_id, create_if_missing: true)
-      next unless row
-
-      current_remaining = row.quantity_remaining.to_d
-      max_quantity = row.quantity_in.to_d
-      available_capacity = max_quantity - current_remaining
-      next unless available_capacity.positive?
-
-      restored = [available_capacity, remaining_to_restore].min
+      restored = lot.restore_variation_units!(
+        variation_id: variation_id,
+        quantity_units: remaining_to_restore,
+      )
       next unless restored.positive?
-
-      row.update!(quantity_remaining: current_remaining + restored)
-      lot.sync_quantity_remaining_from_variations!
 
       remaining_to_restore -= restored
       break if remaining_to_restore <= 0

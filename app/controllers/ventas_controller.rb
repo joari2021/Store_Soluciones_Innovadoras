@@ -2034,19 +2034,11 @@ class VentasController < ApplicationController
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.variation_row_for(variation_id, create_if_missing: true)
-      next unless row
-
-      current_remaining = row.quantity_remaining.to_d
-      max_quantity = row.quantity_in.to_d
-      available_capacity = max_quantity - current_remaining
-      next unless available_capacity.positive?
-
-      restored = [available_capacity, remaining_to_restore].min
+      restored = lot.restore_variation_units!(
+        variation_id: variation_id,
+        quantity_units: remaining_to_restore,
+      )
       next unless restored.positive?
-
-      row.update!(quantity_remaining: current_remaining + restored)
-      lot.sync_quantity_remaining_from_variations!
 
       remaining_to_restore -= restored
       break if remaining_to_restore <= 0
@@ -3264,19 +3256,17 @@ class VentasController < ApplicationController
             "No se encontro la variacion para restaurar en el lote ##{lot.id} de la venta ##{venta.id}."
     end
 
-    current_remaining = row.quantity_remaining.to_d
-    max_quantity = row.quantity_in.to_d
-    available_capacity = max_quantity - current_remaining
-
-    if quantity_units.to_d > available_capacity
+    restored = lot.restore_variation_units!(
+      variation_id: variation_id,
+      quantity_units: quantity_units,
+    )
+    if quantity_units.to_d > restored
       return false unless strict
 
       raise ActiveRecord::RecordInvalid.new(venta),
             "No se pudo restaurar en el lote ##{lot.id} toda la cantidad de la venta ##{venta.id}."
     end
 
-    row.update!(quantity_remaining: current_remaining + quantity_units.to_d)
-    lot.sync_quantity_remaining_from_variations!
     true
   end
 

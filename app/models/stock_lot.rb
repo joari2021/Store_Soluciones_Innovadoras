@@ -33,16 +33,16 @@ class StockLot < ApplicationRecord
     requested = quantity_units.to_d
     return 0.to_d if requested <= 0
 
-    row = variation_row_for(variation_id, create_if_missing: true)
-    return 0.to_d unless row
-
     consumed = 0.to_d
 
-    transaction do
+    with_lock do
+      row = variation_row_for(variation_id, create_if_missing: true)
+      next unless row
+
       row.lock!
       available = row.quantity_remaining.to_d
       consumed = [available, requested].min
-      break if consumed <= 0
+      next if consumed <= 0
 
       row.quantity_remaining = available - consumed
       row.save!
@@ -51,6 +51,27 @@ class StockLot < ApplicationRecord
     end
 
     consumed
+  end
+
+  def restore_variation_units!(variation_id:, quantity_units:)
+    requested = quantity_units.to_d
+    return 0.to_d unless requested.positive?
+
+    restored = 0.to_d
+    with_lock do
+      row = variation_row_for(variation_id, create_if_missing: true)
+      next unless row
+
+      row.lock!
+      available_capacity = row.quantity_in.to_d - row.quantity_remaining.to_d
+      restored = [available_capacity, requested].min
+      next unless restored.positive?
+
+      row.update!(quantity_remaining: row.quantity_remaining.to_d + restored)
+      sync_quantity_remaining_from_variations!
+    end
+
+    restored
   end
 
   def variation_row_for(variation_id, create_if_missing: false)
