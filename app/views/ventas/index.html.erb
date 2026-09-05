@@ -914,6 +914,7 @@
       let draftSyncedFingerprint = null;
       let draftSyncInProgress = false;
       let draftLoadInProgress = false;
+      let draftLoadRequestSequence = 0;
       let autoDraftWarningShown = false;
       let liveProductsSyncInterval = null;
       let liveProductsSyncInFlight = false;
@@ -11512,6 +11513,9 @@
         const safeId = String(draftId || '').trim();
         if (!safeId) return;
 
+        const requestSequence = ++draftLoadRequestSequence;
+        const isLatestDraftLoad = () => requestSequence === draftLoadRequestSequence;
+
         const previousDraftId = activeDraftId;
         const previousDraftCreatedById = activeDraftCreatedById;
         const previousDraftVisibility = activeDraftVisibility;
@@ -11529,6 +11533,8 @@
             credentials: 'same-origin',
           });
           const data = await response.json().catch(() => ({}));
+
+          if (!isLatestDraftLoad()) return;
 
           if (Array.isArray(data.products)) {
             syncProductsMap(data.products);
@@ -11561,8 +11567,12 @@
           failedStage = 'resolucion de servicios';
           await ensureServicesForDraft(draft);
 
+          if (!isLatestDraftLoad()) return;
+
           failedStage = 'hidratacion del carrito';
           hydrateDraftCart(draft);
+
+          if (!isLatestDraftLoad()) return;
 
           activeDraftId = String(draft.id || safeId);
           activeDraftLockToken = String(draft.lock_token || knownLockToken || '');
@@ -11602,6 +11612,7 @@
             });
           }
         } catch (error) {
+          if (!isLatestDraftLoad()) return;
           activeDraftId = previousDraftId;
           activeDraftCreatedById = previousDraftCreatedById;
           activeDraftVisibility = previousDraftVisibility;
@@ -11622,7 +11633,7 @@
             });
           }
         } finally {
-          draftLoadInProgress = false;
+          if (isLatestDraftLoad()) draftLoadInProgress = false;
         }
       };
 
