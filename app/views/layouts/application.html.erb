@@ -84,7 +84,7 @@
               <i data-lucide="x" class="w-6 h-6"></i>
             </button>
           </div>
-                    <nav class="space-y-2">
+          <nav class="space-y-2">
             <%= render "shared/sidebar_menu", close_modal: true %>
             <%= link_to logout_path, data: { turbo_method: :delete, swal_delete: 'logout' }, class: "flex items-center gap-3 p-3 rounded-xl border border-rose-100 bg-rose-50 text-rose-700 hover:bg-rose-100 transition-colors", onclick: "closeModal('sidebarModal')" do %>
               <i data-lucide="log-out" class="w-5 h-5"></i>

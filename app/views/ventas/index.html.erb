@@ -8090,6 +8090,15 @@
           if (action === 'remove') {
             cart.delete(key);
             renderCart();
+            if (cart.size === 0 && activeDraftId) {
+              const draftIdToDelete = activeDraftId;
+              destroyDraft(draftIdToDelete, { silent: true }).then((removed) => {
+                if (!removed) return;
+                if (activeDraftId && String(activeDraftId) === String(draftIdToDelete)) {
+                  resetWorkingSale();
+                }
+              });
+            }
           }
         });
       }
@@ -10795,15 +10804,6 @@
 
           return true;
         } catch (error) {
-          if (!clearAfterSave && !activeDraftId && !autoDraftWarningShown && window.Swal) {
-            autoDraftWarningShown = true;
-            window.Swal.fire({
-              icon: 'warning',
-              title: 'La orden aun no esta guardada',
-              text: error.message || 'No se pudo crear el borrador automatico. Conserva la pestaña abierta y vuelve a intentarlo.',
-              heightAuto: false,
-            });
-          }
           if (!silent && window.Swal) {
             window.Swal.fire({
               icon: 'error',
