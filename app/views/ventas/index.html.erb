@@ -11624,10 +11624,15 @@
           });
           if (window.Swal) {
             const isLockedByAnotherUser = String(error?.message || '').toLowerCase().includes('orden esta abierta por');
+            const lockMessage = String(error?.message || '');
+            const lockMatch = lockMessage.match(/^La orden esta abierta por (.+?), para poder abrirla pidele que guarde y cierre la orden$/i);
             window.Swal.fire({
               icon: isLockedByAnotherUser ? 'warning' : 'error',
               title: isLockedByAnotherUser ? 'Orden abierta por otro usuario' : 'No se pudo cargar',
-              text: isLockedByAnotherUser ? String(error.message) : detailedMessage,
+              html: isLockedByAnotherUser && lockMatch
+                ? `La orden esta abierta por <strong>${escapeHtml(lockMatch[1])}</strong>, para poder abrirla pidele que guarde y cierre la orden`
+                : undefined,
+              text: isLockedByAnotherUser && !lockMatch ? lockMessage : (isLockedByAnotherUser ? undefined : detailedMessage),
               heightAuto: false,
             });
           }
