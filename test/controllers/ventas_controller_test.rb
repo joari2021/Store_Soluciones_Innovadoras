@@ -181,6 +181,29 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert payload["products"].is_a?(Array)
   end
 
+  test "create from legacy draft rebuilds missing variation stock row" do
+    post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
+    draft = Venta.where(status: "draft").order(:id).last
+    notes = JSON.parse(draft.notes)
+    notes.delete("product_lot_consumptions")
+    draft.update!(notes: notes.to_json)
+    StockLotVariation.where(stock_lot_id: @product.stock_lots.select(:id)).delete_all
+
+    post "/ventas",
+         params: {
+           venta: sale_payload(
+             quantity: 2,
+             draft_id: draft.id,
+             paid_amount_ves: "800.00",
+           ),
+         },
+         as: :json
+
+    assert_response :created
+    assert_equal 8.to_d, stock_remaining_units
+    assert_nil Venta.find_by(id: draft.id)
+  end
+
   test "create registers a simple service sale" do
     service = @business.services.create!(
       description: "Servicio simple #{SecureRandom.hex(3)}",

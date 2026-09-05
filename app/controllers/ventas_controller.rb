@@ -2033,7 +2033,7 @@ class VentasController < ApplicationController
     remaining_to_restore = quantity_units.to_d
 
     producto.stock_lots.ordered_fifo.each do |lot|
-      row = lot.variation_row_for(variation_id, create_if_missing: false)
+      row = lot.variation_row_for(variation_id, create_if_missing: true)
       next unless row
 
       current_remaining = row.quantity_remaining.to_d
