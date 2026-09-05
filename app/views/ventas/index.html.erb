@@ -7805,12 +7805,29 @@
           return;
         }
 
+        if (activeDraftId) {
+          const lockReady = await heartbeatActiveDraft();
+          if (!lockReady) return;
+        }
+
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
 
         try {
           await refreshSelectedClientForCheckout();
         } catch (error) {
           if (window.Swal) {
+            if (error?.status === 409 && String(error.message || '').toLowerCase().includes('orden esta abierta por')) {
+              const lockMatch = String(error.message).match(/^La orden esta abierta por (.+?), para poder abrirla pidele que guarde y cierre la orden$/i);
+              window.Swal.fire({
+                icon: 'warning',
+                title: 'Orden abierta por otro usuario',
+                html: lockMatch
+                  ? `La orden esta abierta por <strong>${escapeHtml(lockMatch[1])}</strong>, para poder abrirla pidele que guarde y cierre la orden`
+                  : escapeHtml(String(error.message)),
+                heightAuto: false,
+              });
+              return;
+            }
             window.Swal.fire({
               icon: 'error',
               title: 'No se pudo actualizar el cliente',
@@ -11005,7 +11022,8 @@
       };
 
       const heartbeatActiveDraft = async () => {
-        if (!activeDraftId || !activeDraftLockToken || draftLoadInProgress) return;
+        if (!activeDraftId) return true;
+        if (!activeDraftLockToken || draftLoadInProgress) return false;
 
         try {
           const response = await fetch(`/ventas/drafts/${encodeURIComponent(activeDraftId)}/heartbeat`, {
@@ -11018,19 +11036,23 @@
             body: JSON.stringify({ draft_lock_token: activeDraftLockToken }),
             credentials: 'same-origin',
           });
-          if (!response.ok) {
-            const data = await response.json().catch(() => ({}));
-            if (window.Swal && response.status === 409) {
-              await window.Swal.fire({
-                icon: 'warning',
-                title: 'Se perdio el bloqueo de la orden',
-                text: data.error || 'Otra pestaña o usuario tiene abierta esta orden. Guarda tus cambios antes de continuar.',
-                heightAuto: false,
-              });
-            }
+          if (response.ok) return true;
+
+          const data = await response.json().catch(() => ({}));
+          if (window.Swal && response.status === 409) {
+            await window.Swal.fire({
+              icon: 'warning',
+              title: 'Orden abierta por otro usuario',
+              html: data.error
+                ? String(data.error).replace(/^(La orden esta abierta por )(.+?)(, para poder abrirla.*)$/i, (_match, prefix, userName, suffix) => `${escapeHtml(prefix)}<strong>${escapeHtml(userName)}</strong>${escapeHtml(suffix)}`)
+                : 'Otra pestaña o usuario tiene abierta esta orden. Guarda tus cambios antes de continuar.',
+              heightAuto: false,
+            });
           }
+          return false;
         } catch (_error) {
           // Un fallo temporal no libera el lease; el backend lo conserva hasta que expire.
+          return false;
         }
       };
 
