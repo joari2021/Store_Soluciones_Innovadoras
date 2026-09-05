@@ -1592,7 +1592,7 @@ class VentasController < ApplicationController
       draft.lock!
       if draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > Time.current &&
          (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
-        result = { ok: false, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}. Pidele que guarde y cierre la orden.", lock: draft_lock_payload(draft) }
+        result = { ok: false, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}. para poder abrirla Pidele que guarde y cierre la orden", lock: draft_lock_payload(draft) }
       else
         draft.update_columns(
           draft_lock_user_id: Current.user&.id,
@@ -1612,7 +1612,7 @@ class VentasController < ApplicationController
     now = Time.current
     draft.lock!
     active = draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > now
-    return { ok: false, status: :conflict, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}. Pidele que guarde y cierre la orden.", lock: draft_lock_payload(draft) } if active && (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
+    return { ok: false, status: :conflict, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}. para poder abrirla Pidele que guarde y cierre la orden", lock: draft_lock_payload(draft) } if active && (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
     return { ok: false, status: :conflict, error: "La orden requiere abrirse nuevamente para obtener el bloqueo.", lock: draft_lock_payload(draft) } unless active && draft.draft_lock_token == token && draft.draft_lock_user_id == Current.user&.id
 
     draft.update_columns(draft_lock_expires_at: DRAFT_LOCK_TTL.from_now)

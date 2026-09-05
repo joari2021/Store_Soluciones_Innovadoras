@@ -11541,6 +11541,9 @@
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
 
           if (!response.ok) {
+            if (response.status === 409 && data.error) {
+              throw new Error(data.error);
+            }
             throw new Error(buildHttpErrorMessage({
               fallbackMessage: 'No se pudo obtener el borrador desde el servidor.',
               response,
