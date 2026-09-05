@@ -1283,6 +1283,7 @@ class VentasController < ApplicationController
     begin
       Venta.transaction do
         if source_draft
+          source_draft.lock!
           restore_stock_for_sale!(source_draft, strict: true)
           relabel_payall_draft_movements!(source_draft, venta)
           purge_source_draft_sale!(source_draft)
@@ -2234,6 +2235,7 @@ class VentasController < ApplicationController
     begin
       Venta.transaction do
         if draft.persisted?
+          draft.lock!
           restore_stock_for_sale!(draft, strict: true)
           draft.venta_items.destroy_all
           draft.venta_payments.destroy_all
