@@ -99,9 +99,10 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
   test "show_draft returns state used by load action" do
     post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
+    lock_token = JSON.parse(response.body).dig("draft", "lock_token")
     draft = Venta.where(status: "draft").order(:id).last
 
-    get "/ventas/drafts/#{draft.id}", as: :json
+    get "/ventas/drafts/#{draft.id}?draft_lock_token=#{lock_token}", as: :json
 
     assert_response :success
 
@@ -120,10 +121,11 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
   test "update_draft restores old reservation before applying new quantity" do
     post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
+      lock_token = JSON.parse(response.body).dig("draft", "lock_token")
     draft = Venta.where(status: "draft").order(:id).last
 
     patch "/ventas/drafts/#{draft.id}",
-          params: { venta: draft_payload(quantity: 3, draft_id: draft.id) },
+        params: { venta: draft_payload(quantity: 3, draft_id: draft.id).merge(draft_lock_token: lock_token) },
           as: :json
 
     assert_response :success
@@ -136,9 +138,10 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
   test "destroy_draft restores stock and removes draft" do
     post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
+    lock_token = JSON.parse(response.body).dig("draft", "lock_token")
     draft = Venta.where(status: "draft").order(:id).last
 
-    delete "/ventas/drafts/#{draft.id}", as: :json
+    delete "/ventas/drafts/#{draft.id}?draft_lock_token=#{lock_token}", as: :json
 
     assert_response :success
 
@@ -151,6 +154,7 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
 
   test "create from draft finalizes sale and consumes stock once" do
     post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
+    lock_token = JSON.parse(response.body).dig("draft", "lock_token")
     draft = Venta.where(status: "draft").order(:id).last
 
     assert_equal 8.to_d, stock_remaining_units
@@ -162,7 +166,7 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
                quantity: 2,
                draft_id: draft.id,
                paid_amount_ves: "800.00",
-             ),
+             ).merge(draft_lock_token: lock_token),
            },
            as: :json
     end
@@ -181,8 +185,36 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert payload["products"].is_a?(Array)
   end
 
+  test "draft lease blocks another tab until owner releases it" do
+    payload = draft_payload(quantity: 1).merge(draft_lock_token: "tab-a")
+    post "/ventas/save_draft", params: { venta: payload }, as: :json
+    assert_response :success
+
+    draft = Venta.where(status: "draft").order(:id).last
+    assert_equal "tab-a", JSON.parse(response.body).dig("draft", "lock_token")
+
+    get "/ventas/drafts/#{draft.id}?draft_lock_token=tab-b", as: :json
+    assert_response :conflict
+    assert_match(/abierta por/i, JSON.parse(response.body).fetch("error"))
+
+    patch "/ventas/drafts/#{draft.id}/heartbeat",
+          params: { draft_lock_token: "tab-a" },
+          as: :json
+    assert_response :success
+
+    delete "/ventas/drafts/#{draft.id}/lock",
+           params: { draft_lock_token: "tab-a" },
+           as: :json
+    assert_response :success
+
+    get "/ventas/drafts/#{draft.id}?draft_lock_token=tab-b", as: :json
+    assert_response :success
+    assert_equal "tab-b", JSON.parse(response.body).dig("draft", "lock_token")
+  end
+
   test "create from legacy draft rebuilds missing variation stock row" do
     post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
+    lock_token = JSON.parse(response.body).dig("draft", "lock_token")
     draft = Venta.where(status: "draft").order(:id).last
     notes = JSON.parse(draft.notes)
     notes.delete("product_lot_consumptions")
@@ -195,7 +227,7 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
              quantity: 2,
              draft_id: draft.id,
              paid_amount_ves: "800.00",
-           ),
+             ).merge(draft_lock_token: lock_token),
          },
          as: :json
 

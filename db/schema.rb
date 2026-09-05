@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_01_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_05_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -1154,11 +1154,16 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_120000) do
     t.bigint "cash_shift_id"
     t.bigint "user_id"
     t.bigint "cashier_user_id"
+    t.bigint "draft_lock_user_id"
+    t.string "draft_lock_token"
+    t.datetime "draft_lock_expires_at"
     t.index ["base_currency"], name: "index_ventas_on_base_currency"
     t.index ["business_id"], name: "index_ventas_on_business_id"
     t.index ["cash_shift_id"], name: "index_ventas_on_cash_shift_id"
     t.index ["cashier_user_id"], name: "index_ventas_on_cashier_user_id"
     t.index ["cliente_id"], name: "index_ventas_on_cliente_id"
+    t.index ["draft_lock_expires_at"], name: "index_ventas_on_draft_lock_expires_at"
+    t.index ["draft_lock_token"], name: "index_ventas_on_draft_lock_token", unique: true
     t.index ["status"], name: "index_ventas_on_status"
     t.index ["user_id"], name: "index_ventas_on_user_id"
     t.index ["vat_mode"], name: "index_ventas_on_vat_mode"
@@ -1307,5 +1312,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_01_120000) do
   add_foreign_key "ventas", "clientes"
   add_foreign_key "ventas", "users"
   add_foreign_key "ventas", "users", column: "cashier_user_id"
+  add_foreign_key "ventas", "users", column: "draft_lock_user_id"
   add_foreign_key "video_details", "peliculas"
 end

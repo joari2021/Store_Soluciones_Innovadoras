@@ -905,6 +905,7 @@
       const paymentTolerance = 0.01;
       let selectedClient = null;
       let activeDraftId = null;
+      let activeDraftLockToken = null;
       let activeDraftCreatedById = null;
       let activeDraftVisibility = null;
       let activeDraftCheckoutStatus = null;
@@ -913,8 +914,27 @@
       let draftSyncedFingerprint = null;
       let draftSyncInProgress = false;
       let draftLoadInProgress = false;
+      let autoDraftWarningShown = false;
       let liveProductsSyncInterval = null;
       let liveProductsSyncInFlight = false;
+
+      const draftLockStorageKey = (draftId) => `ventas:draft-lock:${String(draftId || '').trim()}`;
+      const readDraftLockToken = (draftId) => {
+        try {
+          return sessionStorage.getItem(draftLockStorageKey(draftId)) || '';
+        } catch (_error) {
+          return '';
+        }
+      };
+      const writeDraftLockToken = (draftId, token) => {
+        try {
+          const key = draftLockStorageKey(draftId);
+          if (token) sessionStorage.setItem(key, token);
+          else sessionStorage.removeItem(key);
+        } catch (_error) {
+          // El bloqueo sigue protegido por el backend aunque sessionStorage no este disponible.
+        }
+      };
 
       const normalizeClientBenefits = (rawBenefits) => {
         const source = rawBenefits && typeof rawBenefits === 'object' ? rawBenefits : {};
@@ -10678,6 +10698,7 @@
 
         cart.clear();
         activeDraftId = null;
+        activeDraftLockToken = null;
         activeDraftCreatedById = null;
         activeDraftVisibility = null;
         activeDraftCheckoutStatus = null;
@@ -10772,6 +10793,15 @@
 
           return true;
         } catch (error) {
+          if (!clearAfterSave && !activeDraftId && !autoDraftWarningShown && window.Swal) {
+            autoDraftWarningShown = true;
+            window.Swal.fire({
+              icon: 'warning',
+              title: 'La orden aun no esta guardada',
+              text: error.message || 'No se pudo crear el borrador automatico. Conserva la pestaña abierta y vuelve a intentarlo.',
+              heightAuto: false,
+            });
+          }
           if (!silent && window.Swal) {
             window.Swal.fire({
               icon: 'error',
@@ -10836,6 +10866,7 @@
         );
         payload.draft_visibility = effectiveDraftVisibility;
         payload.draft_checkout_status = effectiveDraftCheckoutStatus;
+        payload.draft_lock_token = activeDraftLockToken || (activeDraftId ? readDraftLockToken(activeDraftId) : '');
         payload.draft_created_by_id = activeDraftCreatedById;
         const endpoint = activeDraftId ? `/ventas/drafts/${activeDraftId}` : '/ventas/save_draft';
         const method = activeDraftId ? 'PATCH' : 'POST';
@@ -10871,6 +10902,8 @@
             resetWorkingSale();
           } else if (data.draft?.id) {
             activeDraftId = String(data.draft.id);
+            activeDraftLockToken = String(data.draft.lock_token || activeDraftLockToken || readDraftLockToken(activeDraftId) || '');
+            writeDraftLockToken(activeDraftId, activeDraftLockToken);
             activeDraftCreatedById = Number(data.draft.created_by_id || activeDraftCreatedById || currentUserId || 0) || null;
             const responseVisibility = String(data.draft.visibility || effectiveDraftVisibility || 'visible').toLowerCase();
             activeDraftVisibility = responseVisibility === 'hidden' ? 'hidden' : 'visible';
@@ -10893,6 +10926,7 @@
             }
           }
 
+          autoDraftWarningShown = false;
           if (!silent && window.Swal) {
             window.Swal.fire({
               icon: 'success',
@@ -10943,9 +10977,62 @@
           return false;
         }
 
+        await releaseActiveDraftLock();
         resetWorkingSale();
         return true;
       };
+
+      const releaseActiveDraftLock = async () => {
+        if (!activeDraftId || !activeDraftLockToken) return true;
+
+        try {
+          const response = await fetch(`/ventas/drafts/${encodeURIComponent(activeDraftId)}/lock`, {
+            method: 'DELETE',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({ draft_lock_token: activeDraftLockToken }),
+            credentials: 'same-origin',
+          });
+          return response.ok;
+        } catch (_error) {
+          return false;
+        }
+      };
+
+      const heartbeatActiveDraft = async () => {
+        if (!activeDraftId || !activeDraftLockToken || draftLoadInProgress) return;
+
+        try {
+          const response = await fetch(`/ventas/drafts/${encodeURIComponent(activeDraftId)}/heartbeat`, {
+            method: 'PATCH',
+            headers: {
+              Accept: 'application/json',
+              'Content-Type': 'application/json',
+              'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
+            },
+            body: JSON.stringify({ draft_lock_token: activeDraftLockToken }),
+            credentials: 'same-origin',
+          });
+          if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            if (window.Swal && response.status === 409) {
+              await window.Swal.fire({
+                icon: 'warning',
+                title: 'Se perdio el bloqueo de la orden',
+                text: data.error || 'Otra pestaña o usuario tiene abierta esta orden. Guarda tus cambios antes de continuar.',
+                heightAuto: false,
+              });
+            }
+          }
+        } catch (_error) {
+          // Un fallo temporal no libera el lease; el backend lo conserva hasta que expire.
+        }
+      };
+
+      window.setInterval(heartbeatActiveDraft, 25000);
 
       const queueActiveDraftSync = () => {
         const hasItems = cart.size > 0;
@@ -11432,7 +11519,9 @@
         let failedStage = 'solicitud del borrador';
 
         try {
-          const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}`, {
+          const knownLockToken = readDraftLockToken(safeId);
+          const lockQuery = knownLockToken ? `?draft_lock_token=${encodeURIComponent(knownLockToken)}` : '';
+          const response = await fetch(`/ventas/drafts/${encodeURIComponent(safeId)}${lockQuery}`, {
             headers: {
               Accept: 'application/json',
             },
@@ -11472,6 +11561,8 @@
           hydrateDraftCart(draft);
 
           activeDraftId = String(draft.id || safeId);
+          activeDraftLockToken = String(draft.lock_token || knownLockToken || '');
+          writeDraftLockToken(activeDraftId, activeDraftLockToken);
           activeDraftCreatedById = Number(draft.created_by_id || 0) || null;
           activeDraftVisibility = String(draft.visibility || 'visible').toLowerCase() === 'hidden' ? 'hidden' : 'visible';
           activeDraftCheckoutStatus = normalizeDraftCheckoutStatus(draft.checkout_status, 'pending');
@@ -11518,10 +11609,11 @@
             error,
           });
           if (window.Swal) {
+            const isLockedByAnotherUser = String(error?.message || '').toLowerCase().includes('orden esta abierta por');
             window.Swal.fire({
-              icon: 'error',
-              title: 'No se pudo cargar',
-              text: detailedMessage,
+              icon: isLockedByAnotherUser ? 'warning' : 'error',
+              title: isLockedByAnotherUser ? 'Orden abierta por otro usuario' : 'No se pudo cargar',
+              text: isLockedByAnotherUser ? String(error.message) : detailedMessage,
               heightAuto: false,
             });
           }
@@ -11567,10 +11659,15 @@
       }
 
       if (draftsListEl) {
-        draftsListEl.addEventListener('click', (event) => {
+        draftsListEl.addEventListener('click', async (event) => {
           const button = event.target.closest('button[data-draft-id]');
           if (!button) return;
-          loadDraft(button.dataset.draftId);
+          const nextDraftId = String(button.dataset.draftId || '');
+          if (activeDraftId && String(activeDraftId) !== nextDraftId) {
+            const closed = await closeActiveDraftPreservingState();
+            if (!closed) return;
+          }
+          loadDraft(nextDraftId);
         });
       }
 

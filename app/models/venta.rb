@@ -28,6 +28,8 @@ class Venta < ApplicationRecord
   has_one :loss_recovery_entry, dependent: :destroy
   has_many :service_cost_debts, class_name: "Debt", dependent: :nullify
 
+  belongs_to :draft_lock_user, class_name: "User", optional: true
+
   accepts_nested_attributes_for :venta_items, allow_destroy: true
   accepts_nested_attributes_for :venta_payments, allow_destroy: true
 

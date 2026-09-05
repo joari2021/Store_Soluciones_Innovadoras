@@ -1,5 +1,6 @@
 class VentasController < ApplicationController
   POS_CATALOG_ITEMS_PER_PAGE = 24
+  DRAFT_LOCK_TTL = 90.seconds
 
   helper_method :sale_deletable_by_current_user?, :checkout_discount_payload_for_sale
 
@@ -7,7 +8,7 @@ class VentasController < ApplicationController
   before_action -> { require_module_access!(:ventas) }
   before_action :set_venta, only: %i[destroy approve_order]
   before_action :authorize_destroy_sale!, only: %i[destroy]
-  before_action :set_draft_venta, only: %i[show_draft update_draft destroy_draft borrador destroy_borrador]
+  before_action :set_draft_venta, only: %i[show_draft lock_draft heartbeat_draft release_draft_lock update_draft destroy_draft borrador destroy_borrador]
 
   def index
     products_scope = ventas_products_scope
@@ -228,15 +229,42 @@ class VentasController < ApplicationController
   def show_draft
     return render json: { error: "Los usuarios cliente no pueden usar borradores." }, status: :forbidden if customer_sales_mode?
 
+    lock_result = acquire_draft_lock!(@draft_venta, requested_token: draft_lock_token_from_request)
+    return render json: { error: lock_result[:error], lock: lock_result[:lock] }, status: :conflict unless lock_result[:ok]
+
     render json: {
       draft: draft_summary_payload(@draft_venta).merge(
         state: draft_state_payload(@draft_venta),
         client: draft_client_payload(@draft_venta),
+        lock_token: lock_result[:token],
       ),
       drafts: drafts_payload,
       products: products_payload_for_draft(@draft_venta),
       loss_recovery_setting: loss_recovery_setting_payload_for_sales,
     }
+  end
+
+  def lock_draft
+    return render json: { error: "Los usuarios cliente no pueden usar borradores." }, status: :forbidden if customer_sales_mode?
+
+    result = acquire_draft_lock!(@draft_venta, requested_token: draft_lock_token_from_request)
+    return render json: { error: result[:error], lock: result[:lock] }, status: :conflict unless result[:ok]
+
+    render json: { success: true, lock_token: result[:token], lock: result[:lock] }
+  end
+
+  def heartbeat_draft
+    result = renew_draft_lock!(@draft_venta, token: draft_lock_token_from_request)
+    return render json: { error: result[:error], lock: result[:lock] }, status: result[:status] unless result[:ok]
+
+    render json: { success: true, lock: result[:lock] }
+  end
+
+  def release_draft_lock
+    result = release_draft_lock!(@draft_venta, token: draft_lock_token_from_request)
+    return render json: { error: result[:error] }, status: result[:status] unless result[:ok]
+
+    render json: { success: true }
   end
 
   def save_draft
@@ -253,6 +281,9 @@ class VentasController < ApplicationController
 
   def destroy_draft
     return render json: { error: "Los usuarios cliente no pueden eliminar borradores." }, status: :forbidden if customer_sales_mode?
+
+    lock_result = require_draft_lock!(@draft_venta, token: draft_lock_token_from_request)
+    return render json: { error: lock_result[:error], lock: lock_result[:lock] }, status: lock_result[:status] unless lock_result[:ok]
 
     destroy_draft_record!(@draft_venta)
 
@@ -289,6 +320,9 @@ class VentasController < ApplicationController
 
   def destroy_borrador
     return redirect_to ventas_path, alert: "Los usuarios cliente no pueden eliminar borradores." if customer_sales_mode?
+
+    lock_result = require_draft_lock!(@draft_venta, token: draft_lock_token_from_request)
+    return redirect_to borradores_ventas_path, alert: lock_result[:error] unless lock_result[:ok]
 
     destroy_draft_record!(@draft_venta)
 
@@ -564,6 +598,9 @@ class VentasController < ApplicationController
         return render json: { error: "No se encontro el borrador seleccionado." },
                       status: :unprocessable_entity
       end
+
+      lock_result = require_draft_lock!(source_draft, token: draft_lock_token_from_request)
+      return render json: { error: lock_result[:error], lock: lock_result[:lock] }, status: lock_result[:status] unless lock_result[:ok]
     end
 
     items = Array(payload[:items])
@@ -1284,6 +1321,8 @@ class VentasController < ApplicationController
       Venta.transaction do
         if source_draft
           source_draft.lock!
+          lock_result = require_draft_lock!(source_draft, token: draft_lock_token_from_request)
+          raise ActiveRecord::RecordInvalid.new(source_draft), lock_result[:error] unless lock_result[:ok]
           restore_stock_for_sale!(source_draft, strict: true)
           relabel_payall_draft_movements!(source_draft, venta)
           purge_source_draft_sale!(source_draft)
@@ -1532,6 +1571,72 @@ class VentasController < ApplicationController
     end
   end
 
+  def draft_lock_token_from_request
+    params.dig(:venta, :draft_lock_token).presence || params[:draft_lock_token].presence
+  end
+
+  def draft_lock_payload(draft)
+    {
+      locked: draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > Time.current,
+      user_id: draft.draft_lock_user_id,
+      user_name: draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || draft.draft_lock_user&.username,
+      expires_at: draft.draft_lock_expires_at&.iso8601,
+    }
+  end
+
+  def acquire_draft_lock!(draft, requested_token:)
+    token = requested_token.to_s.strip.presence || SecureRandom.hex(24)
+    result = nil
+
+    Venta.transaction do
+      draft.lock!
+      if draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > Time.current &&
+         (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
+        result = { ok: false, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}. Pidele que guarde y cierre la orden.", lock: draft_lock_payload(draft) }
+      else
+        draft.update_columns(
+          draft_lock_user_id: Current.user&.id,
+          draft_lock_token: token,
+          draft_lock_expires_at: DRAFT_LOCK_TTL.from_now,
+          updated_at: draft.updated_at,
+        )
+        result = { ok: true, token: token, lock: draft_lock_payload(draft.reload) }
+      end
+    end
+
+    result
+  end
+
+  def require_draft_lock!(draft, token:)
+    token = token.to_s.strip
+    now = Time.current
+    draft.lock!
+    active = draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > now
+    return { ok: false, status: :conflict, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}. Pidele que guarde y cierre la orden.", lock: draft_lock_payload(draft) } if active && (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
+    return { ok: false, status: :conflict, error: "La orden requiere abrirse nuevamente para obtener el bloqueo.", lock: draft_lock_payload(draft) } unless active && draft.draft_lock_token == token && draft.draft_lock_user_id == Current.user&.id
+
+    draft.update_columns(draft_lock_expires_at: DRAFT_LOCK_TTL.from_now)
+    { ok: true, status: :ok }
+  end
+
+  def renew_draft_lock!(draft, token:)
+    result = require_draft_lock!(draft, token: token)
+    return result unless result[:ok]
+
+    { ok: true, status: :ok, lock: draft_lock_payload(draft.reload) }
+  end
+
+  def release_draft_lock!(draft, token:)
+    token = token.to_s.strip
+    draft.lock!
+    unless draft.draft_lock_user_id == Current.user&.id && draft.draft_lock_token == token
+      return { ok: false, status: :conflict, error: "No puedes cerrar el bloqueo de otra pestaña o usuario." }
+    end
+
+    draft.update_columns(draft_lock_user_id: nil, draft_lock_token: nil, draft_lock_expires_at: nil)
+    { ok: true, status: :ok }
+  end
+
   def customer_sales_mode?
     current_user_customer_mode?
   end
@@ -1680,6 +1785,9 @@ class VentasController < ApplicationController
 
   def destroy_draft_record!(draft)
     Venta.transaction do
+      draft.lock!
+      lock_result = require_draft_lock!(draft, token: draft_lock_token_from_request)
+      raise ActiveRecord::RecordInvalid.new(draft), lock_result[:error] unless lock_result[:ok]
       restore_stock_for_sale!(draft, strict: true)
       delete_payall_draft_movements!(draft)
       draft.destroy!
@@ -2216,6 +2324,11 @@ class VentasController < ApplicationController
     end
     draft ||= current_business.ventas.new(status: "draft")
     draft.user = Current.user if draft.new_record? && draft.user.blank?
+    if draft.new_record?
+      draft.draft_lock_user = Current.user
+      draft.draft_lock_token = draft_lock_token_from_request.presence || SecureRandom.hex(24)
+      draft.draft_lock_expires_at = DRAFT_LOCK_TTL.from_now
+    end
     requested_visibility = normalize_draft_visibility(payload[:draft_visibility], default: draft_visibility(draft))
     requested_checkout_status = normalize_draft_checkout_status(
       payload[:draft_checkout_status],
@@ -2228,6 +2341,8 @@ class VentasController < ApplicationController
       Venta.transaction do
         if draft.persisted?
           draft.lock!
+          lock_result = require_draft_lock!(draft, token: draft_lock_token_from_request)
+          raise ActiveRecord::RecordInvalid.new(draft), lock_result[:error] unless lock_result[:ok]
           restore_stock_for_sale!(draft, strict: true)
           draft.venta_items.destroy_all
           draft.venta_payments.destroy_all
@@ -2488,6 +2603,7 @@ class VentasController < ApplicationController
       draft: draft_summary_payload(draft).merge(
         state: draft_state_payload(draft),
         client: draft_client_payload(draft),
+        lock_token: draft.draft_lock_token,
       ),
       drafts: drafts_payload,
       products: products_payload_for_business,
@@ -2917,6 +3033,7 @@ class VentasController < ApplicationController
       updated_at: venta.updated_at&.iso8601,
       visibility: draft_visibility(venta),
       checkout_status: draft_checkout_status(venta),
+      lock: draft_lock_payload(venta),
     }
   end
 
@@ -3484,6 +3601,7 @@ class VentasController < ApplicationController
       :customer_order_mode,
       :draft_visibility,
       :draft_checkout_status,
+      :draft_lock_token,
       :vat_mode,
       :vat_rate,
       :tasa_dolar,
