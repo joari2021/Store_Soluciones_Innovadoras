@@ -192,7 +192,7 @@
     </div>
     <div id="cashea-levels-tooltip" class="relative">
       <button id="cashea-levels-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-amber-200 transition-colors hover:bg-amber-50 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver iniciales Cashea">
-        <%= image_tag 'cashea.png', class: 'h-7 w-7 object-contain', alt: 'Cashea' %>
+        <%= image_tag 'logo cashea.jpg', class: 'h-7 w-7 object-contain', alt: 'Cashea' %>
       </button>
       <div id="cashea-levels-panel" class="absolute right-0 mt-3 hidden w-80 overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-xl">
         <div class="border-b border-amber-100 bg-amber-50 px-4 py-3">
@@ -330,6 +330,39 @@
     document.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape') return;
       closePanel();
+    });
+  })();
+
+  (() => {
+    if (window.casheaLevelsTooltipHandlersBound) return;
+    window.casheaLevelsTooltipHandlersBound = true;
+
+    const closePanel = () => {
+      const wrapper = document.getElementById('cashea-levels-tooltip');
+      const button = document.getElementById('cashea-levels-toggle');
+      const panel = document.getElementById('cashea-levels-panel');
+      if (!wrapper || !button || !panel) return;
+      panel.classList.add('hidden');
+      button.setAttribute('aria-expanded', 'false');
+    };
+
+    document.addEventListener('click', (event) => {
+      const wrapper = document.getElementById('cashea-levels-tooltip');
+      const button = document.getElementById('cashea-levels-toggle');
+      const panel = document.getElementById('cashea-levels-panel');
+      if (!wrapper || !button || !panel) return;
+
+      if (button.contains(event.target)) {
+        const isHidden = panel.classList.toggle('hidden');
+        button.setAttribute('aria-expanded', isHidden ? 'false' : 'true');
+        return;
+      }
+
+      if (!panel.contains(event.target)) closePanel();
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') closePanel();
     });
   })();
 
