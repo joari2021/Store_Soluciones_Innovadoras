@@ -146,13 +146,18 @@
                 <div>
                   <%= f.label attribute, "Nivel #{level}", class: 'block text-sm font-medium text-slate-700' %>
                   <div class="relative mt-1">
-                    <%= f.number_field attribute,
-                                       min: 0,
-                                       max: 100,
-                                       step: 0.01,
-                                       class: 'block w-full rounded-md border border-slate-300 pr-8 shadow-sm focus:border-amber-500 focus:ring-amber-500',
-                                       placeholder: '0,00' %>
-                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-slate-500">%</span>
+                    <%= f.hidden_field attribute, data: { cashea_level_hidden: true } %>
+                    <input type="text"
+                           inputmode="decimal"
+                           autocomplete="off"
+                           data-money-mask="true"
+                           data-money-symbol="%"
+                           data-money-decimals="2"
+                           data-cashea-level-masked="true"
+                           data-cashea-level-hidden-id="<%= "account_#{attribute}" %>"
+                           value="<%= number_with_precision(account.public_send(attribute).to_d, precision: 2, delimiter: '.', separator: ',') %>"
+                           placeholder="% 0,00"
+                           class="block w-full rounded-md border border-slate-300 pr-8 shadow-sm focus:border-amber-500 focus:ring-amber-500" />
                   </div>
                 </div>
               <% end %>
@@ -293,6 +298,7 @@
       const casheaMinPurchaseMasked = form.querySelector('[data-cashea-min-purchase-masked="true"]');
       const casheaPrincipalMinPurchaseHidden = form.querySelector('[data-cashea-principal-min-purchase-hidden="true"]');
       const casheaPrincipalMinPurchaseMasked = form.querySelector('[data-cashea-principal-min-purchase-masked="true"]');
+      const casheaLevelMaskedInputs = Array.from(form.querySelectorAll('[data-cashea-level-masked="true"]'));
       const casheaPrincipalMinWrapper = form.querySelector('[data-cashea-principal-min-wrapper="true"]');
       const casheaCotidianaCategoriesWrapper = form.querySelector('[data-cashea-cotidiana-categories-wrapper="true"]');
       const typeBadge = document.getElementById('account-preview-type-badge');
@@ -367,6 +373,17 @@
         casheaPrincipalMinPurchaseHidden.value = parsed > 0 ? parsed.toFixed(2) : '0';
       };
 
+      const syncCasheaLevel = (maskedInput) => {
+        const hiddenId = maskedInput?.dataset?.casheaLevelHiddenId;
+        const hiddenInput = hiddenId ? document.getElementById(hiddenId) : null;
+        if (!hiddenInput) return;
+
+        const parsed = window.MoneyInputMask?.parseValue
+          ? window.MoneyInputMask.parseValue(maskedInput)
+          : parseMoney(maskedInput.value);
+        hiddenInput.value = Math.min(Math.max(parsed, 0), 100).toFixed(2);
+      };
+
       const refreshPreview = () => {
         const selectedType = typeSelect.value;
         const selectedCurrency = currencySelect.value;
@@ -402,9 +419,14 @@
         casheaPrincipalMinPurchaseMasked.addEventListener('input', syncCasheaPrincipalMinPurchase);
         casheaPrincipalMinPurchaseMasked.addEventListener('blur', syncCasheaPrincipalMinPurchase);
       }
+      casheaLevelMaskedInputs.forEach((input) => {
+        input.addEventListener('input', () => syncCasheaLevel(input));
+        input.addEventListener('blur', () => syncCasheaLevel(input));
+      });
       form.addEventListener('submit', () => {
         syncCasheaMinPurchase();
         syncCasheaPrincipalMinPurchase();
+        casheaLevelMaskedInputs.forEach(syncCasheaLevel);
       });
       currencySelect.addEventListener('change', refreshPreview);
       colorSelect.addEventListener('change', refreshPreview);
