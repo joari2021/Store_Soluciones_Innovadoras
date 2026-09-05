@@ -7805,11 +7805,6 @@
           return;
         }
 
-        if (activeDraftId) {
-          const lockReady = await heartbeatActiveDraft();
-          if (!lockReady) return;
-        }
-
         const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
 
         try {

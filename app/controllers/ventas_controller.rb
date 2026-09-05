@@ -282,9 +282,6 @@ class VentasController < ApplicationController
   def destroy_draft
     return render json: { error: "Los usuarios cliente no pueden eliminar borradores." }, status: :forbidden if customer_sales_mode?
 
-    lock_result = require_draft_lock!(@draft_venta, token: draft_lock_token_from_request)
-    return render json: { error: lock_result[:error], lock: lock_result[:lock] }, status: lock_result[:status] unless lock_result[:ok]
-
     destroy_draft_record!(@draft_venta)
 
     render json: {
@@ -320,9 +317,6 @@ class VentasController < ApplicationController
 
   def destroy_borrador
     return redirect_to ventas_path, alert: "Los usuarios cliente no pueden eliminar borradores." if customer_sales_mode?
-
-    lock_result = require_draft_lock!(@draft_venta, token: draft_lock_token_from_request)
-    return redirect_to borradores_ventas_path, alert: lock_result[:error] unless lock_result[:ok]
 
     destroy_draft_record!(@draft_venta)
 
@@ -599,8 +593,6 @@ class VentasController < ApplicationController
                       status: :unprocessable_entity
       end
 
-      lock_result = require_draft_lock!(source_draft, token: draft_lock_token_from_request)
-      return render json: { error: lock_result[:error], lock: lock_result[:lock] }, status: lock_result[:status] unless lock_result[:ok]
     end
 
     items = Array(payload[:items])
@@ -1321,8 +1313,6 @@ class VentasController < ApplicationController
       Venta.transaction do
         if source_draft
           source_draft.lock!
-          lock_result = require_draft_lock!(source_draft, token: draft_lock_token_from_request)
-          raise ActiveRecord::RecordInvalid.new(source_draft), lock_result[:error] unless lock_result[:ok]
           restore_stock_for_sale!(source_draft, strict: true)
           relabel_payall_draft_movements!(source_draft, venta)
           purge_source_draft_sale!(source_draft)
@@ -1786,8 +1776,6 @@ class VentasController < ApplicationController
   def destroy_draft_record!(draft)
     Venta.transaction do
       draft.lock!
-      lock_result = require_draft_lock!(draft, token: draft_lock_token_from_request)
-      raise ActiveRecord::RecordInvalid.new(draft), lock_result[:error] unless lock_result[:ok]
       restore_stock_for_sale!(draft, strict: true)
       delete_payall_draft_movements!(draft)
       draft.destroy!
@@ -2341,8 +2329,6 @@ class VentasController < ApplicationController
       Venta.transaction do
         if draft.persisted?
           draft.lock!
-          lock_result = require_draft_lock!(draft, token: draft_lock_token_from_request)
-          raise ActiveRecord::RecordInvalid.new(draft), lock_result[:error] unless lock_result[:ok]
           restore_stock_for_sale!(draft, strict: true)
           draft.venta_items.destroy_all
           draft.venta_payments.destroy_all
