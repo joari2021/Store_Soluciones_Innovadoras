@@ -746,7 +746,7 @@ class ProductosController < ApplicationController
                            .find(params[:id])
 
     ActiveRecord::Base.transaction do
-      restore_stock_for_internal_usage!(usage, strict: false)
+      restore_stock_for_internal_usage!(usage, strict: true)
       usage.destroy!
     end
 

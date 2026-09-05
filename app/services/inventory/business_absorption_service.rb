@@ -60,6 +60,7 @@ module Inventory
       touched = false
 
       source_product.stock_lots.each do |source_lot|
+        source_lot.lock!
         quantity_to_transfer = source_lot_transfer_units(source_lot)
         next unless quantity_to_transfer.positive?
 

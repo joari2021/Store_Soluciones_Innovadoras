@@ -461,7 +461,7 @@ class CashShiftsController < ApplicationController
     ventas = cash_shift.ventas.includes(:venta_items).to_a
 
     ventas.each do |venta|
-      restore_stock_for_sale!(venta, strict: false)
+      restore_stock_for_sale!(venta, strict: true)
       delete_account_movements_for_sale!(venta)
       delete_receivable_debts_for_sale!(venta)
       delete_sale_debts_for_sale!(venta)
