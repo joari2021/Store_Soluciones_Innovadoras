@@ -10748,6 +10748,7 @@
               'Content-Type': 'application/json',
               'X-CSRF-Token': csrfToken,
             },
+            body: JSON.stringify({ draft_lock_token: activeDraftLockToken || readDraftLockToken(safeId) }),
           });
 
           let data = {};
