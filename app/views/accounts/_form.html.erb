@@ -137,6 +137,27 @@
                                placeholder: '0.00' %>
             <p class="mt-1 text-xs text-slate-500">Por defecto es 0%. Este porcentaje se suma al total de la venta cuando se procesa con Cashea.</p>
           </div>
+          <div class="md:col-span-2">
+            <p class="block text-sm font-medium text-slate-700">Porcentaje de inicial permitido por nivel</p>
+            <p class="mt-1 text-xs text-slate-500">Estos valores quedan disponibles para consulta rápida desde el header.</p>
+            <div class="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+              <% 1.upto(6) do |level| %>
+                <% attribute = "cashea_level_#{level}_initial_percent" %>
+                <div>
+                  <%= f.label attribute, "Nivel #{level}", class: 'block text-sm font-medium text-slate-700' %>
+                  <div class="relative mt-1">
+                    <%= f.number_field attribute,
+                                       min: 0,
+                                       max: 100,
+                                       step: 0.01,
+                                       class: 'block w-full rounded-md border border-slate-300 pr-8 shadow-sm focus:border-amber-500 focus:ring-amber-500',
+                                       placeholder: '0,00' %>
+                    <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm font-semibold text-slate-500">%</span>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </div>
           <div class="md:col-span-2" data-cashea-cotidiana-categories-wrapper="true">
             <p class="block text-sm font-medium text-slate-700">Categorias exclusivas de linea cotidiana</p>
             <p class="mt-1 text-xs text-slate-500">Si un producto de estas categorias esta en la compra, no se permitira usar linea principal.</p>

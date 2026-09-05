@@ -67,6 +67,13 @@
       </div>
     </div>
     <div id="materialize-datepicker-portal" class="materialize-datepicker-scope"></div>
+    <% unless catalogo_fullscreen_mode %>
+      <div id="system-update-banner" class="fixed bottom-5 left-1/2 z-[70] hidden -translate-x-1/2 items-center gap-3 rounded-full border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-2xl shadow-sky-100" role="status" aria-live="polite">
+        <i data-lucide="refresh-cw" class="h-4 w-4 text-sky-600"></i>
+        <span>Se ha realizado una actualizacion.</span>
+        <button id="system-update-reload" type="button" class="rounded-full bg-sky-600 px-4 py-1.5 text-xs font-bold text-white transition-colors hover:bg-sky-700">Actualizar ahora</button>
+      </div>
+    <% end %>
     <!-- Mobile Sidebar Modal -->
     <div id="sidebarModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
       <div class="bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 max-h-[80vh] overflow-auto">
@@ -425,4 +432,61 @@
         }
     </script>
   </body>
+  <script>
+    (() => {
+      if (window.__systemUpdatePollingBound) return;
+      window.__systemUpdatePollingBound = true;
+
+      const banner = document.getElementById('system-update-banner');
+      const reloadButton = document.getElementById('system-update-reload');
+      const statusUrl = '<%= system_status_path %>';
+      let baselineSignature = '';
+      let requestInFlight = false;
+
+      const hideBanner = () => {
+        if (!banner) return;
+        banner.classList.add('hidden');
+        banner.classList.remove('flex');
+      };
+
+      const showBanner = () => {
+        if (!banner) return;
+        banner.classList.remove('hidden');
+        banner.classList.add('flex');
+        window.initializeLucideIcons?.();
+      };
+
+      const readStatus = async ({ establishBaseline = false } = {}) => {
+        if (requestInFlight || !document.body.contains(document.body)) return;
+        requestInFlight = true;
+        try {
+          const response = await fetch(statusUrl, { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' });
+          if (!response.ok) return;
+          const data = await response.json();
+          const signature = String(data.signature || '').trim();
+          if (!signature) return;
+
+          if (establishBaseline || !baselineSignature) {
+            baselineSignature = signature;
+            hideBanner();
+          } else if (signature !== baselineSignature) {
+            showBanner();
+          }
+        } catch (_error) {
+          // El polling es informativo; una falla temporal no altera la venta en curso.
+        } finally {
+          requestInFlight = false;
+        }
+      };
+
+      reloadButton?.addEventListener('click', () => {
+        const url = new URL(window.location.href);
+        url.searchParams.set('_refresh', String(Date.now()));
+        window.location.replace(url.toString());
+      });
+
+      readStatus({ establishBaseline: true });
+      window.setInterval(() => readStatus(), 30000);
+    })();
+  </script>
 </html>

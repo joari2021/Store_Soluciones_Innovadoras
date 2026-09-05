@@ -55,6 +55,15 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert payload["products"].is_a?(Array)
   end
 
+  test "system status exposes a stable data signature" do
+    get "/system/status", as: :json
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert payload.fetch("signature").present?
+    assert payload.key?("release")
+  end
+
   test "hidden draft reserves stock and is included in panel drafts list" do
     post "/ventas/save_draft",
          params: { venta: draft_payload(quantity: 2, draft_visibility: "hidden") },

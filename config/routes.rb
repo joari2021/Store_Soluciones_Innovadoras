@@ -6,6 +6,7 @@ Rails.application.routes.draw do
   get "/registro", to: "authentication/users#new", as: :new_user
   post "/registro", to: "authentication/users#create", as: :users
   get "/catalogo", to: "productos#catalogo", as: :catalogo_publico
+  get "/system/status", to: "system#status", as: :system_status
 
   resources :tasa_cambios do
     collection do

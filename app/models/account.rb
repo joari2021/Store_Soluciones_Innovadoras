@@ -130,6 +130,10 @@ class Account < ApplicationRecord
   validates :cashea_principal_min_purchase_usd, numericality: { greater_than_or_equal_to: 0 }
   validates :cashea_commission_percent,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
+  1.upto(6) do |level|
+    validates "cashea_level_#{level}_initial_percent",
+              numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
+  end
   validates :shared_key, presence: true
   validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true, if: :supports_cash_role?
   validate :primary_requires_bank_account
@@ -553,6 +557,10 @@ class Account < ApplicationRecord
     self.cashea_min_purchase_usd = cashea_min_purchase_usd.to_d.round(2)
     self.cashea_principal_min_purchase_usd = cashea_principal_min_purchase_usd.to_d.round(2)
     self.cashea_commission_percent = cashea_commission_percent.to_d.round(2)
+    1.upto(6) do |level|
+      attribute = "cashea_level_#{level}_initial_percent"
+      self[attribute] = self[attribute].to_d.round(2)
+    end
     self.cashea_cotidiana_category_ids = cashea_cotidiana_only_category_ids
   end
 
