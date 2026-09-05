@@ -214,7 +214,7 @@
             <p class="text-sm text-slate-500">Cashea no esta configurado para este negocio.</p>
           <% end %>
         </div>
-        <% if current_user_admin? || current_user_manager? %>
+        <% if current_user_admin? %>
           <div class="border-t border-slate-100 bg-slate-50 px-4 py-3">
             <% if header_cashea_account.present? %>
               <%= link_to edit_account_path(header_cashea_account), class: 'inline-flex items-center gap-2 text-sm font-semibold text-amber-700 hover:text-amber-900', data: { turbo_frame: '_top' } do %>
