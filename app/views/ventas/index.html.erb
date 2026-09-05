@@ -11570,9 +11570,8 @@
           if (!isLatestDraftLoad()) return;
 
           failedStage = 'hidratacion del carrito';
-          hydrateDraftCart(draft);
-
           if (!isLatestDraftLoad()) return;
+          hydrateDraftCart(draft);
 
           activeDraftId = String(draft.id || safeId);
           activeDraftLockToken = String(draft.lock_token || knownLockToken || '');
