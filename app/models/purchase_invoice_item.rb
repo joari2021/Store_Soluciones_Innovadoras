@@ -11,7 +11,7 @@ class PurchaseInvoiceItem < ApplicationRecord
   before_validation :normalize_costs_for_currency_priority
   before_validation :normalize_variation_breakdown
   before_validation :calcular_subtotal
-  after_commit :sync_stock_lot, on: %i[create update]
+  after_save :sync_stock_lot, on: %i[create update]
 
   def set_product_name
     self.product_name = producto&.descripcion if product_name.blank?

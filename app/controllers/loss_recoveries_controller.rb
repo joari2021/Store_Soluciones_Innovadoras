@@ -458,42 +458,7 @@ class LossRecoveriesController < ApplicationController
   end
 
   def restore_recovery_invoice_item_without_breakdown!(item:, invoice:)
-    producto = item.producto
-    raise ActiveRecord::RecordNotFound, "Producto no encontrado para item ##{item.id}." if producto.blank?
-
-    quantity = item.quantity.to_d
-    raise ActiveRecord::RecordInvalid.new(item), "Cantidad invalida para item ##{item.id}." unless quantity.positive?
-
-    variation = if item.product_variation_id.present?
-                  producto.product_variations.find_by(id: item.product_variation_id)
-                else
-                  producto.product_variations.order(:id).first
-                end
-
-    raise ActiveRecord::RecordNotFound, "Variacion no encontrada para item ##{item.id}." if variation.blank?
-
-    occurred_on = invoice.occurred_at&.in_time_zone('America/Caracas')&.to_date || Time.current.in_time_zone('America/Caracas').to_date
-    unit_cost_usd = producto.highest_active_lot_unit_cost_usd.to_d
-    unit_cost_usd = item.unit_price_usd.to_d if unit_cost_usd <= 0
-    unit_cost_usd = 0.to_d if unit_cost_usd.negative?
-
-    lot = producto.stock_lots.create!(
-      factura_item_id: nil,
-      unit_cost_usd: unit_cost_usd.round(2),
-      quantity_in: quantity,
-      quantity_remaining: quantity,
-      purchased_at: occurred_on.in_time_zone('America/Caracas').end_of_day,
-      supplier_name: 'Restauracion por eliminar factura de recuperacion',
-      description: "#{RECOVERY_INVOICE_RESTORE_LOT_PREFIX} [RI:#{invoice.id}] [RII:#{item.id}]"
-    )
-
-    lot.stock_lot_variations.create!(
-      product_variation_id: variation.id,
-      variation_description: variation.description.to_s,
-      quantity_in: quantity,
-      quantity_remaining: quantity
-    )
-
-    lot.sync_quantity_remaining_from_variations!
+    raise ActiveRecord::RecordInvalid.new(item),
+          "No se puede eliminar la factura de recuperacion ##{invoice.id}: el item ##{item.id} no tiene desglose de lotes verificable."
   end
 end

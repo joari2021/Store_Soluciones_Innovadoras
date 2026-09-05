@@ -26,7 +26,7 @@ class PurchaseInvoice < ApplicationRecord
   before_validation :normalize_delivered
   before_validation :set_supplier_name_snapshot
   before_save :calcular_monto_total
-  after_commit :sync_items_stock_lots_for_delivery_change, on: :update
+  after_save :sync_items_stock_lots_for_delivery_change, on: :update
 
   scope :initial_inventory, -> { where(invoice_kind: INVOICE_KIND_INITIAL_INVENTORY) }
 
