@@ -913,6 +913,9 @@
       let draftSyncTimeout = null;
       let draftSyncedFingerprint = null;
       let draftSyncInProgress = false;
+      let draftSyncRequestSequence = 0;
+      let draftSyncAbortController = null;
+      let heartbeatIntervalId = null;
       let draftLoadInProgress = false;
       let draftLoadRequestSequence = 0;
       let autoDraftWarningShown = false;
@@ -10718,6 +10721,15 @@
           draftSyncTimeout = null;
         }
 
+        if (draftSyncAbortController) {
+          try {
+            draftSyncAbortController.abort();
+          } catch (_e) {}
+          draftSyncAbortController = null;
+        }
+        draftSyncRequestSequence++;
+        draftSyncInProgress = false;
+
         if (activeDraftId) {
           sessionStorage.removeItem(draftLockStorageKey(activeDraftId));
         }
@@ -10871,6 +10883,24 @@
           return false;
         }
 
+        if (draftSyncTimeout) {
+          clearTimeout(draftSyncTimeout);
+          draftSyncTimeout = null;
+        }
+
+        if (draftSyncAbortController) {
+          try {
+            draftSyncAbortController.abort();
+          } catch (_e) {}
+          draftSyncAbortController = null;
+        }
+
+        const currentSeq = ++draftSyncRequestSequence;
+        const abortController = new AbortController();
+        if (!clearAfterSave) {
+          draftSyncAbortController = abortController;
+        }
+
         const requestFingerprint = buildDraftFingerprint();
         const requestReservationSnapshot = buildProductReservationSnapshot();
         const payload = buildVentaPayload([], []);
@@ -10897,6 +10927,7 @@
         try {
           const response = await fetch(endpoint, {
             method,
+            signal: abortController.signal,
             headers: {
               'Content-Type': 'application/json',
               'X-CSRF-Token': csrfToken,
@@ -10913,6 +10944,10 @@
 
           if (!response.ok) {
             throw new Error(data.error || 'No se pudo guardar el borrador.');
+          }
+
+          if (currentSeq !== draftSyncRequestSequence) {
+            return true;
           }
 
           if (Array.isArray(data.products)) {
@@ -10972,6 +11007,9 @@
 
           return true;
         } catch (error) {
+          if (error.name === 'AbortError') {
+            return false;
+          }
           if (!silent && window.Swal) {
             window.Swal.fire({
               icon: 'error',
@@ -10982,6 +11020,10 @@
           }
 
           return false;
+        } finally {
+          if (draftSyncAbortController === abortController) {
+            draftSyncAbortController = null;
+          }
         }
       };
 
@@ -11042,7 +11084,7 @@
 
       const heartbeatActiveDraft = async () => {
         if (!activeDraftId) return true;
-        if (!activeDraftLockToken || draftLoadInProgress) return false;
+        if (!activeDraftLockToken || draftLoadInProgress || cart.size === 0 || document.hidden) return false;
 
         try {
           const response = await fetch(`/ventas/drafts/${encodeURIComponent(activeDraftId)}/heartbeat`, {
@@ -11075,7 +11117,10 @@
         }
       };
 
-      window.setInterval(heartbeatActiveDraft, 10000);
+      if (heartbeatIntervalId) {
+        clearInterval(heartbeatIntervalId);
+      }
+      heartbeatIntervalId = window.setInterval(heartbeatActiveDraft, 5000);
 
       const releaseDraftLockOnUnload = () => {
         if (!activeDraftId) return;
@@ -11102,6 +11147,31 @@
           }
         } catch (_e) {}
       };
+
+      const cleanupVentasPOS = () => {
+        if (heartbeatIntervalId) {
+          clearInterval(heartbeatIntervalId);
+          heartbeatIntervalId = null;
+        }
+        if (liveProductsSyncInterval) {
+          clearInterval(liveProductsSyncInterval);
+          liveProductsSyncInterval = null;
+        }
+        if (draftSyncTimeout) {
+          clearTimeout(draftSyncTimeout);
+          draftSyncTimeout = null;
+        }
+        if (draftSyncAbortController) {
+          try {
+            draftSyncAbortController.abort();
+          } catch (_e) {}
+          draftSyncAbortController = null;
+        }
+        releaseDraftLockOnUnload();
+      };
+
+      document.addEventListener('turbo:before-cache', cleanupVentasPOS);
+      document.addEventListener('turbo:before-visit', releaseDraftLockOnUnload);
       window.addEventListener('pagehide', releaseDraftLockOnUnload);
       window.addEventListener('beforeunload', releaseDraftLockOnUnload);
 

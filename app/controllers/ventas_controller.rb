@@ -1,6 +1,6 @@
 class VentasController < ApplicationController
   POS_CATALOG_ITEMS_PER_PAGE = 24
-  DRAFT_LOCK_TTL = 30.seconds
+  DRAFT_LOCK_TTL = 15.seconds
 
   helper_method :sale_deletable_by_current_user?, :checkout_discount_payload_for_sale
 
