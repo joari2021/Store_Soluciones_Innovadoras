@@ -1,6 +1,6 @@
 class VentasController < ApplicationController
   POS_CATALOG_ITEMS_PER_PAGE = 24
-  DRAFT_LOCK_TTL = 90.seconds
+  DRAFT_LOCK_TTL = 30.seconds
 
   helper_method :sale_deletable_by_current_user?, :checkout_discount_payload_for_sale
 
@@ -1566,11 +1566,16 @@ class VentasController < ApplicationController
   end
 
   def draft_lock_payload(draft)
+    is_locked = draft.draft_lock_token.present? &&
+                draft.draft_lock_user_id.present? &&
+                draft.draft_lock_expires_at.present? &&
+                draft.draft_lock_expires_at > Time.current
+
     {
-      locked: draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > Time.current,
-      user_id: draft.draft_lock_user_id,
-      user_name: draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || draft.draft_lock_user&.username,
-      expires_at: draft.draft_lock_expires_at&.iso8601,
+      locked: is_locked,
+      user_id: is_locked ? draft.draft_lock_user_id : nil,
+      user_name: is_locked ? (draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || draft.draft_lock_user&.username) : nil,
+      expires_at: is_locked ? draft.draft_lock_expires_at&.iso8601 : nil,
     }
   end
 
@@ -1580,9 +1585,21 @@ class VentasController < ApplicationController
 
     Venta.transaction do
       draft.lock!
-      if draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > Time.current &&
-         (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
-        result = { ok: false, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}, para poder abrirla pidele que guarde y cierre la orden", lock: draft_lock_payload(draft) }
+      now = Time.current
+      is_locked = draft.draft_lock_token.present? &&
+                  draft.draft_lock_expires_at.present? &&
+                  draft.draft_lock_expires_at > now
+
+      if is_locked && (draft.draft_lock_token != token || (draft.draft_lock_user_id.present? && draft.draft_lock_user_id != Current.user&.id))
+        locking_user_name = draft.draft_lock_user&.display_name.presence ||
+                            draft.draft_lock_user&.full_name.presence ||
+                            draft.draft_lock_user&.username.presence ||
+                            "otro usuario"
+        result = {
+          ok: false,
+          error: "La orden esta abierta por #{locking_user_name}, para poder abrirla pidele que guarde y cierre la orden",
+          lock: draft_lock_payload(draft)
+        }
       else
         draft.update_columns(
           draft_lock_user_id: Current.user&.id,
@@ -1601,11 +1618,28 @@ class VentasController < ApplicationController
     token = token.to_s.strip
     now = Time.current
     draft.lock!
-    active = draft.draft_lock_token.present? && draft.draft_lock_expires_at.present? && draft.draft_lock_expires_at > now
-    return { ok: false, status: :conflict, error: "La orden esta abierta por #{draft.draft_lock_user&.display_name.presence || draft.draft_lock_user&.full_name.presence || 'otro usuario'}, para poder abrirla pidele que guarde y cierre la orden", lock: draft_lock_payload(draft) } if active && (draft.draft_lock_token != token || draft.draft_lock_user_id != Current.user&.id)
-    return { ok: false, status: :conflict, error: "La orden requiere abrirse nuevamente para obtener el bloqueo.", lock: draft_lock_payload(draft) } unless active && draft.draft_lock_token == token && draft.draft_lock_user_id == Current.user&.id
+    is_locked = draft.draft_lock_token.present? &&
+                draft.draft_lock_expires_at.present? &&
+                draft.draft_lock_expires_at > now
 
-    draft.update_columns(draft_lock_expires_at: DRAFT_LOCK_TTL.from_now)
+    if is_locked && (draft.draft_lock_token != token || (draft.draft_lock_user_id.present? && draft.draft_lock_user_id != Current.user&.id))
+      locking_user_name = draft.draft_lock_user&.display_name.presence ||
+                          draft.draft_lock_user&.full_name.presence ||
+                          draft.draft_lock_user&.username.presence ||
+                          "otro usuario"
+      return {
+        ok: false,
+        status: :conflict,
+        error: "La orden esta abierta por #{locking_user_name}, para poder abrirla pidele que guarde y cierre la orden",
+        lock: draft_lock_payload(draft)
+      }
+    end
+
+    draft.update_columns(
+      draft_lock_user_id: Current.user&.id,
+      draft_lock_token: token.presence || draft.draft_lock_token.presence || SecureRandom.hex(24),
+      draft_lock_expires_at: DRAFT_LOCK_TTL.from_now,
+    )
     { ok: true, status: :ok }
   end
 
@@ -1619,12 +1653,18 @@ class VentasController < ApplicationController
   def release_draft_lock!(draft, token:)
     token = token.to_s.strip
     draft.lock!
-    unless draft.draft_lock_user_id == Current.user&.id && draft.draft_lock_token == token
-      return { ok: false, status: :conflict, error: "No puedes cerrar el bloqueo de otra pestaña o usuario." }
+
+    if draft.draft_lock_user_id.nil? || draft.draft_lock_expires_at.nil? || draft.draft_lock_expires_at <= Time.current
+      draft.update_columns(draft_lock_user_id: nil, draft_lock_token: nil, draft_lock_expires_at: nil)
+      return { ok: true, status: :ok }
     end
 
-    draft.update_columns(draft_lock_user_id: nil, draft_lock_token: nil, draft_lock_expires_at: nil)
-    { ok: true, status: :ok }
+    if draft.draft_lock_user_id == Current.user&.id || current_user_admin? || current_user_manager? || (token.present? && draft.draft_lock_token == token)
+      draft.update_columns(draft_lock_user_id: nil, draft_lock_token: nil, draft_lock_expires_at: nil)
+      return { ok: true, status: :ok }
+    end
+
+    { ok: false, status: :conflict, error: "No puedes cerrar el bloqueo de otra pestaña o usuario." }
   end
 
   def customer_sales_mode?
@@ -2312,11 +2352,10 @@ class VentasController < ApplicationController
     end
     draft ||= current_business.ventas.new(status: "draft")
     draft.user = Current.user if draft.new_record? && draft.user.blank?
-    if draft.new_record?
-      draft.draft_lock_user = Current.user
-      draft.draft_lock_token = draft_lock_token_from_request.presence || SecureRandom.hex(24)
-      draft.draft_lock_expires_at = DRAFT_LOCK_TTL.from_now
-    end
+
+    release_lock_requested = ActiveModel::Type::Boolean.new.cast(payload[:release_lock]) ||
+                             ActiveModel::Type::Boolean.new.cast(payload[:clear_after_save])
+
     requested_visibility = normalize_draft_visibility(payload[:draft_visibility], default: draft_visibility(draft))
     requested_checkout_status = normalize_draft_checkout_status(
       payload[:draft_checkout_status],
@@ -2334,13 +2373,29 @@ class VentasController < ApplicationController
           draft.venta_payments.destroy_all
         end
 
-        draft.assign_attributes(
+        draft_attrs = {
           status: "draft",
           vat_mode: vat_mode,
           vat_rate: vat_rate,
           tasa_dolar: tasa_dolar,
           base_currency: base_currency,
-        )
+        }
+
+        if release_lock_requested
+          draft_attrs[:draft_lock_user_id] = nil
+          draft_attrs[:draft_lock_token] = nil
+          draft_attrs[:draft_lock_expires_at] = nil
+        elsif draft.new_record?
+          draft_attrs[:draft_lock_user_id] = Current.user&.id
+          draft_attrs[:draft_lock_token] = draft_lock_token_from_request.presence || SecureRandom.hex(24)
+          draft_attrs[:draft_lock_expires_at] = DRAFT_LOCK_TTL.from_now
+        elsif draft.draft_lock_user_id == Current.user&.id || draft.draft_lock_user_id.nil? || draft.draft_lock_expires_at.nil? || draft.draft_lock_expires_at <= Time.current
+          draft_attrs[:draft_lock_user_id] = Current.user&.id
+          draft_attrs[:draft_lock_token] = draft_lock_token_from_request.presence || draft.draft_lock_token.presence || SecureRandom.hex(24)
+          draft_attrs[:draft_lock_expires_at] = DRAFT_LOCK_TTL.from_now
+        end
+
+        draft.assign_attributes(draft_attrs)
 
         if payload[:cliente_id].present?
           cliente = current_business.clientes.find_by(id: payload[:cliente_id])
@@ -3588,6 +3643,8 @@ class VentasController < ApplicationController
       :draft_visibility,
       :draft_checkout_status,
       :draft_lock_token,
+      :release_lock,
+      :clear_after_save,
       :vat_mode,
       :vat_rate,
       :tasa_dolar,

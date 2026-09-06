@@ -144,7 +144,7 @@ Rails.application.routes.draw do
       get "drafts/:id", action: :show_draft
       post "drafts/:id/lock", action: :lock_draft
       patch "drafts/:id/heartbeat", action: :heartbeat_draft
-      delete "drafts/:id/lock", action: :release_draft_lock
+      match "drafts/:id/lock", action: :release_draft_lock, via: %i[delete post]
       post :save_draft
       patch "drafts/:id", action: :update_draft
       delete "drafts/:id", action: :destroy_draft

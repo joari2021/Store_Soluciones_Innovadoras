@@ -221,6 +221,21 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert_equal "tab-b", JSON.parse(response.body).dig("draft", "lock_token")
   end
 
+  test "save_draft with release_lock clears lock immediately so another tab can open it" do
+    payload = draft_payload(quantity: 1).merge(draft_lock_token: "tab-a", release_lock: true)
+    post "/ventas/save_draft", params: { venta: payload }, as: :json
+    assert_response :success
+
+    draft = Venta.where(status: "draft").order(:id).last
+    assert_nil draft.draft_lock_token
+    assert_nil draft.draft_lock_user_id
+    assert_nil draft.draft_lock_expires_at
+
+    get "/ventas/drafts/#{draft.id}?draft_lock_token=tab-b", as: :json
+    assert_response :success
+    assert_equal "tab-b", JSON.parse(response.body).dig("draft", "lock_token")
+  end
+
   test "create from legacy draft rebuilds missing variation stock row" do
     post "/ventas/save_draft", params: { venta: draft_payload(quantity: 2) }, as: :json
     lock_token = JSON.parse(response.body).dig("draft", "lock_token")

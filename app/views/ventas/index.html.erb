@@ -10718,6 +10718,10 @@
           draftSyncTimeout = null;
         }
 
+        if (activeDraftId) {
+          sessionStorage.removeItem(draftLockStorageKey(activeDraftId));
+        }
+
         cart.clear();
         activeDraftId = null;
         activeDraftLockToken = null;
@@ -10794,6 +10798,7 @@
 
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
           const deletingActiveDraft = activeDraftId && String(activeDraftId) === safeId;
+          sessionStorage.removeItem(draftLockStorageKey(safeId));
           if (deletingActiveDraft) {
             activeDraftId = null;
             activeDraftCreatedById = null;
@@ -10828,7 +10833,7 @@
         }
       };
 
-      const persistDraft = async ({ clearAfterSave = true, silent = false, draftVisibility = null, draftCheckoutStatus = null } = {}) => {
+      const persistDraft = async ({ clearAfterSave = true, releaseLock = null, silent = false, draftVisibility = null, draftCheckoutStatus = null } = {}) => {
         if (cart.size === 0) {
           if (draftLoadInProgress && !clearAfterSave) {
             return false;
@@ -10880,8 +10885,12 @@
         );
         payload.draft_visibility = effectiveDraftVisibility;
         payload.draft_checkout_status = effectiveDraftCheckoutStatus;
+        const shouldReleaseLock = releaseLock === true || (releaseLock === null && clearAfterSave);
+        payload.release_lock = shouldReleaseLock;
+        payload.clear_after_save = clearAfterSave;
         payload.draft_lock_token = activeDraftLockToken || (activeDraftId ? readDraftLockToken(activeDraftId) : '');
         payload.draft_created_by_id = activeDraftCreatedById;
+        const closingDraftId = activeDraftId;
         const endpoint = activeDraftId ? `/ventas/drafts/${activeDraftId}` : '/ventas/save_draft';
         const method = activeDraftId ? 'PATCH' : 'POST';
 
@@ -10913,11 +10922,20 @@
           drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
 
           if (clearAfterSave) {
+            if (closingDraftId) {
+              sessionStorage.removeItem(draftLockStorageKey(closingDraftId));
+            }
             resetWorkingSale();
           } else if (data.draft?.id) {
             activeDraftId = String(data.draft.id);
-            activeDraftLockToken = String(data.draft.lock_token || activeDraftLockToken || readDraftLockToken(activeDraftId) || '');
-            writeDraftLockToken(activeDraftId, activeDraftLockToken);
+            activeDraftLockToken = shouldReleaseLock
+              ? null
+              : String(data.draft.lock_token || activeDraftLockToken || readDraftLockToken(activeDraftId) || '');
+            if (activeDraftLockToken) {
+              writeDraftLockToken(activeDraftId, activeDraftLockToken);
+            } else {
+              sessionStorage.removeItem(draftLockStorageKey(activeDraftId));
+            }
             activeDraftCreatedById = Number(data.draft.created_by_id || activeDraftCreatedById || currentUserId || 0) || null;
             const responseVisibility = String(data.draft.visibility || effectiveDraftVisibility || 'visible').toLowerCase();
             activeDraftVisibility = responseVisibility === 'hidden' ? 'hidden' : 'visible';
@@ -10970,10 +10988,13 @@
       const closeActiveDraftPreservingState = async () => {
         if (!activeDraftId) return true;
 
+        const closingDraftId = activeDraftId;
+        const closingLockToken = activeDraftLockToken;
         const syncVisibility = activeDraftVisibility === 'hidden' ? 'hidden' : 'visible';
         const syncCheckoutStatus = normalizeDraftCheckoutStatus(activeDraftCheckoutStatus, 'pending');
         const synced = await persistDraft({
-          clearAfterSave: false,
+          clearAfterSave: true,
+          releaseLock: true,
           silent: true,
           draftVisibility: syncVisibility,
           draftCheckoutStatus: syncCheckoutStatus,
@@ -10991,25 +11012,28 @@
           return false;
         }
 
-        await releaseActiveDraftLock();
+        await releaseActiveDraftLock(closingDraftId, closingLockToken);
         resetWorkingSale();
         return true;
       };
 
-      const releaseActiveDraftLock = async () => {
-        if (!activeDraftId || !activeDraftLockToken) return true;
+      const releaseActiveDraftLock = async (draftId = activeDraftId, lockToken = activeDraftLockToken) => {
+        const targetId = String(draftId || '').trim();
+        const targetToken = String(lockToken || '').trim();
+        if (!targetId) return true;
 
         try {
-          const response = await fetch(`/ventas/drafts/${encodeURIComponent(activeDraftId)}/lock`, {
+          const response = await fetch(`/ventas/drafts/${encodeURIComponent(targetId)}/lock`, {
             method: 'DELETE',
             headers: {
               Accept: 'application/json',
               'Content-Type': 'application/json',
               'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
             },
-            body: JSON.stringify({ draft_lock_token: activeDraftLockToken }),
+            body: JSON.stringify({ draft_lock_token: targetToken }),
             credentials: 'same-origin',
           });
+          sessionStorage.removeItem(draftLockStorageKey(targetId));
           return response.ok;
         } catch (_error) {
           return false;
@@ -11051,7 +11075,35 @@
         }
       };
 
-      window.setInterval(heartbeatActiveDraft, 25000);
+      window.setInterval(heartbeatActiveDraft, 10000);
+
+      const releaseDraftLockOnUnload = () => {
+        if (!activeDraftId) return;
+        const targetId = activeDraftId;
+        const targetToken = activeDraftLockToken || readDraftLockToken(targetId);
+        const url = `/ventas/drafts/${encodeURIComponent(targetId)}/lock`;
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        try {
+          if (navigator.sendBeacon) {
+            const formData = new FormData();
+            formData.append('draft_lock_token', targetToken || '');
+            if (csrfToken) formData.append('authenticity_token', csrfToken);
+            navigator.sendBeacon(url, formData);
+          } else {
+            fetch(url, {
+              method: 'DELETE',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+              },
+              body: JSON.stringify({ draft_lock_token: targetToken || '' }),
+              keepalive: true,
+            });
+          }
+        } catch (_e) {}
+      };
+      window.addEventListener('pagehide', releaseDraftLockOnUnload);
+      window.addEventListener('beforeunload', releaseDraftLockOnUnload);
 
       const queueActiveDraftSync = () => {
         const hasItems = cart.size > 0;
