@@ -23,7 +23,6 @@ class SystemController < ApplicationController
     timestamps = [
       current_business.productos.maximum(:updated_at),
       current_business.services.maximum(:updated_at),
-      current_business.accounts.maximum(:updated_at),
     ].compact
 
     timestamps.max

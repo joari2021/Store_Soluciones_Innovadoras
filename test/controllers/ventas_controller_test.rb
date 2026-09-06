@@ -64,6 +64,20 @@ class VentasControllerTest < ActionDispatch::IntegrationTest
     assert payload.key?("release")
   end
 
+  test "system status signature does not change for account balance updates" do
+    get "/system/status", as: :json
+    assert_response :success
+    baseline_signature = JSON.parse(response.body).fetch("signature")
+
+    @cash_account.update!(balance: @cash_account.balance.to_d + 150.to_d)
+
+    get "/system/status", as: :json
+    assert_response :success
+    updated_signature = JSON.parse(response.body).fetch("signature")
+
+    assert_equal baseline_signature, updated_signature
+  end
+
   test "hidden draft reserves stock and is included in panel drafts list" do
     post "/ventas/save_draft",
          params: { venta: draft_payload(quantity: 2, draft_visibility: "hidden") },
