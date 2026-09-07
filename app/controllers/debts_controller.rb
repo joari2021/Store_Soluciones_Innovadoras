@@ -2257,8 +2257,10 @@ class DebtsController < ApplicationController
                   representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
                   representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
                   # Fecha mínima `due_on` para deudas aún pendientes dentro del grupo.
+                  # En por pagar usamos saldo real en USD BCV para evitar arrastres por redondeo
+                  # cuando una deuda ya fue saldada con pagos en otra moneda.
                   earliest_due_on = Array(grouped_debts)
-                                  .select { |d| balance_for_overdue_grouping(d) > 0.01.to_d }
+                                  .select { |d| pending_for_due_priority?(d) }
                                   .map { |d| pending_due_on_for_grouped_debt(d) }
                                   .compact
                                   .min
@@ -2438,6 +2440,18 @@ class DebtsController < ApplicationController
     return debt.card_earliest_due_on if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
 
     debt.due_on
+  end
+
+  def pending_for_due_priority?(debt)
+    if debt.respond_to?(:card_total_balance)
+      return debt.card_total_balance.to_d > 0.01.to_d
+    end
+
+    if debt.payable?
+      real_balance_usd_bcv_for_debt(debt) > 0.01.to_d
+    else
+      debt.balance.to_d > 0.01.to_d
+    end
   end
 
   def overdue_count_for_group(debts)
