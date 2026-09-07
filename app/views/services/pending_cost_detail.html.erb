@@ -62,8 +62,25 @@
       <% row[:lines].each do |line| %>
         <% next if line['show_in_breakdown'] == false %>
         <% line_status = line['status'].to_s %>
-        <% line_label = line_status == 'paid' ? 'Pagado' : (line_status == 'partial' ? 'Parcial' : 'Pendiente') %>
-        <% line_status_class = line_status == 'paid' ? 'bg-emerald-100 text-emerald-700 ring-emerald-200' : (line_status == 'partial' ? 'bg-amber-100 text-amber-700 ring-amber-200' : 'bg-rose-100 text-rose-700 ring-rose-200') %>
+        <% line_exonerated = ActiveModel::Type::Boolean.new.cast(line['exonerated']) %>
+        <% line_label = if line_exonerated
+                          'Exonerado'
+                        elsif line_status == 'paid'
+                          'Pagado'
+                        elsif line_status == 'partial'
+                          'Parcial'
+                        else
+                          'Pendiente'
+                        end %>
+        <% line_status_class = if line_exonerated
+                                 'bg-sky-100 text-sky-700 ring-sky-200'
+                               elsif line_status == 'paid'
+                                 'bg-emerald-100 text-emerald-700 ring-emerald-200'
+                               elsif line_status == 'partial'
+                                 'bg-amber-100 text-amber-700 ring-amber-200'
+                               else
+                                 'bg-rose-100 text-rose-700 ring-rose-200'
+                               end %>
         <% pending_usd = line['pending_usd'].to_d %>
         <% debt_currency = debt.currency.to_s.upcase.presence || 'USD' %>
         <% debt_symbol = Account::CURRENCIES.dig(debt_currency, :symbol) || debt_currency %>
@@ -146,6 +163,17 @@
             <p>Pagado <span data-pending-cost-secondary-label><%= secondary_label %></span>: <span class="font-semibold text-emerald-700" data-pending-cost-secondary-paid><%= format_money(secondary_paid, unit: "#{secondary_symbol} ") %></span></p>
             <p>Pendiente <span data-pending-cost-secondary-label><%= secondary_label %></span>: <span class="font-semibold text-rose-700" data-pending-cost-secondary-pending><%= format_money(secondary_pending, unit: "#{secondary_symbol} ") %></span></p>
           </div>
+          <% if line_exonerated %>
+            <% exonerated_at = begin
+                                 value = line['exonerated_at'].to_s.strip
+                                 value.present? ? Date.parse(value) : nil
+                               rescue ArgumentError
+                                 nil
+                               end %>
+            <p class="mt-2 text-xs font-semibold text-sky-700">
+              Linea exonerada<%= exonerated_at.present? ? " el #{l(exonerated_at)}" : '' %>. Este saldo se considera pagado sin movimiento de cuenta.
+            </p>
+          <% end %>
           <% if line_payments.any? %>
             <div class="mt-3 rounded-xl border border-slate-200 bg-white p-3">
               <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Pagos registrados</p>
@@ -282,6 +310,13 @@
                           data-pending-cost-submit-kind="total"
                           class="inline-flex cursor-pointer items-center rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800">
                     Registrar pago total
+                  </button>
+                  <button type="submit"
+                          name="exonerate_line"
+                          value="1"
+                          data-pending-cost-submit-kind="exonerate"
+                          class="inline-flex cursor-pointer items-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-semibold text-sky-700 hover:bg-sky-100">
+                    Exonerar pago
                   </button>
                 </div>
               </div>
@@ -735,7 +770,9 @@
         const forceTotalInput = form.querySelector('input[data-pending-cost-force-total]');
         const updateOverrideInput = form.querySelector('input[data-pending-cost-update-source-override]');
 
-        const submitKind = submitter?.dataset?.pendingCostSubmitKind === 'total' ? 'total' : 'partial';
+        const submitKind = submitter?.dataset?.pendingCostSubmitKind === 'total'
+          ? 'total'
+          : (submitter?.dataset?.pendingCostSubmitKind === 'exonerate' ? 'exonerate' : 'partial');
         if (paymentScopeInput) paymentScopeInput.value = submitKind;
         if (forceTotalInput) forceTotalInput.value = submitKind === 'total' ? '1' : '0';
 

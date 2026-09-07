@@ -320,6 +320,7 @@ class ServicesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Pendiente base (Bs)"
     assert_includes response.body, "Registrar pago parcial"
     assert_includes response.body, "Registrar pago total"
+    assert_includes response.body, "Exonerar pago"
   end
 
   test "pending_cost_detail hides source update checkbox for non updatable lines" do
@@ -638,6 +639,57 @@ class ServicesControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("3.75"), variable_expense.amount_reference.to_d
     assert_equal BigDecimal("3.75"), line["source_amount_reference_unit"].to_d
     assert_equal BigDecimal("3.75"), line["source_amount_reference_total"].to_d
+  end
+
+  test "pay_pending_cost_line exonerate marks line as paid without creating debt payment" do
+    debt = create_pending_cost_debt_with_lines!([
+                                                  {
+                                                    "line_id" => "line-exon",
+                                                    "structure_description" => "Estructura exonerable",
+                                                    "classification" => "variable_expense",
+                                                    "classification_label" => "Gasto variable",
+                                                    "source_name" => "Proveedor exon",
+                                                    "amount_usd" => 12.0,
+                                                    "paid_usd" => 0.0,
+                                                    "pending_usd" => 12.0,
+                                                    "status" => "pending",
+                                                    "source_updatable" => false,
+                                                    "source_currency_reference" => "Dolar BCV",
+                                                    "source_amount_reference_unit" => 12.0,
+                                                    "source_amount_reference_total" => 12.0,
+                                                  },
+                                                  {
+                                                    "line_id" => "line-paid",
+                                                    "structure_description" => "Estructura ya pagada",
+                                                    "classification" => "manager_expense",
+                                                    "classification_label" => "Gestor",
+                                                    "source_name" => "Gestor",
+                                                    "amount_usd" => 8.0,
+                                                    "paid_usd" => 8.0,
+                                                    "pending_usd" => 0.0,
+                                                    "status" => "paid",
+                                                    "source_updatable" => false,
+                                                  },
+                                                ])
+
+    assert_no_difference("DebtPayment.count") do
+      post pay_pending_cost_line_services_path, params: {
+                                                  debt_id: debt.id,
+                                                  line_id: "line-exon",
+                                                  exonerate_line: "1",
+                                                  payment_date: Date.current.strftime("%d-%m-%Y"),
+                                                }
+    end
+
+    debt.reload
+    line = debt.service_cost_lines.find { |row| row["line_id"] == "line-exon" }
+
+    assert_equal BigDecimal("12.0"), line["paid_usd"].to_d
+    assert_equal BigDecimal("0.0"), line["pending_usd"].to_d
+    assert_equal "paid", line["status"]
+    assert_equal true, ActiveModel::Type::Boolean.new.cast(line["exonerated"])
+    assert_equal Date.current.iso8601, line["exonerated_at"].to_s
+    refute debt.service_cost_pending?
   end
 
   test "pay_pending_cost_line total with source update uses higher paid amount when cost increased" do

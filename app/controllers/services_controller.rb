@@ -281,6 +281,51 @@ class ServicesController < ApplicationController
                          alert: 'La linea seleccionada ya se encuentra pagada.'
     end
 
+    exonerate_line = ActiveModel::Type::Boolean.new.cast(params[:exonerate_line]) ||
+                     params[:payment_scope].to_s == 'exonerate'
+
+    if exonerate_line
+      exonerated_on = parse_pending_cost_payment_date(params[:payment_date]) || Date.current
+
+      Debt.transaction do
+        line['paid_usd'] = line['amount_usd'].to_d.round(2).to_f
+        line['pending_usd'] = 0.0
+        line['status'] = 'paid'
+        line['exonerated'] = true
+        line['exonerated_at'] = exonerated_on.iso8601
+
+        paid_usd = lines.sum { |row| row['paid_usd'].to_d }.round(2)
+        pending_usd = lines.sum { |row| row['pending_usd'].to_d }.round(2)
+        overall_status = if pending_usd <= 0.01.to_d
+                           'paid'
+                         elsif paid_usd.positive?
+                           'partial'
+                         else
+                           'pending'
+                         end
+
+        details = debt.service_cost_details_hash.deep_dup
+        details['version'] ||= 1
+        details['service_id'] ||= debt.service_id
+        details['service_name'] ||= debt.service&.description.to_s
+        details['total_usd'] = lines.sum { |row| row['amount_usd'].to_d }.round(2).to_f
+        details['paid_usd'] = paid_usd.to_f
+        details['pending_usd'] = pending_usd.to_f
+        details['status'] = overall_status
+        details['lines'] = lines
+
+        debt.update!(
+          service_cost_details: details,
+          service_cost_pending: pending_usd.positive?
+        )
+
+        sync_paid_service_cost_snapshot_to_sale!(debt: debt, details: details) if pending_usd <= 0.01.to_d
+      end
+
+      return redirect_to pending_cost_redirect_path(debt: debt),
+                         notice: 'Linea exonerada correctamente. El saldo pendiente se marco como pagado sin movimiento de cuenta.'
+    end
+
     account = @pending_cost_accounts.find_by(id: params[:account_id])
     if account.blank?
       return redirect_to redirect_path,
@@ -2993,6 +3038,11 @@ class ServicesController < ApplicationController
         on_date: payment.occurred_at
       )
     end.round(2)
+
+    # Exoneraciones no crean DebtPayment, pero deben reflejarse como monto pagado.
+    if line['pending_usd'].to_d <= 0.01.to_d
+      paid_reference = total_reference
+    end
 
     paid_reference = total_reference if paid_reference > total_reference
     pending_reference = (total_reference - paid_reference).round(2)
