@@ -864,3 +864,23 @@ document.addEventListener(
   },
   true,
 );
+
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-cashea-blocked-delivery-note]");
+  if (!target) return;
+  event.preventDefault();
+  const message = "Esta venta fue realizada con un plan de financiamiento de la Linea Principal de Cashea la cual no esta permitida oficialmente por Cashea como empresa para los tipos de productos que incluye esta venta, permitir la Linea Principal en este tipo de venta es una Iniciativa propia de nosotros, por lo cual no se puede generar ningun tipo de recibo ni foto de la orden ni para Cashea ni para el Cliente, sin excepcion, al el cliente aceptar esta venta con la linea principal acepta estas otras condiciones, de lo contrario si el cliente exige su nota de entrega, esta venta debe ser eliminada y cancelada la orden en Cashea y generar una nueva orden usando la Linea Cotidiana";
+
+  if (window.Swal) {
+    window.Swal.fire({
+      icon: "warning",
+      title: "Nota de entrega no disponible",
+      text: message,
+      confirmButtonText: "Entendido",
+      confirmButtonColor: "#0284c7",
+      heightAuto: false,
+    });
+  } else {
+    alert(message);
+  }
+});

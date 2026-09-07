@@ -148,6 +148,7 @@ Rails.application.routes.draw do
       post :save_draft
       patch "drafts/:id", action: :update_draft
       delete "drafts/:id", action: :destroy_draft
+      post :presupuesto, path: "presupuesto"
     end
   end
   resources :cambio_efectivos, path: "cambios-efectivo", only: %i[create destroy] do

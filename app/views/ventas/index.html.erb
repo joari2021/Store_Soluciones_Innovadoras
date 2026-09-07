@@ -685,10 +685,16 @@
             </div>
           </div>
         </div>
-        <button id="ventas-pay-button" type="button" class="ventas-theme-pay-button mt-5 flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-700 px-4 py-4 font-bold text-white shadow-xl shadow-sky-200 transition-all hover:from-slate-800 hover:to-sky-600 active:scale-[0.98]">
-          <span><%= customer_pos_mode ? 'Registrar pedido' : 'Lista cobro' %></span>
-          <i data-lucide="arrow-right" class="w-4 h-4"></i>
-        </button>
+        <div class="space-y-2.5 mt-5">
+          <button id="ventas-pay-button" type="button" class="ventas-theme-pay-button flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-slate-900 to-sky-700 px-4 py-4 font-bold text-white shadow-xl shadow-sky-200 transition-all hover:from-slate-800 hover:to-sky-600 active:scale-[0.98]">
+            <span><%= customer_pos_mode ? 'Registrar pedido' : 'Lista cobro' %></span>
+            <i data-lucide="arrow-right" class="w-4 h-4"></i>
+          </button>
+          <button id="ventas-presupuesto-button" type="button" class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-3 font-semibold text-sky-700 shadow-sm transition-all hover:bg-sky-100 active:scale-[0.98]">
+            <i data-lucide="file-text" class="w-4 h-4"></i>
+            <span>Crear presupuesto</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -5520,6 +5526,7 @@
         const cartList = document.getElementById('ventas-cart-list');
         const emptyState = document.getElementById('ventas-cart-empty');
         const payButton = document.getElementById('ventas-pay-button');
+        const presupuestoButton = document.getElementById('ventas-presupuesto-button');
 
         const updateCartBadge = () => {
           if (!cartCountBadge) return;
@@ -5552,6 +5559,10 @@
             payButton.classList.add('opacity-60', 'cursor-not-allowed');
             payButton.disabled = true;
           }
+          if (presupuestoButton) {
+            presupuestoButton.classList.add('opacity-60', 'cursor-not-allowed');
+            presupuestoButton.disabled = true;
+          }
           updateDraftActionButtons();
           renderTotals();
           updateAvailabilityUI();
@@ -5569,6 +5580,10 @@
             payButton.classList.add('opacity-60', 'cursor-not-allowed');
             payButton.disabled = true;
           }
+        }
+        if (presupuestoButton) {
+          presupuestoButton.classList.remove('opacity-60', 'cursor-not-allowed');
+          presupuestoButton.disabled = false;
         }
 
         updateDraftActionButtons();
@@ -8195,6 +8210,107 @@
       });
 
       const payButton = document.getElementById('ventas-pay-button');
+      const presupuestoButton = document.getElementById('ventas-presupuesto-button');
+
+      if (presupuestoButton) {
+        presupuestoButton.addEventListener('click', () => {
+          if (cart.size === 0) {
+            if (window.Swal) {
+              window.Swal.fire({
+                icon: 'info',
+                title: 'Orden vacia',
+                text: 'Agrega productos o servicios antes de crear un presupuesto.',
+                heightAuto: false,
+              });
+            }
+            return;
+          }
+
+          const selectedBaseCurrency = getSelectedBaseCurrency();
+          const isVes = String(selectedBaseCurrency || '').toLowerCase() === 'ves';
+          const baseCurrencyCode = isVes ? 'VES' : 'USD';
+
+          const itemsPayload = Array.from(cart.values()).map((item) => {
+            const itemType = item.itemType || 'product';
+            if (itemType === 'service') {
+              const service = servicesById.get(String(item.serviceId));
+              const baseSnapshot = resolveServiceBaseSnapshot(service, item, selectedBaseCurrency);
+              return {
+                item_type: 'service',
+                service_id: item.serviceId,
+                name: String(item.product_name || service?.name || service?.sale_display_name || service?.description || 'Servicio').trim(),
+                quantity: Number(item.quantity) || 1,
+                unit_price_usd: baseSnapshot.unitPriceUsd,
+                unit_price_base: baseSnapshot.unitPriceBaseAmount,
+                subtotal_base: roundTo(baseSnapshot.unitPriceBaseAmount * (Number(item.quantity) || 1), 2),
+              };
+            }
+
+            const product = productsById.get(String(item.productId));
+            const pricing = computeProductPricing(product, item);
+            const unitBase = roundTo(Number(pricing?.unitDisplay) || 0, 2);
+            const unitUsd = isVes && bcvRate > 0 ? roundTo(unitBase / bcvRate, 6) : unitBase;
+            const variation = product?.variations?.find((v) => String(v.id) === String(item.variationId));
+            const itemName = variation
+              ? `${product.description || product.name || 'Producto'} (${variation.description || variation.name})`
+              : (product?.description || product?.name || 'Producto');
+
+            return {
+              item_type: 'product',
+              product_id: item.productId,
+              variation_id: item.variationId,
+              name: itemName,
+              quantity: Number(item.quantity) || 1,
+              unit_price_usd: unitUsd,
+              unit_price_base: unitBase,
+              subtotal_base: roundTo(unitBase * (Number(item.quantity) || 1), 2),
+            };
+          });
+
+          const totals = calculateCartTotals();
+          const payload = {
+            cliente: selectedClient ? {
+              id: selectedClient.id,
+              name: selectedClient.name,
+              document: selectedClient.document_label || selectedClient.document || '',
+              phone: selectedClient.phone || '',
+              address: selectedClient.address || '',
+            } : null,
+            base_currency: baseCurrencyCode,
+            tasa_dolar: bcvRate,
+            totals: {
+              total_base: totals.totalBase,
+            },
+            items: itemsPayload,
+          };
+
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+          const form = document.createElement('form');
+          form.method = 'POST';
+          form.action = '/ventas/presupuesto';
+          form.target = '_blank';
+          form.style.display = 'none';
+
+          if (csrfToken) {
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = 'authenticity_token';
+            csrfInput.value = csrfToken;
+            form.appendChild(csrfInput);
+          }
+
+          const payloadInput = document.createElement('input');
+          payloadInput.type = 'hidden';
+          payloadInput.name = 'presupuesto_payload';
+          payloadInput.value = JSON.stringify(payload);
+          form.appendChild(payloadInput);
+
+          document.body.appendChild(form);
+          form.submit();
+          document.body.removeChild(form);
+        });
+      }
+
       if (payButton) {
         payButton.addEventListener('click', async () => {
           if (!isCustomerPosMode && !canChargeSale) {
@@ -8554,6 +8670,9 @@
                         <p>Total de la orden: <strong>$ ${formatNumber(totalUsd, 2)}</strong></p>
                         <p>Monto adicional de comisión: <strong>$ ${formatNumber(activePricing.commissionUsd, 2)}</strong></p>
                         <p class="pt-1.5 border-t border-amber-200 font-bold text-sm text-amber-950">Nuevo total con comisión: $ ${formatNumber(activePricing.totalWithCommissionUsd, 2)}</p>
+                      </div>
+                      <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800 font-medium">
+                        <p><strong>Nota importante:</strong> Al aceptar proceder con esta opción de financiamiento, el cliente renuncia al derecho de obtener un recibo, nota de entrega o factura de la orden en curso.</p>
                       </div>
                     </div>
                   `,

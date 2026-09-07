@@ -1,0 +1,318 @@
+<% base_is_ves = @base_currency == 'VES' %>
+<% tasa = @tasa_dolar.to_d %>
+<% base_symbol = base_is_ves ? 'Bs ' : '$' %>
+<% alt_symbol = base_is_ves ? '$' : 'Bs ' %>
+<% base_total = @total_base.to_d %>
+<% alt_total = base_is_ves ? (tasa.positive? ? (base_total / tasa).round(2) : 0) : (tasa.positive? ? (base_total * tasa).round(2) : 0) %>
+<% items_count = @items.size %>
+<% business_address_line = @business.address.presence %>
+<% business_city_state_line = if @business.city.present? && @business.state.present?
+                                "#{@business.city}, Edo. #{@business.state}"
+                              else
+                                [@business.city.presence, @business.state.presence].compact.join(', ')
+                              end %>
+<style>
+  .note-banner {
+    position: relative;
+    width: 100%;
+    height: 195px;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    background: #e2e8f0;
+  }
+
+  .note-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    display: block;
+  }
+
+  .note-banner-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #475569;
+    background: linear-gradient(135deg, #e2e8f0, #f8fafc);
+  }
+
+  .note-banner-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 10px 20px 0;
+    text-align: center;
+    transform: translate(10px, -3px);
+  }
+
+  .note-banner-text {
+    color: #f8fafc;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.05;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 2px 4px #000;
+    letter-spacing: 0.01em;
+  }
+
+  .note-banner-text .line-item {
+    margin-top: 0;
+  }
+
+  .doc-meta-strip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #bae6fd;
+    background: #f0f9ff;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 10px;
+  }
+
+  .doc-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .doc-pill {
+    display: inline-flex;
+    align-items: center;
+    border-radius: 999px;
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    padding: 4px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .meta-grid {
+    margin: 10px 0 16px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .meta-card {
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px;
+    background: #f8fafc;
+  }
+
+  .meta-label {
+    margin: 0;
+    color: #64748b;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+  }
+
+  .meta-value {
+    margin: 5px 0 0;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+
+  .items-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+  }
+
+  .items-table th,
+  .items-table td {
+    border: 1px solid #cbd5e1;
+    padding: 7px 8px;
+    font-size: 12px;
+    vertical-align: top;
+  }
+
+  .items-table th {
+    background: #eff6ff;
+    color: #0f172a;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    text-align: left;
+  }
+
+  .row-odd {
+    background: #ffffff;
+  }
+
+  .row-even {
+    background: #f8fafc;
+  }
+
+  .item-title {
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .text-right {
+    text-align: right;
+  }
+
+  .text-center {
+    text-align: center;
+  }
+
+  .totals-box {
+    margin-top: 14px;
+    margin-left: auto;
+    width: 300px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .totals-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .totals-row:last-child {
+    border-bottom: none;
+  }
+
+  .totals-row.total {
+    background: #f0fdf4;
+    font-size: 14px;
+    font-weight: 800;
+    color: #166534;
+  }
+
+  .footer-note {
+    margin-top: 20px;
+    padding-top: 8px;
+    border-top: 1px dashed #cbd5e1;
+    font-size: 11px;
+    color: #64748b;
+    text-align: center;
+  }
+</style>
+<section class="note-banner">
+  <% if @business.banner.attached? %>
+    <%= image_tag url_for(@business.banner), alt: 'Banner del negocio' %>
+  <% else %>
+    <div class="note-banner-fallback">Sin banner configurado</div>
+  <% end %>
+  <div class="note-banner-overlay">
+    <div class="note-banner-text">
+      <% if @business.rif.present? %>
+        <div class="line-item">RIF: <%= @business.rif %></div>
+      <% end %>
+      <% if business_address_line.present? %>
+        <div class="line-item"><%= business_address_line %></div>
+      <% end %>
+      <% if business_city_state_line.present? %>
+        <div class="line-item"><%= business_city_state_line %></div>
+      <% end %>
+      <% if @business.phone.present? %>
+        <div class="line-item">Tlf: <%= @business.phone %></div>
+      <% end %>
+    </div>
+  </div>
+</section>
+<section class="doc-meta-strip">
+  <h1 class="doc-title">Presupuesto</h1>
+  <div>
+    <span class="doc-pill">Presupuesto</span>
+  </div>
+</section>
+<section class="meta-grid">
+  <article class="meta-card">
+    <p class="meta-label">Cliente</p>
+    <p class="meta-value"><%= @cliente_display_name %></p>
+    <% if @cliente_document.present? && @cliente_document != '-' %>
+      <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 4px;">
+        Documento: <%= @cliente_document %>
+      </p>
+    <% end %>
+    <% if @cliente_phone.present? && @cliente_phone != '-' %>
+      <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">
+        Telefono: <%= @cliente_phone %>
+      </p>
+    <% end %>
+    <% if @cliente_address.present? && @cliente_address != '-' %>
+      <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">
+        Direccion: <%= @cliente_address %>
+      </p>
+    <% end %>
+  </article>
+  <article class="meta-card">
+    <p class="meta-label">Datos de documento</p>
+    <p class="meta-value">Vendedor: <%= @seller_display_name %></p>
+    <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 4px;">Fecha: <%= @delivery_print_date.strftime('%d/%m/%Y %H:%M') %></p>
+    <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">Moneda base: <%= @base_currency %></p>
+    <p class="meta-value" style="font-size: 12px; font-weight: 600; margin-top: 2px;">Tasa referencial: <%= tasa.positive? ? format_money(tasa, unit: 'Bs ') : 'No disponible' %></p>
+  </article>
+</section>
+<table class="items-table">
+  <thead>
+    <tr>
+      <th style="width: 44px;">#</th>
+      <th>Descripcion</th>
+      <th style="width: 86px;" class="text-center">Cantidad</th>
+      <th style="width: 110px;" class="text-right">P. Unitario</th>
+      <th style="width: 120px;" class="text-right">Subtotal</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% @items.each_with_index do |item, index| %>
+      <tr class="<%= (index + 1).odd? ? 'row-odd' : 'row-even' %>">
+        <td class="text-center"><%= index + 1 %></td>
+        <td>
+          <div class="item-title"><%= item[:name] %></div>
+        </td>
+        <td class="text-center"><%= format_sale_item_quantity(item[:quantity], producto: item[:producto]) %></td>
+        <td class="text-right"><%= format_money(item[:unit_base], unit: base_symbol) %></td>
+        <td class="text-right"><%= format_money(item[:subtotal_base], unit: base_symbol) %></td>
+      </tr>
+    <% end %>
+    <% if items_count == 0 %>
+      <tr>
+        <td colspan="5" class="text-center" style="padding: 14px; color: #64748b;">Sin items en el presupuesto.</td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+<div class="totals-box">
+  <div class="totals-row">
+    <span>Subtotal</span>
+    <strong><%= format_money(base_total, unit: base_symbol) %></strong>
+  </div>
+  <div class="totals-row">
+    <span>Referencia</span>
+    <strong><%= (base_is_ves || tasa.positive?) ? format_money(alt_total, unit: alt_symbol) : '--' %></strong>
+  </div>
+  <div class="totals-row total">
+    <span>Total presupuesto</span>
+    <strong><%= format_money(base_total, unit: base_symbol) %></strong>
+  </div>
+</div>
+<p class="footer-note">
+  Este documento es un presupuesto referencial de precios y disponibilidad. No sustituye comprobantes fiscales.
+</p>

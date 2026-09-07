@@ -426,6 +426,10 @@ class VentasController < ApplicationController
       return redirect_to venta_path(@venta), alert: "La nota de entrega solo puede generarse para facturas sin IVA."
     end
 
+    if @venta.cashea_principal_with_commission?
+      return redirect_to venta_path(@venta), alert: "Esta venta fue realizada con un plan de financiamiento de la Linea Principal de Cashea con comisión. No se puede generar nota de entrega."
+    end
+
     @sale_reference = SaleCurrencyReferenceService.new([@venta]).totals_by_sale_id[@venta.id] || {}
     @sale_item_masked_names = sale_item_masked_names_for_view(@venta)
     @sale_item_discounts = sale_item_discounts_payload(@venta)
@@ -435,6 +439,68 @@ class VentasController < ApplicationController
     @print_title = "Nota de Entrega Nro-#{@venta.id}"
 
     render :delivery_note, layout: "print"
+  end
+
+  def presupuesto
+    @business = current_business
+    @delivery_print_date = Time.current
+    @print_title = "Presupuesto"
+
+    payload_raw = params[:presupuesto_payload].presence || params[:presupuesto]
+    payload = payload_raw.is_a?(String) ? JSON.parse(payload_raw) : (payload_raw || {})
+
+    cliente_data = payload["cliente"] || {}
+    cliente_id = cliente_data["id"] || payload["cliente_id"]
+    @cliente = if cliente_id.present?
+                 current_business.clientes.find_by(id: cliente_id)
+               end
+
+    @cliente_display_name = @cliente&.name.presence || cliente_data["name"].presence || "Cliente general"
+    @cliente_document = if @cliente.present?
+                          [@cliente.document_type, @cliente.document_number].compact.join("-").presence || "-"
+                        else
+                          cliente_data["document"].presence || "-"
+                        end
+    @cliente_phone = @cliente&.phone.presence || cliente_data["phone"].presence || "-"
+    @cliente_address = @cliente&.address.presence || cliente_data["address"].presence || "-"
+
+    @seller_display_name = Current.user&.display_name.presence || "Sin usuario"
+    @base_currency = payload["base_currency"].to_s.upcase.presence || "USD"
+    @base_currency = "USD" unless %w[USD VES].include?(@base_currency)
+    @tasa_dolar = (payload["tasa_dolar"] || TasaCambio.latest_value("Dolar BCV") || 0).to_d
+
+    raw_items = Array(payload["items"])
+    @items = raw_items.map do |item|
+      quantity = item["quantity"].to_d
+      unit_base = item["unit_price_base"].to_d
+      subtotal_base = item["subtotal_base"].to_d.positive? ? item["subtotal_base"].to_d : (unit_base * quantity).round(2)
+
+      product = current_business.productos.find_by(id: item["product_id"]) if item["product_id"].present?
+      variation = product&.product_variations&.find_by(id: item["variation_id"]) if item["variation_id"].present?
+
+      item_name = if variation.present?
+                    "#{product.descripcion} (#{variation.description})"
+                  elsif product.present?
+                    product.descripcion
+                  else
+                    item["name"].to_s.strip.presence || "Item"
+                  end
+
+      {
+        name: item_name,
+        quantity: quantity,
+        unit_base: unit_base,
+        subtotal_base: subtotal_base,
+        producto: product,
+      }
+    end
+
+    totals = payload["totals"] || {}
+    @total_base = totals["total_base"].to_d.positive? ? totals["total_base"].to_d : @items.sum { |i| i[:subtotal_base] }.round(2)
+
+    render :presupuesto, layout: "print"
+  rescue StandardError => e
+    render plain: "Error al generar presupuesto: #{e.message}", status: :unprocessable_entity
   end
 
   def resumen_modal

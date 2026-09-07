@@ -119,6 +119,25 @@ class Venta < ApplicationRecord
                 .round(2)
   end
 
+  def notes_payload
+    @notes_payload ||= begin
+      JSON.parse(notes.to_s)
+    rescue JSON::ParserError
+      {}
+    end
+  end
+
+  def cashea_principal_with_commission?
+    cashea_data = notes_payload["cashea_sale"]
+    return false unless cashea_data.is_a?(Hash) && cashea_data["enabled"]
+
+    selected_line = cashea_data["selected_line"].to_s.downcase
+    commission_amount = cashea_data["commission_amount_usd"].to_d
+    commission_percent = cashea_data["commission_percent"].to_d
+
+    selected_line == "principal" && (commission_amount.positive? || commission_percent.positive?)
+  end
+
   def taxable_base_subtotal
     return taxable_subtotal_usd unless base_currency_ves?
 
