@@ -484,6 +484,14 @@ class Account < ApplicationRecord
     Array(raw).map { |value| value.to_i }.select(&:positive?).uniq
   end
 
+  def cashea_allow_pos?
+    cashea_allow_pos != false
+  end
+
+  def cashea_allow_biopago?
+    cashea_allow_biopago != false
+  end
+
   def cash_box_account?
     account_type == 'cash_box'
   end
@@ -562,6 +570,8 @@ class Account < ApplicationRecord
       self[attribute] = self[attribute].to_d.round(2)
     end
     self.cashea_cotidiana_category_ids = cashea_cotidiana_only_category_ids
+    self.cashea_allow_pos = true if cashea_allow_pos.nil?
+    self.cashea_allow_biopago = true if cashea_allow_biopago.nil?
   end
 
   def clear_primary_for_non_bank

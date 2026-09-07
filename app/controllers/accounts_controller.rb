@@ -1056,6 +1056,8 @@ class AccountsController < ApplicationController
       :cashea_min_purchase_usd,
       :cashea_principal_min_purchase_usd,
       :cashea_commission_percent,
+      :cashea_allow_pos,
+      :cashea_allow_biopago,
       *1.upto(6).map { |level| "cashea_level_#{level}_initial_percent".to_sym },
       :theme_color,
       :active,

@@ -8750,7 +8750,17 @@
             }
           }
 
-          const paymentAccounts = allPaymentAccounts.filter((account) => String(account.account_type || '').toLowerCase() !== 'cashea');
+          const paymentAccounts = allPaymentAccounts.filter((account) => {
+            const accType = String(account.account_type || '').toLowerCase();
+            if (accType === 'cashea') return false;
+            if (selectedCasheaContext) {
+              const allowPos = casheaAccount?.cashea_allow_pos !== false;
+              const allowBiopago = casheaAccount?.cashea_allow_biopago !== false;
+              if (accType === 'pos' && !allowPos) return false;
+              if (accType === 'biopago' && !allowBiopago) return false;
+            }
+            return true;
+          });
           const orderedAccounts = orderAccountsForPaymentModal(paymentAccounts);
           const specialAccounts = orderedAccounts.filter((account) => isSpecialAccount(account));
           const bankAccounts = orderedAccounts.filter((account) => account.is_bank);

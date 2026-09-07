@@ -76,6 +76,8 @@ class VentasController < ApplicationController
         cashea_principal_min_purchase_usd: account.cashea_principal_min_purchase_usd.to_d.to_f,
         cashea_cotidiana_category_ids: account.cashea_cotidiana_only_category_ids,
         cashea_commission_percent: account.cashea_commission_percent.to_d.to_f,
+        cashea_allow_pos: account.cashea_allow_pos?,
+        cashea_allow_biopago: account.cashea_allow_biopago?,
         payment_method_image_url: (url_for(account.payment_method_image) if account.payment_method_image.attached?),
         small_logo_url: (url_for(account.small_logo) if account.small_logo.attached?),
         logo_url: (url_for(account.logo) if account.logo.attached?),
@@ -1001,6 +1003,18 @@ class VentasController < ApplicationController
       if account.account_type == "cash_box" && account.cash_role == "cash_deposit"
         return render json: { error: "No puedes registrar ventas en cuentas de deposito." },
                       status: :unprocessable_entity
+      end
+
+      if cashea_sale[:enabled]
+        cashea_account = current_business.accounts.find_by(id: cashea_sale[:account_id])
+        if account.account_type == "pos" && cashea_account.present? && !cashea_account.cashea_allow_pos?
+          return render json: { error: "El punto de venta no está habilitado para compras con Cashea." },
+                        status: :unprocessable_entity
+        end
+        if account.account_type == "biopago" && cashea_account.present? && !cashea_account.cashea_allow_biopago?
+          return render json: { error: "Biopago no está habilitado para compras con Cashea." },
+                        status: :unprocessable_entity
+        end
       end
 
       currency = normalize_currency(payment[:currency], default: account&.currency || "USD")
