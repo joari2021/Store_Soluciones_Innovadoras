@@ -8329,17 +8329,34 @@
             .map((categoryId) => cartCategoryMap.get(categoryId));
           const hasCotidianaExclusiveProducts = exclusiveCategoryNames.length > 0;
 
+          const computeCasheaLinePricing = (line) => {
+            const rawPercent = Number(casheaAccount?.cashea_commission_percent || 0);
+            const appliesCommission = line === 'principal' && hasCotidianaExclusiveProducts && rawPercent > 0;
+            const percent = appliesCommission ? roundTo(Math.max(rawPercent, 0), 2) : 0;
+            const commissionUsd = appliesCommission && Number.isFinite(totalUsd)
+              ? roundTo(Math.max(totalUsd, 0) * percent / 100, 2)
+              : 0;
+            const totalWithCommissionUsd = Number.isFinite(totalUsd)
+              ? roundTo(Math.max(totalUsd, 0) + commissionUsd, 2)
+              : 0;
+            return {
+              appliesCommission,
+              commissionPercent: percent,
+              commissionUsd,
+              totalWithCommissionUsd,
+            };
+          };
+
           const cotidianaEligible = casheaAccount
             && Number.isFinite(totalUsd)
             && totalUsd > 0
             && supportsCotidiana
             && totalUsd >= Math.max(casheaMinPurchaseUsd, 0);
-          const principalEligibleByMin = casheaAccount
+          const principalEligible = casheaAccount
             && Number.isFinite(totalUsd)
             && totalUsd > 0
             && supportsPrincipal
             && totalUsd >= Math.max(casheaPrincipalMinPurchaseUsd, 0);
-          const principalEligible = principalEligibleByMin && !hasCotidianaExclusiveProducts;
           const canOfferCashea = Boolean(cotidianaEligible || principalEligible);
 
           let selectedCasheaContext = null;
@@ -8392,13 +8409,8 @@
             };
 
             const principalMissingAmount = Math.max(Math.max(casheaPrincipalMinPurchaseUsd, 0) - Math.max(totalUsd, 0), 0);
-            const principalBlockedByCategoriesText = hasCotidianaExclusiveProducts
-              ? `Hay productos de categorias exclusivas de linea cotidiana en esta compra: ${exclusiveCategoryNames.join(', ')}.`
-              : '';
             const principalRequirementText = !principalEligible
-              ? (hasCotidianaExclusiveProducts
-                ? principalBlockedByCategoriesText
-                : `Para usar linea principal se requiere compra minima de $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)}${principalMissingAmount > 0 ? ` (faltan $ ${formatNumber(principalMissingAmount, 2)})` : ''}.`)
+              ? `Para usar linea principal se requiere compra minima de $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)}${principalMissingAmount > 0 ? ` (faltan $ ${formatNumber(principalMissingAmount, 2)})` : ''}.`
               : '';
             const principalStatusCardClasses = principalEligible
               ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
@@ -8407,25 +8419,32 @@
               ? 'Linea principal habilitada'
               : 'Linea principal no habilitada';
             const principalStatusDetail = principalEligible
-              ? 'La compra cumple condiciones para usar linea principal.'
-              : (hasCotidianaExclusiveProducts
-                ? principalBlockedByCategoriesText
-                : `Minimo requerido: $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)} · Te faltan $ ${formatNumber(principalMissingAmount, 2)}.`);
+              ? (hasCotidianaExclusiveProducts && casheaCommissionPercent > 0
+                ? `Compra minima cumplida ($ ${formatNumber(casheaPrincipalMinPurchaseUsd, 2)}). Aplica comision de ${formatNumber(casheaCommissionPercent, 2)}% por productos de linea cotidiana (${exclusiveCategoryNames.join(', ')}).`
+                : `Compra minima cumplida ($ ${formatNumber(casheaPrincipalMinPurchaseUsd, 2)}).`)
+              : `Minimo requerido: $ ${formatNumber(Math.max(casheaPrincipalMinPurchaseUsd, 0), 2)} · Te faltan $ ${formatNumber(principalMissingAmount, 2)}.`;
 
             const lineOptions = [];
             if (cotidianaEligible) lineOptions.push({ key: 'cotidiana', label: 'Linea cotidiana' });
             if (principalEligible) lineOptions.push({ key: 'principal', label: 'Linea principal' });
-            const defaultSelectedLine = lineOptions[0]?.key || null;
+            const defaultSelectedLine = lineOptions[0]?.key || 'cotidiana';
+            const initialPricing = computeCasheaLinePricing(defaultSelectedLine);
+
             const lineSelectorHtml = lineOptions.length > 1
               ? `
                 <div class="rounded-xl border border-slate-200 bg-white px-3 py-2">
                   <label class="block text-[11px] font-semibold uppercase tracking-wide text-slate-500">Selecciona linea Cashea</label>
                   <select id="cashea-line-selector" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700">
-                    ${lineOptions.map((option) => `<option value="${option.key}">${option.label}</option>`).join('')}
+                    ${lineOptions.map((option) => `<option value="${option.key}" ${option.key === defaultSelectedLine ? 'selected' : ''}>${option.label}</option>`).join('')}
                   </select>
                 </div>
               `
-              : '';
+              : `
+                <input type="hidden" id="cashea-line-selector" value="${defaultSelectedLine}" />
+                <div class="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                  <span class="text-xs font-semibold text-slate-600">Linea seleccionada: <strong>${defaultSelectedLine === 'principal' ? 'Linea principal' : 'Linea cotidiana'}</strong></span>
+                </div>
+              `;
 
             const casheaQuestion = await window.Swal.fire({
               title: 'Compra elegible para Cashea',
@@ -8442,8 +8461,8 @@
                       </div>
                       <div class="rounded-xl border border-emerald-200 bg-white px-3 py-2">
                         <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Total de esta venta</p>
-                        <p class="text-sm font-extrabold text-emerald-700">$ ${formatNumber(casheaTotalUsd, 2)}</p>
-                        <p class="text-[11px] font-semibold text-slate-500">Comision Cashea: ${formatNumber(casheaCommissionPercent, 2)}% ($ ${formatNumber(casheaCommissionUsd, 2)})</p>
+                        <p id="cashea-display-total" class="text-sm font-extrabold text-emerald-700">$ ${formatNumber(initialPricing.totalWithCommissionUsd, 2)}</p>
+                        <p id="cashea-display-commission" class="text-[11px] font-semibold text-slate-500">${initialPricing.appliesCommission ? `Comision Cashea (${formatNumber(initialPricing.commissionPercent, 2)}%): $ ${formatNumber(initialPricing.commissionUsd, 2)}` : 'Comision Cashea: 0,00% ($ 0,00)'}</p>
                       </div>
                     </div>
                     <div class="rounded-xl border px-3 py-2 ${principalStatusCardClasses}">
@@ -8469,6 +8488,28 @@
                 confirmButton: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-500',
                 cancelButton: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
               },
+              didOpen: () => {
+                const dialog = window.Swal.getHtmlContainer();
+                if (!dialog) return;
+
+                const selector = dialog.querySelector('#cashea-line-selector');
+                if (selector && selector.tagName === 'SELECT') {
+                  selector.addEventListener('change', () => {
+                    const chosenLine = selector.value;
+                    const pricing = computeCasheaLinePricing(chosenLine);
+                    const totalDisplay = dialog.querySelector('#cashea-display-total');
+                    const commissionDisplay = dialog.querySelector('#cashea-display-commission');
+                    if (totalDisplay) {
+                      totalDisplay.textContent = `$ ${formatNumber(pricing.totalWithCommissionUsd, 2)}`;
+                    }
+                    if (commissionDisplay) {
+                      commissionDisplay.textContent = pricing.appliesCommission
+                        ? `Comision Cashea (${formatNumber(pricing.commissionPercent, 2)}%): $ ${formatNumber(pricing.commissionUsd, 2)}`
+                        : 'Comision Cashea: 0,00% ($ 0,00)';
+                    }
+                  });
+                }
+              },
               preConfirm: () => {
                 if (lineOptions.length === 0) {
                   window.Swal.showValidationMessage('No hay lineas Cashea elegibles para esta compra.');
@@ -8476,7 +8517,7 @@
                 }
 
                 const selector = document.getElementById('cashea-line-selector');
-                const selectedLine = lineOptions.length > 1 ? String(selector?.value || '').trim() : defaultSelectedLine;
+                const selectedLine = String(selector?.value || defaultSelectedLine).trim();
                 if (!['cotidiana', 'principal'].includes(selectedLine)) {
                   window.Swal.showValidationMessage('Debes seleccionar una linea Cashea valida.');
                   return null;
@@ -8493,12 +8534,38 @@
             if (casheaQuestion.isConfirmed) {
               const selectedLine = String(casheaQuestion.value?.selectedLine || '').trim();
               const selectedLineMinPurchase = Number(casheaQuestion.value?.lineMinPurchase || 0);
+              const activePricing = computeCasheaLinePricing(selectedLine);
               const casheaInstallmentsCount = selectedLine === 'principal'
                 ? 3
                 : (() => {
                   const rawCount = Number(casheaAccount?.cashea_cotidiana_installments || 1);
                   return Number.isFinite(rawCount) && rawCount > 0 ? Math.round(rawCount) : 1;
                 })();
+
+              if (selectedLine === 'principal' && activePricing.appliesCommission) {
+                await window.Swal.fire({
+                  icon: 'warning',
+                  title: 'Comisión en Línea Principal',
+                  html: `
+                    <div class="space-y-3 text-left">
+                      <p class="text-sm text-slate-700">Esta compra contiene productos de categorías asociadas a <strong>línea cotidiana</strong> (<em>${escapeHtml(exclusiveCategoryNames.join(', '))}</em>).</p>
+                      <div class="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1.5">
+                        <p>Al seleccionar <strong>Línea Principal</strong> aplica una comisión de <strong>${formatNumber(activePricing.commissionPercent, 2)}%</strong>.</p>
+                        <p>Total de la orden: <strong>$ ${formatNumber(totalUsd, 2)}</strong></p>
+                        <p>Monto adicional de comisión: <strong>$ ${formatNumber(activePricing.commissionUsd, 2)}</strong></p>
+                        <p class="pt-1.5 border-t border-amber-200 font-bold text-sm text-amber-950">Nuevo total con comisión: $ ${formatNumber(activePricing.totalWithCommissionUsd, 2)}</p>
+                      </div>
+                    </div>
+                  `,
+                  confirmButtonText: 'Continuar a cuotas',
+                  buttonsStyling: false,
+                  customClass: {
+                    popup: 'rounded-3xl border border-sky-200 shadow-xl',
+                    confirmButton: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-500',
+                  },
+                  heightAuto: false,
+                });
+              }
 
               if (!selectedClient?.id) {
                 await window.Swal.fire({
@@ -8547,7 +8614,7 @@
                       <label class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Monto inicial (USD)</label>
                       <input id="cashea-initial-usd" type="text" inputmode="decimal" autocomplete="off" data-money-mask="true" data-money-symbol="$" class="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700" placeholder="$ 0,00" />
                       <p id="cashea-initial-bs" class="mt-1 text-xs font-semibold text-slate-500">Equivalente Bs: ${formatMoney(0, 'Bs')}</p>
-                      <p id="cashea-financed-usd" class="mt-1 text-xs font-semibold text-slate-500">Saldo financiado estimado: $ ${formatNumber(casheaTotalUsd, 2)}</p>
+                      <p id="cashea-financed-usd" class="mt-1 text-xs font-semibold text-slate-500">Saldo financiado estimado: $ ${formatNumber(activePricing.totalWithCommissionUsd, 2)}</p>
                     </div>
                     <div class="space-y-2">
                       <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Configurar cuotas Cashea (${casheaInstallmentsCount})</p>
@@ -8576,7 +8643,7 @@
 
                   const updateInstallmentSuggestion = () => {
                     const initialUsd = roundTo(parseMoneyInput(usdInput), 2);
-                    const financedUsd = roundTo(Math.max(casheaTotalUsd - initialUsd, 0), 2);
+                    const financedUsd = roundTo(Math.max(activePricing.totalWithCommissionUsd - initialUsd, 0), 2);
                     const count = installmentAmountInputs.length;
                     if (count <= 0) return;
 
@@ -8621,12 +8688,12 @@
                     return null;
                   }
 
-                  if (initialUsd > casheaTotalUsd) {
-                    window.Swal.showValidationMessage(`El inicial no puede superar el total de la venta con comision ($ ${formatNumber(casheaTotalUsd, 2)}).`);
+                  if (initialUsd > activePricing.totalWithCommissionUsd) {
+                    window.Swal.showValidationMessage(`El inicial no puede superar el total de la venta con comision ($ ${formatNumber(activePricing.totalWithCommissionUsd, 2)}).`);
                     return null;
                   }
 
-                  const financedUsd = roundTo(Math.max(casheaTotalUsd - initialUsd, 0), 2);
+                  const financedUsd = roundTo(Math.max(activePricing.totalWithCommissionUsd - initialUsd, 0), 2);
                   const installments = [];
                   const rows = Array.from(dialog.querySelectorAll('[data-cashea-installment-row]'));
 
@@ -8675,9 +8742,9 @@
                 selected_line: selectedLine,
                 initial_usd: askInitialResult.value.initialUsd,
                 min_purchase_usd: selectedLineMinPurchase,
-                commission_percent: roundTo(Math.max(casheaCommissionPercent, 0), 2),
-                commission_amount_usd: casheaCommissionUsd,
-                total_with_commission_usd: casheaTotalUsd,
+                commission_percent: activePricing.commissionPercent,
+                commission_amount_usd: activePricing.commissionUsd,
+                total_with_commission_usd: activePricing.totalWithCommissionUsd,
                 installments: askInitialResult.value.installments || [],
               };
             }
@@ -9021,9 +9088,9 @@
             : totalBase;
           const casheaInfoHtml = selectedCasheaContext
             ? `<div class="rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
-                Cobro Cashea activo. Este modal registra solo el inicial: <strong>${formatBaseMoney(modalTotalBase)}</strong>.
-                <br/>Total Cashea con comision: <strong>$ ${formatNumber(selectedCasheaContext.total_with_commission_usd || 0, 2)}</strong>.
-                <br/>Comision aplicada: <strong>${formatNumber(selectedCasheaContext.commission_percent || 0, 2)}%</strong> ($ ${formatNumber(selectedCasheaContext.commission_amount_usd || 0, 2)}).
+                Cobro Cashea activo (<strong>${selectedCasheaContext.selected_line === 'principal' ? 'Línea Principal' : 'Línea Cotidiana'}</strong>). Este modal registra solo el inicial: <strong>${formatBaseMoney(modalTotalBase)}</strong>.
+                <br/>Total venta Cashea: <strong>$ ${formatNumber(selectedCasheaContext.total_with_commission_usd || 0, 2)}</strong>${Number(selectedCasheaContext.commission_percent || 0) > 0 ? ` (incluye comisión de <strong>${formatNumber(selectedCasheaContext.commission_percent, 2)}%</strong> = $ ${formatNumber(selectedCasheaContext.commission_amount_usd || 0, 2)})` : ''}.
+                <br/>Saldo financiado en cuotas: <strong>$ ${formatNumber(roundTo((selectedCasheaContext.total_with_commission_usd || 0) - (selectedCasheaContext.initial_usd || 0), 2), 2)}</strong>.
                 <br/>Las cuotas pendientes se generaran automaticamente al registrar la venta.
               </div>`
             : '';

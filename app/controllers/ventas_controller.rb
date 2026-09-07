@@ -1210,14 +1210,6 @@ class VentasController < ApplicationController
       cotidiana_exclusive_ids = cashea_account.cashea_cotidiana_only_category_ids
       has_cotidiana_exclusive_category = (selected_category_ids & cotidiana_exclusive_ids).any?
 
-      if selected_line == 'principal' && has_cotidiana_exclusive_category
-        category_names = current_business.categorias.where(id: selected_category_ids & cotidiana_exclusive_ids).order(:nombre).pluck(:nombre)
-        categories_text = category_names.join(', ')
-        return render json: {
-          error: "Esta compra contiene categorias exclusivas de linea cotidiana#{categories_text.present? ? ": #{categories_text}" : ''}."
-        }, status: :unprocessable_entity
-      end
-
       min_for_selected_line = if selected_line == 'principal'
                                 cashea_account.cashea_principal_min_purchase_usd.to_d
                               else
@@ -1231,10 +1223,16 @@ class VentasController < ApplicationController
       cashea_sale[:selected_line] = selected_line
       cashea_sale[:min_purchase_usd] = min_for_selected_line.round(2)
 
-      cashea_commission_percent = cashea_account.cashea_commission_percent.to_d.round(2)
-      cashea_commission_percent = 0.to_d if cashea_commission_percent.negative?
-      cashea_commission_usd = ((total_due_usd * cashea_commission_percent) / 100).round(2)
-      cashea_total_due_usd = (total_due_usd + cashea_commission_usd).round(2)
+      if selected_line == 'principal' && has_cotidiana_exclusive_category
+        cashea_commission_percent = cashea_account.cashea_commission_percent.to_d.round(2)
+        cashea_commission_percent = 0.to_d if cashea_commission_percent.negative?
+        cashea_commission_usd = ((total_due_usd * cashea_commission_percent) / 100).round(2)
+        cashea_total_due_usd = (total_due_usd + cashea_commission_usd).round(2)
+      else
+        cashea_commission_percent = 0.to_d
+        cashea_commission_usd = 0.to_d
+        cashea_total_due_usd = total_due_usd.round(2)
+      end
 
       initial_usd = cashea_sale[:initial_usd].to_d.round(2)
       if initial_usd.negative?
