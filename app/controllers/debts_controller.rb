@@ -1961,8 +1961,9 @@ class DebtsController < ApplicationController
     # desde la más antigua a la más reciente; luego las que no tienen `due_on`
     # ordenadas por nombre del `acreedor` A-Z.
     if debt.payable?
-      has_due = debt.due_on.present? ? 0 : 1
-      due_key = debt.due_on.present? ? debt.due_on.to_date.jd : 0
+      effective_due_on = pending_due_on_for_grouped_debt(debt)
+      has_due = effective_due_on.present? ? 0 : 1
+      due_key = effective_due_on.present? ? effective_due_on.to_date.jd : 0
       creditor_key = debt.acreedor.to_s.strip.downcase
 
       [has_due, due_key, creditor_key, debt.id.to_i]
@@ -2261,7 +2262,18 @@ class DebtsController < ApplicationController
                                   .map { |d| pending_due_on_for_grouped_debt(d) }
                                   .compact
                                   .min
+                  total_group_paid = grouped_debts.sum { |d| d.paid_amount.to_d }
+                  aggregated_status_label = if representative.card_total_balance.to_d <= 0.01.to_d
+                                              'Pagada'
+                                            elsif overdue_count.positive?
+                                              'Vencida'
+                                            elsif total_group_paid > 0.01.to_d
+                                              'Parcial'
+                                            else
+                                              'Pendiente'
+                                            end
                   representative.define_singleton_method(:card_earliest_due_on) { earliest_due_on }
+                  representative.define_singleton_method(:status_label) { |_today = Date.current| aggregated_status_label }
                   representative.define_singleton_method(:card_overdue_count) { overdue_count }
                   representative.define_singleton_method(:card_overdue_counts_by_due_on) { overdue_badges[:past_due] }
                   representative.define_singleton_method(:card_due_today_count) { overdue_badges[:due_today_count] }

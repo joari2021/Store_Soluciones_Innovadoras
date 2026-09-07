@@ -4,6 +4,7 @@
 <% customer_debt_view = current_user_customer_mode? %>
 <% action_label = debt.receivable? && !customer_debt_view ? "Registrar cobro" : "Ver deudas" %>
 <% source_link = debt_source_link_data(debt) %>
+<% effective_due_on = debt.respond_to?(:card_earliest_due_on) ? debt.card_earliest_due_on : debt.due_on %>
 <% badge_class = case status_label
    when "Pagada" then "bg-emerald-100 text-emerald-700"
    when "Vencida" then "bg-rose-100 text-rose-700"
@@ -35,7 +36,7 @@ end %>
     </div>
     <div>
       <p class="uppercase tracking-wider">Vence</p>
-      <p class="mt-1 text-sm font-semibold text-slate-700"><%= debt.due_on ? debt.due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
+      <p class="mt-1 text-sm font-semibold text-slate-700"><%= effective_due_on ? effective_due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
     </div>
   </div>
   <div class="mt-4 flex flex-wrap items-center gap-2">
