@@ -374,7 +374,7 @@ class DebtsController < ApplicationController
                                               end.round(2)
                                             end
     @show_last_activity_at = group_last_activity_at_for(@grouped_debts)
-    @show_overdue_count = @grouped_debts.count(&:overdue?)
+    @show_overdue_count = @grouped_debts.count { |debt| individual_debt_pending?(debt) && debt.overdue? }
     @can_register_group_payment = current_user_admin? || current_user_manager?
 
     @show_payment_rows = @payments.map do |payment|
@@ -1961,7 +1961,11 @@ class DebtsController < ApplicationController
     # desde la más antigua a la más reciente; luego las que no tienen `due_on`
     # ordenadas por nombre del `acreedor` A-Z.
     if debt.payable?
-      effective_due_on = pending_due_on_for_grouped_debt(debt)
+      effective_due_on = if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
+                           debt.card_earliest_due_on
+                         else
+                           debt.due_on
+                         end
       has_due = effective_due_on.present? ? 0 : 1
       due_key = effective_due_on.present? ? effective_due_on.to_date.jd : 0
       creditor_key = debt.acreedor.to_s.strip.downcase
@@ -2223,49 +2227,33 @@ class DebtsController < ApplicationController
                                      sorted_group.first
                                    end
 
-                  # Decide which currency to display on the card and compute totals
-                  representative.card_currency = card_currency_for_index_group(grouped_debts)
-                  display_currency = representative.card_currency.to_s.upcase
+                  display_currency = card_currency_for_index_group(grouped_debts).to_s.upcase
 
                   if display_currency == 'USD'
-                    # For USD groups show USD totals (converted via BCV logic already present)
-                    representative.card_total_amount = total_usd_amount(grouped_debts)
-                    representative.card_total_balance = total_usd_balance_for_card(grouped_debts)
+                    group_total_amount = total_usd_amount(grouped_debts)
+                    group_total_balance = total_usd_balance_for_card(grouped_debts)
                   else
-                    # For non-USD groups show native totals (sum of amounts/balances in their own currency)
-                    native_total_amount = grouped_debts.sum { |d| d.amount.to_d }.round(2)
-                    native_total_balance = grouped_debts.sum { |d| d.balance.to_d }.round(2)
-                    representative.card_total_amount = native_total_amount
-                    representative.card_total_balance = native_total_balance
+                    group_total_amount = grouped_debts.sum { |d| d.amount.to_d }.round(2)
+                    group_total_balance = grouped_debts.sum { |d| d.balance.to_d }.round(2)
                   end
 
-                  native_currency = display_currency
                   native_balance = grouped_debts
-                                   .select { |item| item.currency.to_s.upcase == native_currency }
+                                   .select { |item| item.currency.to_s.upcase == display_currency }
                                    .sum { |item| item.balance.to_d }
                                    .round(2)
                   grouped_count = grouped_debts.size
-                  representative.define_singleton_method(:card_debts_count) { grouped_count }
-                  representative.define_singleton_method(:card_native_balance) { native_balance }
-                  representative.card_description_summary = card_description_summary_for(grouped_debts)
+
                   last_activity_at = group_last_activity_at_for(grouped_debts)
                   last_payment_at = group_last_payment_at_for(grouped_debts)
                   oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
                   overdue_count = overdue_count_for_group(grouped_debts)
                   overdue_badges = overdue_badges_for_group(grouped_debts)
-                  representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
-                  representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
-                  representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
-                  # Fecha mínima `due_on` para deudas aún pendientes dentro del grupo.
-                  # En por pagar usamos saldo real en USD BCV para evitar arrastres por redondeo
-                  # cuando una deuda ya fue saldada con pagos en otra moneda.
-                  earliest_due_on = Array(grouped_debts)
-                                  .select { |d| pending_for_due_priority?(d) }
-                                  .map { |d| pending_due_on_for_grouped_debt(d) }
-                                  .compact
-                                  .min
                   total_group_paid = grouped_debts.sum { |d| d.paid_amount.to_d }
-                  aggregated_status_label = if representative.card_total_balance.to_d <= 0.01.to_d
+
+                  pending_debts = grouped_debts.select { |d| individual_debt_pending?(d) }
+                  earliest_due_on = pending_debts.map(&:due_on).compact.min
+
+                  aggregated_status_label = if group_total_balance <= 0.01.to_d
                                               'Pagada'
                                             elsif overdue_count.positive?
                                               'Vencida'
@@ -2274,13 +2262,24 @@ class DebtsController < ApplicationController
                                             else
                                               'Pendiente'
                                             end
+
+                  representative.card_currency = display_currency
+                  representative.card_total_amount = group_total_amount
+                  representative.card_total_balance = group_total_balance
+                  representative.card_description_summary = card_description_summary_for(grouped_debts)
+
+                  representative.define_singleton_method(:card_debts_count) { grouped_count }
+                  representative.define_singleton_method(:card_native_balance) { native_balance }
+                  representative.define_singleton_method(:card_last_activity_at) { last_activity_at }
+                  representative.define_singleton_method(:card_last_payment_at) { last_payment_at }
+                  representative.define_singleton_method(:card_oldest_overdue_due_on) { oldest_overdue_due_on }
                   representative.define_singleton_method(:card_earliest_due_on) { earliest_due_on }
                   representative.define_singleton_method(:status_label) { |_today = Date.current| aggregated_status_label }
                   representative.define_singleton_method(:card_overdue_count) { overdue_count }
                   representative.define_singleton_method(:card_overdue_counts_by_due_on) { overdue_badges[:past_due] }
                   representative.define_singleton_method(:card_due_today_count) { overdue_badges[:due_today_count] }
                   representative
-    end
+                end
 
     sort_debts(collapsed)
   end
@@ -2415,8 +2414,8 @@ class DebtsController < ApplicationController
     today = Date.current
 
     Array(debts)
-      .select { |debt| balance_for_overdue_grouping(debt) > 0.01.to_d }
-      .map { |debt| due_on_for_overdue_grouping(debt) }
+      .select { |debt| individual_debt_pending?(debt) }
+      .map(&:due_on)
       .compact
       .select { |due_on| due_on <= today }
       .min
@@ -2424,45 +2423,42 @@ class DebtsController < ApplicationController
 
   def earliest_due_on_for_group(debts)
     Array(debts)
-      .select { |debt| balance_for_overdue_grouping(debt) > 0.01.to_d }
+      .select { |debt| debt.respond_to?(:card_total_balance) ? debt.card_total_balance.to_d > 0.01.to_d : individual_debt_pending?(debt) }
       .map do |debt|
         if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
           debt.card_earliest_due_on
         else
-          pending_due_on_for_grouped_debt(debt)
+          debt.due_on
         end
       end
       .compact
       .min
   end
 
-  def pending_due_on_for_grouped_debt(debt)
-    return debt.card_earliest_due_on if debt.respond_to?(:card_earliest_due_on) && debt.card_earliest_due_on.present?
-
-    debt.due_on
+  def individual_debt_pending_balance(debt)
+    if debt.payable?
+      real_balance_usd_bcv_for_debt(debt)
+    else
+      debt.balance.to_d
+    end
   end
 
-  def pending_for_due_priority?(debt)
-    if debt.respond_to?(:card_total_balance)
-      return debt.card_total_balance.to_d > 0.01.to_d
-    end
-
-    if debt.payable?
-      real_balance_usd_bcv_for_debt(debt) > 0.01.to_d
-    else
-      debt.balance.to_d > 0.01.to_d
-    end
+  def individual_debt_pending?(debt)
+    individual_debt_pending_balance(debt) > 0.01.to_d
   end
 
   def overdue_count_for_group(debts)
     today = Date.current
 
     Array(debts).sum do |debt|
-      due_on = due_on_for_overdue_grouping(debt)
-      next 0 if due_on.blank? || due_on > today
-      next 0 unless balance_for_overdue_grouping(debt) > 0.01.to_d
+      if debt.respond_to?(:card_overdue_count)
+        debt.card_overdue_count.to_i
+      else
+        next 0 unless individual_debt_pending?(debt)
+        next 0 if debt.due_on.blank? || debt.due_on > today
 
-      debt.respond_to?(:card_overdue_count) ? debt.card_overdue_count.to_i : 1
+        1
+      end
     end
   end
 

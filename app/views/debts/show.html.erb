@@ -52,8 +52,18 @@
         </div>
         <div class="flex items-center justify-between">
           <dt>Estado</dt>
-          <% paid_group = group_is_usdt ? (@show_total_balance_native.to_d <= 0.01.to_d) : (@show_total_balance_usd_bcv.to_d <= 0.01.to_d) %>
-          <dd class="font-semibold <%= paid_group ? 'text-emerald-700' : 'text-slate-800' %>"><%= paid_group ? 'Pagado' : 'Pendiente' %></dd>
+          <% group_balance = group_is_usdt ? @show_total_balance_native.to_d : @show_total_balance_usd_bcv.to_d %>
+          <% group_paid = group_is_usdt ? @show_total_paid_native.to_d : @show_total_paid_usd_bcv.to_d %>
+          <% group_status_text = if group_balance <= 0.01.to_d
+                                   'Pagada'
+                                 elsif @show_overdue_count.to_i.positive?
+                                   'Vencida'
+                                 elsif group_paid > 0.01.to_d
+                                   'Parcial'
+                                 else
+                                   'Pendiente'
+                                 end %>
+          <dd class="font-semibold <%= group_status_text == 'Pagada' ? 'text-emerald-700' : (group_status_text == 'Vencida' ? 'text-rose-600' : (group_status_text == 'Parcial' ? 'text-amber-600' : 'text-slate-800')) %>"><%= group_status_text %></dd>
         </div>
         <div class="flex items-center justify-between">
           <dt>Vencidas</dt>
