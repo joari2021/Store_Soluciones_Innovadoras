@@ -8213,7 +8213,7 @@
       const presupuestoButton = document.getElementById('ventas-presupuesto-button');
 
       if (presupuestoButton) {
-        presupuestoButton.addEventListener('click', () => {
+        presupuestoButton.addEventListener('click', async () => {
           if (cart.size === 0) {
             if (window.Swal) {
               window.Swal.fire({
@@ -8226,30 +8226,100 @@
             return;
           }
 
-          const selectedBaseCurrency = getSelectedBaseCurrency();
-          const isVes = String(selectedBaseCurrency || '').toLowerCase() === 'ves';
+          let chosenCurrency = 'usd';
+          if (window.Swal) {
+            const currencyChoice = await window.Swal.fire({
+              title: 'Moneda del presupuesto',
+              html: `
+                <div class="space-y-3 text-left">
+                  <p class="text-sm text-slate-600">Selecciona en qué moneda deseas emitir el presupuesto:</p>
+                  <div class="grid grid-cols-2 gap-3 pt-1">
+                    <label class="flex cursor-pointer items-center justify-between rounded-2xl border-2 border-sky-300 bg-sky-50/70 p-3.5 transition-all hover:bg-sky-100 has-[:checked]:border-sky-600 has-[:checked]:bg-sky-100">
+                      <div class="flex items-center gap-2.5">
+                        <input type="radio" name="presupuesto-currency-choice" value="usd" checked class="h-4 w-4 text-sky-600 focus:ring-sky-500" />
+                        <span class="font-bold text-slate-800">Dólares ($)</span>
+                      </div>
+                      <span class="rounded-lg bg-sky-200/80 px-2 py-0.5 text-xs font-extrabold text-sky-800">USD</span>
+                    </label>
+                    <label class="flex cursor-pointer items-center justify-between rounded-2xl border-2 border-emerald-300 bg-emerald-50/70 p-3.5 transition-all hover:bg-emerald-100 has-[:checked]:border-emerald-600 has-[:checked]:bg-emerald-100">
+                      <div class="flex items-center gap-2.5">
+                        <input type="radio" name="presupuesto-currency-choice" value="ves" class="h-4 w-4 text-emerald-600 focus:ring-emerald-500" />
+                        <span class="font-bold text-slate-800">Bolívares (Bs)</span>
+                      </div>
+                      <span class="rounded-lg bg-emerald-200/80 px-2 py-0.5 text-xs font-extrabold text-emerald-800">VES</span>
+                    </label>
+                  </div>
+                  <p class="text-xs text-slate-500 text-center pt-1">Tasa referencial actual: <strong>Bs ${formatNumber(bcvRate, 2)}</strong></p>
+                </div>
+              `,
+              showCancelButton: true,
+              confirmButtonText: 'Generar presupuesto',
+              cancelButtonText: 'Cancelar',
+              reverseButtons: true,
+              buttonsStyling: false,
+              customClass: {
+                popup: 'rounded-3xl border border-sky-200 shadow-xl',
+                title: 'text-2xl font-extrabold text-slate-800',
+                actions: 'w-full flex flex-wrap items-center justify-end gap-2 mt-4 px-4 pb-4',
+                confirmButton: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-500',
+                cancelButton: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50',
+              },
+              preConfirm: () => {
+                const checked = document.querySelector('input[name="presupuesto-currency-choice"]:checked');
+                return checked ? checked.value : 'usd';
+              },
+              heightAuto: false,
+            });
+
+            if (!currencyChoice.isConfirmed) return;
+            chosenCurrency = currencyChoice.value;
+          }
+
+          const isVes = String(chosenCurrency || '').toLowerCase() === 'ves';
           const baseCurrencyCode = isVes ? 'VES' : 'USD';
 
+          let totalBaseSum = 0;
           const itemsPayload = Array.from(cart.values()).map((item) => {
+            const quantity = Number(item.quantity) || 1;
             const itemType = item.itemType || 'product';
+
             if (itemType === 'service') {
               const service = servicesById.get(String(item.serviceId));
-              const baseSnapshot = resolveServiceBaseSnapshot(service, item, selectedBaseCurrency);
+              const baseSnapshot = resolveServiceBaseSnapshotForCurrency(item, service, chosenCurrency);
+              const unitBase = roundTo(Number(baseSnapshot.unitPriceBaseAmount) || 0, 2);
+              const subtotalBase = roundTo(unitBase * quantity, 2);
+              totalBaseSum = roundTo(totalBaseSum + subtotalBase, 2);
+
               return {
                 item_type: 'service',
                 service_id: item.serviceId,
                 name: String(item.product_name || service?.name || service?.sale_display_name || service?.description || 'Servicio').trim(),
-                quantity: Number(item.quantity) || 1,
+                quantity: quantity,
                 unit_price_usd: baseSnapshot.unitPriceUsd,
-                unit_price_base: baseSnapshot.unitPriceBaseAmount,
-                subtotal_base: roundTo(baseSnapshot.unitPriceBaseAmount * (Number(item.quantity) || 1), 2),
+                unit_price_base: unitBase,
+                subtotal_base: subtotalBase,
               };
             }
 
             const product = productsById.get(String(item.productId));
-            const pricing = computeProductPricing(product, item);
-            const unitBase = roundTo(Number(pricing?.unitDisplay) || 0, 2);
-            const unitUsd = isVes && bcvRate > 0 ? roundTo(unitBase / bcvRate, 6) : unitBase;
+            let unitPriceUsd = resolveProductUnitPriceUsdForClient(product, selectedClient);
+            const costPricingApplies = isCostPricingEnabled(selectedClient)
+              && Number(product?.unit_cost_usd || 0) > 0;
+            if (!costPricingApplies) {
+              unitPriceUsd = applyScheduledDiscountRuleToUnitPriceUsd(
+                unitPriceUsd,
+                quantity,
+                product?.scheduled_discount_rules
+              );
+            }
+            unitPriceUsd = roundTo(Number(unitPriceUsd) || 0, 2);
+
+            const unitBase = isVes
+              ? (bcvRate > 0 ? roundTo(unitPriceUsd * bcvRate, 2) : 0)
+              : unitPriceUsd;
+            const subtotalBase = roundTo(unitBase * quantity, 2);
+            totalBaseSum = roundTo(totalBaseSum + subtotalBase, 2);
+
             const variation = product?.variations?.find((v) => String(v.id) === String(item.variationId));
             const itemName = variation
               ? `${product.description || product.name || 'Producto'} (${variation.description || variation.name})`
@@ -8260,14 +8330,13 @@
               product_id: item.productId,
               variation_id: item.variationId,
               name: itemName,
-              quantity: Number(item.quantity) || 1,
-              unit_price_usd: unitUsd,
+              quantity: quantity,
+              unit_price_usd: unitPriceUsd,
               unit_price_base: unitBase,
-              subtotal_base: roundTo(unitBase * (Number(item.quantity) || 1), 2),
+              subtotal_base: subtotalBase,
             };
           });
 
-          const totals = calculateCartTotals();
           const payload = {
             cliente: selectedClient ? {
               id: selectedClient.id,
@@ -8279,7 +8348,7 @@
             base_currency: baseCurrencyCode,
             tasa_dolar: bcvRate,
             totals: {
-              total_base: totals.totalBase,
+              total_base: totalBaseSum,
             },
             items: itemsPayload,
           };

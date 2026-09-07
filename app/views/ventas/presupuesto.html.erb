@@ -1,7 +1,7 @@
 <% base_is_ves = @base_currency == 'VES' %>
 <% tasa = @tasa_dolar.to_d %>
-<% base_symbol = base_is_ves ? 'Bs ' : '$' %>
-<% alt_symbol = base_is_ves ? '$' : 'Bs ' %>
+<% base_symbol = base_is_ves ? 'Bs' : '$' %>
+<% alt_symbol = base_is_ves ? '$' : 'Bs' %>
 <% base_total = @total_base.to_d %>
 <% alt_total = base_is_ves ? (tasa.positive? ? (base_total / tasa).round(2) : 0) : (tasa.positive? ? (base_total * tasa).round(2) : 0) %>
 <% items_count = @items.size %>
