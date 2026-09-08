@@ -397,15 +397,30 @@ class DebtsController < ApplicationController
       }
     end
 
-    @show_debt_rows = @grouped_debts.map do |debt|
+    debts_for_rows = @grouped_debts.sort_by do |debt|
+      [debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1), debt.created_at || Time.zone.at(0), debt.id.to_i]
+    end
+
+    @show_debt_rows = debts_for_rows.map do |debt|
       loan_movement = original_loan_account_movement_for_debt(debt)
       loan_account = loan_movement&.account
+      amount_usd_bcv = amount_in_usd_bcv_for_debt(debt.amount.to_d, debt)
+      paid_usd_bcv = paid_amount_usd_bcv_for_debt(debt)
+      balance_usd_bcv = real_balance_usd_bcv_for_debt(debt)
+      row_status = if balance_usd_bcv <= 0.01.to_d
+                     'Pagada'
+                   elsif paid_usd_bcv > 0.01.to_d
+                     'Parcial'
+                   else
+                     'Pendiente'
+                   end
 
       {
         debt: debt,
-        amount_usd_bcv: amount_in_usd_bcv_for_debt(debt.amount.to_d, debt),
-        paid_usd_bcv: paid_amount_usd_bcv_for_debt(debt),
-        balance_usd_bcv: real_balance_usd_bcv_for_debt(debt),
+        amount_usd_bcv: amount_usd_bcv,
+        paid_usd_bcv: paid_usd_bcv,
+        balance_usd_bcv: balance_usd_bcv,
+        status: row_status,
         loan_enabled: loan_movement.present?,
         loan_account_id: loan_movement&.account_id,
         loan_account_name: loan_account&.name,
