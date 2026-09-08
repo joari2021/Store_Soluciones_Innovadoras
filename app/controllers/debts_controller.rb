@@ -373,8 +373,11 @@ class DebtsController < ApplicationController
                                                 (debt.amount.to_d - paid)
                                               end.round(2)
                                             end
+    effective_allocations = effective_usd_bcv_allocations_for_group(@grouped_debts)
     @show_last_activity_at = group_last_activity_at_for(@grouped_debts)
-    @show_overdue_count = @grouped_debts.count { |debt| individual_debt_pending?(debt) && debt.overdue? }
+    @show_overdue_count = @grouped_debts.count do |debt|
+      effective_allocations.dig(debt.id, :balance).to_d > 0.01.to_d && debt.due_on.present? && debt.due_on <= Date.current
+    end
     @can_register_group_payment = current_user_admin? || current_user_manager?
 
     @show_payment_rows = @payments.map do |payment|
@@ -406,9 +409,10 @@ class DebtsController < ApplicationController
     @show_debt_rows = debts_for_rows.map do |debt|
       loan_movement = original_loan_account_movement_for_debt(debt)
       loan_account = loan_movement&.account
-      amount_usd_bcv = amount_in_usd_bcv_for_debt(debt.amount.to_d, debt)
-      paid_usd_bcv = paid_amount_usd_bcv_for_debt(debt)
-      balance_usd_bcv = real_balance_usd_bcv_for_debt(debt)
+      allocation = effective_allocations.fetch(debt.id)
+      amount_usd_bcv = allocation[:amount]
+      paid_usd_bcv = allocation[:paid]
+      balance_usd_bcv = allocation[:balance]
       row_status = if balance_usd_bcv <= 0.01.to_d
                      'Pagada'
                    elsif paid_usd_bcv > 0.01.to_d
@@ -1969,6 +1973,30 @@ class DebtsController < ApplicationController
     (amount_in_usd_bcv_for_debt(debt.amount.to_d, debt) - paid_amount_usd_bcv_for_debt(debt)).round(2)
   end
 
+  def effective_usd_bcv_allocations_for_group(debts)
+    ordered_debts = Array(debts).sort_by do |debt|
+      if debt.payable?
+        due_on = debt.due_on || Date.new(9999, 12, 31)
+        [due_on.jd, debt.issued_on&.jd || 0, debt.created_at&.to_i || 0, debt.id.to_i]
+      else
+        issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+        [issued_on.jd, debt.created_at&.to_i || 0, debt.id.to_i]
+      end
+    end
+
+    remaining_paid = [total_usd_paid_for_debts(ordered_debts), 0.to_d].max
+
+    ordered_debts.each_with_object({}) do |debt, allocations|
+      amount = amount_in_usd_bcv_for_debt(debt.amount.to_d, debt).round(2)
+      paid = [remaining_paid, amount].min.round(2)
+      balance = (amount - paid).round(2)
+      balance = 0.to_d if balance.abs <= 0.01.to_d
+
+      allocations[debt.id] = { amount: amount, paid: paid, balance: balance }
+      remaining_paid = (remaining_paid - paid).round(2)
+    end
+  end
+
   def debt_reference_date_for_usd(debt)
     debt.issued_on || debt.venta&.created_at&.to_date || Date.current
   end
@@ -2262,12 +2290,21 @@ class DebtsController < ApplicationController
 
                   last_activity_at = group_last_activity_at_for(grouped_debts)
                   last_payment_at = group_last_payment_at_for(grouped_debts)
-                  oldest_overdue_due_on = oldest_overdue_due_on_for_group(grouped_debts)
-                  overdue_count = overdue_count_for_group(grouped_debts)
-                  overdue_badges = overdue_badges_for_group(grouped_debts)
+                  effective_allocations = effective_usd_bcv_allocations_for_group(grouped_debts)
+                  pending_debts = grouped_debts.select do |debt|
+                    effective_allocations.dig(debt.id, :balance).to_d > 0.01.to_d
+                  end
+                  overdue_debts = pending_debts.select do |debt|
+                    debt.due_on.present? && debt.due_on <= Date.current
+                  end
+                  oldest_overdue_due_on = overdue_debts.map(&:due_on).min
+                  overdue_count = overdue_debts.size
+                  overdue_badges = {
+                    past_due: overdue_debts.select { |debt| debt.due_on < Date.current }.group_by(&:due_on).transform_values(&:size).sort_by { |due_on, _count| due_on },
+                    due_today_count: overdue_debts.count { |debt| debt.due_on == Date.current }
+                  }
                   total_group_paid = grouped_debts.sum { |d| d.paid_amount.to_d }
 
-                  pending_debts = grouped_debts.select { |d| individual_debt_pending?(d) }
                   earliest_due_on = pending_debts.map(&:due_on).compact.min
 
                   aggregated_status_label = if group_total_balance <= 0.01.to_d
