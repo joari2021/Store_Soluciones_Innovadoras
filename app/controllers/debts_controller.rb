@@ -398,7 +398,9 @@ class DebtsController < ApplicationController
     end
 
     debts_for_rows = @grouped_debts.sort_by do |debt|
-      [debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1), debt.created_at || Time.zone.at(0), debt.id.to_i]
+      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+      created_at = debt.created_at || Time.zone.at(0)
+      [-issued_on.jd, -created_at.to_i, -debt.id.to_i]
     end
 
     @show_debt_rows = debts_for_rows.map do |debt|
