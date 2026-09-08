@@ -214,8 +214,8 @@
   }
 </style>
 <section class="note-banner">
-  <% if @business.banner.attached? %>
-    <%= image_tag url_for(@business.banner), alt: 'Banner del negocio' %>
+  <% if @print_banner&.attached? %>
+    <%= image_tag url_for(@print_banner), alt: 'Banner del negocio' %>
   <% else %>
     <div class="note-banner-fallback">Sin banner configurado</div>
   <% end %>

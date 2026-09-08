@@ -866,6 +866,62 @@ document.addEventListener(
 );
 
 document.addEventListener("click", (event) => {
+  const target = event.target.closest("[data-banner-select-print]");
+  if (!target) return;
+  event.preventDefault();
+
+  let bannerOptions = [];
+  try {
+    bannerOptions = JSON.parse(target.dataset.bannerOptions || "[]");
+  } catch (_error) {
+    bannerOptions = [];
+  }
+
+  if (!window.Swal || bannerOptions.length < 2) {
+    window.open(target.href, "_blank", "noopener");
+    return;
+  }
+
+  const escapeBannerHtml = (value) =>
+    String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+
+  const optionsHtml = bannerOptions
+    .map(
+      (banner, index) => `
+        <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-left hover:bg-sky-50">
+          <input type="radio" name="delivery-banner-choice" value="${escapeBannerHtml(banner.key)}" ${index === 0 ? "checked" : ""} class="h-4 w-4 text-sky-600 focus:ring-sky-500">
+          <span class="font-semibold text-slate-700">${escapeBannerHtml(banner.name)}</span>
+        </label>
+      `,
+    )
+    .join("");
+
+  window.Swal.fire({
+    title: "Banner de la nota de entrega",
+    html: `<div class="space-y-3"><p class="text-left text-sm text-slate-600">Selecciona el banner que llevará esta nota de entrega:</p><div class="space-y-2">${optionsHtml}</div></div>`,
+    showCancelButton: true,
+    confirmButtonText: "Generar nota de entrega",
+    cancelButtonText: "Cancelar",
+    reverseButtons: true,
+    heightAuto: false,
+    preConfirm: () =>
+      document.querySelector('input[name="delivery-banner-choice"]:checked')
+        ?.value || null,
+  }).then((result) => {
+    if (!result.isConfirmed || !result.value) return;
+
+    const printUrl = new URL(target.href, window.location.origin);
+    printUrl.searchParams.set("banner", result.value);
+    window.open(printUrl.toString(), "_blank", "noopener");
+  });
+});
+
+document.addEventListener("click", (event) => {
   const target = event.target.closest("[data-cashea-blocked-delivery-note]");
   if (!target) return;
   event.preventDefault();

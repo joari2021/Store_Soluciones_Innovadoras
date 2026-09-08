@@ -272,6 +272,8 @@ class Business < ApplicationRecord
   has_many :expense_categories, dependent: :nullify
   has_one_attached :logo
   has_one_attached :banner
+  has_one_attached :banner_2
+  has_one_attached :banner_3
 
   validates :name, presence: true
   validates :theme_profile, presence: true, inclusion: { in: THEME_PROFILES.keys }
@@ -340,6 +342,19 @@ class Business < ApplicationRecord
     self.class.theme_preview_badge_style(theme_profile)
   end
 
+  def print_banner_options
+    [
+      { key: 'banner', name: banner_name.to_s.strip.presence || 'Banner 1', attachment: banner },
+      { key: 'banner_2', name: banner_2_name.to_s.strip.presence || 'Banner 2', attachment: banner_2 },
+      { key: 'banner_3', name: banner_3_name.to_s.strip.presence || 'Banner 3', attachment: banner_3 }
+    ].select { |option| option[:attachment].attached? }
+  end
+
+  def print_banner_for(key)
+    selected_key = key.to_s
+    print_banner_options.find { |option| option[:key] == selected_key } || print_banner_options.first
+  end
+
   private
 
   def validate_logo_attachment
@@ -348,6 +363,8 @@ class Business < ApplicationRecord
 
   def validate_banner_attachment
     validate_image_attachment(:banner, max_size: 8.megabytes)
+    validate_image_attachment(:banner_2, max_size: 8.megabytes)
+    validate_image_attachment(:banner_3, max_size: 8.megabytes)
   end
 
   def validate_image_attachment(attachment_name, max_size:)

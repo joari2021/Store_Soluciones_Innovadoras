@@ -435,6 +435,7 @@ class VentasController < ApplicationController
     @sale_item_discounts = sale_item_discounts_payload(@venta)
     load_sale_service_cost_breakdown_context!
     @business = current_business
+    @print_banner = @business.print_banner_for(params[:banner])&.dig(:attachment)
     @delivery_print_date = Time.current
     @print_title = "Nota de Entrega Nro-#{@venta.id}"
 
@@ -443,11 +444,11 @@ class VentasController < ApplicationController
 
   def presupuesto
     @business = current_business
-    @delivery_print_date = Time.current
-    @print_title = "Presupuesto"
-
     payload_raw = params[:presupuesto_payload].presence || params[:presupuesto]
     payload = payload_raw.is_a?(String) ? JSON.parse(payload_raw) : (payload_raw || {})
+    @print_banner = @business.print_banner_for(payload["banner"] || params[:banner])&.dig(:attachment)
+    @delivery_print_date = Time.current
+    @print_title = "Presupuesto"
 
     cliente_data = payload["cliente"] || {}
     cliente_id = cliente_data["id"] || payload["cliente_id"]

@@ -333,6 +333,9 @@
   <script type="application/json" id="ventas-accounts-data">
     <%= raw ERB::Util.json_escape(@accounts_payload.to_json) %>
   </script>
+  <script type="application/json" id="ventas-print-banners-data">
+    <%= raw ERB::Util.json_escape(current_business.print_banner_options.map { |option| option.slice(:key, :name) }.to_json) %>
+  </script>
   <script type="application/json" id="ventas-cash-boxes-data">
     <%= raw ERB::Util.json_escape(@cash_box_accounts_payload.to_json) %>
   </script>
@@ -748,6 +751,16 @@
           accounts = JSON.parse(accountsDataEl.textContent || '[]');
         } catch (error) {
           accounts = [];
+        }
+      }
+
+      const printBannersDataEl = document.getElementById('ventas-print-banners-data');
+      let printBanners = [];
+      if (printBannersDataEl) {
+        try {
+          printBanners = JSON.parse(printBannersDataEl.textContent || '[]');
+        } catch (error) {
+          printBanners = [];
         }
       }
 
@@ -8227,6 +8240,7 @@
           }
 
           let chosenCurrency = 'usd';
+          let chosenBanner = printBanners[0]?.key || null;
           if (window.Swal) {
             const currencyChoice = await window.Swal.fire({
               title: 'Moneda del presupuesto',
@@ -8273,6 +8287,34 @@
 
             if (!currencyChoice.isConfirmed) return;
             chosenCurrency = currencyChoice.value;
+
+            if (printBanners.length > 1) {
+              const bannerChoice = await window.Swal.fire({
+                title: 'Banner del presupuesto',
+                html: `
+                  <div class="space-y-3 text-left">
+                    <p class="text-sm text-slate-600">Selecciona el banner que llevará este presupuesto:</p>
+                    <div class="space-y-2">
+                      ${printBanners.map((banner, index) => `
+                        <label class="flex cursor-pointer items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 hover:bg-sky-50 has-[:checked]:border-sky-400 has-[:checked]:bg-sky-50">
+                          <input type="radio" name="presupuesto-banner-choice" value="${escapeHtml(banner.key)}" ${index === 0 ? 'checked' : ''} class="h-4 w-4 text-sky-600 focus:ring-sky-500" />
+                          <span class="font-semibold text-slate-700">${escapeHtml(banner.name)}</span>
+                        </label>
+                      `).join('')}
+                    </div>
+                  </div>
+                `,
+                showCancelButton: true,
+                confirmButtonText: 'Usar este banner',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true,
+                heightAuto: false,
+                preConfirm: () => document.querySelector('input[name="presupuesto-banner-choice"]:checked')?.value || null,
+              });
+
+              if (!bannerChoice.isConfirmed) return;
+              chosenBanner = bannerChoice.value;
+            }
           }
 
           const isVes = String(chosenCurrency || '').toLowerCase() === 'ves';
@@ -8347,6 +8389,7 @@
             } : null,
             base_currency: baseCurrencyCode,
             tasa_dolar: bcvRate,
+            banner: chosenBanner,
             totals: {
               total_base: totalBaseSum,
             },

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_07_183000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_08_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -183,6 +183,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_07_183000) do
     t.string "city"
     t.string "state"
     t.boolean "customer_pos_restrictions_enabled", default: true, null: false
+    t.string "banner_name"
+    t.string "banner_2_name"
+    t.string "banner_3_name"
     t.index ["name"], name: "index_businesses_on_name"
     t.index ["theme_profile"], name: "index_businesses_on_theme_profile"
   end

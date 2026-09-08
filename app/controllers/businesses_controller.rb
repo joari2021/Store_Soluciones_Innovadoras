@@ -70,6 +70,11 @@ class BusinessesController < ApplicationController
       :rif,
       :logo,
       :banner,
+      :banner_name,
+      :banner_2,
+      :banner_2_name,
+      :banner_3,
+      :banner_3_name,
       :hide_initial_inventory_button,
       :customer_pos_restrictions_enabled
     )

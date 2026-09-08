@@ -81,6 +81,10 @@
             <%= link_to delivery_note_venta_path(@venta, autoprint: 1),
                         target: '_blank',
                         rel: 'noopener',
+                        data: (current_business.print_banner_options.size > 1 ? {
+                          banner_select_print: true,
+                          banner_options: current_business.print_banner_options.map { |option| option.slice(:key, :name) }.to_json
+                        } : {}),
                         class: 'inline-flex cursor-pointer items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-colors hover:bg-emerald-100' do %>
               Generar nota de entrega
             <% end %>
