@@ -137,6 +137,8 @@
 
     let currentProduct = null;
     let items = [];
+    // Reservas provisionales en memoria (DOM-only). Key: "productId::variationId" -> cantidad reservada
+    const provisionalReservations = new Map();
     let currentPage = Number(productsMeta?.dataset?.page || 1);
     let totalPages = Number(productsMeta?.dataset?.totalPages || 1);
     let totalCount = Number(productsMeta?.dataset?.totalCount || 0);
@@ -166,6 +168,40 @@
       return amount.toLocaleString('es-VE', { minimumFractionDigits: 0, maximumFractionDigits: 3 });
     }
 
+    const reservationKey = (productId, variationId) => `${String(productId)}::${String(variationId || 'none')}`;
+    const reservedFor = (productId, variationId) => {
+      const key = reservationKey(productId, variationId);
+      return Number(provisionalReservations.get(key) || 0);
+    };
+    const addReservation = (productId, variationId, qty) => {
+      const key = reservationKey(productId, variationId);
+      const prev = Number(provisionalReservations.get(key) || 0);
+      provisionalReservations.set(key, prev + Number(qty || 0));
+    };
+    const removeReservation = (productId, variationId, qty) => {
+      const key = reservationKey(productId, variationId);
+      const prev = Number(provisionalReservations.get(key) || 0);
+      const next = Math.max(0, prev - Number(qty || 0));
+      if (next <= 0) provisionalReservations.delete(key);
+      else provisionalReservations.set(key, next);
+    };
+    const reservedTotalForProduct = (productId) => {
+      let total = 0;
+      provisionalReservations.forEach((v, k) => {
+        if (String(k).startsWith(String(productId) + '::')) total += Number(v || 0);
+      });
+      return total;
+    };
+    const updateRowAvailabilityByProductId = (productId, originalTotal) => {
+      const row = productsTbody?.querySelector(`tr[data-product-id="${String(productId)}"]`);
+      if (!row) return;
+      const cell = row.querySelector('td:nth-child(3)');
+      if (!cell) return;
+      const orig = Number(originalTotal || 0);
+      const remaining = Math.max(0, orig - reservedTotalForProduct(productId));
+      cell.textContent = formatQuantity(remaining);
+    };
+
     function renderProductsRows(products){
       if (!productsTbody) return;
 
@@ -185,11 +221,16 @@
         tr.dataset.productId = String(product.id);
         tr.dataset.productName = String(product.name || '');
         tr.dataset.variations = JSON.stringify(Array.isArray(product.variations) ? product.variations : []);
+        // Guardar total original para poder recalcular existencia provisional
+        tr.dataset.originalTotal = String(Number(product.total_quantity) || 0);
+
+        const originalTotal = Number(product.total_quantity) || 0;
+        const remainingTotal = Math.max(0, originalTotal - reservedTotalForProduct(product.id));
 
         tr.innerHTML = `
           <td class="px-4 py-3">${escapeHtml(product.name)}</td>
           <td class="px-4 py-3 text-xs text-slate-500">${escapeHtml(product.variations_label || '')}</td>
-          <td class="px-4 py-3 text-right font-semibold text-slate-700">${escapeHtml(formatQuantity(product.total_quantity))}</td>
+          <td class="px-4 py-3 text-right font-semibold text-slate-700">${escapeHtml(formatQuantity(remainingTotal))}</td>
           <td class="px-4 py-3 text-right"><button type="button" class="inline-flex items-center rounded-xl bg-cyan-600 px-3 py-1 text-xs text-white" data-add-to-invoice>Agregar</button></td>
         `;
 
@@ -272,11 +313,44 @@
       variations.forEach(v => {
         const opt = document.createElement('option');
         opt.value = v.id;
-        opt.textContent = `${v.name} — ${v.available} uds — ${formatUsd(v.price_value)}`;
+        const originalAvail = Number(v.available) || 0;
+        const adjustedAvail = Math.max(0, originalAvail - reservedFor(prodId, v.id));
+        opt.textContent = `${v.name} — ${adjustedAvail} uds — ${formatUsd(v.price_value)}`;
         opt.dataset.priceValue = v.price_value;
-        opt.dataset.available = v.available;
+        opt.dataset.available = String(adjustedAvail);
+        opt.dataset.originalAvailable = String(originalAvail);
         variationSelect.appendChild(opt);
       });
+
+      // Ajustar el input de cantidad según la variación seleccionada
+      const syncQuantityInputToSelected = () => {
+        const sel = variationSelect.options[variationSelect.selectedIndex];
+        const avail = Number(sel?.dataset?.available || '0') || 0;
+        const orig = Number(sel?.dataset?.originalAvailable || '0') || 0;
+        // si disponibilidad < 1, usar paso fino (kg), si >=1 usar paso entero
+        if (avail < 1 && avail > 0) {
+          quantityInput.step = '0.001';
+          quantityInput.min = '0.001';
+        } else {
+          quantityInput.step = '1';
+          quantityInput.min = '1';
+        }
+        quantityInput.max = String(avail);
+        // ajustar valor actual si excede la disponibilidad
+        const cur = parseFloat(quantityInput.value) || 0;
+        if (avail <= 0) {
+          quantityInput.value = quantityInput.min || '0';
+        } else if (cur <= 0) {
+          // dejar 1 por defecto si disponible
+          quantityInput.value = avail >= 1 ? '1' : String(Math.min(avail, 1));
+        } else if (cur > avail) {
+          quantityInput.value = String(avail);
+        }
+      };
+
+      variationSelect.addEventListener('change', syncQuantityInputToSelected);
+      // inicializar
+      syncQuantityInputToSelected();
       quantityInput.value = 1;
       addModal.classList.remove('hidden'); addModal.classList.add('flex');
     }
@@ -321,13 +395,20 @@
     modalAdd.addEventListener('click', function(){
       if(!currentProduct) return;
       const variationId = variationSelect.value;
-      const variationText = variationSelect.options[variationSelect.selectedIndex].textContent || '';
-      const unitPrice = parseFloat(variationSelect.options[variationSelect.selectedIndex].dataset.priceValue || '0') || 0;
+      const selectedOption = variationSelect.options[variationSelect.selectedIndex];
+      const variationText = selectedOption?.textContent || '';
+      const unitPrice = parseFloat(selectedOption?.dataset.priceValue || '0') || 0;
+      const available = Number(selectedOption?.dataset.available || '0') || 0;
+      const origAvailable = Number(selectedOption?.dataset.originalAvailable || '0') || 0;
       const qty = parseFloat(quantityInput.value) || 0;
       if(qty <= 0) return alert('Cantidad inválida');
+      if(qty > available) return alert(`Stock insuficiente. Disponible: ${formatQuantity(available)}`);
       const lineTotal = +(qty * unitPrice).toFixed(2);
       const item = { producto_id: currentProduct.id, product_variation_id: variationId, quantity: qty, unit_price_usd: unitPrice, line_total: lineTotal, name: currentProduct.name, variation_text: variationText };
       items.push(item);
+      // Registrar reserva provisional y actualizar UI
+      addReservation(currentProduct.id, variationId, qty);
+      updateRowAvailabilityByProductId(currentProduct.id, origAvailable || (Number(currentProduct.total_quantity) || 0));
       renderItems();
       closeModal();
     });
@@ -349,7 +430,19 @@
       const btn = e.target.closest('[data-remove-index]');
       if(!btn) return;
       const idx = Number(btn.getAttribute('data-remove-index'));
-      items.splice(idx,1);
+      const removed = items.splice(idx,1);
+      if (removed && removed.length > 0) {
+        const it = removed[0];
+        try {
+          removeReservation(it.producto_id, it.product_variation_id, it.quantity);
+          // restore UI using stored original total on row
+          const row = productsTbody?.querySelector(`tr[data-product-id="${String(it.producto_id)}"]`);
+          const orig = row ? Number(row.dataset.originalTotal || '0') : null;
+          updateRowAvailabilityByProductId(it.producto_id, orig);
+        } catch (err) {
+          // ignore
+        }
+      }
       renderItems();
     });
 
