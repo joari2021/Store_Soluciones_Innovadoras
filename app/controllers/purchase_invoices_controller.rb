@@ -1044,7 +1044,21 @@ class PurchaseInvoicesController < ApplicationController
       if entry[:include_commission] == true
         commission_amount = entry[:commission_amount].to_d.round(2)
         if commission_amount.positive?
+          commission_expense = create_variable_commission_expense_for_invoice_payment!(
+            invoice: invoice,
+            entry: entry,
+            commission_amount: commission_amount,
+            occurred_at: occurred_at,
+          )
+
+          expense_tags = if commission_expense.present?
+                           " [GASTO:#{commission_expense.id}]"
+                         else
+                           ''
+                         end
+
           commission_description = "Gasto bancario (Servicios Bancarios) - Comisión por pago factura #{invoice.numero.to_s.strip.presence || "##{invoice.id}"} [FACTURA_COMPRA:#{invoice.id}]"
+          commission_description = "#{commission_description}#{expense_tags} [MOV_PAGO:#{payment_movement.id}]"
           commission_attrs = {
             movement_kind: 'expense',
             amount: commission_amount,
@@ -1065,8 +1079,80 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def sync_invoice_payment_movements!(invoice, payments:)
+    remove_invoice_commission_expense_records!(invoice)
     invoice_payment_movements_scope(invoice).to_a.each(&:destroy!)
     create_invoice_payment_movements!(invoice, payments)
+  end
+
+  def create_variable_commission_expense_for_invoice_payment!(invoice:, entry:, commission_amount:, occurred_at:)
+    account = entry[:account]
+    return nil if account.blank? || commission_amount.to_d <= 0
+
+    expense_payment_method = expense_payment_method_from_invoice_payment_method(entry[:payment_method])
+    reference = normalized_reference_for_invoice_payment_method(
+      payment_method: entry[:payment_method],
+      raw_reference: entry[:reference]
+    )
+
+    invoice_reference = invoice.numero.to_s.strip.presence || "##{invoice.id}"
+    category = bank_service_expense_category_for_invoice_payments
+
+    commission_expense = current_business.expenses.create!(
+      name: "Comision bancaria - Factura #{invoice_reference}",
+      description: "Comision bancaria por pago de factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}] [FACTURA_COMPRA_COMISION]",
+      expense_type: 'variable',
+      frequency: 'once',
+      amount: commission_amount.to_d.round(2),
+      currency: account.currency.to_s.presence || 'VES',
+      start_date: occurred_at.to_date,
+      expense_category: category,
+    )
+
+    commission_expense.expense_payments.create!(
+      account: account,
+      amount: commission_amount.to_d.round(2),
+      currency: account.currency.to_s.presence || 'VES',
+      payment_method: expense_payment_method,
+      reference: reference,
+      occurred_at: occurred_at,
+      notes: "Comision por pago de factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}]",
+    )
+
+    commission_expense.register_payment!(occurred_at.to_date)
+    commission_expense
+  end
+
+  def expense_payment_method_from_invoice_payment_method(method)
+    case method.to_s
+    when 'mobile_payment'
+      'mobile'
+    when 'debit_card'
+      'debit_card'
+    else
+      'transfer'
+    end
+  end
+
+  def normalized_reference_for_invoice_payment_method(payment_method:, raw_reference:)
+    return '' if payment_method.to_s == 'debit_card'
+
+    value = raw_reference.to_s.gsub(/\D/, '')
+    value.match?(/\A\d{4}\z/) ? value : ''
+  end
+
+  def bank_service_expense_category_for_invoice_payments
+    category_name = 'Servicio bancario'
+    existing = ExpenseCategory.where('LOWER(name) = ?', category_name.downcase).first
+    return existing if existing.present?
+
+    ExpenseCategory.create!(name: category_name, business: current_business)
+  end
+
+  def remove_invoice_commission_expense_records!(invoice)
+    current_business.expenses
+                    .where('description LIKE ?', "%[FACTURA_COMPRA:#{invoice.id}]%")
+                    .where('description LIKE ?', '%[FACTURA_COMPRA_COMISION]%')
+                    .find_each(&:destroy!)
   end
 
   def create_pending_supplier_debt!(invoice, payment_context)
@@ -1522,6 +1608,8 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def remove_invoice_related_records!(invoice)
+    remove_invoice_commission_expense_records!(invoice)
+
     if invoice.intercompany? && invoice.source_business_id.present? && invoice.stock_delivered?
       source_business = invoice.source_business
       if source_business.present?
