@@ -373,7 +373,7 @@ class ExpensesController < ApplicationController
   end
 
   def bank_service_expense_category
-    category_name = 'Servicio bancario'
+    category_name = 'Servicios Bancarios'
     existing = ExpenseCategory.where('LOWER(name) = ?', category_name.downcase).first
     return existing if existing.present?
 

@@ -6,7 +6,7 @@
       <div>
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle</p>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @expense.name %></h1>
-        <p class="mt-1 text-sm text-slate-500"><%= @expense.description.presence || "Sin descripcion" %></p>
+        <p class="mt-1 text-sm text-slate-500"><%= expense_display_description(@expense) %></p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <%= link_to new_expense_expense_payment_path(@expense), class: "inline-flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800", data: { turbo_frame: "_top" } do %>

@@ -1058,7 +1058,7 @@ class PurchaseInvoicesController < ApplicationController
                          end
 
           commission_description = "Gasto bancario (Servicios Bancarios) - Comisión por pago factura #{invoice.numero.to_s.strip.presence || "##{invoice.id}"} [FACTURA_COMPRA:#{invoice.id}]"
-          commission_description = "#{commission_description}#{expense_tags} [MOV_PAGO:#{payment_movement.id}]"
+          commission_description = "#{commission_description}#{expense_tags}"
           commission_attrs = {
             movement_kind: 'expense',
             amount: commission_amount,
@@ -1099,7 +1099,7 @@ class PurchaseInvoicesController < ApplicationController
 
     commission_expense = current_business.expenses.create!(
       name: "Comision bancaria - Factura #{invoice_reference}",
-      description: "Comision bancaria por pago de factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}] [FACTURA_COMPRA_COMISION]",
+      description: "Comision bancaria por pago de factura #{invoice_reference} [FACTURA_COMPRA:#{invoice.id}]",
       expense_type: 'variable',
       frequency: 'once',
       amount: commission_amount.to_d.round(2),
@@ -1141,7 +1141,7 @@ class PurchaseInvoicesController < ApplicationController
   end
 
   def bank_service_expense_category_for_invoice_payments
-    category_name = 'Servicio bancario'
+    category_name = 'Servicios Bancarios'
     existing = ExpenseCategory.where('LOWER(name) = ?', category_name.downcase).first
     return existing if existing.present?
 
@@ -1150,8 +1150,8 @@ class PurchaseInvoicesController < ApplicationController
 
   def remove_invoice_commission_expense_records!(invoice)
     current_business.expenses
+                    .where('name LIKE ?', 'Comision bancaria - Factura%')
                     .where('description LIKE ?', "%[FACTURA_COMPRA:#{invoice.id}]%")
-                    .where('description LIKE ?', '%[FACTURA_COMPRA_COMISION]%')
                     .find_each(&:destroy!)
   end
 

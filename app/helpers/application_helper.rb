@@ -49,12 +49,8 @@ module ApplicationHelper
     formatted_debt_description = normalize_debt_movement_description(movement)
     return formatted_debt_description if formatted_debt_description.present?
 
-    cleaned = description
-        .gsub(/\s*\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|FACTURA_COMPRA_MIRROR|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO):\d+\]/i, '')
-          .gsub(/\s*\[IC_MIRROR\]/i, '')
-              .gsub(/\s*\[LINE:[^\]]+\]/i, '')
-              .gsub(/\s*\[COMMISSION\]/i, '')
-              .gsub(/\s*-\s*Ref\s+[^\s\]]+/i, '')
+    cleaned = strip_internal_metadata_tags(description)
+          .gsub(/\s*-\s*Ref\s+[^\s\]]+/i, '')
     if description.match?(/CAMBIO_EFECTIVO/i) || description.match?(/cambio de efectivo/i)
       cleaned = cleaned.gsub(/\s*#\d+\b/, '')
     end
@@ -63,6 +59,13 @@ module ApplicationHelper
     return turno_match[1].strip if turno_match.present?
 
     cleaned
+  end
+
+  def expense_display_description(expense)
+    text = expense&.description.to_s.strip
+    return 'Sin descripcion' if text.blank?
+
+    strip_internal_metadata_tags(text).presence || 'Sin descripcion'
   end
 
   def account_movement_reference(movement)
@@ -235,6 +238,15 @@ module ApplicationHelper
   end
 
   private
+
+  def strip_internal_metadata_tags(text)
+    text.to_s
+        .gsub(/\s*\[(?:DEBT|DP|VENTA|VENTA_DRAFT|FACTURA_COMPRA|FACTURA_COMPRA_MIRROR|PURCHASE_INVOICE|GASTO|ACCOUNT|AM|CASH_SHIFT|CAMBIO_EFECTIVO|MOV_PAGO):\d+\]/i, '')
+        .gsub(/\s*\[(?:FACTURA_COMPRA_COMISION|IC_MIRROR|COMMISSION)\]/i, '')
+        .gsub(/\s*\[LINE:[^\]]+\]/i, '')
+        .gsub(/\s{2,}/, ' ')
+        .strip
+  end
 
   def normalize_debt_movement_description(movement)
     description = movement.description.to_s

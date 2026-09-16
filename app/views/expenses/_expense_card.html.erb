@@ -25,7 +25,7 @@ end %>
       <h3 class="mt-1 truncate text-base font-bold text-slate-800"><%= expense.name %></h3>
       <p class="mt-1 text-[11px] font-semibold uppercase tracking-wide text-sky-700"><%= expense.category_label %></p>
       <% if expense.description.present? %>
-        <p class="mt-1 text-xs text-slate-500"><%= expense.description %></p>
+        <p class="mt-1 text-xs text-slate-500"><%= expense_display_description(expense) %></p>
       <% end %>
     </div>
     <span class="rounded-full px-2.5 py-1 text-[11px] font-semibold <%= overdue.positive? ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700' %>">
