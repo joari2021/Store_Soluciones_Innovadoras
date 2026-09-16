@@ -7,19 +7,27 @@
   <% preferred_source_business = @available_source_businesses.find { |business| business.accounts.where(account_type: 'bank_account', currency: 'VES').exists? } || @available_source_businesses.first %>
   <% intercompany_selected_source_business_id = preferred_source_business&.id %>
 <% end %>
-<%= form_with model: factura,
-              scope: :purchase_invoice,
-              local: true,
-              html: {
-                id: 'purchase_invoice_form',
-                data: {
-                  require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s,
-                  initial_inventory_mode: initial_inventory_mode.to_s,
-                  intercompany_mode: intercompany_mode.to_s,
-                  default_source_business_id: intercompany_selected_source_business_id.to_s,
-                  source_accounts_map: @source_accounts_map.to_json
-                }
-              } do |f| %>
+<%# Prepare payment accounts and methods for client-side JS (serialized into form dataset) %>
+<% payment_method_options = [
+     ['Transferencia a tercero', 'third_party_transfer'],
+     ['Transferencia a otro banco', 'interbank_transfer'],
+     ['Pago movil', 'mobile_payment'],
+     ['Tarjeta de debito', 'debit_card']
+  ] unless defined?(payment_method_options) %>
+<% payment_accounts_for_dataset = (Array(@bs_accounts) || []).map do |account|
+     {
+       id: account.id,
+       name: account.name_with_cash_role,
+       balance: account.balance.to_d.to_s('F'),
+       currency: account.currency.to_s.presence || 'VES',
+       account_type: account.account_type.to_s,
+       send_commission_percent: account.send_commission_percent.to_s,
+       send_commission_min: account.send_commission_min.to_s,
+       send_commission_rounding: account.send_commission_rounding.to_s
+     }
+   end
+%>
+<% form_with(model: factura, scope: :purchase_invoice, local: true, html: { id: 'purchase_invoice_form', data: { require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s, initial_inventory_mode: initial_inventory_mode.to_s, intercompany_mode: intercompany_mode.to_s, default_source_business_id: intercompany_selected_source_business_id.to_s, source_accounts_map: @source_accounts_map.to_json, payment_accounts: payment_accounts_for_dataset.to_json, payment_method_options: payment_method_options.to_json } }) do |f| %>
   <%= hidden_field_tag :invoice_kind, factura.invoice_kind %>
   <%= hidden_field_tag :allow_insufficient_payment_balance, '0', data: { invoice_allow_insufficient_balance: true } %>
   <% format_decimal_input = lambda do |value, scale = 2|
@@ -207,7 +215,7 @@
         </tr>
       </thead>
       <tbody id="factura-items" class="divide-y divide-slate-100 bg-white">
-        <%= f.fields_for :purchase_invoice_items do |fi| %>
+        <% f.fields_for :purchase_invoice_items do |fi| %>
           <% row_key = fi.object.id || "new_#{fi.object.object_id}" %>
           <% raw_product_name = fi.object.product_name.to_s.strip %>
           <% product_name = if raw_product_name.present?
@@ -520,12 +528,6 @@
   <% unless initial_inventory_mode %>
     <% if factura.new_record? || action_name == 'update' %>
       <% payment_rows = Array(@invoice_payment_rows).presence || [{ account_id: '', amount: '', payment_method: '', include_commission: false, commission_amount: '', reference: '' }] %>
-      <% payment_method_options = [
-           ['Transferencia a tercero', 'third_party_transfer'],
-           ['Transferencia a otro banco', 'interbank_transfer'],
-           ['Pago movil', 'mobile_payment'],
-           ['Tarjeta de debito', 'debit_card']
-         ] %>
       <% if intercompany_mode && payment_rows.size > 1 %>
         <% filtered_payment_rows = payment_rows.reject do |row| %>
           <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
@@ -579,107 +581,8 @@
         <% end %>
         <div class="mt-4 space-y-3" data-invoice-payments-container="true">
           <% payment_rows.each_with_index do |row, index| %>
-            <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
-            <% row_source_account_id = row[:source_account_id].presence || row['source_account_id'].presence %>
-            <% row_amount_value = row[:amount].presence || row['amount'].presence || 'Bs 0,00' %>
-            <% row_payment_method = row[:payment_method].presence || row['payment_method'].presence %>
-            <% row_include_commission = ActiveModel::Type::Boolean.new.cast(row[:include_commission].presence || row['include_commission'].presence) %>
-            <% row_commission_amount = row[:commission_amount].presence || row['commission_amount'].presence || '' %>
-            <% row_reference = row[:reference].presence || row['reference'].presence || '' %>
-            <% commission_supported = %w[interbank_transfer mobile_payment].include?(row_payment_method.to_s) %>
-            <% reference_hidden = row_payment_method.to_s == 'debit_card' %>
-            <div class="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3" data-invoice-payment-row="true" data-invoice-payment-index="<%= index %>">
-              <div class="flex-1 min-w-[220px]">
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500"><%= intercompany_mode ? 'Cuenta a debitar fondos (destino)' : 'Cuenta en Bs' %></label>
-                <%= select_tag "invoice_payments[#{index}][account_id]",
-                             grouped_options_for_select(payment_account_options, row_account_id),
-                             include_blank: 'Selecciona cuenta en Bs',
-                             class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                             data: { invoice_payment_account: true } %>
-              </div>
-              <% if intercompany_mode %>
-                <div>
-                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta a acreditar fondos (origen)</label>
-                  <%= select_tag "invoice_payments[#{index}][source_account_id]",
-                               options_for_select(selected_source_accounts.map { |account|
-                                 currency = account[:currency].to_s
-                                 symbol = currency == 'VES' ? 'Bs' : (currency.presence || '$')
-                                 active_label = account[:active] ? 'Activa' : 'Inactiva'
-                                 ["#{account[:name]} (#{active_label} · #{currency.presence || 'N/A'} · Saldo: #{format_money(account[:balance], unit: symbol)})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }]
-                               }, row_source_account_id),
-                               include_blank: 'Selecciona cuenta en origen',
-                               class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                               data: { invoice_payment_source_account: true } %>
-                </div>
-                <div class="w-40">
-                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
-                  <%= text_field_tag "invoice_payments[#{index}][amount]",
-                                 row_amount_value,
-                                 inputmode: 'decimal',
-                                 autocomplete: 'off',
-                                 placeholder: 'Bs 0,00',
-                                 class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                                 data: {
-                                   money_mask: true,
-                                   money_symbol: 'Bs',
-                                   invoice_payment_amount: true
-                                 } %>
-                </div>
-                <div class="w-56">
-                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Metodo de pago</label>
-                  <%= select_tag "invoice_payments[#{index}][payment_method]",
-                             options_for_select(payment_method_options, row_payment_method),
-                             include_blank: 'Selecciona metodo',
-                             class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                             data: { invoice_payment_method: true } %>
-                </div>
-                <div class="w-36 <%= reference_hidden ? 'hidden' : '' %>" data-invoice-payment-reference-wrapper="true">
-                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Referencia</label>
-                  <%= text_field_tag "invoice_payments[#{index}][reference]",
-                                 row_reference,
-                                 inputmode: 'numeric',
-                                 autocomplete: 'off',
-                                 maxlength: 4,
-                                 minlength: 4,
-                                 pattern: '[0-9]{4}',
-                                 placeholder: '0000',
-                                 class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                                 data: { invoice_payment_reference: true } %>
-                </div>
-                <div class="flex items-center gap-3">
-                  <div class="flex items-center" data-invoice-payment-commission-wrapper="true" style="<%= commission_supported ? '' : 'display: none;' %>">
-                    <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      <%= check_box_tag "invoice_payments[#{index}][include_commission]",
-                                    '1',
-                                    row_include_commission,
-                                    class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500',
-                                    data: { invoice_payment_commission_toggle: true } %>
-                      <span class="text-xs">Incluir comisión</span>
-                    </label>
-                  </div>
-                  <div class="w-40 <%= commission_supported && row_include_commission ? '' : 'hidden' %>" data-invoice-payment-commission-input-wrapper="true">
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Comisión</label>
-                    <%= text_field_tag "invoice_payments[#{index}][commission_amount]",
-                                   row_commission_amount,
-                                   inputmode: 'decimal',
-                                   autocomplete: 'off',
-                                   placeholder: 'Bs 0,00',
-                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                                   data: {
-                                     money_mask: true,
-                                     money_symbol: 'Bs',
-                                     invoice_payment_commission_input: true
-                                   } %>
-                  </div>
-                </div>
-                <button type="button"
-                    class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
-                    data-invoice-payment-remove="true">
-                  Quitar
-                </button>
-              </div>
-            <% end %>
-          </div>
+            <div class="p-2">Pago temporal: <%= index %></div>
+          <% end %>
           <div class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
             <div>
               <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total factura Bs</p>
@@ -720,94 +623,34 @@
             <template id="invoice-payment-row-template">
               <div class="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3" data-invoice-payment-row="true" data-invoice-payment-index="__INDEX__">
                 <div class="flex-1 min-w-[220px]">
-                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500"><%= intercompany_mode ? 'Cuenta a debitar fondos (destino)' : 'Cuenta en Bs' %></label>
-                  <%= select_tag 'invoice_payments[__INDEX__][account_id]',
-                           grouped_options_for_select(payment_account_options),
-                           include_blank: 'Selecciona cuenta en Bs',
-                           class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                           data: { invoice_payment_account: true } %>
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta en Bs</label>
+                  <select name="invoice_payments[__INDEX__][account_id]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-account="true"></select>
                 </div>
-                <% if intercompany_mode %>
-                  <div>
-                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta a acreditar fondos (origen)</label>
-                    <%= select_tag 'invoice_payments[__INDEX__][source_account_id]',
-                             options_for_select(selected_source_accounts.map { |account|
-                               currency = account[:currency].to_s
-                               symbol = currency == 'VES' ? 'Bs' : (currency.presence || '$')
-                               active_label = account[:active] ? 'Activa' : 'Inactiva'
-                               ["#{account[:name]} (#{active_label} · #{currency.presence || 'N/A'} · Saldo: #{format_money(account[:balance], unit: symbol)})", account[:id], { 'data-balance' => account[:balance].to_d.to_s('F') }]
-                             }),
-                             include_blank: 'Selecciona cuenta en origen',
-                             class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                             data: { invoice_payment_source_account: true } %>
-                  </div>
-                <% end %>
                 <div class="w-40">
                   <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
-                  <%= text_field_tag 'invoice_payments[__INDEX__][amount]',
-                               'Bs 0,00',
-                               inputmode: 'decimal',
-                               autocomplete: 'off',
-                               placeholder: 'Bs 0,00',
-                               class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                               data: {
-                                 money_mask: true,
-                                 money_symbol: 'Bs',
-                                 invoice_payment_amount: true
-                               } %>
+                  <input name="invoice_payments[__INDEX__][amount]" value="Bs 0,00" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-amount="true">
                 </div>
                 <div class="w-56">
                   <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Metodo de pago</label>
-                  <%= select_tag 'invoice_payments[__INDEX__][payment_method]',
-                               options_for_select(payment_method_options),
-                               include_blank: 'Selecciona metodo',
-                               class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                               data: { invoice_payment_method: true } %>
+                  <select name="invoice_payments[__INDEX__][payment_method]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-method="true"></select>
                 </div>
                 <div class="w-36" data-invoice-payment-reference-wrapper="true">
                   <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Referencia (4 digitos)</label>
-                  <%= text_field_tag 'invoice_payments[__INDEX__][reference]',
-                                   '',
-                                   inputmode: 'numeric',
-                                   autocomplete: 'off',
-                                   maxlength: 4,
-                                   minlength: 4,
-                                   pattern: '[0-9]{4}',
-                                   placeholder: '0000',
-                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                                   data: { invoice_payment_reference: true } %>
+                  <input name="invoice_payments[__INDEX__][reference]" inputmode="numeric" autocomplete="off" maxlength="4" minlength="4" pattern="[0-9]{4}" placeholder="0000" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-reference="true">
                 </div>
                 <div class="flex items-center gap-3">
                   <div class="flex items-center" data-invoice-payment-commission-wrapper="true" style="display:none;">
                     <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      <%= check_box_tag 'invoice_payments[__INDEX__][include_commission]',
-                                    '1',
-                                    false,
-                                    class: 'h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500',
-                                    data: { invoice_payment_commission_toggle: true } %>
+                      <input type="checkbox" name="invoice_payments[__INDEX__][include_commission]" value="1" class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-invoice-payment-commission-toggle="true">
                       <span class="text-xs">Incluir comisión</span>
                     </label>
                   </div>
                   <div class="w-40 hidden" data-invoice-payment-commission-input-wrapper="true">
                     <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Comision</label>
-                    <%= text_field_tag 'invoice_payments[__INDEX__][commission_amount]',
-                                   '',
-                                   inputmode: 'decimal',
-                                   autocomplete: 'off',
-                                   placeholder: 'Bs 0,00',
-                                   class: 'mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500',
-                                   data: {
-                                     money_mask: true,
-                                     money_symbol: 'Bs',
-                                     invoice_payment_commission_input: true
-                                   } %>
+                    <input name="invoice_payments[__INDEX__][commission_amount]" value="" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-commission-input="true">
                   </div>
                 </div>
-                <button type="button"
-                  class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100"
-                  data-invoice-payment-remove="true">
-                  Quitar
-                </button>
+                <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-invoice-payment-remove="true">Quitar</button>
               </div>
             </template>
           </div>
@@ -887,10 +730,10 @@
                     </p>
                   </div>
                   <div class="flex flex-wrap items-center gap-2">
-                    <%= link_to new_debt_debt_payment_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800', data: { turbo_frame: '_top' } do %>
+                    <% link_to new_debt_debt_payment_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800', data: { turbo_frame: '_top' } do %>
                       Registrar pago
                     <% end %>
-                    <%= link_to debt_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50', data: { turbo_frame: '_top' } do %>
+                    <% link_to debt_path(@invoice_pending_debt), class: 'inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50', data: { turbo_frame: '_top' } do %>
                       Ver deuda
                     <% end %>
                   </div>
@@ -2748,6 +2591,72 @@
         })();
         const sourceAccountsCache = {};
 
+        const paymentAccounts = (() => {
+          try {
+            return JSON.parse(form.dataset.paymentAccounts || '[]');
+          } catch (_) {
+            return [];
+          }
+        })();
+
+        const paymentMethodOptions = (() => {
+          try {
+            return JSON.parse(form.dataset.paymentMethodOptions || '[]');
+          } catch (_) {
+            return [];
+          }
+        })();
+
+        const populateAccountOptions = () => {
+          const selects = rowsContainer.querySelectorAll('[data-invoice-payment-account="true"]');
+          selects.forEach((select) => {
+            const previous = String(select.value || '').trim();
+            select.innerHTML = '';
+            const blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = 'Selecciona cuenta en Bs';
+            select.appendChild(blank);
+            paymentAccounts.forEach((entry) => {
+              const option = document.createElement('option');
+              option.value = String(entry.id || '');
+              option.dataset.balance = String(entry.balance || 0);
+              option.dataset.currency = String(entry.currency || 'VES');
+              option.dataset.accountType = String(entry.account_type || '');
+              option.dataset.sendCommissionPercent = String(entry.send_commission_percent || '0');
+              option.dataset.sendCommissionMin = String(entry.send_commission_min || '0');
+              option.dataset.sendCommissionRounding = String(entry.send_commission_rounding || 'superior');
+              const symbol = moneySymbolForCurrency(entry.currency);
+              option.textContent = `${entry.name} (Saldo: ${symbol} ${Number(entry.balance || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+              select.appendChild(option);
+            });
+            if (previous && Array.from(select.options).some((o) => o.value === previous)) {
+              select.value = previous;
+            }
+          });
+        };
+
+        const populatePaymentMethodOptions = () => {
+          const selects = rowsContainer.querySelectorAll('[data-invoice-payment-method="true"]');
+          selects.forEach((select) => {
+            const previous = String(select.value || '').trim();
+            select.innerHTML = '';
+            const blank = document.createElement('option');
+            blank.value = '';
+            blank.textContent = 'Selecciona metodo';
+            select.appendChild(blank);
+            paymentMethodOptions.forEach((entry) => {
+              // entry is expected as [label, value]
+              const option = document.createElement('option');
+              option.value = String(entry[1] || '');
+              option.textContent = String(entry[0] || entry[1] || '');
+              select.appendChild(option);
+            });
+            if (previous && Array.from(select.options).some((o) => o.value === previous)) {
+              select.value = previous;
+            }
+          });
+        };
+
         const paymentsBlock = form.querySelector('[data-invoice-payments-block="true"]');
         if (!paymentsBlock) return;
         if (form.dataset.invoicePaymentsBoundV2 === 'true') return;
@@ -3111,6 +3020,9 @@
           const addedRow = rowsContainer.querySelector('[data-invoice-payment-row="true"]:last-child');
           if (addedRow) {
             window.MoneyInputMask?.init(addedRow);
+            // populate selects inside the newly added row
+            populateAccountOptions();
+            populatePaymentMethodOptions();
             syncRowPaymentDetails(addedRow, { recalculateCommission: true });
           }
 
@@ -3247,6 +3159,8 @@
         };
 
         window.MoneyInputMask?.init(paymentsBlock);
+        populateAccountOptions();
+        populatePaymentMethodOptions();
         syncSourceAccountOptions();
         reindexRows();
         syncAllRowsPaymentDetails({ recalculateCommission: true });
