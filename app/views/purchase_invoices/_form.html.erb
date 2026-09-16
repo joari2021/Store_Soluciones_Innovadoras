@@ -27,7 +27,7 @@
      }
    end
 %>
-<% form_with(model: factura, scope: :purchase_invoice, local: true, html: { id: 'purchase_invoice_form', data: { require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s, initial_inventory_mode: initial_inventory_mode.to_s, intercompany_mode: intercompany_mode.to_s, default_source_business_id: intercompany_selected_source_business_id.to_s, source_accounts_map: @source_accounts_map.to_json, payment_accounts: payment_accounts_for_dataset.to_json, payment_method_options: payment_method_options.to_json } }) do |f| %>
+<%= form_with(model: factura, scope: :purchase_invoice, local: true, html: { id: 'purchase_invoice_form', data: { require_supplier_for_products: (!initial_inventory_mode && !intercompany_mode).to_s, initial_inventory_mode: initial_inventory_mode.to_s, intercompany_mode: intercompany_mode.to_s, default_source_business_id: intercompany_selected_source_business_id.to_s, source_accounts_map: @source_accounts_map.to_json, payment_accounts: payment_accounts_for_dataset.to_json, payment_method_options: payment_method_options.to_json } }) do |f| %>
   <%= hidden_field_tag :invoice_kind, factura.invoice_kind %>
   <%= hidden_field_tag :allow_insufficient_payment_balance, '0', data: { invoice_allow_insufficient_balance: true } %>
   <% format_decimal_input = lambda do |value, scale = 2|
@@ -215,7 +215,7 @@
         </tr>
       </thead>
       <tbody id="factura-items" class="divide-y divide-slate-100 bg-white">
-        <% f.fields_for :purchase_invoice_items do |fi| %>
+        <%= f.fields_for :purchase_invoice_items do |fi| %>
           <% row_key = fi.object.id || "new_#{fi.object.object_id}" %>
           <% raw_product_name = fi.object.product_name.to_s.strip %>
           <% product_name = if raw_product_name.present?
