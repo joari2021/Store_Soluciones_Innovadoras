@@ -133,6 +133,7 @@ class Account < ApplicationRecord
   validates :send_commission_percent, :receive_commission_percent,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
   validates :send_commission_min, :receive_commission_min, numericality: { greater_than_or_equal_to: 0 }
+  validates :send_commission_rounding, :receive_commission_rounding, inclusion: { in: %w[superior inferior] }
   1.upto(6) do |level|
     validates "cashea_level_#{level}_initial_percent",
               numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
