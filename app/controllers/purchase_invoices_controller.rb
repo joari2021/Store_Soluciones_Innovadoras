@@ -932,8 +932,27 @@ class PurchaseInvoicesController < ApplicationController
       commission_amount = 0.to_d
       if include_commission
         entered_commission = row[:commission_amount].to_d.round(2)
-        auto_commission = (amount * 0.003).round(2)
-        commission_amount = entered_commission.positive? ? entered_commission : auto_commission
+        if entered_commission.positive?
+          commission_amount = entered_commission
+        else
+          percent = account.send_commission_percent.to_d.round(6) rescue 0.to_d
+          min_amount = account.send_commission_min.to_d.round(2) rescue 0.to_d
+          calc = (amount * (percent / 100)).abs
+          # apply rounding preference if present
+          rounding = (account.send_commission_rounding.presence || 'superior') rescue 'superior'
+          scaled = (calc * 100).to_i
+          commission = case rounding.to_s
+                       when 'superior'
+                         ( (calc * 100).ceil ) / 100.0
+                       when 'inferior'
+                         ( (calc * 100).floor ) / 100.0
+                       else
+                         calc.round(2)
+                       end
+          commission = BigDecimal(commission.to_s)
+          commission = min_amount if commission < min_amount
+          commission_amount = commission.round(2)
+        end
       end
 
       source_account = nil
@@ -1020,7 +1039,29 @@ class PurchaseInvoicesController < ApplicationController
         end
       end
 
-      entry[:account].account_movements.create!(movement_attrs)
+      payment_movement = entry[:account].account_movements.create!(movement_attrs)
+
+      # If a commission was applied, also create a separate commission expense movement
+      if entry[:include_commission] == true
+        commission_amount = entry[:commission_amount].to_d.round(2)
+        if commission_amount.positive?
+          commission_description = "Gasto bancario (Servicios Bancarios) - Comisión por pago factura #{invoice.numero.to_s.strip.presence || "##{invoice.id}"} [FACTURA_COMPRA:#{invoice.id}]"
+          commission_attrs = {
+            movement_kind: 'expense',
+            amount: commission_amount,
+            description: commission_description,
+            occurred_at: occurred_at,
+            allow_negative_balance: allow_negative_balance
+          }
+
+          if entry[:account].account_type == 'bank_account'
+            commission_attrs[:payment_method] = entry[:payment_method].presence || 'third_party_transfer'
+          end
+
+          # create commission movement on the same account
+          entry[:account].account_movements.create!(commission_attrs)
+        end
+      end
     end
   end
 

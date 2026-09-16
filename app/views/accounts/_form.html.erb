@@ -256,7 +256,6 @@
             <%= f.label :send_commission_rounding, 'Redondeo', class: 'block text-sm font-medium text-slate-700' %>
             <%= f.select :send_commission_rounding, options_for_select([['Redondeo Superior','superior'], ['Redondeo Inferior','inferior']], account.send_commission_rounding || 'superior'), {}, class: 'mt-1 block w-full rounded-md border border-slate-300 shadow-sm focus:border-sky-500 focus:ring-sky-500' %>
           </div>
-
           <div class="md:col-span-3 mt-2">
             <p class="text-xs font-semibold text-slate-600">Comisiones para recibir fondos</p>
           </div>
