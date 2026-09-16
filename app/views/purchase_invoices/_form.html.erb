@@ -581,7 +581,48 @@
         <% end %>
         <div class="mt-4 space-y-3" data-invoice-payments-container="true">
           <% payment_rows.each_with_index do |row, index| %>
-            <div class="p-2">Pago temporal: <%= index %></div>
+            <% row_account_id = row[:account_id].presence || row['account_id'].presence %>
+            <% row_source_account_id = row[:source_account_id].presence || row['source_account_id'].presence %>
+            <% row_amount_value = row[:amount].presence || row['amount'].presence || 'Bs 0,00' %>
+            <% row_payment_method = row[:payment_method].presence || row['payment_method'].presence %>
+            <% row_include_commission = ActiveModel::Type::Boolean.new.cast(row[:include_commission].presence || row['include_commission'].presence) %>
+            <% row_commission_amount = row[:commission_amount].presence || row['commission_amount'].presence || '' %>
+            <% row_reference = row[:reference].presence || row['reference'].presence || '' %>
+            <div class="flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3" data-invoice-payment-row="true" data-invoice-payment-index="<%= index %>">
+              <div class="flex-1 min-w-[220px]">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500"><%= intercompany_mode ? 'Cuenta a debitar fondos (destino)' : 'Cuenta en Bs' %></label>
+                <select name="invoice_payments[<%= index %>][account_id]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-account="true" data-selected-account-id="<%= row_account_id %>"></select>
+              </div>
+              <div class="<%= intercompany_mode ? '' : 'hidden' %>" data-invoice-payment-source-wrapper="true">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Cuenta a acreditar fondos (origen)</label>
+                <select name="invoice_payments[<%= index %>][source_account_id]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-source-account="true" data-selected-source-account-id="<%= row_source_account_id %>"></select>
+              </div>
+              <div class="w-40">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
+                <input name="invoice_payments[<%= index %>][amount]" value="<%= row_amount_value %>" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs" data-invoice-payment-amount="true">
+              </div>
+              <div class="w-56">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Metodo de pago</label>
+                <select name="invoice_payments[<%= index %>][payment_method]" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-method="true" data-selected-payment-method="<%= row_payment_method %>"></select>
+              </div>
+              <div class="w-36" data-invoice-payment-reference-wrapper="true">
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Referencia (4 digitos)</label>
+                <input name="invoice_payments[<%= index %>][reference]" value="<%= row_reference %>" inputmode="numeric" autocomplete="off" maxlength="4" minlength="4" pattern="[0-9]{4}" placeholder="0000" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-reference="true">
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="flex items-center" data-invoice-payment-commission-wrapper="true" style="display:none;">
+                  <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <input type="checkbox" name="invoice_payments[<%= index %>][include_commission]" value="1" <%= row_include_commission ? 'checked' : '' %> class="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" data-invoice-payment-commission-toggle="true">
+                    <span class="text-xs">Incluir comisión</span>
+                  </label>
+                </div>
+                <div class="w-40 hidden" data-invoice-payment-commission-input-wrapper="true">
+                  <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Comision</label>
+                  <input name="invoice_payments[<%= index %>][commission_amount]" value="<%= row_commission_amount %>" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs" data-invoice-payment-commission-input="true">
+                </div>
+              </div>
+              <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-invoice-payment-remove="true">Quitar</button>
+            </div>
           <% end %>
           <div class="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-3">
             <div>
@@ -628,7 +669,7 @@
                 </div>
                 <div class="w-40">
                   <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Monto pagado (Bs)</label>
-                  <input name="invoice_payments[__INDEX__][amount]" value="Bs 0,00" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-amount="true">
+                  <input name="invoice_payments[__INDEX__][amount]" value="Bs 0,00" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs" data-invoice-payment-amount="true">
                 </div>
                 <div class="w-56">
                   <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Metodo de pago</label>
@@ -647,7 +688,7 @@
                   </div>
                   <div class="w-40 hidden" data-invoice-payment-commission-input-wrapper="true">
                     <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">Comision</label>
-                    <input name="invoice_payments[__INDEX__][commission_amount]" value="" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-invoice-payment-commission-input="true">
+                    <input name="invoice_payments[__INDEX__][commission_amount]" value="" inputmode="decimal" autocomplete="off" placeholder="Bs 0,00" class="mt-1 block w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-money-mask="true" data-money-symbol="Bs" data-invoice-payment-commission-input="true">
                   </div>
                 </div>
                 <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-100" data-invoice-payment-remove="true">Quitar</button>
@@ -2600,10 +2641,17 @@
         })();
 
         const paymentMethodOptions = (() => {
+          const fallback = [
+            ['Transferencia a tercero', 'third_party_transfer'],
+            ['Transferencia a otro banco', 'interbank_transfer'],
+            ['Pago movil', 'mobile_payment'],
+            ['Tarjeta de debito', 'debit_card']
+          ];
           try {
-            return JSON.parse(form.dataset.paymentMethodOptions || '[]');
+            const parsed = JSON.parse(form.dataset.paymentMethodOptions || '[]');
+            return Array.isArray(parsed) && parsed.length > 0 ? parsed : fallback;
           } catch (_) {
-            return [];
+            return fallback;
           }
         })();
 
@@ -2611,6 +2659,7 @@
           const selects = rowsContainer.querySelectorAll('[data-invoice-payment-account="true"]');
           selects.forEach((select) => {
             const previous = String(select.value || '').trim();
+            const selectedFromData = String(select.dataset.selectedAccountId || '').trim();
             select.innerHTML = '';
             const blank = document.createElement('option');
             blank.value = '';
@@ -2631,6 +2680,8 @@
             });
             if (previous && Array.from(select.options).some((o) => o.value === previous)) {
               select.value = previous;
+            } else if (selectedFromData && Array.from(select.options).some((o) => o.value === selectedFromData)) {
+              select.value = selectedFromData;
             }
           });
         };
@@ -2639,6 +2690,7 @@
           const selects = rowsContainer.querySelectorAll('[data-invoice-payment-method="true"]');
           selects.forEach((select) => {
             const previous = String(select.value || '').trim();
+            const selectedFromData = String(select.dataset.selectedPaymentMethod || '').trim();
             select.innerHTML = '';
             const blank = document.createElement('option');
             blank.value = '';
@@ -2653,7 +2705,16 @@
             });
             if (previous && Array.from(select.options).some((o) => o.value === previous)) {
               select.value = previous;
+            } else if (selectedFromData && Array.from(select.options).some((o) => o.value === selectedFromData)) {
+              select.value = selectedFromData;
             }
+          });
+        };
+
+        const syncIntercompanyVisibility = () => {
+          const wrappers = rowsContainer.querySelectorAll('[data-invoice-payment-source-wrapper="true"]');
+          wrappers.forEach((wrapper) => {
+            wrapper.classList.toggle('hidden', !intercompanyMode);
           });
         };
 
@@ -2871,6 +2932,19 @@
         const syncAllRowsPaymentDetails = ({ recalculateCommission = false } = {}) => {
           Array.from(rowsContainer.querySelectorAll('[data-invoice-payment-row="true"]')).forEach((row) => {
             syncRowPaymentDetails(row, { recalculateCommission });
+          });
+        };
+
+        const normalizeMoneyInputsOnLoad = () => {
+          Array.from(rowsContainer.querySelectorAll('[data-invoice-payment-row="true"]')).forEach((row) => {
+            const amountInput = row.querySelector('[data-invoice-payment-amount="true"]');
+            const commissionInput = row.querySelector('[data-invoice-payment-commission-input="true"]');
+            if (amountInput && window.MoneyInputMask?.setValue) {
+              window.MoneyInputMask.setValue(amountInput, parseMoneyInputValue(amountInput), 'Bs');
+            }
+            if (commissionInput && window.MoneyInputMask?.setValue) {
+              window.MoneyInputMask.setValue(commissionInput, parseMoneyInputValue(commissionInput), 'Bs');
+            }
           });
         };
 
@@ -3092,6 +3166,7 @@
 
           sourceSelects.forEach((select) => {
             const previous = String(select.value || '').trim();
+            const selectedFromData = String(select.dataset.selectedSourceAccountId || '').trim();
             select.innerHTML = '';
 
             const blankOption = document.createElement('option');
@@ -3112,6 +3187,8 @@
 
             if (previous && options.some((entry) => String(entry.id || '') === previous)) {
               select.value = previous;
+            } else if (selectedFromData && options.some((entry) => String(entry.id || '') === selectedFromData)) {
+              select.value = selectedFromData;
             }
           });
         };
@@ -3161,7 +3238,9 @@
         window.MoneyInputMask?.init(paymentsBlock);
         populateAccountOptions();
         populatePaymentMethodOptions();
+        syncIntercompanyVisibility();
         syncSourceAccountOptions();
+        normalizeMoneyInputsOnLoad();
         reindexRows();
         syncAllRowsPaymentDetails({ recalculateCommission: true });
         syncPendingDueVisibility();
