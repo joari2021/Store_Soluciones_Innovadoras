@@ -940,14 +940,13 @@ class PurchaseInvoicesController < ApplicationController
           calc = (amount * (percent / 100)).abs
           # apply rounding preference if present
           rounding = (account.send_commission_rounding.presence || 'superior') rescue 'superior'
-          scaled = (calc * 100).to_i
           commission = case rounding.to_s
-                       when 'superior'
-                         ( (calc * 100).ceil ) / 100.0
                        when 'inferior'
-                         ( (calc * 100).floor ) / 100.0
+                         # truncate to two decimals (drop extra decimals)
+                         BigDecimal(((calc * 100).floor / 100.0).to_s)
                        else
-                         calc.round(2)
+                         # 'superior' or default: round half-up to 2 decimals
+                         calc.round(2, BigDecimal::ROUND_HALF_UP)
                        end
           commission = BigDecimal(commission.to_s)
           commission = min_amount if commission < min_amount

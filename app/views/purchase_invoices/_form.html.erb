@@ -2942,11 +2942,12 @@
                 const rounding = String(selectedOption?.dataset?.sendCommissionRounding || 'superior').trim();
                 let calc = Math.abs(amount * (percent / 100));
                 // apply rounding to cents
-                let cents = Math.round(calc * 100);
-                if (rounding === 'superior') {
-                  cents = Math.ceil(calc * 100);
-                } else if (rounding === 'inferior') {
+                let cents;
+                if (rounding === 'inferior') {
                   cents = Math.floor(calc * 100);
+                } else {
+                  // 'superior' or default: round half-up (standard mathematical rounding)
+                  cents = Math.round(calc * 100);
                 }
                 nextAmount = (cents / 100.0);
                 if (nextAmount < minAmount) nextAmount = minAmount;
