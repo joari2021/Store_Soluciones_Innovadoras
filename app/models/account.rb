@@ -130,6 +130,9 @@ class Account < ApplicationRecord
   validates :cashea_principal_min_purchase_usd, numericality: { greater_than_or_equal_to: 0 }
   validates :cashea_commission_percent,
             numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
+  validates :send_commission_percent, :receive_commission_percent,
+            numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
+  validates :send_commission_min, :receive_commission_min, numericality: { greater_than_or_equal_to: 0 }
   1.upto(6) do |level|
     validates "cashea_level_#{level}_initial_percent",
               numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
