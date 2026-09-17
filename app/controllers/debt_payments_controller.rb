@@ -141,7 +141,10 @@ class DebtPaymentsController < ApplicationController
     DebtPayment.transaction do
       apply_intercompany_mirror_account_to_debts!(payments_to_persist, selected_mirror_account)
       payments_to_persist.each(&:save!)
-      create_commission_records_for_primary_payment!(payment: payments_to_persist.first) if commission_context[:include_commission]
+      if commission_context[:include_commission]
+        create_commission_records_for_primary_payment!(payment: payments_to_persist.first,
+                                                       commission_context: commission_context)
+      end
     end
 
     notice = if payments_to_persist.size == 1
@@ -348,8 +351,10 @@ class DebtPaymentsController < ApplicationController
   end
 
   def build_commission_context(account:, amount:)
-    include_commission = ActiveModel::Type::Boolean.new.cast(debt_payment_params[:include_commission])
     payment_method = debt_payment_params[:payment_method].to_s.strip
+    entered_commission = parse_decimal(debt_payment_params[:commission_amount]).to_d.round(2)
+    include_commission = ActiveModel::Type::Boolean.new.cast(debt_payment_params[:include_commission])
+    include_commission ||= entered_commission.positive?
 
     return { include_commission: false, commission_amount: 0.to_d } unless include_commission
 
@@ -363,7 +368,6 @@ class DebtPaymentsController < ApplicationController
       return { invalid: true }
     end
 
-    entered_commission = parse_decimal(debt_payment_params[:commission_amount]).to_d.round(2)
     commission_amount = if entered_commission.positive?
                           entered_commission
                         else
@@ -401,18 +405,25 @@ class DebtPaymentsController < ApplicationController
     commission.round(2)
   end
 
-  def create_commission_records_for_primary_payment!(payment:)
+  def create_commission_records_for_primary_payment!(payment:, commission_context: nil)
     return if payment.blank?
-    return unless ActiveModel::Type::Boolean.new.cast(payment.try(:include_commission))
 
-    commission_amount = payment.try(:commission_amount).to_d.round(2)
+    include_commission = ActiveModel::Type::Boolean.new.cast(commission_context&.dig(:include_commission))
+    include_commission ||= ActiveModel::Type::Boolean.new.cast(payment.try(:include_commission))
+    return unless include_commission
+
+    commission_amount = commission_context&.dig(:commission_amount).to_d.round(2)
+    commission_amount = payment.try(:commission_amount).to_d.round(2) unless commission_amount.positive?
     return unless commission_amount.positive?
 
-    account = payment.account
+    account = commission_context&.dig(:account) || payment.account
     return if account.blank?
 
-    method = normalize_commission_expense_payment_method(payment.payment_method)
-    reference = normalized_reference_for_commission(payment.reference, payment.payment_method)
+    payment_method = commission_context&.dig(:payment_method).to_s.presence || payment.payment_method
+    reference_raw = commission_context&.dig(:reference).to_s.presence || payment.reference
+
+    method = normalize_commission_expense_payment_method(payment_method)
+    reference = normalized_reference_for_commission(reference_raw, payment_method)
     category = bank_services_expense_category
     action_text = payment.debt&.receivable? ? 'cobro' : 'pago'
     counterparty = payment.debt&.counterparty_display_name.to_s.strip.presence || 'Sin contraparte'
@@ -446,7 +457,7 @@ class DebtPaymentsController < ApplicationController
       amount: commission_amount,
       description: "Comision bancaria por #{action_text} de deuda [DEBT:#{payment.debt_id}] [DP:#{payment.id}] [GASTO:#{commission_expense.id}]",
       occurred_at: payment.occurred_at,
-      payment_method: normalize_account_movement_payment_method(payment.payment_method),
+      payment_method: normalize_account_movement_payment_method(payment_method),
     }
     movement_attrs[:reference] = reference if reference.present?
     account.account_movements.create!(movement_attrs)
