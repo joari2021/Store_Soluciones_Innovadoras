@@ -138,6 +138,17 @@ class DebtPaymentsController < ApplicationController
 
     return handle_payment_form_error if payments_to_persist.blank?
 
+    if @debt.payable? && overpayment_amount > 0.01.to_d
+      payments_to_persist = ensure_visible_overpayment_payment(
+        payments: payments_to_persist,
+        overpayment_amount: overpayment_amount,
+        account: account,
+        payment_currency: payment_currency,
+        occurred_on: occurred_on,
+      )
+      return handle_payment_form_error if payments_to_persist.blank?
+    end
+
     DebtPayment.transaction do
       apply_intercompany_mirror_account_to_debts!(payments_to_persist, selected_mirror_account)
       payments_to_persist.each(&:save!)
@@ -736,6 +747,48 @@ class DebtPaymentsController < ApplicationController
     payments.drop(1).each do |payment|
       payment.skip_account_movement = true
     end
+  end
+
+  def ensure_visible_overpayment_payment(payments:, overpayment_amount:, account:, payment_currency:, occurred_on:)
+    amount = overpayment_amount.to_d.round(2)
+    return payments if amount <= 0.01.to_d
+    return payments unless payments.size == 1
+
+    primary = payments.first
+    return payments if primary.blank?
+
+    adjusted_primary_amount = (primary.amount.to_d - amount).round(2)
+    if adjusted_primary_amount <= 0
+      @debt_payment.errors.add(:amount, 'no se pudo separar el excedente del pago principal')
+      return nil
+    end
+
+    primary.amount = adjusted_primary_amount
+    unless primary.valid?
+      primary.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
+      return nil
+    end
+
+    overpayment = primary.debt.debt_payments.new(
+      account: account,
+      amount: amount,
+      currency: payment_currency,
+      payment_method: debt_payment_params[:payment_method].presence,
+      reference: debt_payment_params[:reference].presence,
+      occurred_at: occurred_on,
+      notes: debt_payment_params[:notes],
+    )
+
+    unless overpayment.valid?
+      overpayment.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
+      return nil
+    end
+
+    overpayment.skip_account_movement = true
+    overpayment.include_commission = false if overpayment.respond_to?(:include_commission=)
+    overpayment.commission_amount = 0.to_d if overpayment.respond_to?(:commission_amount=)
+
+    payments + [overpayment]
   end
 
   def residual_rounding_amount?(amount:, from_currency:, to_currency:, occurred_on:)
