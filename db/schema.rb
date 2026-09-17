@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_08_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_16_002000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -87,6 +87,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_08_120000) do
     t.decimal "cashea_level_6_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
     t.boolean "cashea_allow_pos", default: true, null: false
     t.boolean "cashea_allow_biopago", default: true, null: false
+    t.decimal "send_commission_percent", precision: 10, scale: 2, default: "0.0", null: false
+    t.decimal "send_commission_min", precision: 14, scale: 2, default: "0.0", null: false
+    t.decimal "receive_commission_percent", precision: 10, scale: 2, default: "0.0", null: false
+    t.decimal "receive_commission_min", precision: 14, scale: 2, default: "0.0", null: false
+    t.string "send_commission_rounding", default: "superior", null: false
+    t.string "receive_commission_rounding", default: "superior", null: false
     t.index ["account_type"], name: "index_accounts_on_account_type"
     t.index ["active"], name: "index_accounts_on_active"
     t.index ["business_id"], name: "index_accounts_on_business_id"
@@ -275,6 +281,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_08_120000) do
     t.datetime "updated_at", null: false
     t.decimal "exchange_rate_to_debt_currency", precision: 20, scale: 8, default: "1.0", null: false
     t.decimal "amount_in_debt_currency", precision: 14, scale: 2, default: "0.0", null: false
+    t.boolean "include_commission", default: false, null: false
+    t.decimal "commission_amount", precision: 14, scale: 2, default: "0.0", null: false
     t.index ["account_id"], name: "index_debt_payments_on_account_id"
     t.index ["currency"], name: "index_debt_payments_on_currency"
     t.index ["debt_id"], name: "index_debt_payments_on_debt_id"

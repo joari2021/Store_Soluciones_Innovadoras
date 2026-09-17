@@ -317,6 +317,7 @@
               <th class="px-4 py-3 text-left">Moneda pago</th>
               <th class="px-4 py-3 text-left">Metodo</th>
               <th class="px-4 py-3 text-left">Referencia</th>
+              <th class="px-4 py-3 text-right">Comision del pago</th>
               <th class="px-4 py-3 text-right">Monto pago</th>
               <% unless group_is_usdt %>
                 <th class="px-4 py-3 text-right">Equivalente $ (BCV)</th>
@@ -335,6 +336,7 @@
                 <td class="px-4 py-3"><%= payment.currency %></td>
                 <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>
                 <td class="px-4 py-3"><%= payment.reference.presence || '-' %></td>
+                <td class="px-4 py-3 text-right"><%= number_to_currency(row[:commission_amount], unit: "#{payment_symbol} ") %></td>
                 <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount, unit: "#{payment_symbol} ") %></td>
                 <% unless group_is_usdt %>
                   <td class="px-4 py-3 text-right"><%= number_to_currency(row[:equivalent_usd_bcv], unit: "$ ") %></td>
@@ -446,7 +448,10 @@
                 {
                   'data-account-currency': account.currency.to_s.upcase,
                   'data-account-symbol': payment_currency_symbols[account.currency] || account.currency,
-                  'data-account-type': account.account_type
+                  'data-account-type': account.account_type,
+                  'data-send-commission-percent': account.send_commission_percent.to_s,
+                  'data-send-commission-min': account.send_commission_min.to_s,
+                  'data-send-commission-rounding': account.send_commission_rounding.to_s
                 }
               ] %>
             <% end %>
@@ -478,13 +483,35 @@
             <label class="block text-xs font-semibold text-slate-500">Metodo (solo banco)</label>
             <select name="debt_payment[payment_method]" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-method="true">
               <option value="">Selecciona</option>
-              <option value="transfer">Transferencia</option>
-              <option value="mobile">Pago movil</option>
+              <option value="third_party_transfer">Transferencia del mismo banco</option>
+              <option value="interbank_transfer">Transferencia a Otros Bancos</option>
+              <option value="mobile_payment">Pago Movil</option>
             </select>
           </div>
           <div class="hidden" data-register-payment-reference-wrapper="true">
             <label class="block text-xs font-semibold text-slate-500">Referencia</label>
             <input type="text" name="debt_payment[reference]" maxlength="4" pattern="\d{4}" inputmode="numeric" autocomplete="off" placeholder="4 digitos" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-reference="true" />
+          </div>
+          <div class="hidden md:col-span-2" data-register-payment-commission-wrapper="true">
+            <input type="hidden" name="debt_payment[include_commission]" value="0" />
+            <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <input type="checkbox" name="debt_payment[include_commission]" value="1" class="h-4 w-4 rounded border-slate-300 text-sky-600" data-register-payment-commission-toggle="true" />
+              Incluir comision
+            </label>
+            <div class="mt-2 hidden" data-register-payment-commission-input-wrapper="true">
+              <label class="block text-xs font-semibold text-slate-500">Comision</label>
+              <input type="hidden" name="debt_payment[commission_amount]" value="0" data-register-payment-commission-hidden="true" />
+              <input
+                type="text"
+                inputmode="decimal"
+                autocomplete="off"
+                data-money-mask="true"
+                data-money-symbol="$"
+                data-register-payment-commission-masked="true"
+                placeholder="$ 0,00"
+                class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
           </div>
           <div>
             <label class="block text-xs font-semibold text-slate-500">Monto</label>
@@ -665,6 +692,11 @@
                 const registerPaymentMethod = root.querySelector("[data-register-payment-method='true']");
                 const registerPaymentReferenceWrapper = root.querySelector("[data-register-payment-reference-wrapper='true']");
                 const registerPaymentReference = root.querySelector("[data-register-payment-reference='true']");
+                const registerPaymentCommissionWrapper = root.querySelector("[data-register-payment-commission-wrapper='true']");
+                const registerPaymentCommissionToggle = root.querySelector("[data-register-payment-commission-toggle='true']");
+                const registerPaymentCommissionInputWrapper = root.querySelector("[data-register-payment-commission-input-wrapper='true']");
+                const registerPaymentCommissionMasked = root.querySelector("[data-register-payment-commission-masked='true']");
+                const registerPaymentCommissionHidden = root.querySelector("[data-register-payment-commission-hidden='true']");
                 const registerPaymentAmountMasked = root.querySelector("[data-register-payment-amount-masked='true']");
                 const registerPaymentAmountHidden = root.querySelector("[data-register-payment-amount-hidden='true']");
                 const registerPaymentAllowOverpayment = root.querySelector("[data-register-payment-allow-overpayment='true']");
@@ -673,6 +705,7 @@
                 const registerPaymentSummary = root.querySelector("[data-register-payment-summary='true']");
                 const registerPaymentPendingBs = root.querySelector("[data-register-payment-pending-bs='true']");
                 const registerPaymentBaseUsd = Number.parseFloat(registerPaymentSummary?.dataset?.baseUsd || "0");
+                const commissionSupportedMethods = ["interbank_transfer", "mobile_payment"];
 
                 const showInfoAlert = ({ title, text }) => {
                   if (window.Swal) {
@@ -733,6 +766,80 @@
                   const raw = String(input.value || "").replace(/[^\d,.-]/g, "").replace(/\./g, "").replace(",", ".");
                   const parsed = Number.parseFloat(raw);
                   return Number.isFinite(parsed) ? parsed : 0;
+                };
+
+                const calculateCommissionAmount = ({ amount, percent, min, rounding }) => {
+                  const safeAmount = Number.isFinite(amount) ? Math.abs(amount) : 0;
+                  const safePercent = Number.isFinite(percent) ? percent : 0;
+                  const safeMin = Number.isFinite(min) ? min : 0;
+                  const raw = safeAmount * (safePercent / 100);
+                  const cents = String(rounding || "superior") === "inferior" ? Math.floor(raw * 100) : Math.round(raw * 100);
+                  const calculated = cents / 100;
+                  return Math.max(calculated, safeMin);
+                };
+
+                const updateRegisterPaymentCommissionHidden = () => {
+                  if (!registerPaymentCommissionHidden) return;
+                  const value = parseRegisterPaymentMaskedValue(registerPaymentCommissionMasked);
+                  registerPaymentCommissionHidden.value = Number.isFinite(value) ? value.toFixed(2) : "0.00";
+                };
+
+                const recalculateRegisterPaymentCommission = () => {
+                  if (!registerPaymentCommissionToggle?.checked || !registerPaymentCommissionMasked) {
+                    if (window.MoneyInputMask?.setValue && registerPaymentCommissionMasked) {
+                      const option = registerPaymentAccount?.options?.[registerPaymentAccount.selectedIndex];
+                      const symbol = option?.dataset?.accountSymbol || "$";
+                      window.MoneyInputMask.setValue(registerPaymentCommissionMasked, 0, symbol);
+                    }
+                    updateRegisterPaymentCommissionHidden();
+                    return;
+                  }
+
+                  const option = registerPaymentAccount?.options?.[registerPaymentAccount.selectedIndex];
+                  const amount = parseRegisterPaymentMaskedValue(registerPaymentAmountMasked);
+                  const percent = Number.parseFloat(option?.dataset?.sendCommissionPercent || "0");
+                  const min = Number.parseFloat(option?.dataset?.sendCommissionMin || "0");
+                  const rounding = String(option?.dataset?.sendCommissionRounding || "superior");
+                  const symbol = option?.dataset?.accountSymbol || "$";
+                  const commissionValue = calculateCommissionAmount({ amount, percent, min, rounding });
+
+                  if (window.MoneyInputMask?.setValue) {
+                    window.MoneyInputMask.setValue(registerPaymentCommissionMasked, commissionValue, symbol);
+                  }
+                  updateRegisterPaymentCommissionHidden();
+                };
+
+                const syncRegisterPaymentCommissionVisibility = () => {
+                  const option = registerPaymentAccount?.options?.[registerPaymentAccount.selectedIndex];
+                  const isBank = String(option?.dataset?.accountType || "") === "bank_account";
+                  const method = String(registerPaymentMethod?.value || "");
+                  const supported = isBank && commissionSupportedMethods.includes(method);
+
+                  if (registerPaymentCommissionWrapper) {
+                    registerPaymentCommissionWrapper.classList.toggle("hidden", !supported);
+                  }
+
+                  if (!supported && registerPaymentCommissionToggle) {
+                    registerPaymentCommissionToggle.checked = false;
+                  }
+
+                  const enabled = supported && Boolean(registerPaymentCommissionToggle?.checked);
+                  if (registerPaymentCommissionInputWrapper) {
+                    registerPaymentCommissionInputWrapper.classList.toggle("hidden", !enabled);
+                  }
+                  if (registerPaymentCommissionMasked) {
+                    registerPaymentCommissionMasked.disabled = !enabled;
+                  }
+
+                  if (enabled) {
+                    recalculateRegisterPaymentCommission();
+                  } else {
+                    if (window.MoneyInputMask?.setValue && registerPaymentCommissionMasked) {
+                      const symbol = option?.dataset?.accountSymbol || "$";
+                      window.MoneyInputMask.setValue(registerPaymentCommissionMasked, 0, symbol);
+                    }
+                    updateRegisterPaymentCommissionHidden();
+                  }
                 };
 
                 const updateAmountHidden = () => {
@@ -909,6 +1016,9 @@
                   }
                   if (registerPaymentAmountMasked) registerPaymentAmountMasked.value = "";
                   if (registerPaymentAmountHidden) registerPaymentAmountHidden.value = "0";
+                  if (registerPaymentCommissionToggle) registerPaymentCommissionToggle.checked = false;
+                  if (registerPaymentCommissionMasked) registerPaymentCommissionMasked.value = "";
+                  if (registerPaymentCommissionHidden) registerPaymentCommissionHidden.value = "0";
                   if (registerPaymentAllowOverpayment) registerPaymentAllowOverpayment.value = "0";
                   if (registerPaymentNotes) registerPaymentNotes.value = "";
 
@@ -917,7 +1027,9 @@
                   }
 
                   syncRegisterPaymentByAccount();
+                  syncRegisterPaymentCommissionVisibility();
                   updateRegisterPaymentAmount();
+                  updateRegisterPaymentCommissionHidden();
                 };
 
                 const filterRegisterPaymentAccountsByDate = () => {
@@ -1005,6 +1117,10 @@
                         registerPaymentReference.setCustomValidity("");
                       }
                     }
+
+                    if (!isBank && registerPaymentCommissionToggle) {
+                      registerPaymentCommissionToggle.checked = false;
+                    }
                   }
 
                   if (registerPaymentAmountMasked) {
@@ -1014,6 +1130,13 @@
                       window.MoneyInputMask.init(registerPaymentAmountMasked.closest("form") || root);
                     }
                   }
+
+                  if (registerPaymentCommissionMasked) {
+                    registerPaymentCommissionMasked.dataset.moneySymbol = symbol;
+                    registerPaymentCommissionMasked.placeholder = `${symbol} 0,00`;
+                  }
+
+                  syncRegisterPaymentCommissionVisibility();
                 };
 
                 const pendingAmountInSelectedCurrency = async () => {
@@ -1208,7 +1331,18 @@
                 }
 
                 if (registerPaymentAccount) {
-                  registerPaymentAccount.addEventListener("change", syncRegisterPaymentByAccount);
+                  registerPaymentAccount.addEventListener("change", () => {
+                    syncRegisterPaymentByAccount();
+                    syncRegisterPaymentCommissionVisibility();
+                  });
+                }
+
+                if (registerPaymentMethod) {
+                  registerPaymentMethod.addEventListener("change", syncRegisterPaymentCommissionVisibility);
+                }
+
+                if (registerPaymentCommissionToggle) {
+                  registerPaymentCommissionToggle.addEventListener("change", syncRegisterPaymentCommissionVisibility);
                 }
 
                 if (registerPaymentDateInput) {
@@ -1228,7 +1362,14 @@
                 }
 
                 if (registerPaymentAmountMasked) {
-                  registerPaymentAmountMasked.addEventListener("input", updateRegisterPaymentAmount);
+                  registerPaymentAmountMasked.addEventListener("input", () => {
+                    updateRegisterPaymentAmount();
+                    recalculateRegisterPaymentCommission();
+                  });
+                }
+
+                if (registerPaymentCommissionMasked) {
+                  registerPaymentCommissionMasked.addEventListener("input", updateRegisterPaymentCommissionHidden);
                 }
 
                 if (registerPaymentForm) {
@@ -1239,6 +1380,7 @@
                     if (typeof registerPaymentForm.reportValidity === "function" && !registerPaymentForm.reportValidity()) return;
 
                     updateRegisterPaymentAmount();
+                    updateRegisterPaymentCommissionHidden();
 
                     if (registerPaymentAllowOverpayment) {
                       registerPaymentAllowOverpayment.value = "0";

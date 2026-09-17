@@ -393,6 +393,7 @@ class DebtsController < ApplicationController
       {
         payment: payment,
         equivalent_usd_bcv: payment_amount_usd_bcv(payment),
+        commission_amount: payment.respond_to?(:commission_amount) ? payment.commission_amount.to_d.round(2) : 0.to_d,
         debt_label: payment.excess_payment? ? 'Excedente' : (payment.debt&.description.to_s.strip.presence || 'Deuda sin descripcion'),
         delete_allowed: delete_allowed,
         delete_warning: closed_shift,

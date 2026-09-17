@@ -1,8 +1,13 @@
 class DebtPayment < ApplicationRecord
   PAYMENT_METHODS = {
+    "third_party_transfer" => "Transferencia del mismo banco",
+    "interbank_transfer" => "Transferencia a Otros Bancos",
+    "mobile_payment" => "Pago Movil",
     "transfer" => "Transferencia",
     "mobile" => "Pago movil",
   }.freeze
+
+  COMMISSION_APPLICABLE_METHODS = %w[interbank_transfer mobile_payment].freeze
 
   belongs_to :debt
   belongs_to :account
@@ -20,9 +25,12 @@ class DebtPayment < ApplicationRecord
   validates :exchange_rate_to_debt_currency, presence: true, numericality: { greater_than: 0 }
   validates :occurred_at, presence: true
   validates :payment_method, inclusion: { in: PAYMENT_METHODS.keys }, allow_blank: true
+  validates :commission_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true,
+                               if: :commission_columns_available?
   validate :payment_method_rules
   validate :reference_rules
   validate :currency_matches_account
+  validate :commission_rules, if: :commission_columns_available?
 
   def payment_method_label
     PAYMENT_METHODS[payment_method] || payment_method.to_s.humanize
@@ -69,6 +77,32 @@ class DebtPayment < ApplicationRecord
     end
 
     errors.add(:reference, "debe tener 4 digitos") unless reference.to_s.match?(/\A\d{4}\z/)
+  end
+
+  def commission_rules
+    include_flag = ActiveModel::Type::Boolean.new.cast(self[:include_commission])
+    amount_value = self[:commission_amount].to_d.round(2)
+
+    if include_flag
+      if account.blank? || account.account_type != 'bank_account'
+        errors.add(:include_commission, 'solo aplica para cuentas bancarias')
+        return
+      end
+
+      unless COMMISSION_APPLICABLE_METHODS.include?(payment_method.to_s)
+        errors.add(:payment_method, 'debe ser transferencia a otros bancos o pago movil para incluir comision')
+      end
+
+      if amount_value <= 0
+        errors.add(:commission_amount, 'debe ser mayor a 0 cuando incluyes comision')
+      end
+    elsif amount_value.positive?
+      self[:include_commission] = true
+    end
+  end
+
+  def commission_columns_available?
+    self.class.column_names.include?('include_commission') && self.class.column_names.include?('commission_amount')
   end
 
   def currency_matches_account
@@ -229,6 +263,7 @@ class DebtPayment < ApplicationRecord
 
   def normalize_account_movement_method(method)
     return "mobile_payment" if method.to_s == "mobile"
+    return "third_party_transfer" if method.to_s == "transfer"
 
     method.to_s
   end

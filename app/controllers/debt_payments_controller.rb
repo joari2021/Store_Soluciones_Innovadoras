@@ -1,4 +1,6 @@
 class DebtPaymentsController < ApplicationController
+  COMMISSION_APPLICABLE_METHODS = %w[interbank_transfer mobile_payment].freeze
+
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
   before_action :ensure_can_register_debt_payment!, only: %i[new create]
@@ -31,9 +33,12 @@ class DebtPaymentsController < ApplicationController
     payments_to_delete = [@debt_payment] + mirror_synced_payments_for(@debt_payment)
     movements_to_delete = payments_to_delete.flat_map { |payment| linked_account_movements_for_payment(payment) }
     movements_to_delete = movements_to_delete.uniq { |movement| movement.id }
+    commission_expenses_to_delete = payments_to_delete.flat_map { |payment| linked_commission_expenses_for_payment(payment) }
+    commission_expenses_to_delete = commission_expenses_to_delete.uniq { |expense| expense.id }
 
     DebtPayment.transaction do
       movements_to_delete.each(&:destroy!)
+      commission_expenses_to_delete.each(&:destroy!)
       payments_to_delete.each(&:destroy!)
     end
 
@@ -116,6 +121,9 @@ class DebtPaymentsController < ApplicationController
 
     return handle_payment_form_error unless @debt_payment.valid?
 
+    commission_context = build_commission_context(account: account, amount: amount)
+    return handle_payment_form_error if commission_context[:invalid]
+
     total_pending = total_balance_in_payment_currency(@grouped_debts, payment_currency, occurred_on)
     overpayment_amount = [amount.to_d - total_pending, 0.to_d].max.round(2)
 
@@ -125,6 +133,7 @@ class DebtPaymentsController < ApplicationController
       payment_currency: payment_currency,
       occurred_on: occurred_on,
       allow_overpayment: allow_overpayment,
+      commission_context: commission_context,
     )
 
     return handle_payment_form_error if payments_to_persist.blank?
@@ -132,6 +141,7 @@ class DebtPaymentsController < ApplicationController
     DebtPayment.transaction do
       apply_intercompany_mirror_account_to_debts!(payments_to_persist, selected_mirror_account)
       payments_to_persist.each(&:save!)
+      create_commission_records_for_primary_payment!(payment: payments_to_persist.first) if commission_context[:include_commission]
     end
 
     notice = if payments_to_persist.size == 1
@@ -274,7 +284,8 @@ class DebtPaymentsController < ApplicationController
 
   def debt_payment_params
     params.require(:debt_payment).permit(:account_id, :amount, :payment_method, :reference, :occurred_at,
-                                         :notes, :allow_overpayment, :mirror_account_id)
+                                         :notes, :allow_overpayment, :mirror_account_id,
+                                         :include_commission, :commission_amount)
   end
 
   def selected_intercompany_mirror_account
@@ -308,13 +319,19 @@ class DebtPaymentsController < ApplicationController
   end
 
   def parse_decimal(value)
-    return 0 if value.nil?
+    return 0.to_d if value.nil?
     return value.to_d if value.is_a?(Numeric)
 
-    cleaned = value.to_s.strip.tr(",", ".")
+    cleaned = value.to_s.strip.gsub(/[^\d,.-]/, '')
+    if cleaned.include?(',') && cleaned.include?('.')
+      cleaned = cleaned.gsub('.', '').tr(',', '.')
+    elsif cleaned.include?(',')
+      cleaned = cleaned.tr(',', '.')
+    end
+
     BigDecimal(cleaned)
   rescue ArgumentError
-    0
+    0.to_d
   end
 
   def parse_payment_date(value)
@@ -328,6 +345,148 @@ class DebtPaymentsController < ApplicationController
     rescue ArgumentError
       nil
     end
+  end
+
+  def build_commission_context(account:, amount:)
+    include_commission = ActiveModel::Type::Boolean.new.cast(debt_payment_params[:include_commission])
+    payment_method = debt_payment_params[:payment_method].to_s.strip
+
+    return { include_commission: false, commission_amount: 0.to_d } unless include_commission
+
+    if account.blank? || account.account_type != 'bank_account'
+      @debt_payment.errors.add(:base, 'La comision solo aplica para pagos con cuenta bancaria.')
+      return { invalid: true }
+    end
+
+    unless COMMISSION_APPLICABLE_METHODS.include?(payment_method)
+      @debt_payment.errors.add(:base, 'La comision solo aplica para transferencia a otros bancos o pago movil.')
+      return { invalid: true }
+    end
+
+    entered_commission = parse_decimal(debt_payment_params[:commission_amount]).to_d.round(2)
+    commission_amount = if entered_commission.positive?
+                          entered_commission
+                        else
+                          calculate_commission_amount_for_account(amount: amount, account: account)
+                        end
+
+    if commission_amount <= 0
+      @debt_payment.errors.add(:base, 'Indica un monto de comision valido mayor a 0.')
+      return { invalid: true }
+    end
+
+    {
+      include_commission: true,
+      commission_amount: commission_amount,
+      payment_method: payment_method,
+      reference: debt_payment_params[:reference].to_s,
+      account: account
+    }
+  end
+
+  def calculate_commission_amount_for_account(amount:, account:)
+    percent = account.send_commission_percent.to_d.round(6) rescue 0.to_d
+    min_amount = account.send_commission_min.to_d.round(2) rescue 0.to_d
+    calc = amount.to_d.abs * (percent / 100)
+    rounding = (account.send_commission_rounding.presence || 'superior') rescue 'superior'
+
+    commission = case rounding.to_s
+                 when 'inferior'
+                   BigDecimal(((calc * 100).floor / 100.0).to_s)
+                 else
+                   calc.round(2, BigDecimal::ROUND_HALF_UP)
+                 end
+
+    commission = min_amount if commission < min_amount
+    commission.round(2)
+  end
+
+  def create_commission_records_for_primary_payment!(payment:)
+    return if payment.blank?
+    return unless ActiveModel::Type::Boolean.new.cast(payment.try(:include_commission))
+
+    commission_amount = payment.try(:commission_amount).to_d.round(2)
+    return unless commission_amount.positive?
+
+    account = payment.account
+    return if account.blank?
+
+    method = normalize_commission_expense_payment_method(payment.payment_method)
+    reference = normalized_reference_for_commission(payment.reference, payment.payment_method)
+    category = bank_services_expense_category
+    action_text = payment.debt&.receivable? ? 'cobro' : 'pago'
+    counterparty = payment.debt&.counterparty_display_name.to_s.strip.presence || 'Sin contraparte'
+
+    commission_expense = Expense.create!(
+      business: payment.debt.business,
+      name: "Comision bancaria - Pago de deuda ##{payment.id}",
+      description: "Comision bancaria por #{action_text} de deuda (#{counterparty}) [DEBT:#{payment.debt_id}] [DP:#{payment.id}]",
+      expense_type: 'variable',
+      frequency: 'once',
+      amount: commission_amount,
+      currency: account.currency,
+      start_date: payment.occurred_at,
+      expense_category: category,
+    )
+
+    commission_expense.expense_payments.create!(
+      account: account,
+      amount: commission_amount,
+      currency: account.currency,
+      payment_method: method,
+      reference: reference,
+      occurred_at: payment.occurred_at,
+      notes: "Comision por pago de deuda [DP:#{payment.id}]",
+    )
+
+    commission_expense.register_payment!(payment.occurred_at)
+
+    movement_attrs = {
+      movement_kind: payment.debt.receivable? ? 'expense' : 'expense',
+      amount: commission_amount,
+      description: "Comision bancaria por #{action_text} de deuda [DEBT:#{payment.debt_id}] [DP:#{payment.id}] [GASTO:#{commission_expense.id}]",
+      occurred_at: payment.occurred_at,
+      payment_method: normalize_account_movement_payment_method(payment.payment_method),
+    }
+    movement_attrs[:reference] = reference if reference.present?
+    account.account_movements.create!(movement_attrs)
+  end
+
+  def bank_services_expense_category
+    category_name = 'Servicios Bancarios'
+    existing = ExpenseCategory.where('LOWER(name) = ?', category_name.downcase).first
+    return existing if existing.present?
+
+    ExpenseCategory.create!(name: category_name, business: current_business)
+  end
+
+  def normalize_commission_expense_payment_method(method)
+    case method.to_s
+    when 'mobile', 'mobile_payment'
+      'mobile'
+    when 'debit_card'
+      'debit_card'
+    else
+      'transfer'
+    end
+  end
+
+  def normalize_account_movement_payment_method(method)
+    case method.to_s
+    when 'mobile'
+      'mobile_payment'
+    when 'transfer'
+      'third_party_transfer'
+    else
+      method.to_s
+    end
+  end
+
+  def normalized_reference_for_commission(reference, method)
+    return '' if method.to_s == 'debit_card'
+
+    digits = reference.to_s.gsub(/\D/, '')
+    digits.match?(/\A\d{4}\z/) ? digits : ''
   end
 
   def resolved_occurred_on_for_current_user(raw_value)
@@ -399,7 +558,8 @@ class DebtPaymentsController < ApplicationController
     end
   end
 
-  def build_grouped_payments(account:, amount:, payment_currency:, occurred_on:, allow_overpayment: false)
+  def build_grouped_payments(account:, amount:, payment_currency:, occurred_on:, allow_overpayment: false,
+                             commission_context: nil)
     remaining_amount = amount.to_d.round(2)
     payments = []
     ordered_debts = sort_debts(@grouped_debts)
@@ -475,6 +635,7 @@ class DebtPaymentsController < ApplicationController
         if zero_converted_amount_error?(overpayment) && absorb_rounding_into_previous_payment(payments, remaining_amount)
           remaining_amount = 0.to_d
           assign_grouped_movement_flags(payments, amount)
+          assign_grouped_commission_flags(payments, commission_context)
           return payments
         end
 
@@ -492,8 +653,29 @@ class DebtPaymentsController < ApplicationController
     end
 
     assign_grouped_movement_flags(payments, amount)
+    assign_grouped_commission_flags(payments, commission_context)
 
     payments
+  end
+
+  def assign_grouped_commission_flags(payments, commission_context)
+    return if payments.blank?
+
+    include_commission = ActiveModel::Type::Boolean.new.cast(commission_context&.dig(:include_commission))
+    commission_amount = commission_context&.dig(:commission_amount).to_d.round(2)
+
+    primary_payment = payments.first
+    if primary_payment.respond_to?(:include_commission=)
+      primary_payment.include_commission = include_commission
+    end
+    if primary_payment.respond_to?(:commission_amount=)
+      primary_payment.commission_amount = include_commission ? commission_amount : 0.to_d
+    end
+
+    payments.drop(1).each do |payment|
+      payment.include_commission = false if payment.respond_to?(:include_commission=)
+      payment.commission_amount = 0.to_d if payment.respond_to?(:commission_amount=)
+    end
   end
 
   def assign_grouped_movement_flags(payments, total_amount)
@@ -707,6 +889,12 @@ class DebtPaymentsController < ApplicationController
       .where(account_id: payment.account_id)
       .where('description ILIKE ?', "%[DP:#{payment.id}]%")
       .to_a
+  end
+
+  def linked_commission_expenses_for_payment(payment)
+    Expense.where(business_id: payment.debt.business_id)
+           .where('description LIKE ?', "%[DP:#{payment.id}]%")
+           .to_a
   end
 
   def mirror_synced_payments_for(payment)
