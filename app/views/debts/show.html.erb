@@ -493,7 +493,7 @@
             <input type="text" name="debt_payment[reference]" maxlength="4" pattern="\d{4}" inputmode="numeric" autocomplete="off" placeholder="4 digitos" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-reference="true" />
           </div>
           <div class="md:col-span-2">
-            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
               <div>
                 <label class="block text-xs font-semibold text-slate-500">Monto</label>
                 <input type="hidden" name="debt_payment[amount]" value="0" data-register-payment-amount-hidden="true" />
@@ -516,7 +516,7 @@
                   </label>
                 </div>
               </div>
-              <div class="hidden" data-register-payment-commission-input-wrapper="true">
+              <div class="hidden md:pt-0" data-register-payment-commission-input-wrapper="true">
                 <label class="block text-xs font-semibold text-slate-500">Comision</label>
                 <input type="hidden" name="debt_payment[commission_amount]" value="0" data-register-payment-commission-hidden="true" />
                 <input
