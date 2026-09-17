@@ -1729,14 +1729,19 @@ class DebtsController < ApplicationController
     commission_debt = current_business.debts.new(commission_debt_attrs)
     commission_debt.save!
 
-    account.account_movements.create!(
+    commission_reference = entry[:loan_reference].to_s.gsub(/\D/, '').slice(0, 4)
+
+    movement_attrs = {
       movement_kind: loan_movement_kind_for(commission_debt),
       amount: commission_amount_in_account_currency,
       description: "Comision de prestamo deuda: Comision del Pago - #{commission_debt.counterparty_label}: #{commission_debt.counterparty_display_name} [DEBT:#{commission_debt.id}] [LOAN_DEBT] [LOAN_COMMISSION] #{marker}",
       occurred_at: loan_occurred_at_for(commission_debt),
       payment_method: account.account_type == 'bank_account' ? 'transfer' : nil,
       allow_negative_balance: true
-    )
+    }
+    movement_attrs[:reference] = commission_reference if commission_reference.present?
+
+    account.account_movements.create!(movement_attrs)
   end
 
   def loan_commission_marker_for_origin_debt(debt_id)
