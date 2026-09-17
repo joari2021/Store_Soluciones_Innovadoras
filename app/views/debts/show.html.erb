@@ -492,41 +492,45 @@
             <label class="block text-xs font-semibold text-slate-500">Referencia</label>
             <input type="text" name="debt_payment[reference]" maxlength="4" pattern="\d{4}" inputmode="numeric" autocomplete="off" placeholder="4 digitos" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-register-payment-reference="true" />
           </div>
-          <div class="hidden md:col-span-2" data-register-payment-commission-wrapper="true">
-            <input type="hidden" name="debt_payment[include_commission]" value="0" />
-            <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <input type="checkbox" name="debt_payment[include_commission]" value="1" class="h-4 w-4 rounded border-slate-300 text-sky-600" data-register-payment-commission-toggle="true" />
-              Incluir comision
-            </label>
-            <div class="mt-2 hidden" data-register-payment-commission-input-wrapper="true">
-              <label class="block text-xs font-semibold text-slate-500">Comision</label>
-              <input type="hidden" name="debt_payment[commission_amount]" value="0" data-register-payment-commission-hidden="true" />
-              <input
-                type="text"
-                inputmode="decimal"
-                autocomplete="off"
-                data-money-mask="true"
-                data-money-symbol="$"
-                data-register-payment-commission-masked="true"
-                placeholder="$ 0,00"
-                class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
-              />
+          <div class="md:col-span-2">
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
+              <div>
+                <label class="block text-xs font-semibold text-slate-500">Monto</label>
+                <input type="hidden" name="debt_payment[amount]" value="0" data-register-payment-amount-hidden="true" />
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  data-money-mask="true"
+                  data-money-symbol="$"
+                  data-register-payment-amount-masked="true"
+                  placeholder="$ 0,00"
+                  class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                  required
+                />
+                <div class="mt-2 hidden" data-register-payment-commission-wrapper="true">
+                  <input type="hidden" name="debt_payment[include_commission]" value="0" />
+                  <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <input type="checkbox" name="debt_payment[include_commission]" value="1" class="h-4 w-4 rounded border-slate-300 text-sky-600" data-register-payment-commission-toggle="true" />
+                    Incluir comision
+                  </label>
+                </div>
+              </div>
+              <div class="hidden" data-register-payment-commission-input-wrapper="true">
+                <label class="block text-xs font-semibold text-slate-500">Comision</label>
+                <input type="hidden" name="debt_payment[commission_amount]" value="0" data-register-payment-commission-hidden="true" />
+                <input
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  data-money-mask="true"
+                  data-money-symbol="$"
+                  data-register-payment-commission-masked="true"
+                  placeholder="$ 0,00"
+                  class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+                />
+              </div>
             </div>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-500">Monto</label>
-            <input type="hidden" name="debt_payment[amount]" value="0" data-register-payment-amount-hidden="true" />
-            <input
-              type="text"
-              inputmode="decimal"
-              autocomplete="off"
-              data-money-mask="true"
-              data-money-symbol="$"
-              data-register-payment-amount-masked="true"
-              placeholder="$ 0,00"
-              class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
-              required
-            />
           </div>
         </div>
         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3" data-register-payment-summary="true" data-base-usd="<%= @show_total_balance_usd_bcv.to_d.to_s('F') %>">
