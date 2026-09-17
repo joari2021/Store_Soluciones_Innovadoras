@@ -427,6 +427,7 @@ class DebtPaymentsController < ApplicationController
     category = bank_services_expense_category
     action_text = payment.debt&.receivable? ? 'cobro' : 'pago'
     counterparty = payment.debt&.counterparty_display_name.to_s.strip.presence || 'Sin contraparte'
+    movement_occurred_at = commission_movement_occurred_at_for(payment)
 
     commission_expense = Expense.create!(
       business: payment.debt.business,
@@ -456,11 +457,19 @@ class DebtPaymentsController < ApplicationController
       movement_kind: payment.debt.receivable? ? 'expense' : 'expense',
       amount: commission_amount,
       description: "Comision bancaria por #{action_text} de deuda [DEBT:#{payment.debt_id}] [DP:#{payment.id}] [GASTO:#{commission_expense.id}]",
-      occurred_at: payment.occurred_at,
+      occurred_at: movement_occurred_at,
       payment_method: normalize_account_movement_payment_method(payment_method),
     }
     movement_attrs[:reference] = reference if reference.present?
     account.account_movements.create!(movement_attrs)
+  end
+
+  def commission_movement_occurred_at_for(payment)
+    payment_date = payment.occurred_at&.to_date
+    caracas_now = Time.current.in_time_zone('America/Caracas')
+    return caracas_now if payment_date.blank?
+
+    caracas_now.change(year: payment_date.year, month: payment_date.month, day: payment_date.day)
   end
 
   def bank_services_expense_category
@@ -656,6 +665,34 @@ class DebtPaymentsController < ApplicationController
 
       payments << overpayment
       remaining_amount = 0.to_d
+    end
+
+    allocated_total = payments.sum { |payment| payment.amount.to_d }.round(2)
+    missing_allocation = (amount.to_d - allocated_total).round(2)
+
+    if missing_allocation > 0.01.to_d
+      unless allow_overpayment
+        @debt_payment.errors.add(:amount, "excede el saldo distribuible del grupo de deudas")
+        return nil
+      end
+
+      extra_payment_debt = ordered_debts.first
+      fallback_overpayment = extra_payment_debt.debt_payments.new(
+        account: account,
+        amount: missing_allocation,
+        currency: payment_currency,
+        payment_method: debt_payment_params[:payment_method].presence,
+        reference: debt_payment_params[:reference].presence,
+        occurred_at: occurred_on,
+        notes: debt_payment_params[:notes],
+      )
+
+      unless fallback_overpayment.valid?
+        fallback_overpayment.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
+        return nil
+      end
+
+      payments << fallback_overpayment
     end
 
     if payments.empty?
