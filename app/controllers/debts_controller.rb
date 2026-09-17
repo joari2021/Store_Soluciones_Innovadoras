@@ -996,6 +996,7 @@ class DebtsController < ApplicationController
       venta_id = row_value(row, :venta_id)
       loan_enabled = row_value(row, :loan_enabled)
       loan_account_id = row_value(row, :loan_account_id)
+      loan_reference = row_value(row, :loan_reference)
       amount_input_currency = row_value(row, :amount_input_currency)
       include_commission = row_value(row, :include_commission)
       commission_amount = row_value(row, :commission_amount)
@@ -1011,6 +1012,7 @@ class DebtsController < ApplicationController
         venta_id: venta_id,
         loan_enabled: loan_enabled,
         loan_account_id: loan_account_id,
+        loan_reference: loan_reference,
         amount_input_currency: amount_input_currency,
         include_commission: include_commission,
         commission_amount: commission_amount
@@ -1205,6 +1207,7 @@ class DebtsController < ApplicationController
         venta_id: row[:venta_id].to_i,
         loan_enabled: loan_enabled_for_current_user?(row[:loan_enabled]),
         loan_account_id: loan_enabled_for_current_user?(row[:loan_enabled]) ? row[:loan_account_id].presence : nil,
+        loan_reference: row[:loan_reference].to_s.gsub(/\D/, '').slice(0, 4),
         include_commission: ActiveModel::Type::Boolean.new.cast(row[:include_commission]),
         commission_amount: parse_decimal(row[:commission_amount]).to_d.round(2)
       }
@@ -1259,6 +1262,7 @@ class DebtsController < ApplicationController
       description: '',
       loan_enabled: false,
       loan_account_id: '',
+      loan_reference: '',
       include_commission: false,
       commission_amount: '0'
     }
@@ -1503,6 +1507,13 @@ class DebtsController < ApplicationController
         next
       end
 
+      loan_reference = entry[:loan_reference].to_s.gsub(/\D/, '').slice(0, 4)
+      if account.account_type == 'bank_account' && !loan_reference.match?(/\A\d{4}\z/)
+        @debt.errors.add(:base, "Deuda #{index + 1}: la referencia del prestamo debe tener 4 digitos.")
+        valid = false
+      end
+      entry[:loan_reference] = loan_reference
+
       include_commission = ActiveModel::Type::Boolean.new.cast(entry[:include_commission])
       entered_commission = entry[:commission_amount].to_d.round(2)
       include_commission ||= entered_commission.positive?
@@ -1566,6 +1577,7 @@ class DebtsController < ApplicationController
 
       unless entry[:loan_enabled]
         existing_movements.each(&:destroy!)
+        remove_loan_commission_records_for_debt!(debt)
         next
       end
 
@@ -1585,6 +1597,7 @@ class DebtsController < ApplicationController
         payment_method: account.account_type == 'bank_account' ? 'transfer' : nil,
         allow_negative_balance: true
       }
+      movement_attrs[:reference] = entry[:loan_reference] if entry[:loan_reference].present?
 
       primary_movement = existing_movements.first
 
@@ -1690,11 +1703,19 @@ class DebtsController < ApplicationController
       raise ActiveRecord::RecordInvalid.new(debt)
     end
 
+    marker = loan_commission_marker_for_origin_debt(debt.id)
+
+    linked_commission_debts = linked_loan_commission_debts_for_origin(debt)
+    linked_commission_debts.each do |commission_debt|
+      loan_account_movements_for_debt(commission_debt).each(&:destroy!)
+      commission_debt.destroy!
+    end
+
     commission_debt_attrs = {
       debt_kind: debt.debt_kind,
       cliente_id: debt.cliente_id,
       acreedor: debt.acreedor,
-      name: 'Comision del Pago',
+      name: "Comision del Pago #{marker}",
       description: 'Comision del Pago',
       amount: commission_amount_in_debt_currency,
       currency: debt.currency,
@@ -1711,11 +1732,27 @@ class DebtsController < ApplicationController
     account.account_movements.create!(
       movement_kind: loan_movement_kind_for(commission_debt),
       amount: commission_amount_in_account_currency,
-      description: "Comision de prestamo deuda: Comision del Pago - #{commission_debt.counterparty_label}: #{commission_debt.counterparty_display_name} [DEBT:#{commission_debt.id}] [LOAN_DEBT] [LOAN_COMMISSION]",
+      description: "Comision de prestamo deuda: Comision del Pago - #{commission_debt.counterparty_label}: #{commission_debt.counterparty_display_name} [DEBT:#{commission_debt.id}] [LOAN_DEBT] [LOAN_COMMISSION] #{marker}",
       occurred_at: loan_occurred_at_for(commission_debt),
       payment_method: account.account_type == 'bank_account' ? 'transfer' : nil,
       allow_negative_balance: true
     )
+  end
+
+  def loan_commission_marker_for_origin_debt(debt_id)
+    "[LOAN_COMMISSION_FROM_DEBT:#{debt_id}]"
+  end
+
+  def linked_loan_commission_debts_for_origin(debt)
+    marker = loan_commission_marker_for_origin_debt(debt.id)
+    current_business.debts.where('name LIKE ?', "%#{marker}%").to_a
+  end
+
+  def remove_loan_commission_records_for_debt!(debt)
+    linked_loan_commission_debts_for_origin(debt).each do |commission_debt|
+      loan_account_movements_for_debt(commission_debt).each(&:destroy!)
+      commission_debt.destroy!
+    end
   end
 
   def linked_account_movements_for_debts(debts)
