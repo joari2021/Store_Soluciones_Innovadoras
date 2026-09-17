@@ -597,9 +597,13 @@
                   account.id,
                   {
                     'data-loan-account': 'true',
+                    'data-account-type': account.account_type,
                     'data-account-currency': account.currency.to_s.upcase,
                     'data-account-balance': account.balance.to_d.to_s('F'),
-                    'data-account-symbol': account.currency_symbol
+                    'data-account-symbol': account.currency_symbol,
+                    'data-send-commission-percent': account.send_commission_percent.to_s,
+                    'data-send-commission-min': account.send_commission_min.to_s,
+                    'data-send-commission-rounding': account.send_commission_rounding.to_s
                   }
                 ] %>
               <% end %>
@@ -624,6 +628,8 @@
               <% end %>
             </select>
           </div>
+        </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-start">
           <div>
             <label class="block text-xs font-semibold text-slate-500">Monto</label>
             <input type="hidden" name="debt_entries[0][amount]" value="0" data-add-debt-amount-hidden="true" />
@@ -639,7 +645,30 @@
               class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
               required
             />
+            <div class="mt-2 hidden" data-add-debt-commission-wrapper="true">
+              <input type="hidden" name="debt_entries[0][include_commission]" value="0" />
+              <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                <input type="checkbox" name="debt_entries[0][include_commission]" value="1" class="h-4 w-4 rounded border-slate-300 text-sky-600" data-add-debt-commission-toggle="true" />
+                Incluir comision
+              </label>
+            </div>
           </div>
+          <div class="hidden" data-add-debt-commission-input-wrapper="true">
+            <label class="block text-xs font-semibold text-slate-500">Comision</label>
+            <input type="hidden" name="debt_entries[0][commission_amount]" value="0" data-add-debt-commission-hidden="true" />
+            <input
+              type="text"
+              inputmode="decimal"
+              autocomplete="off"
+              data-money-mask="true"
+              data-money-symbol="$"
+              data-add-debt-commission-masked="true"
+              placeholder="$ 0,00"
+              class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div>
             <label class="block text-xs font-semibold text-slate-500">Emision</label>
             <input type="text" name="debt_entries[0][issued_on]" value="<%= Date.current.strftime('%d-%m-%Y') %>" autocomplete="off" placeholder="dd-mm-aaaa" class="<%= current_user_admin? ? 'js-materialize-datepicker materialize-datepicker-input' : '' %> mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" <%= 'readonly' unless current_user_admin? %> required />
@@ -682,6 +711,12 @@
                 const amountMaskedInput = root.querySelector("[data-add-debt-amount-masked='true']");
                 const amountHiddenInput = root.querySelector("[data-add-debt-amount-hidden='true']");
                 const amountInputCurrency = root.querySelector("[data-add-debt-amount-input-currency='true']");
+                const addDebtCommissionWrapper = root.querySelector("[data-add-debt-commission-wrapper='true']");
+                const addDebtCommissionToggle = root.querySelector("[data-add-debt-commission-toggle='true']");
+                const addDebtCommissionInputWrapper = root.querySelector("[data-add-debt-commission-input-wrapper='true']");
+                const addDebtCommissionMasked = root.querySelector("[data-add-debt-commission-masked='true']");
+                const addDebtCommissionHidden = root.querySelector("[data-add-debt-commission-hidden='true']");
+                const addDebtKindInput = root.querySelector("input[name='debt[debt_kind]']");
                 const issuedOnInput = root.querySelector("input[name='debt_entries[0][issued_on]']");
                 const dueOnInput = root.querySelector("input[name='debt_entries[0][due_on]']");
                 const registerPaymentModal = root.querySelector("[data-register-payment-modal='true']");
@@ -747,6 +782,9 @@
                   if (amountMaskedInput) amountMaskedInput.value = "";
                   if (amountHiddenInput) amountHiddenInput.value = "0";
                   if (amountInputCurrency && currencySelect) amountInputCurrency.value = normalizeCurrency(currencySelect.value);
+                  if (addDebtCommissionToggle) addDebtCommissionToggle.checked = false;
+                  if (addDebtCommissionMasked) addDebtCommissionMasked.value = "";
+                  if (addDebtCommissionHidden) addDebtCommissionHidden.value = "0";
 
                   if (loanEnabled) loanEnabled.checked = false;
                   if (loanFields) loanFields.classList.add("hidden");
@@ -755,6 +793,8 @@
                     loanAccount.required = false;
                     loanAccount.value = "";
                   }
+
+                  syncAddDebtCommissionVisibility();
                 };
 
                 const normalizeCurrency = (value) => String(value || "").trim().toUpperCase();
@@ -863,6 +903,11 @@
                   amountMaskedInput.dataset.moneySymbol = symbol;
                   amountMaskedInput.placeholder = `${symbol} 0,00`;
 
+                  if (addDebtCommissionMasked) {
+                    addDebtCommissionMasked.dataset.moneySymbol = symbol;
+                    addDebtCommissionMasked.placeholder = `${symbol} 0,00`;
+                  }
+
                   if (window.MoneyInputMask?.init) {
                     window.MoneyInputMask.init(amountMaskedInput.closest("form") || root);
                   }
@@ -885,8 +930,78 @@
                   amountMaskedInput.dataset.moneySymbol = accountSymbol;
                   amountMaskedInput.placeholder = `${accountSymbol} 0,00`;
 
+                  if (addDebtCommissionMasked) {
+                    addDebtCommissionMasked.dataset.moneySymbol = accountSymbol;
+                    addDebtCommissionMasked.placeholder = `${accountSymbol} 0,00`;
+                  }
+
                   if (window.MoneyInputMask?.init) {
                     window.MoneyInputMask.init(amountMaskedInput.closest("form") || root);
+                  }
+                };
+
+                const updateAddDebtCommissionHidden = () => {
+                  if (!addDebtCommissionHidden) return;
+                  const value = parseMaskedValue(addDebtCommissionMasked);
+                  addDebtCommissionHidden.value = Number.isFinite(value) ? value.toFixed(2) : "0.00";
+                };
+
+                const recalculateAddDebtCommission = () => {
+                  if (!addDebtCommissionToggle?.checked || !addDebtCommissionMasked) {
+                    const selectedOption = loanAccount?.options?.[loanAccount.selectedIndex];
+                    const symbol = selectedOption?.dataset?.accountSymbol || amountMaskedInput?.dataset?.moneySymbol || "$";
+                    if (window.MoneyInputMask?.setValue) {
+                      window.MoneyInputMask.setValue(addDebtCommissionMasked, 0, symbol);
+                    }
+                    updateAddDebtCommissionHidden();
+                    return;
+                  }
+
+                  const selectedOption = loanAccount?.options?.[loanAccount.selectedIndex];
+                  const amount = parseMaskedValue(amountMaskedInput);
+                  const percent = Number.parseFloat(selectedOption?.dataset?.sendCommissionPercent || "0");
+                  const min = Number.parseFloat(selectedOption?.dataset?.sendCommissionMin || "0");
+                  const rounding = String(selectedOption?.dataset?.sendCommissionRounding || "superior");
+                  const symbol = selectedOption?.dataset?.accountSymbol || amountMaskedInput?.dataset?.moneySymbol || "$";
+                  const commissionValue = calculateCommissionAmount({ amount, percent, min, rounding });
+
+                  if (window.MoneyInputMask?.setValue) {
+                    window.MoneyInputMask.setValue(addDebtCommissionMasked, commissionValue, symbol);
+                  }
+                  updateAddDebtCommissionHidden();
+                };
+
+                const syncAddDebtCommissionVisibility = () => {
+                  const debtKind = String(addDebtKindInput?.value || "").trim();
+                  const loanChecked = Boolean(loanEnabled?.checked);
+                  const selectedOption = loanAccount?.options?.[loanAccount.selectedIndex];
+                  const isBank = String(selectedOption?.dataset?.accountType || "") === "bank_account";
+                  const supported = debtKind === "receivable" && loanChecked && isBank;
+
+                  if (addDebtCommissionWrapper) {
+                    addDebtCommissionWrapper.classList.toggle("hidden", !supported);
+                  }
+
+                  if (!supported && addDebtCommissionToggle) {
+                    addDebtCommissionToggle.checked = false;
+                  }
+
+                  const enabled = supported && Boolean(addDebtCommissionToggle?.checked);
+                  if (addDebtCommissionInputWrapper) {
+                    addDebtCommissionInputWrapper.classList.toggle("hidden", !enabled);
+                  }
+                  if (addDebtCommissionMasked) {
+                    addDebtCommissionMasked.disabled = !enabled;
+                  }
+
+                  if (enabled) {
+                    recalculateAddDebtCommission();
+                  } else {
+                    if (window.MoneyInputMask?.setValue && addDebtCommissionMasked) {
+                      const symbol = selectedOption?.dataset?.accountSymbol || amountMaskedInput?.dataset?.moneySymbol || "$";
+                      window.MoneyInputMask.setValue(addDebtCommissionMasked, 0, symbol);
+                    }
+                    updateAddDebtCommissionHidden();
                   }
                 };
 
@@ -928,6 +1043,7 @@
                   syncLoanAccountsByCurrency();
                   toggleLoanFields();
                   updateAmountHidden();
+                  updateAddDebtCommissionHidden();
                 };
 
                 const closeAddDebtModal = () => {
@@ -1224,6 +1340,8 @@
                     loanAccount.value = "";
                     syncAmountSymbolByCurrency();
                   }
+
+                  syncAddDebtCommissionVisibility();
                 };
 
                 openAddDebtButtons.forEach((button) => {
@@ -1288,7 +1406,12 @@
                     loanAccount.value = data.editLoanAccountId;
                   }
 
+                  if (addDebtCommissionToggle) addDebtCommissionToggle.checked = false;
+                  if (addDebtCommissionMasked) addDebtCommissionMasked.value = "";
+                  if (addDebtCommissionHidden) addDebtCommissionHidden.value = "0";
+
                   syncAmountSymbolByLoanAccount();
+                  syncAddDebtCommissionVisibility();
 
                   if (addDebtTitle) addDebtTitle.textContent = "Editar deuda del registro";
                   if (addDebtSubmit) addDebtSubmit.textContent = "Guardar cambios";
@@ -1327,11 +1450,23 @@
                   loanAccount.addEventListener("change", () => {
                     syncAmountSymbolByLoanAccount();
                     updateAmountHidden();
+                    syncAddDebtCommissionVisibility();
                   });
                 }
 
                 if (amountMaskedInput) {
-                  amountMaskedInput.addEventListener("input", updateAmountHidden);
+                  amountMaskedInput.addEventListener("input", () => {
+                    updateAmountHidden();
+                    recalculateAddDebtCommission();
+                  });
+                }
+
+                if (addDebtCommissionToggle) {
+                  addDebtCommissionToggle.addEventListener("change", syncAddDebtCommissionVisibility);
+                }
+
+                if (addDebtCommissionMasked) {
+                  addDebtCommissionMasked.addEventListener("input", updateAddDebtCommissionHidden);
                 }
 
                 if (registerPaymentAccount) {
@@ -1450,6 +1585,7 @@
                 if (addDebtForm) {
                   addDebtForm.addEventListener("submit", (event) => {
                     updateAmountHidden();
+                    updateAddDebtCommissionHidden();
 
                     if (!loanEnabled?.checked) return;
 

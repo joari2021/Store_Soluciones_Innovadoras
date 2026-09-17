@@ -997,6 +997,8 @@ class DebtsController < ApplicationController
       loan_enabled = row_value(row, :loan_enabled)
       loan_account_id = row_value(row, :loan_account_id)
       amount_input_currency = row_value(row, :amount_input_currency)
+      include_commission = row_value(row, :include_commission)
+      commission_amount = row_value(row, :commission_amount)
       next if [amount, currency, issued_on, due_on].all?(&:blank?)
 
       {
@@ -1009,7 +1011,9 @@ class DebtsController < ApplicationController
         venta_id: venta_id,
         loan_enabled: loan_enabled,
         loan_account_id: loan_account_id,
-        amount_input_currency: amount_input_currency
+        amount_input_currency: amount_input_currency,
+        include_commission: include_commission,
+        commission_amount: commission_amount
       }
     end.compact
 
@@ -1200,7 +1204,9 @@ class DebtsController < ApplicationController
         debt_id: debt_id,
         venta_id: row[:venta_id].to_i,
         loan_enabled: loan_enabled_for_current_user?(row[:loan_enabled]),
-        loan_account_id: loan_enabled_for_current_user?(row[:loan_enabled]) ? row[:loan_account_id].presence : nil
+        loan_account_id: loan_enabled_for_current_user?(row[:loan_enabled]) ? row[:loan_account_id].presence : nil,
+        include_commission: ActiveModel::Type::Boolean.new.cast(row[:include_commission]),
+        commission_amount: parse_decimal(row[:commission_amount]).to_d.round(2)
       }
     end
   end
@@ -1252,7 +1258,9 @@ class DebtsController < ApplicationController
       due_on: '',
       description: '',
       loan_enabled: false,
-      loan_account_id: ''
+      loan_account_id: '',
+      include_commission: false,
+      commission_amount: '0'
     }
   end
 
@@ -1495,6 +1503,34 @@ class DebtsController < ApplicationController
         next
       end
 
+      include_commission = ActiveModel::Type::Boolean.new.cast(entry[:include_commission])
+      entered_commission = entry[:commission_amount].to_d.round(2)
+      include_commission ||= entered_commission.positive?
+
+      if include_commission && debt_kind.to_s == 'receivable'
+        if account.account_type != 'bank_account'
+          @debt.errors.add(:base, "Deuda #{index + 1}: la comision solo aplica cuando la cuenta del prestamo es bancaria.")
+          valid = false
+        else
+          commission_amount = if entered_commission.positive?
+                                entered_commission
+                              else
+                                calculate_account_commission_amount(amount: entry[:loan_amount], account: account)
+                              end
+
+          if commission_amount <= 0
+            @debt.errors.add(:base, "Deuda #{index + 1}: la comision debe ser mayor a 0.")
+            valid = false
+          else
+            entry[:include_commission] = true
+            entry[:commission_amount] = commission_amount.round(2)
+          end
+        end
+      else
+        entry[:include_commission] = false
+        entry[:commission_amount] = 0.to_d
+      end
+
       input_amount = entry[:input_amount].to_d
       input_currency = entry[:amount_input_currency].to_s.upcase
 
@@ -1564,6 +1600,8 @@ class DebtsController < ApplicationController
       else
         account.account_movements.create!(movement_attrs)
       end
+
+      create_loan_commission_debt_for_receivable!(debt: debt, entry: entry, account: account)
     end
 
     true
@@ -1611,6 +1649,73 @@ class DebtsController < ApplicationController
 
   def loan_movement_kind_for(debt)
     debt.payable? ? 'income' : 'expense'
+  end
+
+  def calculate_account_commission_amount(amount:, account:)
+    percent = account.send_commission_percent.to_d.round(6) rescue 0.to_d
+    min_amount = account.send_commission_min.to_d.round(2) rescue 0.to_d
+    calc = amount.to_d.abs * (percent / 100)
+    rounding = (account.send_commission_rounding.presence || 'superior') rescue 'superior'
+
+    commission = case rounding.to_s
+                 when 'inferior'
+                   BigDecimal(((calc * 100).floor / 100.0).to_s)
+                 else
+                   calc.round(2, BigDecimal::ROUND_HALF_UP)
+                 end
+
+    commission = min_amount if commission < min_amount
+    commission.round(2)
+  end
+
+  def create_loan_commission_debt_for_receivable!(debt:, entry:, account:)
+    return unless debt.receivable?
+    return unless ActiveModel::Type::Boolean.new.cast(entry[:loan_enabled])
+    return unless ActiveModel::Type::Boolean.new.cast(entry[:include_commission])
+    return if entry[:debt_id].to_i.positive?
+
+    commission_amount_in_account_currency = entry[:commission_amount].to_d.round(2)
+    return unless commission_amount_in_account_currency.positive?
+
+    conversion = CurrencyConverter.convert(
+      amount: commission_amount_in_account_currency,
+      from_currency: account.currency,
+      to_currency: debt.currency,
+      on_date: debt.issued_on || Date.current
+    )
+
+    commission_amount_in_debt_currency = conversion&.dig(:amount).to_d.round(2)
+    if commission_amount_in_debt_currency <= 0
+      @debt.errors.add(:base, 'No se pudo convertir la comision del prestamo a la moneda de la deuda.')
+      raise ActiveRecord::RecordInvalid.new(debt)
+    end
+
+    commission_debt_attrs = {
+      debt_kind: debt.debt_kind,
+      cliente_id: debt.cliente_id,
+      acreedor: debt.acreedor,
+      name: 'Comision del Pago',
+      description: 'Comision del Pago',
+      amount: commission_amount_in_debt_currency,
+      currency: debt.currency,
+      issued_on: debt.issued_on || Date.current,
+      due_on: debt.due_on
+    }
+    if Debt.column_names.include?('group_token')
+      commission_debt_attrs[:group_token] = debt.group_token
+    end
+
+    commission_debt = current_business.debts.new(commission_debt_attrs)
+    commission_debt.save!
+
+    account.account_movements.create!(
+      movement_kind: loan_movement_kind_for(commission_debt),
+      amount: commission_amount_in_account_currency,
+      description: "Comision de prestamo deuda: Comision del Pago - #{commission_debt.counterparty_label}: #{commission_debt.counterparty_display_name} [DEBT:#{commission_debt.id}] [LOAN_DEBT] [LOAN_COMMISSION]",
+      occurred_at: loan_occurred_at_for(commission_debt),
+      payment_method: account.account_type == 'bank_account' ? 'transfer' : nil,
+      allow_negative_balance: true
+    )
   end
 
   def linked_account_movements_for_debts(debts)
