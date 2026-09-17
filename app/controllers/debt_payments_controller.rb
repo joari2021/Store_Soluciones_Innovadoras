@@ -152,6 +152,14 @@ class DebtPaymentsController < ApplicationController
     DebtPayment.transaction do
       apply_intercompany_mirror_account_to_debts!(payments_to_persist, selected_mirror_account)
       payments_to_persist.each(&:save!)
+      ensure_persisted_overpayment_visibility!(
+        payments: payments_to_persist,
+        requested_amount: amount,
+        account: account,
+        payment_currency: payment_currency,
+        occurred_on: occurred_on,
+      ) if @debt.payable?
+
       if commission_context[:include_commission]
         create_commission_records_for_primary_payment!(payment: payments_to_persist.first,
                                                        commission_context: commission_context)
@@ -789,6 +797,35 @@ class DebtPaymentsController < ApplicationController
     overpayment.commission_amount = 0.to_d if overpayment.respond_to?(:commission_amount=)
 
     payments + [overpayment]
+  end
+
+  def ensure_persisted_overpayment_visibility!(payments:, requested_amount:, account:, payment_currency:, occurred_on:)
+    return if payments.blank?
+
+    requested = requested_amount.to_d.round(2)
+    persisted_total = payments.sum { |payment| payment.amount.to_d }.round(2)
+    missing = (requested - persisted_total).round(2)
+    return unless missing > 0.01.to_d
+
+    base_payment = payments.first
+    return if base_payment.blank?
+
+    overpayment = base_payment.debt.debt_payments.new(
+      account: account,
+      amount: missing,
+      currency: payment_currency,
+      payment_method: debt_payment_params[:payment_method].presence,
+      reference: debt_payment_params[:reference].presence,
+      occurred_at: occurred_on,
+      notes: debt_payment_params[:notes],
+    )
+
+    overpayment.skip_account_movement = true
+    overpayment.include_commission = false if overpayment.respond_to?(:include_commission=)
+    overpayment.commission_amount = 0.to_d if overpayment.respond_to?(:commission_amount=)
+    overpayment.save!
+
+    payments << overpayment
   end
 
   def residual_rounding_amount?(amount:, from_currency:, to_currency:, occurred_on:)
