@@ -34,9 +34,16 @@
             <i data-lucide="package-search" class="h-4 w-4"></i>
             Productos vendidos
           <% end %>
-          <%= link_to borradores_ventas_path, class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95" do %>
-            <i data-lucide="files" class="h-4 w-4"></i>
-            Borradores
+          <% if current_user_admin? %>
+            <%= link_to venta_eliminadas_ventas_path, class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95" do %>
+              <i data-lucide="files" class="h-4 w-4"></i>
+              Borradores
+            <% end %>
+          <% else %>
+            <%= link_to borradores_ventas_path, class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-cyan-200 bg-cyan-50 px-6 py-3 font-medium text-cyan-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-cyan-100 active:scale-95" do %>
+              <i data-lucide="files" class="h-4 w-4"></i>
+              Borradores
+            <% end %>
           <% end %>
         <% end %>
         <%= link_to ventas_path, class: "inline-flex cursor-pointer items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-medium text-white shadow-lg shadow-slate-200 transition-all hover:-translate-y-0.5 hover:bg-slate-800 active:scale-95" do %>

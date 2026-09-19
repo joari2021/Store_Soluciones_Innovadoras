@@ -134,6 +134,7 @@ Rails.application.routes.draw do
 
     collection do
       get :historial
+      get :venta_eliminadas, path: 'borradas'
       get :historial_productos, path: "historial/productos-vendidos"
       get :borradores
       get :drafts
