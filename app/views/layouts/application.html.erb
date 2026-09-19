@@ -47,6 +47,11 @@
           <%= link_to ventas_path, onclick: "switchTab('ventas')", class: 'mobile-nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors' do %>
             <i data-lucide="shopping-cart" class="w-6 h-6"></i>
           <% end %>
+          <% if current_user_admin? %>
+            <%= link_to venta_eliminadas_ventas_path, onclick: "switchTab('metricas')", class: 'mobile-nav-btn flex flex-col items-center gap-1 text-slate-400 transition-colors' do %>
+              <i data-lucide="bar-chart-2" class="w-6 h-6"></i>
+            <% end %>
+          <% end %>
           <div class="w-12 h-12 -mt-8 bg-sky-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-sky-200 border-4 border-white cursor-pointer hover:scale-105 transition-transform" onclick="openModal('sidebarModal')">
             <i data-lucide="menu" class="w-6 h-6"></i>
           </div>
