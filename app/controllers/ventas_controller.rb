@@ -518,6 +518,26 @@ class VentasController < ApplicationController
 
   def destroy
     Venta.transaction do
+      unless current_user_admin?
+        # Registrar la venta eliminada para auditoría antes de eliminarla
+        VentaEliminada.create!(
+          venta_id: @venta.id,
+          business_id: @venta.business_id,
+          seller_user_id: @venta.user_id,
+          cashier_user_id: @venta.cashier_user_id,
+          cliente_id: @venta.cliente_id,
+          payload: {
+            venta: @venta.as_json(include: { venta_items: {}, venta_payments: {} }),
+            items: @venta.venta_items.map(&:attributes),
+            payments: @venta.venta_payments.map(&:attributes),
+          },
+          total_usd: @venta.total_usd,
+          total_bs: @venta.total_bs,
+          deleted_by_user_id: Current.user&.id,
+          deleted_at: Time.current,
+        )
+      end
+
       restore_stock_for_sale!(@venta)
       delete_account_movements_for_sale!(@venta)
       delete_service_cost_debts_for_sale!(@venta)
