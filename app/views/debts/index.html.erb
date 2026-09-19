@@ -45,23 +45,31 @@
     <% end %>
   </div>
   <div class="grid gap-4 xl:grid-cols-2">
-    <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm" data-debt-reveal="true">
-      <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Resumen por cobrar</p>
-      <div class="mt-3 grid gap-3 sm:grid-cols-2">
-        <div class="rounded-xl border border-emerald-200 bg-white p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Total por cobrar $ (BCV)</p>
-          <p class="mt-2 text-lg font-bold text-emerald-700"><%= number_to_currency(@receivable_total_usd_bcv, unit: "$ ") %></p>
-          <p class="mt-1 text-xs text-emerald-700/80"><%= @receivable_count %> registros activos.</p>
-        </div>
-        <div class="rounded-xl border border-emerald-200 bg-white p-3">
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Vencimiento mas proximo/pasado</p>
-          <p class="mt-2 text-lg font-bold text-slate-800"><%= @receivable_next_due_on ? @receivable_next_due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
-          <p class="mt-1 text-xs <%= @receivable_overdue_count.positive? ? 'text-rose-600' : 'text-slate-500' %>">
-            <%= @receivable_overdue_count.positive? ? "#{@receivable_overdue_count} vencidas" : "Sin vencidas" %>
-          </p>
+    <% if current_user_admin? %>
+      <div class="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm" data-debt-reveal="true">
+        <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700">Resumen por cobrar</p>
+        <div class="mt-3 grid gap-3 sm:grid-cols-2">
+          <div class="rounded-xl border border-emerald-200 bg-white p-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Total por cobrar $ (BCV)</p>
+            <p class="mt-2 text-lg font-bold text-emerald-700">
+              <span data-debt-mask data-real-value="<%= h(number_to_currency(@receivable_total_usd_bcv, unit: "$ ")) %>">*******</span>
+              <button type="button" data-debt-mask-toggle class="ml-2 inline-flex items-center justify-center rounded-full p-1 text-emerald-700 hover:bg-emerald-100" aria-label="Alternar mostrar monto por cobrar">
+                <i data-lucide="eye" class="h-4 w-4"></i>
+                <i data-lucide="eye-off" class="h-4 w-4 hidden"></i>
+              </button>
+            </p>
+            <p class="mt-1 text-xs text-emerald-700/80"><%= @receivable_count %> registros activos.</p>
+          </div>
+          <div class="rounded-xl border border-emerald-200 bg-white p-3">
+            <p class="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Vencimiento mas proximo/pasado</p>
+            <p class="mt-2 text-lg font-bold text-slate-800"><%= @receivable_next_due_on ? @receivable_next_due_on.strftime("%d/%m/%Y") : "Sin fecha" %></p>
+            <p class="mt-1 text-xs <%= @receivable_overdue_count.positive? ? 'text-rose-600' : 'text-slate-500' %>">
+              <%= @receivable_overdue_count.positive? ? "#{@receivable_overdue_count} vencidas" : "Sin vencidas" %>
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    <% end %>
     <% if current_user_admin? %>
       <div class="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm" data-debt-reveal="true">
         <p class="text-right text-xs font-semibold uppercase tracking-wider text-amber-700">Resumen por pagar</p>
@@ -75,13 +83,41 @@
           </div>
           <div class="rounded-xl border border-amber-200 bg-white p-3 sm:min-w-[220px] sm:text-right">
             <p class="text-[11px] font-semibold uppercase tracking-wider text-amber-700">Total deuda por pagar $ (BCV)</p>
-            <p class="mt-2 text-lg font-bold text-amber-700"><%= number_to_currency(@payable_total_usd_bcv, unit: "$ ") %></p>
+            <p class="mt-2 text-lg font-bold text-amber-700">
+              <span data-debt-mask data-real-value="<%= h(number_to_currency(@payable_total_usd_bcv, unit: "$ ")) %>">*******</span>
+              <button type="button" data-debt-mask-toggle class="ml-2 inline-flex items-center justify-center rounded-full p-1 text-amber-700 hover:bg-amber-100" aria-label="Alternar mostrar monto por pagar">
+                <i data-lucide="eye" class="h-4 w-4"></i>
+                <i data-lucide="eye-off" class="h-4 w-4 hidden"></i>
+              </button>
+            </p>
             <p class="mt-1 text-xs text-amber-700/80"><%= @payable_count %> registros activos.</p>
           </div>
         </div>
       </div>
     <% end %>
   </div>
+  <script>
+    document.addEventListener('turbo:load', function(){
+      document.querySelectorAll('[data-debt-mask-toggle]').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var container = btn.closest('p') || btn.parentElement;
+          var mask = container.querySelector('[data-debt-mask]');
+          if(!mask) return;
+          var eye = btn.querySelector('[data-lucide="eye"]');
+          var eyeOff = btn.querySelector('[data-lucide="eye-off"]');
+          if(mask.textContent.trim().startsWith('*')){
+            mask.textContent = mask.dataset.realValue;
+            if(eye) eye.classList.add('hidden');
+            if(eyeOff) eyeOff.classList.remove('hidden');
+          } else {
+            mask.textContent = '*******';
+            if(eye) eye.classList.remove('hidden');
+            if(eyeOff) eyeOff.classList.add('hidden');
+          }
+        });
+      });
+    });
+  </script>
   <% if @has_any_debts %>
     <div class="grid gap-6 xl:grid-cols-2">
       <section class="rounded-3xl border border-emerald-200 bg-gradient-to-b from-emerald-50/70 to-white p-4 shadow-sm md:p-5" data-debt-reveal="true">

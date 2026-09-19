@@ -70,12 +70,24 @@
       <div class="grid gap-3 md:grid-cols-2">
         <article class="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm">
           <p class="text-xs font-semibold uppercase tracking-widest text-emerald-700">Inventario total global</p>
-          <p class="mt-2 text-2xl font-extrabold tracking-tight text-emerald-900"><%= format_money(@inventory_global_totals[:inventory_value_usd], unit: '$') %></p>
+          <p class="mt-2 text-2xl font-extrabold tracking-tight text-emerald-900">
+            <span data-debt-mask data-real-value="<%= h(format_money(@inventory_global_totals[:inventory_value_usd], unit: '$')) %>">*******</span>
+            <button type="button" data-debt-mask-toggle class="ml-2 inline-flex items-center justify-center rounded-full p-1 text-emerald-900 hover:bg-emerald-100" aria-label="Alternar mostrar inventario total">
+              <i data-lucide="eye" class="h-4 w-4"></i>
+              <i data-lucide="eye-off" class="h-4 w-4 hidden"></i>
+            </button>
+          </p>
           <p class="mt-1 text-xs text-emerald-800/80">Suma absoluta de valor inventario de todos los productos en base de datos.</p>
         </article>
         <article class="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm">
           <p class="text-xs font-semibold uppercase tracking-widest text-sky-700">Valor de venta total global</p>
-          <p class="mt-2 text-2xl font-extrabold tracking-tight text-sky-900"><%= format_money(@inventory_global_totals[:sale_value_usd], unit: '$') %></p>
+          <p class="mt-2 text-2xl font-extrabold tracking-tight text-sky-900">
+            <span data-debt-mask data-real-value="<%= h(format_money(@inventory_global_totals[:sale_value_usd], unit: '$')) %>">*******</span>
+            <button type="button" data-debt-mask-toggle class="ml-2 inline-flex items-center justify-center rounded-full p-1 text-sky-900 hover:bg-sky-100" aria-label="Alternar mostrar valor de venta total">
+              <i data-lucide="eye" class="h-4 w-4"></i>
+              <i data-lucide="eye-off" class="h-4 w-4 hidden"></i>
+            </button>
+          </p>
           <p class="mt-1 text-xs text-sky-800/80">Suma absoluta del valor de venta estimado de todo el inventario disponible.</p>
         </article>
       </div>
