@@ -516,6 +516,17 @@ class VentasController < ApplicationController
     render partial: 'ventas/venta_resumen_modal', locals: { venta: venta }
   end
 
+  # Ruta de colección: /ventas/borradas
+  def venta_eliminadas
+    unless current_user_admin?
+      return redirect_to historial_ventas_path, alert: 'Acceso denegado.'
+    end
+
+    @venta_eliminadas = VentaEliminada.where(business_id: current_business.id).order(deleted_at: :desc).limit(200)
+
+    render template: 'venta_eliminadas/index'
+  end
+
   def destroy
     Venta.transaction do
       unless current_user_admin?
