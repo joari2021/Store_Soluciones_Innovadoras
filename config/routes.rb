@@ -114,6 +114,7 @@ Rails.application.routes.draw do
   resources :debts, path: "deudas", except: %i[edit update] do
     collection do
       get :prepare_group, path: "preparar-grupo"
+      get :paid_debts, path: "pagadas"
       post :create_cliente, path: "crear-cliente"
       delete :hide_paid_group, path: "ocultar-pagada"
       get :transfer_destination_clients, path: "clientes-destino-transferencia"

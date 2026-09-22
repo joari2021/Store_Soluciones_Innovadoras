@@ -17,58 +17,32 @@ class DebtsController < ApplicationController
     @search_query = params[:q].to_s.strip
     @customer_debt_view = current_user_customer_mode?
 
-    scope = current_business
-            .debts
-            .excluding_service_cost_records
-          .includes(:cliente, :debt_payments, :venta)
-
-    if @customer_debt_view
-      scope = scope.where(debt_kind: 'receivable')
-    end
-
-    if @search_query.present?
-      query = "%#{ActiveRecord::Base.sanitize_sql_like(@search_query)}%"
-      scope = scope.left_outer_joins(:cliente).where('clientes.name ILIKE :q OR debts.acreedor ILIKE :q', q: query)
-    end
-
-    all_debts = sort_debts(scope.to_a)
-    all_receivable_debts = all_debts.select(&:receivable?)
-    all_payable_debts = all_debts.select(&:payable?)
-    pending_individual_debts = all_debts.select { |debt| debt.balance.to_d > 0.01.to_d }
+    scope = debts_index_scope
+    pending_debts = sort_debts(debt_balance_scope(scope, paid: false).to_a)
+    all_receivable_debts = pending_debts.select(&:receivable?)
+    all_payable_debts = pending_debts.select(&:payable?)
+    pending_individual_debts = pending_debts
     pending_receivable_individual_debts = pending_individual_debts.select(&:receivable?)
     pending_payable_individual_debts = pending_individual_debts.select(&:payable?)
 
-    all_collapsed_debts = collapse_grouped_debts(all_debts)
+    all_collapsed_debts = collapse_grouped_debts(pending_debts)
     @collapsed_group_keys = all_collapsed_debts.each_with_object({}) do |debt, hash|
       hash[debt.id] = collapsed_group_key(debt)
     end
     hidden_paid_group_keys = current_business.hidden_debt_groups.pluck(:group_key)
-    @has_any_debts = all_collapsed_debts.any?
 
     @debts = all_collapsed_debts.select { |debt| debt_pending_for_index?(debt) }
     @receivable_debts = @debts.select(&:receivable?)
     @payable_debts = @debts.select(&:payable?)
-    @receivable_paid_debts = all_collapsed_debts.select(&:receivable?).reject { |debt| debt_pending_for_index?(debt) }
-    @payable_paid_debts = all_collapsed_debts.select(&:payable?).reject { |debt| debt_pending_for_index?(debt) }
-    @receivable_paid_debts = @receivable_paid_debts.reject do |debt|
-      hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
-    end
-    @payable_paid_debts = @payable_paid_debts.reject do |debt|
-      hidden_paid_group_keys.include?(@collapsed_group_keys[debt.id])
-    end
     @receivable_groups = build_cliente_groups(@receivable_debts, sort: :active_overdue_then_alpha)
     @payable_groups = build_payable_groups(@payable_debts, sort: :active_overdue_then_alpha)
-    @receivable_paid_groups = build_cliente_groups(@receivable_paid_debts, sort: :paid_recent_desc)
-    @payable_paid_groups = build_payable_groups(@payable_paid_debts, sort: :default)
     @receivable_group_totals = build_group_totals(@receivable_groups)
     @payable_group_totals = build_group_totals(@payable_groups)
-    @receivable_paid_group_totals = build_group_totals(@receivable_paid_groups)
-    @payable_paid_group_totals = build_group_totals(@payable_paid_groups)
 
     @receivable_count = count_debt_groups(@receivable_groups)
     @payable_count = count_debt_groups(@payable_groups)
-    @receivable_paid_count = @receivable_paid_debts.size
-    @payable_paid_count = @payable_paid_debts.size
+    @receivable_paid_count = paid_debt_count(scope, debt_kind: 'receivable')
+    @payable_paid_count = paid_debt_count(scope, debt_kind: 'payable')
     receivable_overdue_debts = all_receivable_debts.select(&:overdue?)
     payable_overdue_debts = all_payable_debts.select(&:overdue?)
     @receivable_overdue_count = receivable_overdue_debts.size
@@ -83,9 +57,44 @@ class DebtsController < ApplicationController
     @next_due_on = closest_due_on(pending_individual_debts)
     @search_pending_count = @debts.count
     @search_paid_count = @receivable_paid_count + @payable_paid_count
+    @has_any_debts = all_collapsed_debts.any? || @receivable_paid_count.positive? || @payable_paid_count.positive?
     @group_setup_clientes = @customer_debt_view ? [] : current_business.clientes.order(:name)
     @group_setup_currency_options = allowed_group_currency_codes
     @cashea_banner_url = cashea_banner_url_for_admin
+  end
+
+  def paid_debts
+    section = params[:section].to_s
+    debt_kind = section == 'payable' ? 'payable' : 'receivable'
+
+    scope = debts_index_scope.where(debt_kind: debt_kind)
+    paid_debts = sort_debts(debt_balance_scope(scope, paid: true).to_a)
+    collapsed_paid_debts = collapse_grouped_debts(paid_debts)
+    collapsed_group_keys = collapsed_paid_debts.each_with_object({}) do |debt, hash|
+      hash[debt.id] = collapsed_group_key(debt)
+    end
+    hidden_paid_group_keys = current_business.hidden_debt_groups.pluck(:group_key)
+    visible_paid_debts = collapsed_paid_debts.reject do |debt|
+      hidden_paid_group_keys.include?(collapsed_group_keys[debt.id])
+    end
+
+    groups = if debt_kind == 'receivable'
+               build_cliente_groups(visible_paid_debts, sort: :paid_recent_desc)
+             else
+               build_payable_groups(visible_paid_debts, sort: :default)
+             end
+
+    render json: {
+      html: render_to_string(
+        partial: 'debts/paid_groups',
+        formats: [:html],
+        locals: {
+          groups: groups,
+          section: section,
+          collapsed_group_keys: collapsed_group_keys,
+        },
+      ),
+    }
   end
 
   def hide_paid_group
@@ -2826,6 +2835,32 @@ class DebtsController < ApplicationController
     groups.sum do |_cliente, debts|
       debts.group_by { |debt| debt.card_currency.to_s.upcase }.size
     end
+  end
+
+  def debts_index_scope
+    scope = current_business
+            .debts
+            .excluding_service_cost_records
+            .includes(:cliente, :debt_payments, :venta)
+
+    scope = scope.where(debt_kind: 'receivable') if @customer_debt_view
+
+    if @search_query.present?
+      query = "%#{ActiveRecord::Base.sanitize_sql_like(@search_query)}%"
+      scope = scope.left_outer_joins(:cliente).where('clientes.name ILIKE :q OR debts.acreedor ILIKE :q', q: query)
+    end
+
+    scope
+  end
+
+  def debt_balance_scope(scope, paid:)
+    balance_sql = 'debts.amount - COALESCE(SUM(debt_payments.amount_in_debt_currency), 0)'
+    scoped = scope.left_outer_joins(:debt_payments).select('debts.*').group('debts.id')
+    paid ? scoped.having("#{balance_sql} <= 0.01") : scoped.having("#{balance_sql} > 0.01")
+  end
+
+  def paid_debt_count(scope, debt_kind:)
+    debt_balance_scope(scope.where(debt_kind: debt_kind), paid: true).pluck(:id).size
   end
 
   def card_currency_for_index_group(grouped_debts)
