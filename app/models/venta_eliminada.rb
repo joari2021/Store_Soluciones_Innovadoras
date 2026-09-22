@@ -59,6 +59,15 @@ class VentaEliminada < ApplicationRecord
     Venta::BASE_CURRENCIES[currency_value] || currency_value.presence || 'No indicada'
   end
 
+  def sale_created_at_label
+    raw_value = sale_data['created_at']
+    return 'No disponible' if raw_value.blank?
+
+    Time.zone.parse(raw_value.to_s).in_time_zone('America/Caracas').strftime('%d/%m/%Y %H:%M')
+  rescue ArgumentError, TypeError
+    raw_value.to_s
+  end
+
   def item_display_name(item)
     row = item.respond_to?(:to_h) ? item.to_h : {}
     base_name = row['product_name'].to_s.strip

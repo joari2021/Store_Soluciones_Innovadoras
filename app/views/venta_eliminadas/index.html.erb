@@ -34,7 +34,6 @@
                 <p class="text-sm font-semibold text-slate-800"><%= format_money(record.total_bs, unit: 'Bs ') %></p>
               </div>
             </div>
-
             <div class="mt-4 grid gap-4 md:grid-cols-2">
               <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
                 <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Datos de la venta</h2>
@@ -57,11 +56,10 @@
                   </div>
                   <div class="flex items-center justify-between gap-4">
                     <dt class="text-slate-500">Fecha de factura</dt>
-                    <dd class="font-semibold text-slate-800"><%= sale_data['created_at'].present? ? Time.zone.parse(sale_data['created_at'].to_s).in_time_zone('America/Caracas').strftime('%d/%m/%Y %H:%M') rescue sale_data['created_at'].to_s : 'No disponible' %></dd>
+                    <dd class="font-semibold text-slate-800"><%= record.sale_created_at_label %></dd>
                   </div>
                 </dl>
               </div>
-
               <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
                 <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Pagos registrados</h2>
                 <% if sale_payments.empty? %>
@@ -84,7 +82,6 @@
                 <% end %>
               </div>
             </div>
-
             <div class="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
               <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Productos y servicios</h2>
               <% if sale_items.empty? %>
