@@ -138,7 +138,6 @@
                           <% suffix = index.zero? ? "desde #{due_on.strftime('%d/%m/%Y')}" : due_on.strftime('%d/%m/%Y') %>
                           <span class="inline-block rounded px-2 py-0.5 text-xs font-semibold bg-rose-100 text-rose-700"><%= "#{label} #{suffix}" %></span>
                         <% end %>
-                      </section>
                       <% if @receivable_paid_count.positive? %>
                         <button
                           type="button"
