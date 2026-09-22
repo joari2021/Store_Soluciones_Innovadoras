@@ -114,7 +114,6 @@
             <p class="mt-1 text-[11px] font-semibold text-emerald-700">Vencidas $ (BCV): <%= number_to_currency(@receivable_overdue_total_usd_bcv, unit: "$ ") %></p>
           </div>
         </div>
-
         <% if @receivable_debts.any? %>
           <div class="grid gap-4">
             <% @receivable_groups.each do |cliente, debts| %>
@@ -127,7 +126,6 @@
                 <% group_key = [cliente.present? ? cliente.id : 'none', currency.to_s.upcase] %>
                 <% totals = @receivable_group_totals[group_key] || { display_total: 0.to_d, display_symbol: '$', badge_label: 'USD $', ves_total: 0.to_d } %>
                 <% grouped_debts_count = debts_in_currency.sum { |debt| debt.respond_to?(:card_debts_count) ? debt.card_debts_count.to_i : 1 } %>
-
                 <article class="rounded-2xl border <%= is_cashea_cliente ? 'border-cyan-300 bg-white/90' : 'border-cyan-200 bg-cyan-50/50' %> p-4 shadow-sm" data-debt-reveal="true" style="<%= cashea_bg_style %>">
                   <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
@@ -170,7 +168,6 @@
             <p class="mt-1 text-xs text-slate-500">Las cuentas por cobrar apareceran aqui.</p>
           </div>
         <% end %>
-
         <% if @receivable_paid_count.positive? %>
           <button
             type="button"
@@ -188,7 +185,6 @@
           </div>
         <% end %>
       </section>
-
       <% if current_user_admin? %>
         <section class="rounded-3xl border border-amber-200 bg-gradient-to-b from-amber-50/70 to-white p-4 shadow-sm md:p-5" data-debt-reveal="true">
           <div class="mb-4 flex items-center justify-between gap-3">
@@ -206,7 +202,6 @@
               <p class="mt-1 text-[11px] font-semibold text-amber-700">Vencidas $ (BCV): <%= number_to_currency(@payable_overdue_total_usd_bcv, unit: "$ ") %></p>
             </div>
           </div>
-
           <% if @payable_debts.any? %>
             <div class="grid gap-4">
               <% @payable_groups.each do |counterparty_name, debts| %>
@@ -252,7 +247,6 @@
               <p class="mt-1 text-xs text-slate-500">Los pagos pendientes apareceran aqui.</p>
             </div>
           <% end %>
-
           <% if @payable_paid_count.positive? %>
             <button
               type="button"
@@ -285,231 +279,231 @@
       </p>
     </div>
   <% end %>
-                  <% unless customer_debt_view %>
-                    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-prepare-group-modal="true">
-                      <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
-                        <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-prepare-group-close="true">&times;</button>
-                        <div class="mb-4">
-                          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
-                          <h3 class="text-lg font-bold text-slate-800">Selecciona tipo y datos base</h3>
-                          <p class="mt-1 text-xs text-slate-500">Para deudas por cobrar te enviaremos al grupo activo del cliente. Para deudas por pagar abriremos el formulario con campo acreedor.</p>
-                        </div>
-                        <%= form_with url: prepare_group_debts_path, method: :get, local: true, class: "space-y-4", data: { prepare_group_form: true } do %>
-                          <div>
-                            <label class="block text-xs font-semibold text-slate-500">Tipo</label>
-                            <select name="debt_kind" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-prepare-group-kind="true" required>
-                              <option value="receivable">Por cobrar</option>
-                              <option value="payable">Por pagar</option>
-                            </select>
-                          </div>
-                          <div data-prepare-group-client-field="true">
-                            <label class="block text-xs font-semibold text-slate-500">Cliente</label>
-                            <select name="cliente_id" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
-                              <option value="">Selecciona un cliente</option>
-                              <% @group_setup_clientes.each do |cliente| %>
-                                <option value="<%= cliente.id %>"><%= cliente.name %></option>
-                              <% end %>
-                            </select>
-                          </div>
-                          <div data-prepare-group-currency-field="true">
-                            <label class="block text-xs font-semibold text-slate-500">Moneda</label>
-                            <select name="currency" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
-                              <% @group_setup_currency_options.each do |currency| %>
-                                <option value="<%= currency %>" <%= 'selected' if currency.to_s.upcase == 'USD' %>><%= currency %></option>
-                                <% end %>
-                              </select>
-                            </div>
-                            <div class="flex items-center gap-2 pt-1">
-                              <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
-                                Continuar
-                              </button>
-                              <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-prepare-group-close="true">
-                                Cancelar
-                              </button>
-                            </div>
-                          <% end %>
-                        </div>
-                      </div>
-                    <% end %>
-                    <script>
-                      (function () {
-                        const initDebtIndexTransition = () => {
-                          const nodes = Array.from(document.querySelectorAll("[data-debt-reveal='true']"));
-                          if (nodes.length === 0) return;
+  <% unless customer_debt_view %>
+    <div class="fixed inset-0 z-50 hidden items-center justify-center bg-black/40 p-4" data-prepare-group-modal="true">
+      <div class="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-lg">
+        <button type="button" class="absolute right-2 top-2 text-slate-400 hover:text-slate-700" data-prepare-group-close="true">&times;</button>
+        <div class="mb-4">
+          <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Nueva deuda</p>
+          <h3 class="text-lg font-bold text-slate-800">Selecciona tipo y datos base</h3>
+          <p class="mt-1 text-xs text-slate-500">Para deudas por cobrar te enviaremos al grupo activo del cliente. Para deudas por pagar abriremos el formulario con campo acreedor.</p>
+        </div>
+        <%= form_with url: prepare_group_debts_path, method: :get, local: true, class: "space-y-4", data: { prepare_group_form: true } do %>
+          <div>
+            <label class="block text-xs font-semibold text-slate-500">Tipo</label>
+            <select name="debt_kind" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" data-prepare-group-kind="true" required>
+              <option value="receivable">Por cobrar</option>
+              <option value="payable">Por pagar</option>
+            </select>
+          </div>
+          <div data-prepare-group-client-field="true">
+            <label class="block text-xs font-semibold text-slate-500">Cliente</label>
+            <select name="cliente_id" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+              <option value="">Selecciona un cliente</option>
+              <% @group_setup_clientes.each do |cliente| %>
+                <option value="<%= cliente.id %>"><%= cliente.name %></option>
+              <% end %>
+            </select>
+          </div>
+          <div data-prepare-group-currency-field="true">
+            <label class="block text-xs font-semibold text-slate-500">Moneda</label>
+            <select name="currency" class="mt-1 block w-full rounded border border-slate-300 px-3 py-2 text-sm" required>
+              <% @group_setup_currency_options.each do |currency| %>
+                <option value="<%= currency %>" <%= 'selected' if currency.to_s.upcase == 'USD' %>><%= currency %></option>
+                <% end %>
+              </select>
+            </div>
+            <div class="flex items-center gap-2 pt-1">
+              <button type="submit" class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+                Continuar
+              </button>
+              <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" data-prepare-group-close="true">
+                Cancelar
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+    <script>
+      (function () {
+        const initDebtIndexTransition = () => {
+          const nodes = Array.from(document.querySelectorAll("[data-debt-reveal='true']"));
+          if (nodes.length === 0) return;
 
-                          nodes.forEach((node, index) => {
-                            node.classList.add("transition-all", "duration-500");
-                            node.classList.add("opacity-0", "translate-y-3");
-                            node.style.transitionTimingFunction = "cubic-bezier(0.22, 1, 0.36, 1)";
-                            node.style.transitionDelay = `${Math.min(index * 40, 360)}ms`;
-                          });
+          nodes.forEach((node, index) => {
+            node.classList.add("transition-all", "duration-500");
+            node.classList.add("opacity-0", "translate-y-3");
+            node.style.transitionTimingFunction = "cubic-bezier(0.22, 1, 0.36, 1)";
+            node.style.transitionDelay = `${Math.min(index * 40, 360)}ms`;
+          });
 
-                          requestAnimationFrame(() => {
-                            requestAnimationFrame(() => {
-                              nodes.forEach((node) => {
-                                node.classList.remove("opacity-0", "translate-y-3");
-                                node.classList.add("opacity-100", "translate-y-0");
-                              });
-                            });
-                          });
-                        };
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              nodes.forEach((node) => {
+                node.classList.remove("opacity-0", "translate-y-3");
+                node.classList.add("opacity-100", "translate-y-0");
+              });
+            });
+          });
+        };
 
-                        const initPaidDebtToggles = () => {
-                          const buttons = Array.from(document.querySelectorAll("[data-debt-paid-toggle]"));
-                          if (buttons.length === 0) return;
+        const initPaidDebtToggles = () => {
+          const buttons = Array.from(document.querySelectorAll("[data-debt-paid-toggle]"));
+          if (buttons.length === 0) return;
 
-                          buttons.forEach((button) => {
-                            if (button.dataset.boundToggle === "true") return;
-                            button.dataset.boundToggle = "true";
+          buttons.forEach((button) => {
+            if (button.dataset.boundToggle === "true") return;
+            button.dataset.boundToggle = "true";
 
-                            button.addEventListener("click", async () => {
-                              const section = button.dataset.debtPaidToggle;
-                              const list = document.querySelector(`[data-debt-paid-list='${section}']`);
-                              const label = button.querySelector("[data-debt-paid-label]");
-                              if (!list || !label) return;
+            button.addEventListener("click", async () => {
+              const section = button.dataset.debtPaidToggle;
+              const list = document.querySelector(`[data-debt-paid-list='${section}']`);
+              const label = button.querySelector("[data-debt-paid-label]");
+              if (!list || !label) return;
 
-                              const countLabel = button.dataset.debtPaidCount ? ` (${button.dataset.debtPaidCount})` : "";
-                              const setButtonLabel = (expanded) => {
-                                label.textContent = expanded
-                                  ? `Ocultar deudas pagadas${countLabel}`
-                                  : `Mostrar deudas pagadas${countLabel}`;
-                              };
+              const countLabel = button.dataset.debtPaidCount ? ` (${button.dataset.debtPaidCount})` : "";
+              const setButtonLabel = (expanded) => {
+                label.textContent = expanded
+                  ? `Ocultar deudas pagadas${countLabel}`
+                  : `Mostrar deudas pagadas${countLabel}`;
+              };
 
-                              if (list.dataset.debtPaidLoaded === "true") {
-                                const isHidden = list.classList.contains("hidden");
-                                list.classList.toggle("hidden", !isHidden);
-                                setButtonLabel(isHidden);
-                                return;
-                              }
+              if (list.dataset.debtPaidLoaded === "true") {
+                const isHidden = list.classList.contains("hidden");
+                list.classList.toggle("hidden", !isHidden);
+                setButtonLabel(isHidden);
+                return;
+              }
 
-                              list.classList.remove("hidden");
-                              list.dataset.debtPaidLoaded = "loading";
-                              list.innerHTML = `
-                                <div class="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                                  Cargando deudas pagadas...
-                                </div>
-                              `;
+              list.classList.remove("hidden");
+              list.dataset.debtPaidLoaded = "loading";
+              list.innerHTML = `
+                <div class="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+                  Cargando deudas pagadas...
+                </div>
+              `;
 
-                              button.disabled = true;
-                              button.classList.add("opacity-70", "cursor-progress");
+              button.disabled = true;
+              button.classList.add("opacity-70", "cursor-progress");
 
-                              try {
-                                const response = await fetch(button.dataset.debtPaidUrl, {
-                                  headers: {
-                                    Accept: "application/json",
-                                    "X-Requested-With": "XMLHttpRequest",
-                                  },
-                                  credentials: "same-origin",
-                                });
+              try {
+                const response = await fetch(button.dataset.debtPaidUrl, {
+                  headers: {
+                    Accept: "application/json",
+                    "X-Requested-With": "XMLHttpRequest",
+                  },
+                  credentials: "same-origin",
+                });
 
-                                const data = await response.json().catch(() => ({}));
-                                if (!response.ok) {
-                                  throw new Error(data.error || "No se pudieron cargar las deudas pagadas.");
-                                }
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok) {
+                  throw new Error(data.error || "No se pudieron cargar las deudas pagadas.");
+                }
 
-                                list.innerHTML = data.html || `
-                                  <div class="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
-                                    No hay deudas pagadas para mostrar.
-                                  </div>
-                                `;
-                                list.dataset.debtPaidLoaded = "true";
-                                setButtonLabel(true);
-                              } catch (error) {
-                                list.dataset.debtPaidLoaded = "false";
-                                list.innerHTML = `
-                                  <div class="rounded-2xl border border-dashed border-rose-200 bg-white px-4 py-6 text-center text-sm text-rose-600">
-                                    ${String(error?.message || "No se pudieron cargar las deudas pagadas.")}
-                                  </div>
-                                `;
-                              } finally {
-                                button.disabled = false;
-                                button.classList.remove("opacity-70", "cursor-progress");
-                              }
-                            });
-                          });
-                        };
+                list.innerHTML = data.html || `
+                  <div class="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+                    No hay deudas pagadas para mostrar.
+                  </div>
+                `;
+                list.dataset.debtPaidLoaded = "true";
+                setButtonLabel(true);
+              } catch (error) {
+                list.dataset.debtPaidLoaded = "false";
+                list.innerHTML = `
+                  <div class="rounded-2xl border border-dashed border-rose-200 bg-white px-4 py-6 text-center text-sm text-rose-600">
+                    ${String(error?.message || "No se pudieron cargar las deudas pagadas.")}
+                  </div>
+                `;
+              } finally {
+                button.disabled = false;
+                button.classList.remove("opacity-70", "cursor-progress");
+              }
+            });
+          });
+        };
 
-                        const initPrepareGroupModal = () => {
-                          const modal = document.querySelector("[data-prepare-group-modal='true']");
-                          if (!modal || modal.dataset.boundPrepareGroupModal === "true") return;
+        const initPrepareGroupModal = () => {
+          const modal = document.querySelector("[data-prepare-group-modal='true']");
+          if (!modal || modal.dataset.boundPrepareGroupModal === "true") return;
 
-                          modal.dataset.boundPrepareGroupModal = "true";
+          modal.dataset.boundPrepareGroupModal = "true";
 
-                          const openButtons = document.querySelectorAll("[data-prepare-group-open='true']");
-                          const closeButtons = modal.querySelectorAll("[data-prepare-group-close='true']");
-                          const form = modal.querySelector("[data-prepare-group-form='true']");
-                          const debtKindSelect = modal.querySelector("[data-prepare-group-kind='true']");
-                          const clientField = modal.querySelector("[data-prepare-group-client-field='true']");
-                          const currencyField = modal.querySelector("[data-prepare-group-currency-field='true']");
-                          const clientSelect = clientField?.querySelector("select[name='cliente_id']");
-                          const currencySelect = currencyField?.querySelector("select[name='currency']");
+          const openButtons = document.querySelectorAll("[data-prepare-group-open='true']");
+          const closeButtons = modal.querySelectorAll("[data-prepare-group-close='true']");
+          const form = modal.querySelector("[data-prepare-group-form='true']");
+          const debtKindSelect = modal.querySelector("[data-prepare-group-kind='true']");
+          const clientField = modal.querySelector("[data-prepare-group-client-field='true']");
+          const currencyField = modal.querySelector("[data-prepare-group-currency-field='true']");
+          const clientSelect = clientField?.querySelector("select[name='cliente_id']");
+          const currencySelect = currencyField?.querySelector("select[name='currency']");
 
-                          const updatePrepareGroupFields = () => {
-                            const debtKind = String(debtKindSelect?.value || "receivable");
-                            const receivable = debtKind === "receivable";
+          const updatePrepareGroupFields = () => {
+            const debtKind = String(debtKindSelect?.value || "receivable");
+            const receivable = debtKind === "receivable";
 
-                            if (clientField) clientField.classList.toggle("hidden", !receivable);
-                            if (currencyField) currencyField.classList.toggle("hidden", !receivable);
+            if (clientField) clientField.classList.toggle("hidden", !receivable);
+            if (currencyField) currencyField.classList.toggle("hidden", !receivable);
 
-                            if (clientSelect) {
-                              clientSelect.disabled = !receivable;
-                              clientSelect.required = receivable;
-                              if (!receivable) clientSelect.value = "";
-                            }
+            if (clientSelect) {
+              clientSelect.disabled = !receivable;
+              clientSelect.required = receivable;
+              if (!receivable) clientSelect.value = "";
+            }
 
-                            if (currencySelect) {
-                              currencySelect.disabled = !receivable;
-                              currencySelect.required = receivable;
-                            }
-                          };
+            if (currencySelect) {
+              currencySelect.disabled = !receivable;
+              currencySelect.required = receivable;
+            }
+          };
 
-                          const openModal = () => {
-                            modal.classList.remove("hidden");
-                            modal.classList.add("flex");
-                          };
+          const openModal = () => {
+            modal.classList.remove("hidden");
+            modal.classList.add("flex");
+          };
 
-                          const closeModal = () => {
-                            modal.classList.add("hidden");
-                            modal.classList.remove("flex");
-                          };
+          const closeModal = () => {
+            modal.classList.add("hidden");
+            modal.classList.remove("flex");
+          };
 
-                          openButtons.forEach((button) => {
-                            button.addEventListener("click", openModal);
-                          });
+          openButtons.forEach((button) => {
+            button.addEventListener("click", openModal);
+          });
 
-                          closeButtons.forEach((button) => {
-                            button.addEventListener("click", closeModal);
-                          });
+          closeButtons.forEach((button) => {
+            button.addEventListener("click", closeModal);
+          });
 
-                          debtKindSelect?.addEventListener("change", updatePrepareGroupFields);
+          debtKindSelect?.addEventListener("change", updatePrepareGroupFields);
 
-                          form?.addEventListener("submit", (event) => {
-                            const debtKind = String(debtKindSelect?.value || "receivable");
-                            if (debtKind !== "payable") return;
+          form?.addEventListener("submit", (event) => {
+            const debtKind = String(debtKindSelect?.value || "receivable");
+            if (debtKind !== "payable") return;
 
-                            event.preventDefault();
-                            window.location.href = "<%= new_debt_path(debt_kind: 'payable') %>";
-                          });
+            event.preventDefault();
+            window.location.href = "<%= new_debt_path(debt_kind: 'payable') %>";
+          });
 
-                          modal.addEventListener("click", (event) => {
-                            if (event.target === modal) closeModal();
-                          });
+          modal.addEventListener("click", (event) => {
+            if (event.target === modal) closeModal();
+          });
 
-                          updatePrepareGroupFields();
-                        };
+          updatePrepareGroupFields();
+        };
 
-                        if (window.__debtIndexTransitionBound !== true) {
-                          document.addEventListener("turbo:load", initDebtIndexTransition);
-                          document.addEventListener("turbo:render", initDebtIndexTransition);
-                          document.addEventListener("turbo:load", initPaidDebtToggles);
-                          document.addEventListener("turbo:render", initPaidDebtToggles);
-                          document.addEventListener("turbo:load", initPrepareGroupModal);
-                          document.addEventListener("turbo:render", initPrepareGroupModal);
-                          window.__debtIndexTransitionBound = true;
-                        }
+        if (window.__debtIndexTransitionBound !== true) {
+          document.addEventListener("turbo:load", initDebtIndexTransition);
+          document.addEventListener("turbo:render", initDebtIndexTransition);
+          document.addEventListener("turbo:load", initPaidDebtToggles);
+          document.addEventListener("turbo:render", initPaidDebtToggles);
+          document.addEventListener("turbo:load", initPrepareGroupModal);
+          document.addEventListener("turbo:render", initPrepareGroupModal);
+          window.__debtIndexTransitionBound = true;
+        }
 
-                        initDebtIndexTransition();
-                        initPaidDebtToggles();
-                        initPrepareGroupModal();
-                      })();
-                    </script>
+        initDebtIndexTransition();
+        initPaidDebtToggles();
+        initPrepareGroupModal();
+      })();
+    </script>
