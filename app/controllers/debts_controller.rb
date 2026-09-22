@@ -2504,11 +2504,19 @@ class DebtsController < ApplicationController
       debt.description.to_s.strip.presence
     end
     missing_count = ordered.size - descriptions.size
+    preview_limit = 3
 
-    return descriptions.join(', ') if missing_count <= 0
-    return "#{format_missing_description_count(missing_count)}." if descriptions.empty?
+    if descriptions.empty?
+      return "#{format_missing_description_count(missing_count)}."
+    end
 
-    "#{descriptions.join(', ')} y #{format_missing_description_count(missing_count)}."
+    visible_descriptions = descriptions.first(preview_limit)
+    hidden_description_count = [descriptions.size - visible_descriptions.size, 0].max
+    hidden_total_count = hidden_description_count + [missing_count, 0].max
+
+    return visible_descriptions.join(', ') if hidden_total_count <= 0
+
+    "#{visible_descriptions.join(', ')} y #{format_missing_description_count(hidden_total_count)}."
   end
 
   def group_last_activity_at_for(debts)
