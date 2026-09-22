@@ -934,6 +934,7 @@
       let draftSyncInProgress = false;
       let draftSyncRequestSequence = 0;
       let draftSyncAbortController = null;
+      let draftFinalizationInProgress = false;
       let heartbeatIntervalId = null;
       let draftLoadInProgress = false;
       let draftLoadRequestSequence = 0;
@@ -957,6 +958,23 @@
         } catch (_error) {
           // El bloqueo sigue protegido por el backend aunque sessionStorage no este disponible.
         }
+      };
+
+      const cancelPendingDraftSync = () => {
+        if (draftSyncTimeout) {
+          clearTimeout(draftSyncTimeout);
+          draftSyncTimeout = null;
+        }
+
+        if (draftSyncAbortController) {
+          try {
+            draftSyncAbortController.abort();
+          } catch (_error) {}
+          draftSyncAbortController = null;
+        }
+
+        draftSyncRequestSequence++;
+        draftSyncInProgress = false;
       };
 
       const normalizeClientBenefits = (rawBenefits) => {
@@ -8426,41 +8444,53 @@
       if (payButton) {
         payButton.addEventListener('click', async () => {
           if (!isCustomerPosMode && !canChargeSale) {
-            if (cart.size === 0) {
+            if (draftFinalizationInProgress) return;
+
+            draftFinalizationInProgress = true;
+            cancelPendingDraftSync();
+            payButton.disabled = true;
+            payButton.classList.add('opacity-60', 'cursor-not-allowed');
+
+            try {
+              if (cart.size === 0) {
+                if (window.Swal) {
+                  window.Swal.fire({
+                    icon: 'info',
+                    title: 'Orden vacia',
+                    text: 'Agrega productos o servicios antes de marcar lista para cobrar.',
+                    heightAuto: false,
+                  });
+                }
+                return;
+              }
+
+              const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
+              if (!checkoutDecisionsReady) return;
+
+              const servicePartiesReady = await ensureServicePartiesForCheckout();
+              if (!servicePartiesReady) return;
+
+              const draftResponse = await persistDraft({
+                clearAfterSave: true,
+                silent: true,
+                draftCheckoutStatus: 'ready',
+              });
+
+              if (!draftResponse) return;
+
               if (window.Swal) {
                 window.Swal.fire({
-                  icon: 'info',
-                  title: 'Orden vacia',
-                  text: 'Agrega productos o servicios antes de marcar lista para cobrar.',
+                  icon: 'success',
+                  title: 'Venta lista para cobrar',
+                  html: `
+                    <p class="text-sm text-slate-600">Se marco la venta como <strong>lista para cobrar</strong>, se guardo el borrador y se cerro el panel actual.</p>
+                  `,
                   heightAuto: false,
                 });
               }
-              return;
-            }
-
-            const checkoutDecisionsReady = await ensureServiceCheckoutDecisions();
-            if (!checkoutDecisionsReady) return;
-
-            const servicePartiesReady = await ensureServicePartiesForCheckout();
-            if (!servicePartiesReady) return;
-
-            const draftResponse = await persistDraft({
-              clearAfterSave: true,
-              silent: true,
-              draftCheckoutStatus: 'ready',
-            });
-
-            if (!draftResponse) return;
-
-            if (window.Swal) {
-              window.Swal.fire({
-                icon: 'success',
-                title: 'Venta lista para cobrar',
-                html: `
-                  <p class="text-sm text-slate-600">Se marco la venta como <strong>lista para cobrar</strong>, se guardo el borrador y se cerro el panel actual.</p>
-                `,
-                heightAuto: false,
-              });
+            } finally {
+              draftFinalizationInProgress = false;
+              renderCart();
             }
             return;
           }
@@ -11024,19 +11054,7 @@
       };
 
       const resetWorkingSale = () => {
-        if (draftSyncTimeout) {
-          clearTimeout(draftSyncTimeout);
-          draftSyncTimeout = null;
-        }
-
-        if (draftSyncAbortController) {
-          try {
-            draftSyncAbortController.abort();
-          } catch (_e) {}
-          draftSyncAbortController = null;
-        }
-        draftSyncRequestSequence++;
-        draftSyncInProgress = false;
+        cancelPendingDraftSync();
 
         if (activeDraftId) {
           sessionStorage.removeItem(draftLockStorageKey(activeDraftId));
