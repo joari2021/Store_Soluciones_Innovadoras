@@ -233,8 +233,48 @@
           }
 
           const themeToggle = document.getElementById('theme-toggle');
+        if (!window.toggleDebtMask) {
+          window.toggleDebtMask = (button) => {
+            if (!button) return;
+
+            const container = button.closest('p') || button.parentElement;
+            if (!container) return;
+
+            const mask = container.querySelector('[data-debt-mask]');
+            if (!mask) return;
+
+            const eye = button.querySelector('[data-lucide="eye"]');
+            const eyeOff = button.querySelector('[data-lucide="eye-off"]');
+            const isMasked = mask.textContent.trim().startsWith('*');
+
+            if (isMasked) {
+              mask.textContent = mask.dataset.realValue || '';
+              if (eye) eye.classList.add('hidden');
+              if (eyeOff) eyeOff.classList.remove('hidden');
+            } else {
+              mask.textContent = '*******';
+              if (eye) eye.classList.remove('hidden');
+              if (eyeOff) eyeOff.classList.add('hidden');
+            }
+          };
+        }
+
+        if (!window.bindDebtMaskToggles) {
+          window.bindDebtMaskToggles = () => {
+            if (window.__debtMaskToggleBound) return;
+            window.__debtMaskToggleBound = true;
+
+            document.addEventListener('click', (event) => {
+              const button = event.target.closest('[data-debt-mask-toggle]');
+              if (!button) return;
+              window.toggleDebtMask(button);
+            });
+          };
+        }
+
           if (themeToggle && !themeToggle.dataset.boundToggle) {
             themeToggle.dataset.boundToggle = 'true';
+        window.bindDebtMaskToggles();
             themeToggle.addEventListener('click', () => {
               const next = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
               window.applyTheme(next);
