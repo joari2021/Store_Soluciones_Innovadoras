@@ -7,21 +7,113 @@
     <% if @venta_eliminadas.empty? %>
       <p class="text-sm text-slate-700">No se encontraron ventas eliminadas.</p>
     <% else %>
-      <div class="divide-y">
+      <div class="space-y-4">
         <% @venta_eliminadas.each do |record| %>
-          <div class="py-3">
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="font-semibold text-slate-800">Venta ID: <%= record.venta_id %> - Total: <%= format_money(record.total_usd, unit: '$') %> | Bs <%= format_money(record.total_bs, unit: 'Bs ') %></p>
-                <p class="text-xs text-slate-500">Cliente ID: <%= record.cliente_id || 'N/A' %> · Facturo: <%= record.seller_user_id || 'N/A' %> · Cobro: <%= record.cashier_user_id || 'N/A' %></p>
-                <p class="text-xs text-slate-500">Eliminada por: <%= record.deleted_by_user_id %> · Fecha: <%= record.deleted_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') %></p>
+          <% sale_data = record.sale_data %>
+          <% sale_items = record.sale_items %>
+          <% sale_payments = record.sale_payments %>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-sm">
+            <div class="flex flex-col gap-3 border-b border-slate-200 pb-4 md:flex-row md:items-start md:justify-between">
+              <div class="space-y-1">
+                <p class="text-lg font-bold text-slate-900">Venta eliminada</p>
+                <p class="text-sm text-slate-600">
+                  Cliente: <span class="font-semibold text-slate-800"><%= record.cliente_display_name %></span>
+                </p>
+                <p class="text-sm text-slate-600">
+                  Facturada por: <span class="font-semibold text-slate-800"><%= record.seller_display_name %></span>
+                  · Cobro realizado por: <span class="font-semibold text-slate-800"><%= record.cashier_display_name %></span>
+                </p>
+                <p class="text-sm text-slate-600">
+                  Eliminada por: <span class="font-semibold text-slate-800"><%= record.deleted_by_display_name %></span>
+                  · Fecha de eliminación: <span class="font-semibold text-slate-800"><%= record.deleted_at&.in_time_zone('America/Caracas')&.strftime('%d/%m/%Y %H:%M') %></span>
+                </p>
               </div>
-              <div>
-                <button type="button" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-1 text-xs" data-toggle-details="<%= record.id %>">Detalles</button>
+              <div class="rounded-2xl bg-white px-4 py-3 text-right shadow-sm ring-1 ring-slate-100">
+                <p class="text-xs uppercase tracking-wide text-slate-500">Totales</p>
+                <p class="mt-1 text-sm font-semibold text-slate-800"><%= format_money(record.total_usd, unit: '$') %></p>
+                <p class="text-sm font-semibold text-slate-800"><%= format_money(record.total_bs, unit: 'Bs ') %></p>
               </div>
             </div>
-            <div id="venta-eliminada-<%= record.id %>" class="mt-3 hidden rounded bg-slate-50 p-3 text-sm text-slate-700">
-              <pre class="whitespace-pre-wrap text-xs"><%= JSON.pretty_generate(record.payload || {}) rescue record.payload.to_s %></pre>
+
+            <div class="mt-4 grid gap-4 md:grid-cols-2">
+              <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Datos de la venta</h2>
+                <dl class="mt-3 space-y-2 text-sm text-slate-700">
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-slate-500">Estado</dt>
+                    <dd class="font-semibold text-slate-800"><%= record.sale_status_label %></dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-slate-500">Moneda base</dt>
+                    <dd class="font-semibold text-slate-800"><%= record.sale_currency_label %></dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-slate-500">Subtotal</dt>
+                    <dd class="font-semibold text-slate-800"><%= format_money(sale_data['subtotal_usd'], unit: '$') %></dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-slate-500">IVA</dt>
+                    <dd class="font-semibold text-slate-800"><%= format_money(sale_data['vat_usd'], unit: '$') %></dd>
+                  </div>
+                  <div class="flex items-center justify-between gap-4">
+                    <dt class="text-slate-500">Fecha de factura</dt>
+                    <dd class="font-semibold text-slate-800"><%= sale_data['created_at'].present? ? Time.zone.parse(sale_data['created_at'].to_s).in_time_zone('America/Caracas').strftime('%d/%m/%Y %H:%M') rescue sale_data['created_at'].to_s : 'No disponible' %></dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div class="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+                <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Pagos registrados</h2>
+                <% if sale_payments.empty? %>
+                  <p class="mt-3 text-sm text-slate-500">No hay pagos registrados.</p>
+                <% else %>
+                  <div class="mt-3 space-y-3">
+                    <% sale_payments.each do |payment| %>
+                      <% payment_row = payment.respond_to?(:to_h) ? payment.to_h : {} %>
+                      <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                        <div class="flex items-center justify-between gap-4">
+                          <p class="font-semibold text-slate-800"><%= record.payment_method_label(payment) %></p>
+                          <p class="font-semibold text-slate-800"><%= record.payment_kind_label(payment) %></p>
+                        </div>
+                        <p class="mt-1"><span class="text-slate-500">Monto:</span> <%= format_money(payment_row['amount_original'], unit: payment_row['currency'].to_s == 'VES' ? 'Bs ' : '$ ') %></p>
+                        <p><span class="text-slate-500">Referencia:</span> <%= record.payment_reference(payment) %></p>
+                        <p><span class="text-slate-500">Fecha:</span> <%= record.payment_date_label(payment) %></p>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+
+            <div class="mt-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+              <h2 class="text-sm font-bold uppercase tracking-wide text-slate-500">Productos y servicios</h2>
+              <% if sale_items.empty? %>
+                <p class="mt-3 text-sm text-slate-500">No hay ítems registrados.</p>
+              <% else %>
+                <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                  <table class="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead class="bg-slate-50 text-left text-slate-500">
+                      <tr>
+                        <th class="px-4 py-3 font-semibold">Descripción</th>
+                        <th class="px-4 py-3 font-semibold">Cantidad</th>
+                        <th class="px-4 py-3 font-semibold">Precio unitario</th>
+                        <th class="px-4 py-3 font-semibold">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 bg-white">
+                      <% sale_items.each do |item| %>
+                        <% item_row = item.respond_to?(:to_h) ? item.to_h : {} %>
+                        <tr>
+                          <td class="px-4 py-3 font-medium text-slate-800"><%= record.item_display_name(item) %></td>
+                          <td class="px-4 py-3 text-slate-700"><%= format_quantity(item_row['quantity']) %></td>
+                          <td class="px-4 py-3 text-slate-700"><%= format_money(item_row['unit_price_usd'], unit: '$') %></td>
+                          <td class="px-4 py-3 text-slate-700"><%= format_money(item_row['subtotal_usd'], unit: '$') %></td>
+                        </tr>
+                      <% end %>
+                    </tbody>
+                  </table>
+                </div>
+              <% end %>
             </div>
           </div>
         <% end %>
@@ -29,15 +121,3 @@
     <% end %>
   </div>
 </div>
-<script>
-  document.addEventListener('turbo:load', function(){
-    document.querySelectorAll('[data-toggle-details]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var id = btn.getAttribute('data-toggle-details');
-        var el = document.getElementById('venta-eliminada-' + id);
-        if(!el) return;
-        el.classList.toggle('hidden');
-      });
-    });
-  });
-</script>
