@@ -18,6 +18,7 @@ class DebtsController < ApplicationController
     @customer_debt_view = current_user_customer_mode?
 
     scope = debts_index_scope
+    scope_debts = sort_debts(scope.to_a)
     pending_debts = sort_debts(debt_balance_scope(scope, paid: false).to_a)
     all_receivable_debts = pending_debts.select(&:receivable?)
     all_payable_debts = pending_debts.select(&:payable?)
@@ -25,7 +26,7 @@ class DebtsController < ApplicationController
     pending_receivable_individual_debts = pending_individual_debts.select(&:receivable?)
     pending_payable_individual_debts = pending_individual_debts.select(&:payable?)
 
-    all_collapsed_debts = collapse_grouped_debts(pending_debts)
+    all_collapsed_debts = collapse_grouped_debts(scope_debts)
     @collapsed_group_keys = all_collapsed_debts.each_with_object({}) do |debt, hash|
       hash[debt.id] = collapsed_group_key(debt)
     end
