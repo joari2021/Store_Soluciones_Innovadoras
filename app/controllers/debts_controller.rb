@@ -392,7 +392,13 @@ class DebtsController < ApplicationController
     end
     @can_register_group_payment = current_user_admin? || current_user_manager?
 
-    @show_payment_rows = @payments.map do |payment|
+    grouped_payments_by_signature = @payments.group_by do |payment|
+      [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
+    end
+
+    @show_payment_rows = []
+
+    @payments.each do |payment|
       shift = cash_shift_for_payment(payment)
       closed_shift = shift&.closed?
       delete_allowed = current_user_admin? || shift&.open?
@@ -402,7 +408,7 @@ class DebtsController < ApplicationController
                               'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
                             end
 
-      {
+      @show_payment_rows << {
         payment: payment,
         equivalent_usd_bcv: payment_amount_usd_bcv(payment),
         commission_amount: payment.respond_to?(:commission_amount) ? payment.commission_amount.to_d.round(2) : 0.to_d,
@@ -410,6 +416,49 @@ class DebtsController < ApplicationController
         delete_allowed: delete_allowed,
         delete_warning: closed_shift,
         delete_block_reason: delete_block_reason,
+      }
+
+      next unless @debt.payable?
+      next if payment.excess_payment?
+
+      payment_movements_total = payment_account_movements_for(payment).sum { |movement| movement.amount.to_d }.round(2)
+      next unless payment_movements_total > (payment.amount.to_d + 0.01.to_d)
+
+      signature = [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
+      has_explicit_excess_payment = grouped_payments_by_signature.fetch(signature, []).any? do |candidate|
+        candidate.id != payment.id && candidate.excess_payment?
+      end
+      next if has_explicit_excess_payment
+
+      movement_excess_amount = (payment_movements_total - payment.amount.to_d).round(2)
+      next unless movement_excess_amount > 0.01.to_d
+
+      movement_excess_usd_bcv = CurrencyConverter.convert(
+        amount: movement_excess_amount,
+        from_currency: payment.currency,
+        to_currency: 'USD',
+        on_date: payment.occurred_at,
+      )&.dig(:amount).to_d.round(2)
+
+      synthetic_excess_payment = DebtPayment.new(
+        debt: payment.debt,
+        account: payment.account,
+        amount: movement_excess_amount,
+        currency: payment.currency,
+        payment_method: payment.payment_method,
+        reference: payment.reference,
+        occurred_at: payment.occurred_at,
+        notes: "[VIRTUAL_OVERPAYMENT_FROM_DP:#{payment.id}]"
+      )
+
+      @show_payment_rows << {
+        payment: synthetic_excess_payment,
+        equivalent_usd_bcv: movement_excess_usd_bcv,
+        commission_amount: 0.to_d,
+        debt_label: 'Excedente (movimiento)',
+        delete_allowed: false,
+        delete_warning: false,
+        delete_block_reason: 'El excedente se muestra como control con base en el movimiento real de la cuenta.',
       }
     end
 
