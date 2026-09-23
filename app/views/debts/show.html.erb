@@ -121,6 +121,17 @@
             <% end %>
           <% end %>
         </div>
+        <% if @show_total_overpayment_usd_bcv.to_d > 0.01.to_d %>
+          <div class="flex items-center justify-between">
+            <dt>Excedente acumulado</dt>
+            <dd class="font-semibold text-emerald-700">
+              <%= number_to_currency(@show_total_overpayment_usd_bcv, unit: '$ ') %>
+              <% if @show_total_overpayment_ves.to_d.positive? %>
+                (<%= number_to_currency(@show_total_overpayment_ves, unit: 'Bs ') %>)
+              <% end %>
+            </dd>
+          </div>
+        <% end %>
       </dl>
     </div>
   </div>

@@ -361,6 +361,9 @@ class DebtsController < ApplicationController
     @show_total_amount_usd_bcv = total_usd_amount(@grouped_debts)
     @show_total_paid_usd_bcv = total_usd_paid_for_debts(@grouped_debts)
     @show_total_balance_usd_bcv = total_usd_balance_for_card(@grouped_debts)
+    overpayment_totals = group_overpayment_totals(@payments, total_usd_amount: @show_total_amount_usd_bcv)
+    @show_total_overpayment_usd_bcv = overpayment_totals[:usd]
+    @show_total_overpayment_ves = overpayment_totals[:ves]
     @show_total_balance_ves_for_usd_group = if @show_group_currency == 'USD'
                                               conversion = CurrencyConverter.convert(
                                                 amount: @show_total_balance_usd_bcv,
@@ -2152,6 +2155,57 @@ class DebtsController < ApplicationController
       allocations[debt.id] = { amount: amount, paid: paid, balance: balance }
       remaining_paid = (remaining_paid - paid).round(2)
     end
+  end
+
+  def group_overpayment_totals(payments, total_usd_amount:)
+    ordered_payments = Array(payments).sort_by do |payment|
+      [
+        payment.occurred_at || Date.new(1970, 1, 1),
+        payment.created_at || Time.zone.at(0),
+        payment.id.to_i,
+      ]
+    end
+
+    remaining_usd = total_usd_amount.to_d.round(2)
+    total_overpayment_usd = 0.to_d
+    total_overpayment_ves = 0.to_d
+
+    ordered_payments.each do |payment|
+      payment_usd = payment_amount_usd_bcv(payment).to_d.round(2)
+      next unless payment_usd.positive?
+
+      available_before = [remaining_usd, 0.to_d].max
+      overpayment_usd = [payment_usd - available_before, 0.to_d].max.round(2)
+
+      applied_usd = [payment_usd, available_before].min.round(2)
+      remaining_usd = (remaining_usd - applied_usd).round(2)
+
+      next unless overpayment_usd.positive?
+
+      total_overpayment_usd += overpayment_usd
+
+      overpayment_amount_in_payment_currency = if payment_usd > 0
+        (payment.amount.to_d * (overpayment_usd / payment_usd)).round(2)
+      else
+        0.to_d
+      end
+
+      next unless overpayment_amount_in_payment_currency.positive?
+
+      overpayment_in_ves = CurrencyConverter.convert(
+        amount: overpayment_amount_in_payment_currency,
+        from_currency: payment.currency,
+        to_currency: 'VES',
+        on_date: payment.occurred_at,
+      )&.dig(:amount).to_d
+
+      total_overpayment_ves += overpayment_in_ves if overpayment_in_ves.positive?
+    end
+
+    {
+      usd: total_overpayment_usd.round(2),
+      ves: total_overpayment_ves.round(2),
+    }
   end
 
   def debt_reference_date_for_usd(debt)
