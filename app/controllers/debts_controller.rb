@@ -361,9 +361,8 @@ class DebtsController < ApplicationController
     @show_total_amount_usd_bcv = total_usd_amount(@grouped_debts)
     @show_total_paid_usd_bcv = total_usd_paid_for_debts(@grouped_debts)
     @show_total_balance_usd_bcv = total_usd_balance_for_card(@grouped_debts)
-    overpayment_totals = group_overpayment_totals(@payments, total_usd_amount: @show_total_amount_usd_bcv)
-    @show_total_overpayment_usd_bcv = overpayment_totals[:usd]
-    @show_total_overpayment_ves = overpayment_totals[:ves]
+    @show_total_overpayment_usd_bcv = 0.to_d
+    @show_total_overpayment_ves = 0.to_d
     @show_total_balance_ves_for_usd_group = if @show_group_currency == 'USD'
                                               conversion = CurrencyConverter.convert(
                                                 amount: @show_total_balance_usd_bcv,
@@ -408,7 +407,7 @@ class DebtsController < ApplicationController
                               'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
                             end
 
-      @show_payment_rows << {
+      payment_row = {
         payment: payment,
         equivalent_usd_bcv: payment_amount_usd_bcv(payment),
         commission_amount: payment.respond_to?(:commission_amount) ? payment.commission_amount.to_d.round(2) : 0.to_d,
@@ -416,22 +415,39 @@ class DebtsController < ApplicationController
         delete_allowed: delete_allowed,
         delete_warning: closed_shift,
         delete_block_reason: delete_block_reason,
+        is_excess: payment.excess_payment?,
       }
 
-      next unless @debt.payable?
-      next if payment.excess_payment?
+      unless @debt.payable?
+        @show_payment_rows << payment_row
+        next
+      end
 
-      payment_movements_total = payment_account_movements_for(payment).sum { |movement| movement.amount.to_d }.round(2)
-      next unless payment_movements_total > (payment.amount.to_d + 0.01.to_d)
+      if payment.excess_payment?
+        @show_payment_rows << payment_row
+        next
+      end
+
+      payment_movements_total = principal_payment_account_movements_for(payment).sum { |movement| movement.amount.to_d }.round(2)
+      if payment_movements_total <= (payment.amount.to_d + 0.01.to_d)
+        @show_payment_rows << payment_row
+        next
+      end
 
       signature = [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
       has_explicit_excess_payment = grouped_payments_by_signature.fetch(signature, []).any? do |candidate|
         candidate.id != payment.id && candidate.excess_payment?
       end
-      next if has_explicit_excess_payment
+      if has_explicit_excess_payment
+        @show_payment_rows << payment_row
+        next
+      end
 
       movement_excess_amount = (payment_movements_total - payment.amount.to_d).round(2)
-      next unless movement_excess_amount > 0.01.to_d
+      if movement_excess_amount <= 0.01.to_d
+        @show_payment_rows << payment_row
+        next
+      end
 
       movement_excess_usd_bcv = CurrencyConverter.convert(
         amount: movement_excess_amount,
@@ -459,7 +475,24 @@ class DebtsController < ApplicationController
         delete_allowed: false,
         delete_warning: false,
         delete_block_reason: 'El excedente se muestra como control con base en el movimiento real de la cuenta.',
+        is_excess: true,
       }
+
+      @show_payment_rows << payment_row
+    end
+
+    if @debt.payable?
+      excess_rows = @show_payment_rows.select { |row| row[:is_excess] }
+      @show_total_overpayment_usd_bcv = excess_rows.sum { |row| row[:equivalent_usd_bcv].to_d }.round(2)
+      @show_total_overpayment_ves = excess_rows.sum do |row|
+        extra_payment = row[:payment]
+        CurrencyConverter.convert(
+          amount: extra_payment.amount.to_d,
+          from_currency: extra_payment.currency,
+          to_currency: 'VES',
+          on_date: extra_payment.occurred_at,
+        )&.dig(:amount).to_d
+      end.round(2)
     end
 
     debts_for_rows = @grouped_debts.sort_by do |debt|
@@ -1889,6 +1922,16 @@ class DebtsController < ApplicationController
       .where(account_id: payment.account_id)
       .where('description ILIKE ?', "%[DP:#{payment.id}]%")
       .to_a
+  end
+
+  def principal_payment_account_movements_for(payment)
+    payment_account_movements_for(payment).reject { |movement| commission_account_movement_for_payment?(movement) }
+  end
+
+  def commission_account_movement_for_payment?(movement)
+    description = movement.description.to_s
+    description.include?('[GASTO:') ||
+      description.match?(/\bComision\s+bancaria\b/i)
   end
 
   def business_account_movements_scope
