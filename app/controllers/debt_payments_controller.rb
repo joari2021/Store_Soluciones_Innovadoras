@@ -138,7 +138,13 @@ class DebtPaymentsController < ApplicationController
 
     return handle_payment_form_error if payments_to_persist.blank?
 
-    if @debt.payable? && overpayment_amount > 0.01.to_d
+    material_overpayment = overpayment_amount_material_for_group?(
+      amount: overpayment_amount,
+      payment_currency: payment_currency,
+      occurred_on: occurred_on,
+    )
+
+    if @debt.payable? && material_overpayment
       payments_to_persist = ensure_visible_overpayment_payment(
         payments: payments_to_persist,
         overpayment_amount: overpayment_amount,
@@ -172,7 +178,7 @@ class DebtPaymentsController < ApplicationController
         "Pago registrado y distribuido en #{payments_to_persist.size} deudas."
       end
 
-    if overpayment_amount > 0.01.to_d
+    if material_overpayment
       symbol = Account::CURRENCIES.dig(payment_currency, :symbol) || payment_currency
       overpayment_label = helpers.number_to_currency(overpayment_amount, unit: "#{symbol} ")
       notice = "#{notice} Sobregiro registrado por #{overpayment_label}."
@@ -787,6 +793,11 @@ class DebtPaymentsController < ApplicationController
       notes: debt_payment_params[:notes],
     )
 
+    if zero_converted_amount_error?(overpayment)
+      # Sobregiro diminuto por redondeo: no debe bloquear un pago valido.
+      return payments
+    end
+
     unless overpayment.valid?
       overpayment.errors.full_messages.each { |message| @debt_payment.errors.add(:base, message) }
       return nil
@@ -823,6 +834,9 @@ class DebtPaymentsController < ApplicationController
     overpayment.skip_account_movement = true
     overpayment.include_commission = false if overpayment.respond_to?(:include_commission=)
     overpayment.commission_amount = 0.to_d if overpayment.respond_to?(:commission_amount=)
+
+    return payments if zero_converted_amount_error?(overpayment)
+
     overpayment.save!
 
     payments << overpayment
@@ -840,6 +854,23 @@ class DebtPaymentsController < ApplicationController
     )
 
     conversion.present? && conversion[:amount].to_d <= 0
+  end
+
+  def overpayment_amount_material_for_group?(amount:, payment_currency:, occurred_on:)
+    value = amount.to_d.round(2)
+    return false unless value > 0.01.to_d
+
+    reference_debt = sort_debts(@grouped_debts).first
+    return true if reference_debt.blank?
+
+    conversion = CurrencyConverter.convert(
+      amount: value,
+      from_currency: payment_currency,
+      to_currency: reference_debt.currency,
+      on_date: occurred_on,
+    )
+
+    conversion&.dig(:amount).to_d > 0.01.to_d
   end
 
   def zero_converted_amount_error?(payment)
