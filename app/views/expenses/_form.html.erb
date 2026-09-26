@@ -1,5 +1,15 @@
 <% payment_account_options = Account.grouped_option_sets(Array(@accounts)) do |account| %>
-  <% [account.option_label, account.id, { "data-account-type": account.account_type, "data-account-currency": account.currency }] %>
+  <% [
+       account.option_label,
+       account.id,
+       {
+         "data-account-type": account.account_type,
+         "data-account-currency": account.currency,
+         "data-send-commission-percent": account.send_commission_percent.to_s,
+         "data-send-commission-min": account.send_commission_min.to_s,
+         "data-send-commission-rounding": account.send_commission_rounding.to_s
+       }
+     ] %>
 <% end %>
 <% currency_symbols = Account::CURRENCIES.transform_values { |meta| meta[:symbol] } %>
 <% selected_payment_account = Array(@accounts).find { |account| account.id.to_s == params[:payment_account_id].to_s } %>
@@ -285,6 +295,50 @@
       return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
     };
 
+    const parseNumber = (value, fallback = 0) => {
+      const parsed = Number.parseFloat(String(value ?? "").replace(",", "."));
+      return Number.isFinite(parsed) ? parsed : fallback;
+    };
+
+    const calculateCommissionAmount = ({ amount, percent, min, rounding }) => {
+      const safeAmount = Number.isFinite(amount) ? Math.abs(amount) : 0;
+      const safePercent = Number.isFinite(percent) ? percent : 0;
+      const safeMin = Number.isFinite(min) ? min : 0;
+      const raw = safeAmount * (safePercent / 100);
+      const cents = String(rounding || "superior") === "inferior"
+        ? Math.floor(raw * 100)
+        : Math.round(raw * 100);
+      const calculated = cents / 100;
+      return Math.max(calculated, safeMin);
+    };
+
+    const setCommissionAmountValue = (value) => {
+      if (!commissionAmountInput) return;
+
+      const option = selectedOption();
+      const currency = String(option?.dataset.accountCurrency || "USD").toUpperCase();
+      const symbol = currencySymbols[currency] || currency || "$";
+
+      if (window.MoneyInputMask?.setValue) {
+        window.MoneyInputMask.setValue(commissionAmountInput, value, symbol);
+      } else {
+        commissionAmountInput.value = `${symbol} ${Number(value || 0).toFixed(2).replace(".", ",")}`;
+      }
+    };
+
+    const recalculateCommissionAmount = () => {
+      if (!commissionAmountInput || !commissionToggle?.checked) return;
+
+      const option = selectedOption();
+      const amount = parseMaskedValue(amountInput);
+      const percent = parseNumber(option?.dataset.sendCommissionPercent, 0);
+      const min = parseNumber(option?.dataset.sendCommissionMin, 0);
+      const rounding = String(option?.dataset.sendCommissionRounding || "superior");
+      const commission = calculateCommissionAmount({ amount, percent, min, rounding });
+
+      setCommissionAmountValue(commission);
+    };
+
     const selectedOption = () => accountSelect?.options?.[accountSelect.selectedIndex];
 
     const isBsBankAccountSelected = () => {
@@ -416,7 +470,7 @@
       if (!applicable) {
         commissionToggle.checked = false;
         commissionAmountWrapper.classList.add("hidden");
-        commissionAmountInput.value = "";
+        setCommissionAmountValue(0);
         commissionAmountInput.required = false;
         return;
       }
@@ -424,6 +478,10 @@
       const checked = commissionToggle.checked;
       commissionAmountWrapper.classList.toggle("hidden", !checked);
       commissionAmountInput.required = checked;
+
+      if (checked) {
+        recalculateCommissionAmount();
+      }
     };
 
     const syncAll = () => {
@@ -471,6 +529,15 @@
 
     if (commissionToggle) {
       commissionToggle.addEventListener("change", updateCommissionRules);
+    }
+
+    if (amountInput) {
+      amountInput.addEventListener("input", () => {
+        if (commissionToggle?.checked) recalculateCommissionAmount();
+      });
+      amountInput.addEventListener("change", () => {
+        if (commissionToggle?.checked) recalculateCommissionAmount();
+      });
     }
 
     form.addEventListener("submit", (event) => {
