@@ -232,8 +232,8 @@
                   </td>
                   <% if is_usdt %>
                     <td class="px-4 py-3 text-right"><%= number_to_currency(debt.amount.to_d, unit: "#{debt_symbol} ") %></td>
-                    <td class="px-4 py-3 text-right"><%= number_to_currency(debt.paid_amount.to_d, unit: "#{debt_symbol} ") %></td>
-                    <td class="px-4 py-3 text-right font-semibold"><%= number_to_currency(debt.balance.to_d, unit: "#{debt_symbol} ") %></td>
+                    <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv].to_d, unit: "#{debt_symbol} ") %></td>
+                    <td class="px-4 py-3 text-right font-semibold"><%= number_to_currency(row[:balance_usd_bcv].to_d, unit: "#{debt_symbol} ") %></td>
                   <% else %>
                     <td class="px-4 py-3 text-right"><%= number_to_currency(amount_usd, unit: "$ ") %></td>
                     <td class="px-4 py-3 text-right"><%= number_to_currency(row[:paid_usd_bcv], unit: "$ ") %></td>
