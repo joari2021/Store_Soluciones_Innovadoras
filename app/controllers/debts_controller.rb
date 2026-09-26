@@ -385,10 +385,17 @@ class DebtsController < ApplicationController
                                                 (debt.amount.to_d - paid)
                                               end.round(2)
                                             end
+    group_is_usdt = @show_group_currency.to_s.upcase == 'USDT'
     effective_allocations = effective_usd_bcv_allocations_for_group(@grouped_debts)
+    effective_native_allocations = group_is_usdt ? effective_native_allocations_for_group(@grouped_debts) : {}
     @show_last_activity_at = group_last_activity_at_for(@grouped_debts)
     @show_overdue_count = @grouped_debts.count do |debt|
-      effective_allocations.dig(debt.id, :balance).to_d > 0.01.to_d && debt.due_on.present? && debt.due_on <= Date.current
+      balance_for_overdue = if group_is_usdt
+                              effective_native_allocations.dig(debt.id, :balance).to_d
+                            else
+                              effective_allocations.dig(debt.id, :balance).to_d
+                            end
+      balance_for_overdue > 0.01.to_d && debt.due_on.present? && debt.due_on <= Date.current
     end
     @can_register_group_payment = current_user_admin? || current_user_manager?
 
@@ -505,13 +512,17 @@ class DebtsController < ApplicationController
     @show_debt_rows = debts_for_rows.map do |debt|
       loan_movement = original_loan_account_movement_for_debt(debt)
       loan_account = loan_movement&.account
-      allocation = effective_allocations.fetch(debt.id)
-      amount_usd_bcv = allocation[:amount]
-      paid_usd_bcv = allocation[:paid]
-      balance_usd_bcv = allocation[:balance]
-      row_status = if balance_usd_bcv <= 0.01.to_d
+      allocation = if group_is_usdt
+                     effective_native_allocations.fetch(debt.id)
+                   else
+                     effective_allocations.fetch(debt.id)
+                   end
+      amount_for_row = allocation[:amount]
+      paid_for_row = allocation[:paid]
+      balance_for_row = allocation[:balance]
+      row_status = if balance_for_row <= 0.01.to_d
                      'Pagada'
-                   elsif paid_usd_bcv > 0.01.to_d
+                   elsif paid_for_row > 0.01.to_d
                      'Parcial'
                    else
                      'Pendiente'
@@ -519,9 +530,9 @@ class DebtsController < ApplicationController
 
       {
         debt: debt,
-        amount_usd_bcv: amount_usd_bcv,
-        paid_usd_bcv: paid_usd_bcv,
-        balance_usd_bcv: balance_usd_bcv,
+        amount_usd_bcv: amount_for_row,
+        paid_usd_bcv: paid_for_row,
+        balance_usd_bcv: balance_for_row,
         status: row_status,
         loan_enabled: loan_movement.present?,
         loan_account_id: loan_movement&.account_id,
@@ -2241,6 +2252,36 @@ class DebtsController < ApplicationController
 
     ordered_debts.each_with_object({}) do |debt, allocations|
       amount = amount_in_usd_bcv_for_debt(debt.amount.to_d, debt).round(2)
+      paid = [remaining_paid, amount].min.round(2)
+      balance = (amount - paid).round(2)
+      balance = 0.to_d if balance.abs <= 0.01.to_d
+
+      allocations[debt.id] = { amount: amount, paid: paid, balance: balance }
+      remaining_paid = (remaining_paid - paid).round(2)
+    end
+  end
+
+  def effective_native_allocations_for_group(debts)
+    ordered_debts = Array(debts).sort_by do |debt|
+      if debt.payable?
+        due_on = debt.due_on || Date.new(9999, 12, 31)
+        [due_on.jd, debt.issued_on&.jd || 0, debt.created_at&.to_i || 0, debt.id.to_i]
+      else
+        issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+        [issued_on.jd, debt.created_at&.to_i || 0, debt.id.to_i]
+      end
+    end
+
+    remaining_paid = [
+      ordered_debts.sum do |debt|
+        payments = debt.debt_payments.loaded? ? debt.debt_payments : debt.debt_payments.to_a
+        payments.sum { |payment| payment.amount_in_debt_currency.to_d }
+      end,
+      0.to_d,
+    ].max
+
+    ordered_debts.each_with_object({}) do |debt, allocations|
+      amount = debt.amount.to_d.round(2)
       paid = [remaining_paid, amount].min.round(2)
       balance = (amount - paid).round(2)
       balance = 0.to_d if balance.abs <= 0.01.to_d
