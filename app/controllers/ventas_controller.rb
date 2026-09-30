@@ -197,6 +197,68 @@ class VentasController < ApplicationController
     }
   end
 
+  def requested_products
+    products = current_business.requested_products.ordered_by_name
+
+    if params[:q].present?
+      query = params[:q].to_s.strip
+      escaped_query = ActiveRecord::Base.sanitize_sql_like(query)
+      products = products.where('requested_products.name ILIKE ?', "%#{escaped_query}%")
+    end
+
+    render json: {
+      requested_products: products.limit(500).map { |row| requested_product_payload(row) }
+    }
+  end
+
+  def create_requested_product
+    raw_name = params[:name].to_s
+    normalized_name = raw_name.strip.gsub(/\s+/, ' ')
+
+    if normalized_name.blank?
+      return render json: { error: 'Debes indicar el nombre del producto solicitado.' }, status: :unprocessable_entity
+    end
+
+    requested_product = current_business
+                        .requested_products
+                        .find_by('LOWER(requested_products.name) = ?', normalized_name.downcase)
+
+    created = false
+    if requested_product.present?
+      requested_product.with_lock do
+        requested_product.requests_count = requested_product.requests_count.to_i + 1
+        requested_product.save!
+      end
+    else
+      requested_product = current_business.requested_products.create!(
+        name: normalized_name,
+        requests_count: 1
+      )
+      created = true
+    end
+
+    render json: {
+      requested_product: requested_product_payload(requested_product),
+      created: created
+    }, status: created ? :created : :ok
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record.errors.full_messages.to_sentence.presence || e.message }, status: :unprocessable_entity
+  end
+
+  def increment_requested_product
+    requested_product = current_business.requested_products.find_by(id: params[:id])
+    return render json: { error: 'Producto solicitado no encontrado.' }, status: :not_found if requested_product.blank?
+
+    requested_product.with_lock do
+      requested_product.requests_count = requested_product.requests_count.to_i + 1
+      requested_product.save!
+    end
+
+    render json: { requested_product: requested_product_payload(requested_product) }
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record.errors.full_messages.to_sentence.presence || e.message }, status: :unprocessable_entity
+  end
+
   def products_snapshot
     render json: {
       products: products_payload_for_business,
@@ -5245,6 +5307,14 @@ class VentasController < ApplicationController
       enabled: enabled,
       amount: amount,
       reason: reason,
+    }
+  end
+
+  def requested_product_payload(row)
+    {
+      id: row.id,
+      name: row.name.to_s,
+      requests_count: row.requests_count.to_i
     }
   end
 
