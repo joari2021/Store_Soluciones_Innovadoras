@@ -6,8 +6,14 @@ class Cliente < ApplicationRecord
   has_many :ventas, dependent: :nullify
   has_many :debts, foreign_key: :cliente_id, dependent: :nullify
 
+  before_validation :normalize_document_and_phone
+
   validates :document_type, presence: true, inclusion: { in: DOCUMENT_TYPES }
   validates :name, presence: true
+  validates :phone, presence: true, format: { with: /\A\d{11}\z/, message: 'debe tener exactamente 11 digitos' }
+
+  validate :document_number_forward_validation
+  validate :document_uniqueness_forward_only
 
   def self.normalize_benefits_config(raw_config)
     payload = if raw_config.is_a?(String)
@@ -132,5 +138,62 @@ class Cliente < ApplicationRecord
       normalized["product_rules"].is_a?(Hash) && normalized["product_rules"].any? ||
       normalized["service_rules"].is_a?(Hash) && normalized["service_rules"].any? ||
       normalized["service_fixed_prices"].is_a?(Hash) && normalized["service_fixed_prices"].any?
+  end
+
+  private
+
+  def normalize_document_and_phone
+    self.document_type = document_type.to_s.strip.upcase
+    self.document_number = document_number.to_s.gsub(/\D/, '')
+    self.phone = phone.to_s.gsub(/\D/, '')
+  end
+
+  def document_number_forward_validation
+    should_validate_document = new_record? || will_save_change_to_document_type? || will_save_change_to_document_number?
+    return unless should_validate_document
+
+    if document_number.blank?
+      errors.add(:document_number, 'no puede estar en blanco')
+      return
+    end
+
+    return if document_type.blank?
+
+    case document_type
+    when 'V'
+      return if document_number.match?(/\A\d{6,8}\z/)
+
+      errors.add(:document_number, 'para V debe tener entre 6 y 8 digitos')
+    when 'E'
+      return if document_number.match?(/\A\d{8}\z/)
+
+      errors.add(:document_number, 'para E debe tener exactamente 8 digitos')
+    when 'J'
+      return if document_number.match?(/\A\d{9}\z/)
+
+      errors.add(:document_number, 'para J debe tener exactamente 9 digitos')
+    end
+  end
+
+  def document_uniqueness_forward_only
+    return if document_type.blank? || document_number.blank? || business_id.blank?
+
+    scope = self.class.where(business_id: business_id, document_type: document_type, document_number: document_number)
+
+    if persisted?
+      # Permite conservar duplicados legacy si no se cambia el documento.
+      document_changed = will_save_change_to_document_type? || will_save_change_to_document_number?
+      return unless document_changed
+
+      scope = scope.where.not(id: id)
+      return unless scope.exists?
+
+      errors.add(:document_number, 'ya existe para ese tipo de documento')
+      return
+    end
+
+    return unless scope.exists?
+
+    errors.add(:document_number, 'ya existe para ese tipo de documento')
   end
 end

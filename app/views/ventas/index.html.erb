@@ -607,7 +607,6 @@
               <div>
                 <p class="text-xs text-slate-500">Cliente seleccionado</p>
                 <p id="ventas-client-name" class="text-sm font-semibold text-slate-700"></p>
-                <span id="ventas-client-benefits-badge" class="mt-1 hidden inline-flex items-center rounded-full bg-pink-100 px-2.5 py-0.5 text-[11px] font-semibold text-pink-700">Cliente con beneficios</span>
               </div>
               <button id="ventas-client-clear" type="button" class="text-slate-400 hover:text-red-500">
                 <i data-lucide="x" class="h-4 w-4"></i>
@@ -10815,7 +10814,6 @@
       const clientSelected = document.getElementById('ventas-client-selected');
       const clientName = document.getElementById('ventas-client-name');
       const clientEmpty = document.getElementById('ventas-client-empty');
-      const clientBenefitsBadge = document.getElementById('ventas-client-benefits-badge');
       const clientClear = document.getElementById('ventas-client-clear');
       let clientSearchTimeout = null;
 
@@ -10833,17 +10831,11 @@
             clientSelected.classList.remove('hidden');
             clientSelected.classList.add('flex');
             clientEmpty.classList.add('hidden');
-            if (clientBenefitsBadge) {
-              clientBenefitsBadge.classList.toggle('hidden', !clientHasBenefits(selectedClient));
-            }
           } else {
             clientName.textContent = '';
             clientSelected.classList.add('hidden');
             clientSelected.classList.remove('flex');
             clientEmpty.classList.remove('hidden');
-            if (clientBenefitsBadge) {
-              clientBenefitsBadge.classList.add('hidden');
-            }
           }
         }
 
@@ -10925,6 +10917,15 @@
       const openClientModal = (presetName) => {
         if (!window.Swal) return;
 
+        const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
+        const documentRuleByType = (documentType) => {
+          const type = String(documentType || '').toUpperCase();
+          if (type === 'V') return { min: 6, max: 8, message: 'Para V, el numero de identificacion debe tener entre 6 y 8 digitos.' };
+          if (type === 'E') return { min: 8, max: 8, message: 'Para E, el numero de identificacion debe tener exactamente 8 digitos.' };
+          if (type === 'J') return { min: 9, max: 9, message: 'Para J, el numero de identificacion debe tener exactamente 9 digitos.' };
+          return null;
+        };
+
         const modalHtml = `
           <div class="space-y-4 text-left">
             <div class="rounded-2xl border border-cyan-200/70 bg-white/80 p-3 shadow-sm">
@@ -10974,14 +10975,46 @@
           },
           focusConfirm: false,
           heightAuto: false,
+          didOpen: () => {
+            const dialog = window.Swal.getHtmlContainer();
+            if (!dialog) return;
+
+            const typeInput = dialog.querySelector('#cliente-document-type');
+            const numberInput = dialog.querySelector('#cliente-document-number');
+            const phoneInput = dialog.querySelector('#cliente-phone');
+            if (!typeInput || !numberInput || !phoneInput) return;
+
+            const syncDocumentInput = () => {
+              const rule = documentRuleByType(typeInput.value);
+              const digits = onlyDigits(numberInput.value);
+              numberInput.value = digits;
+              if (rule) {
+                numberInput.maxLength = rule.max;
+              } else {
+                numberInput.removeAttribute('maxLength');
+              }
+            };
+
+            const syncPhoneInput = () => {
+              phoneInput.value = onlyDigits(phoneInput.value);
+              phoneInput.maxLength = 11;
+            };
+
+            typeInput.addEventListener('change', syncDocumentInput);
+            numberInput.addEventListener('input', syncDocumentInput);
+            phoneInput.addEventListener('input', syncPhoneInput);
+
+            syncDocumentInput();
+            syncPhoneInput();
+          },
           preConfirm: async () => {
             const dialog = window.Swal.getHtmlContainer();
             if (!dialog) return null;
 
             const documentType = dialog.querySelector('#cliente-document-type')?.value || '';
-            const documentNumber = dialog.querySelector('#cliente-document-number')?.value || '';
+            const documentNumber = onlyDigits(dialog.querySelector('#cliente-document-number')?.value || '');
             const name = dialog.querySelector('#cliente-name')?.value || '';
-            const phone = dialog.querySelector('#cliente-phone')?.value || '';
+            const phone = onlyDigits(dialog.querySelector('#cliente-phone')?.value || '');
             const address = dialog.querySelector('#cliente-address')?.value || '';
 
             if (!documentType) {
@@ -10991,6 +11024,17 @@
 
             if (!name.trim()) {
               window.Swal.showValidationMessage('El nombre es obligatorio.');
+              return null;
+            }
+
+            const documentRule = documentRuleByType(documentType);
+            if (documentRule && (documentNumber.length < documentRule.min || documentNumber.length > documentRule.max)) {
+              window.Swal.showValidationMessage(documentRule.message);
+              return null;
+            }
+
+            if (phone.length !== 11) {
+              window.Swal.showValidationMessage('El telefono debe tener exactamente 11 digitos.');
               return null;
             }
 

@@ -24,12 +24,15 @@
                      options_for_select(Cliente::DOCUMENT_TYPES.map { |t| [t, t] }, cliente.document_type),
                      {},
                      disabled: contact_only_edit,
+                     data: { cliente_document_type: true },
                      class: contact_only_edit ? readonly_input : editable_input %>
       </div>
       <div>
         <%= f.label :document_number, 'Numero de documento', class: 'block text-sm font-medium text-slate-700' %>
         <%= f.text_field :document_number,
                          disabled: contact_only_edit,
+                         inputmode: 'numeric',
+                         data: { cliente_document_number: true },
                          class: contact_only_edit ? readonly_input : editable_input %>
       </div>
     </div>
@@ -42,7 +45,7 @@
       </div>
       <div class="md:col-span-1">
         <%= f.label :phone, 'Telefono', class: 'block text-sm font-medium text-slate-700' %>
-        <%= f.text_field :phone, class: editable_input %>
+        <%= f.text_field :phone, inputmode: 'numeric', data: { cliente_phone: true }, class: editable_input %>
       </div>
     </div>
     <div>
@@ -131,6 +134,77 @@
     <%= f.submit 'Guardar cliente', class: 'inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-300' %>
   </div>
 <% end %>
+<script>
+  (() => {
+    const form = document.querySelector('form[action*="/clientes"]');
+    if (!form) return;
+
+    const typeInput = form.querySelector('[data-cliente-document-type="true"]');
+    const documentInput = form.querySelector('[data-cliente-document-number="true"]');
+    const phoneInput = form.querySelector('[data-cliente-phone="true"]');
+    if (!typeInput || !documentInput || !phoneInput) return;
+
+    const onlyDigits = (value) => String(value || '').replace(/\D/g, '');
+
+    const rulesByType = {
+      V: { min: 6, max: 8, exact: null, message: 'Para V, ingresa entre 6 y 8 digitos.' },
+      E: { min: 8, max: 8, exact: 8, message: 'Para E, ingresa exactamente 8 digitos.' },
+      J: { min: 9, max: 9, exact: 9, message: 'Para J, ingresa exactamente 9 digitos.' }
+    };
+
+    const applyDocumentRule = () => {
+      const docType = String(typeInput.value || '').toUpperCase();
+      const rule = rulesByType[docType] || null;
+      const digits = onlyDigits(documentInput.value);
+      documentInput.value = digits;
+
+      if (rule && Number.isFinite(rule.max)) {
+        documentInput.maxLength = rule.max;
+      } else {
+        documentInput.removeAttribute('maxLength');
+      }
+
+      if (!rule) {
+        documentInput.setCustomValidity('');
+        return;
+      }
+
+      if (digits.length < rule.min || digits.length > rule.max) {
+        documentInput.setCustomValidity(rule.message);
+      } else {
+        documentInput.setCustomValidity('');
+      }
+    };
+
+    const validatePhone = () => {
+      const digits = onlyDigits(phoneInput.value);
+      phoneInput.value = digits;
+
+      if (digits.length === 0 || digits.length === 11) {
+        phoneInput.setCustomValidity('');
+      } else {
+        phoneInput.setCustomValidity('El telefono debe tener exactamente 11 digitos.');
+      }
+    };
+
+    typeInput.addEventListener('change', applyDocumentRule);
+    documentInput.addEventListener('input', applyDocumentRule);
+    phoneInput.addEventListener('input', validatePhone);
+
+    form.addEventListener('submit', (event) => {
+      applyDocumentRule();
+      validatePhone();
+
+      if (!form.checkValidity()) {
+        event.preventDefault();
+        form.reportValidity();
+      }
+    });
+
+    applyDocumentRule();
+    validatePhone();
+  })();
+</script>
 <% unless contact_only_edit %>
   <script>
     (() => {
