@@ -173,6 +173,29 @@
       <% grouped_by_currency.each do |currency, rows| %>
         <% is_usdt = currency.to_s.upcase == 'USDT' %>
         <% display_symbol = is_usdt ? (Account::CURRENCIES.dig('USDT', :symbol) || 'USDT') : '$' %>
+        <% weekly_summaries = {} %>
+        <% if @show_weekly_summary_enabled %>
+          <% rows.each do |weekly_row| %>
+            <% weekly_debt = weekly_row[:debt] %>
+            <% weekly_date = weekly_debt.issued_on || weekly_debt.created_at&.to_date || Date.current %>
+            <% week_start = weekly_date.beginning_of_week(:monday) %>
+            <% week_end = week_start + 6.days %>
+            <% week_key = "#{week_start.iso8601}_#{week_end.iso8601}" %>
+            <% weekly_summaries[week_key] ||= {
+                 week_start: week_start,
+                 week_end: week_end,
+                 debt_total_usd_bcv: 0.to_d,
+                 sales_total_usd_bcv: 0.to_d,
+                 sale_ids: {}
+               } %>
+            <% weekly_summaries[week_key][:debt_total_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
+            <% source_sale_id = weekly_row[:source_sale_id] %>
+            <% if source_sale_id.present? && !weekly_summaries[week_key][:sale_ids].key?(source_sale_id) %>
+              <% weekly_summaries[week_key][:sale_ids][source_sale_id] = true %>
+              <% weekly_summaries[week_key][:sales_total_usd_bcv] += weekly_row[:source_sale_total_usd_bcv].to_d %>
+            <% end %>
+          <% end %>
+        <% end %>
         <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <div class="flex items-center gap-2 mb-2">
             <span class="font-bold text-slate-700">Moneda: <%= currency %></span>
@@ -197,7 +220,7 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              <% rows.each do |row| %>
+              <% rows.each_with_index do |row, row_index| %>
                 <% debt = row[:debt] %>
                 <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
                 <% conversion_date = debt.issued_on || debt.created_at&.to_date || Date.current %>
@@ -305,6 +328,34 @@
                     <% end %>
                   </td>
                 </tr>
+
+                <% if @show_weekly_summary_enabled %>
+                  <% current_date = debt.issued_on || debt.created_at&.to_date || Date.current %>
+                  <% current_week_start = current_date.beginning_of_week(:monday) %>
+                  <% current_week_end = current_week_start + 6.days %>
+                  <% current_week_key = "#{current_week_start.iso8601}_#{current_week_end.iso8601}" %>
+                  <% next_row = rows[row_index + 1] %>
+                  <% next_date = next_row&.dig(:debt)&.issued_on || next_row&.dig(:debt)&.created_at&.to_date %>
+                  <% next_week_key = if next_date.present?
+                                       next_week_start = next_date.beginning_of_week(:monday)
+                                       "#{next_week_start.iso8601}_#{(next_week_start + 6.days).iso8601}"
+                                     end %>
+                  <% week_boundary = next_week_key != current_week_key %>
+
+                  <% if week_boundary %>
+                    <% summary = weekly_summaries[current_week_key] || {} %>
+                    <tr class="bg-slate-50/70">
+                      <td colspan="3" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
+                        Semana <%= summary[:week_start]&.strftime('%d/%m/%Y') %> al <%= summary[:week_end]&.strftime('%d/%m/%Y') %>
+                      </td>
+                      <td colspan="<%= is_usdt ? 5 : 6 %>" class="px-4 py-3 text-right text-xs font-semibold text-slate-700">
+                        Monto Total en Ventas: <%= number_to_currency(summary[:sales_total_usd_bcv].to_d, unit: '$ ') %>
+                        <span class="mx-2 text-slate-300">|</span>
+                        Monto Total Deuda: <%= number_to_currency(summary[:debt_total_usd_bcv].to_d, unit: '$ ') %>
+                      </td>
+                    </tr>
+                  <% end %>
+                <% end %>
               <% end %>
             </tbody>
           </table>

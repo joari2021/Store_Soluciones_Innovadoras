@@ -503,15 +503,24 @@ class DebtsController < ApplicationController
       end.round(2)
     end
 
+    @show_weekly_summary_enabled = cashea_group_for_show?(@debt)
+
     debts_for_rows = @grouped_debts.sort_by do |debt|
       issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
       created_at = debt.created_at || Time.zone.at(0)
       [-issued_on.jd, -created_at.to_i, -debt.id.to_i]
     end
 
+    sale_totals_by_id = {}
+    if @show_weekly_summary_enabled
+      sale_ids = debts_for_rows.filter_map { |debt| debt_source_sale_id_for_summary(debt) }.uniq
+      sale_totals_by_id = sales_total_usd_bcv_by_id(sale_ids)
+    end
+
     @show_debt_rows = debts_for_rows.map do |debt|
       loan_movement = original_loan_account_movement_for_debt(debt)
       loan_account = loan_movement&.account
+      source_sale_id = debt_source_sale_id_for_summary(debt)
       allocation = if group_is_usdt
                      effective_native_allocations.fetch(debt.id)
                    else
@@ -533,6 +542,8 @@ class DebtsController < ApplicationController
         amount_usd_bcv: amount_for_row,
         paid_usd_bcv: paid_for_row,
         balance_usd_bcv: balance_for_row,
+        source_sale_id: source_sale_id,
+        source_sale_total_usd_bcv: sale_totals_by_id[source_sale_id].to_d,
         status: row_status,
         loan_enabled: loan_movement.present?,
         loan_account_id: loan_movement&.account_id,
@@ -2288,6 +2299,40 @@ class DebtsController < ApplicationController
 
       allocations[debt.id] = { amount: amount, paid: paid, balance: balance }
       remaining_paid = (remaining_paid - paid).round(2)
+    end
+  end
+
+  def cashea_group_for_show?(debt)
+    return false if debt.blank?
+    return false unless debt.receivable?
+
+    debt.counterparty_display_name.to_s.strip.downcase.include?('cashea')
+  end
+
+  def debt_source_sale_id_for_summary(debt)
+    direct_sale_id = debt.venta_id
+    return direct_sale_id.to_i if direct_sale_id.present?
+
+    description = debt.description.to_s
+    match = description.match(/\[(?:VENTA):(\d+)\]/i)
+    return nil if match.blank?
+
+    match[1].to_i
+  end
+
+  def sales_total_usd_bcv_by_id(sale_ids)
+    return {} if sale_ids.blank?
+
+    current_business.ventas.where(id: sale_ids).each_with_object({}) do |sale, hash|
+      total_usd = sale.total_usd.to_d
+
+      if total_usd <= 0
+        total_bs = sale.total_bs.to_d
+        tasa = sale.tasa_dolar.to_d
+        total_usd = tasa.positive? ? (total_bs / tasa).round(2) : 0.to_d
+      end
+
+      hash[sale.id] = total_usd.round(2)
     end
   end
 
