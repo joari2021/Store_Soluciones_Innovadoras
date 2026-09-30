@@ -315,7 +315,6 @@ class AccountsController < ApplicationController
     end
 
     include_commission = ActiveModel::Type::Boolean.new.cast(params[:include_commission])
-    include_commission = false unless movement_kind == "expense"
     commission_amount = include_commission ? parse_transfer_decimal(params[:commission_amount]) : 0.to_d
     if include_commission && !commission_amount.positive?
       return redirect_to account_path(@account), alert: "Indica un monto de comision valido mayor a 0."

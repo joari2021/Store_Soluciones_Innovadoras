@@ -613,7 +613,13 @@
   <div id="account-payment-modal"
        class="fixed inset-0 z-[120] hidden items-center justify-center bg-slate-900/45 p-4"
        data-available="<%= @account.balance.to_d.to_f %>"
-       data-currency-symbol="<%= @account.currency_symbol %>">
+      data-currency-symbol="<%= @account.currency_symbol %>"
+      data-send-commission-percent="<%= @account.send_commission_percent.to_d.to_s('F') %>"
+      data-send-commission-min="<%= @account.send_commission_min.to_d.to_s('F') %>"
+      data-send-commission-rounding="<%= @account.send_commission_rounding.to_s.presence || 'superior' %>"
+      data-receive-commission-percent="<%= @account.receive_commission_percent.to_d.to_s('F') %>"
+      data-receive-commission-min="<%= @account.receive_commission_min.to_d.to_s('F') %>"
+      data-receive-commission-rounding="<%= @account.receive_commission_rounding.to_s.presence || 'superior' %>">
     <div class="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
       <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
         <div>
@@ -695,6 +701,12 @@
       const submitButton = modal.querySelector('[data-payment-submit]');
       const allowNegativeInput = modal.querySelector('[data-payment-allow-negative]');
       const paymentForm = modal.querySelector('form');
+      const sendCommissionPercent = Number.parseFloat(modal.dataset.sendCommissionPercent || '0') || 0;
+      const sendCommissionMin = Number.parseFloat(modal.dataset.sendCommissionMin || '0') || 0;
+      const sendCommissionRounding = String(modal.dataset.sendCommissionRounding || 'superior');
+      const receiveCommissionPercent = Number.parseFloat(modal.dataset.receiveCommissionPercent || '0') || 0;
+      const receiveCommissionMin = Number.parseFloat(modal.dataset.receiveCommissionMin || '0') || 0;
+      const receiveCommissionRounding = String(modal.dataset.receiveCommissionRounding || 'superior');
 
       const parseAmount = (input) => {
         if (!input) return 0;
@@ -719,6 +731,63 @@
       const commissionEnabled = () => Boolean(includeCommissionInput?.checked);
       const isDebitMovement = () => (movementKindInput?.value || 'expense') === 'expense';
 
+      const commissionConfig = () => {
+        if (isDebitMovement()) {
+          return {
+            percent: sendCommissionPercent,
+            min: sendCommissionMin,
+            rounding: sendCommissionRounding,
+          };
+        }
+
+        return {
+          percent: receiveCommissionPercent,
+          min: receiveCommissionMin,
+          rounding: receiveCommissionRounding,
+        };
+      };
+
+      const calculateCommissionAmount = ({ amount, percent, min, rounding }) => {
+        const safeAmount = Number.isFinite(amount) ? Math.abs(amount) : 0;
+        const safePercent = Number.isFinite(percent) ? percent : 0;
+        const safeMin = Number.isFinite(min) ? min : 0;
+        const raw = safeAmount * (safePercent / 100);
+        const cents = String(rounding || 'superior') === 'inferior' ? Math.floor(raw * 100) : Math.round(raw * 100);
+        const calculated = cents / 100;
+        return Math.max(calculated, safeMin);
+      };
+
+      const setCommissionAmountValue = (value) => {
+        if (!commissionAmountInput) return;
+
+        if (window.MoneyInputMask?.setValue) {
+          window.MoneyInputMask.setValue(commissionAmountInput, value, currencySymbol);
+          return;
+        }
+
+        if (!Number.isFinite(value) || value <= 0) {
+          commissionAmountInput.value = '';
+          return;
+        }
+
+        commissionAmountInput.value = String(value).replace('.', ',');
+      };
+
+      const recalculateCommissionAmount = () => {
+        if (!commissionAmountInput || !commissionEnabled()) return;
+
+        const amount = parseAmount(amountInput);
+        const config = commissionConfig();
+        const commission = calculateCommissionAmount({
+          amount,
+          percent: Number(config.percent || 0),
+          min: Number(config.min || 0),
+          rounding: config.rounding,
+        });
+
+        setCommissionAmountValue(commission);
+      };
+
       const sanitizeReference = () => {
         if (!referenceInput) return '';
 
@@ -728,33 +797,32 @@
       };
 
       const syncCommissionUI = () => {
-        const debitMovement = isDebitMovement();
-        const enabled = debitMovement && commissionEnabled();
-
-        if (includeCommissionInput) {
-          includeCommissionInput.disabled = !debitMovement;
-          if (!debitMovement) includeCommissionInput.checked = false;
-        }
+        const enabled = commissionEnabled();
 
         if (commissionWrapper) commissionWrapper.classList.toggle('hidden', !enabled);
-        if (!enabled && commissionAmountInput) commissionAmountInput.value = '';
+        if (!enabled) {
+          setCommissionAmountValue(0);
+          return;
+        }
+
+        recalculateCommissionAmount();
       };
 
       const syncRemaining = () => {
         const amount = parseAmount(amountInput);
         const debitMovement = isDebitMovement();
-        const commission = debitMovement && commissionEnabled() ? parseAmount(commissionAmountInput) : 0;
+        const commission = commissionEnabled() ? parseAmount(commissionAmountInput) : 0;
         const total = amount + commission;
-        const remaining = available - total;
+        const remaining = debitMovement ? (available - total) : (available + amount - commission);
         const hasError = debitMovement && total > 0 && remaining < 0;
-        const commissionOk = !debitMovement || !commissionEnabled() || commission > 0;
+        const commissionOk = !commissionEnabled() || commission > 0;
         if (errorEl) errorEl.classList.toggle('hidden', !hasError);
         if (remainingEl) {
           if (debitMovement) {
             const label = total > 0 ? formatAmount(Math.max(remaining, 0)) : '-';
             remainingEl.textContent = `Saldo restante: ${label}`;
           } else {
-            const projected = available + amount;
+            const projected = available + amount - commission;
             const label = amount > 0 ? formatAmount(projected) : formatAmount(available);
             remainingEl.textContent = `Saldo proyectado: ${label}`;
           }
@@ -794,6 +862,9 @@
       });
 
       if (amountInput) amountInput.addEventListener('input', syncRemaining);
+      if (amountInput) {
+        amountInput.addEventListener('change', syncRemaining);
+      }
       if (movementKindInput) {
         movementKindInput.addEventListener('change', () => {
           syncCommissionUI();
