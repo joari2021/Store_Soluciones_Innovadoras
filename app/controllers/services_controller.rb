@@ -425,7 +425,7 @@ class ServicesController < ApplicationController
                                if zero_amount_entry
                                  0.to_d
                                elsif update_source_cost
-                                 [pending_line_usd, amount_in_debt_currency].max
+                                 amount_in_debt_currency
                                else
                                  pending_line_usd
                                end
@@ -438,7 +438,7 @@ class ServicesController < ApplicationController
       if force_total_settlement && zero_amount_entry
         line['amount_usd'] = line['paid_usd'].to_d.round(2).to_f
       elsif force_total_settlement && update_source_cost
-        line['amount_usd'] = [line['amount_usd'].to_d, line['paid_usd'].to_d].max.round(2).to_f
+        line['amount_usd'] = line['paid_usd'].to_d.round(2).to_f
       end
 
       line['pending_usd'] = (line['amount_usd'].to_d - line['paid_usd'].to_d).round(2).to_f
@@ -454,7 +454,8 @@ class ServicesController < ApplicationController
       if update_source_cost && !zero_amount_entry
         source_snapshot = update_pending_cost_source_row!(
           line: line,
-          amount_usd: amount_applied_to_line,
+          line_total_usd: line['amount_usd'].to_d,
+          line_quantity: line['quantity'].to_d,
           paid_amount_original: amount_original,
           paid_currency: account.currency,
           on_date: payment_date
@@ -3287,7 +3288,7 @@ class ServicesController < ApplicationController
     hydrate_pending_cost_display_amounts!(line: line, debt: debt)
   end
 
-  def update_pending_cost_source_row!(line:, amount_usd:, paid_amount_original:, paid_currency:, on_date:)
+  def update_pending_cost_source_row!(line:, line_total_usd:, line_quantity:, paid_amount_original:, paid_currency:, on_date:)
     return unless ActiveModel::Type::Boolean.new.cast(line['source_updatable'])
 
     source_type = line['source_type'].to_s
@@ -3306,32 +3307,38 @@ class ServicesController < ApplicationController
     reference = line['source_currency_reference'].to_s.strip.presence || source_row.currency_reference.to_s
     reference = 'Dolar BCV' if reference.blank?
 
-    reference_amount = convert_paid_amount_to_reference_amount(
-      amount: paid_amount_original,
-      from_currency: paid_currency,
+    quantity = line_quantity.to_d
+    quantity = 1.to_d unless quantity.positive?
+
+    reference_total_amount = convert_usd_to_reference_amount(
+      amount_usd: line_total_usd,
       reference: reference,
       on_date: on_date
     )
 
-    if reference_amount.to_d <= 0
-      reference_amount = convert_usd_to_reference_amount(
-        amount_usd: amount_usd,
+    if reference_total_amount.to_d <= 0
+      reference_total_amount = convert_paid_amount_to_reference_amount(
+        amount: paid_amount_original,
+        from_currency: paid_currency,
         reference: reference,
         on_date: on_date
       )
     end
 
-    return unless reference_amount.to_d.positive?
+    return unless reference_total_amount.to_d.positive?
+
+    reference_amount = (reference_total_amount.to_d / quantity).round(2)
+    return unless reference_amount.positive?
 
     source_row.update!(
       currency_reference: reference,
-      amount_reference: reference_amount.to_d.round(2)
+      amount_reference: reference_amount
     )
 
     {
       reference: source_row.currency_reference.to_s.strip.presence || reference,
       amount_reference_unit: source_row.amount_reference.to_d.round(2),
-      amount_reference_total: source_row.amount_reference.to_d.round(2)
+      amount_reference_total: (source_row.amount_reference.to_d * quantity).round(2)
     }
   end
 

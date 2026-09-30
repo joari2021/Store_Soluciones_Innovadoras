@@ -791,8 +791,14 @@
 
         if (expected.amount == null || !Number.isFinite(enteredAmount) || enteredAmount <= 0) return;
 
-        const difference = Math.abs(enteredAmount - expected.amount);
+        const signedDifference = enteredAmount - expected.amount;
+        const difference = Math.abs(signedDifference);
         if (difference <= 0.01) return;
+
+        const signedDifferenceLabel = `${signedDifference > 0 ? '+' : '-'}${formatMoney(difference, expected.symbol)}`;
+        const differenceContext = signedDifference > 0
+          ? 'incremento sobre el monto esperado'
+          : 'descuento frente al monto esperado';
 
         if (!window.Swal?.fire) return;
 
@@ -802,7 +808,12 @@
         const result = await window.Swal.fire({
           icon: 'warning',
           title: 'El monto no coincide con el esperado',
-          text: `Esperado: ${formatMoney(expected.amount, expected.symbol)}. Registrado: ${formatMoney(enteredAmount, expected.symbol)}. Este pago marcara la linea como pagada en su totalidad.`,
+          html: `
+            <p>Esperado: <b>${formatMoney(expected.amount, expected.symbol)}</b></p>
+            <p>Registrado: <b>${formatMoney(enteredAmount, expected.symbol)}</b></p>
+            <p>Diferencia: <b>${signedDifferenceLabel}</b> (${differenceContext}).</p>
+            <p>Este pago marcara la linea como pagada en su totalidad.</p>
+          `,
           showCancelButton: true,
           showDenyButton: sourceUpdatable,
           confirmButtonText: sourceUpdatable ? 'Registrar y actualizar costo' : 'Registrar pago total',
