@@ -138,7 +138,9 @@ Rails.application.routes.draw do
       get :venta_eliminadas, path: 'borradas'
       get :requested_products
       post :requested_products, action: :create_requested_product
+      patch 'requested_products/:id', action: :update_requested_product, as: :update_requested_product
       patch 'requested_products/:id/increment', action: :increment_requested_product, as: :increment_requested_product
+      delete 'requested_products/:id', action: :destroy_requested_product, as: :destroy_requested_product
       get :historial_productos, path: "historial/productos-vendidos"
       get :borradores
       get :drafts

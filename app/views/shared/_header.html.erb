@@ -102,7 +102,10 @@
                   id="ventas-requested-products-trigger"
                   data-list-url="<%= requested_products_ventas_path %>"
                   data-create-url="<%= requested_products_ventas_path %>"
+              data-update-url-template="<%= update_requested_product_ventas_path(id: '__ID__') %>"
                   data-increment-url-template="<%= increment_requested_product_ventas_path(id: '__ID__') %>"
+              data-delete-url-template="<%= destroy_requested_product_ventas_path(id: '__ID__') %>"
+              data-can-delete="<%= current_user_admin? ? '1' : '0' %>"
                   class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100">
             <i data-lucide="clipboard-list" class="h-4 w-4"></i>
             <span class="hidden lg:inline">Solicitudes</span>
@@ -386,7 +389,10 @@
 
     const listUrl = String(trigger.dataset.listUrl || '').trim();
     const createUrl = String(trigger.dataset.createUrl || '').trim();
+    const updateTemplate = String(trigger.dataset.updateUrlTemplate || '').trim();
     const incrementTemplate = String(trigger.dataset.incrementUrlTemplate || '').trim();
+    const deleteTemplate = String(trigger.dataset.deleteUrlTemplate || '').trim();
+    const canDelete = String(trigger.dataset.canDelete || '') === '1';
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const state = {
@@ -395,6 +401,7 @@
       loading: false,
       saving: false,
       expandedRowIds: new Set(),
+      editingRowId: null,
     };
 
     const escapeHtml = (value) => String(value ?? '')
@@ -447,6 +454,29 @@
       render();
     };
 
+    const startEditRow = (id) => {
+      const rowId = String(id || '').trim();
+      if (!rowId) return;
+      state.editingRowId = rowId;
+      render();
+    };
+
+    const cancelEditRow = () => {
+      state.editingRowId = null;
+      render();
+    };
+
+    const setLoading = (isLoading) => {
+      state.loading = Boolean(isLoading);
+      const container = window.Swal?.getHtmlContainer?.();
+      if (!container) return;
+
+      const loader = container.querySelector('[data-rp-loader]');
+      const content = container.querySelector('[data-rp-content]');
+      if (loader) loader.classList.toggle('hidden', !state.loading);
+      if (content) content.classList.toggle('hidden', state.loading);
+    };
+
     const filteredRows = () => {
       const q = normalize(state.query);
       if (!q) return state.rows;
@@ -463,6 +493,8 @@
 
       if (!tbody || !empty || !total) return;
 
+      if (state.loading) return;
+
       const rows = filteredRows();
       total.textContent = String(state.rows.length);
 
@@ -476,6 +508,7 @@
       tbody.innerHTML = rows.map((row) => {
         const rowId = String(row.id);
         const isExpanded = state.expandedRowIds.has(rowId);
+        const isEditing = state.editingRowId === rowId;
         const events = Array.isArray(row.events) ? row.events : [];
         const detailsHtml = events.length > 0
           ? `
@@ -503,9 +536,9 @@
                 <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-rp-toggle="${rowId}" aria-label="Desplegar control" title="Desplegar control">
                   ${isExpanded ? '▾' : '▸'}
                 </button>
-                <button type="button" class="text-left text-sm font-medium text-slate-700 hover:text-indigo-700" data-rp-toggle="${rowId}" title="Ver control de solicitudes">
-                  ${escapeHtml(row.name)}
-                </button>
+                ${isEditing
+              ? `<input type="text" value="${escapeHtml(row.name)}" data-rp-edit-input="${rowId}" class="w-full rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">`
+              : `<button type="button" class="text-left text-sm font-medium text-slate-700 hover:text-indigo-700" data-rp-toggle="${rowId}" title="Ver control de solicitudes">${escapeHtml(row.name)}</button>`}
               </div>
             </td>
             <td class="px-3 py-2 text-right">
@@ -516,10 +549,19 @@
                 </button>
               </div>
             </td>
+            <td class="px-3 py-2 text-right">
+              <div class="inline-flex items-center gap-2">
+                ${isEditing
+              ? `<button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" data-rp-save="${rowId}" title="Guardar" aria-label="Guardar">💾</button>
+                   <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50" data-rp-cancel-edit="${rowId}" title="Cancelar" aria-label="Cancelar">✕</button>`
+              : `<button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100" data-rp-edit="${rowId}" title="Editar" aria-label="Editar">✎</button>`}
+                ${canDelete ? `<button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100" data-rp-delete="${rowId}" title="Eliminar" aria-label="Eliminar">🗑</button>` : ''}
+              </div>
+            </td>
           </tr>
           ${isExpanded ? `
             <tr class="border-b border-slate-100 bg-slate-50/60">
-              <td colspan="2" class="px-3 py-3">
+              <td colspan="3" class="px-3 py-3">
                 <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Control de solicitudes (reciente a antiguo)</p>
                 ${detailsHtml}
               </td>
@@ -531,11 +573,12 @@
 
     const fetchList = async () => {
       if (!listUrl) return;
-      state.loading = true;
+      setLoading(true);
       try {
         const response = await fetch(listUrl, {
           headers: { Accept: 'application/json' },
           credentials: 'same-origin',
+          cache: 'no-store',
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'No se pudo cargar la lista.');
@@ -568,7 +611,7 @@
           feedback.classList.add('text-rose-700');
         }
       } finally {
-        state.loading = false;
+        setLoading(false);
       }
     };
 
@@ -645,39 +688,129 @@
       }
     };
 
+    const saveRequestedProductName = async (id) => {
+      const rowId = String(id || '').trim();
+      if (!rowId || !updateTemplate) return;
+
+      const container = window.Swal?.getHtmlContainer?.();
+      const input = container?.querySelector(`[data-rp-edit-input="${rowId}"]`);
+      const name = String(input?.value || '').trim();
+      if (!name) {
+        showFeedback('Debes indicar el nombre del producto solicitado.');
+        return;
+      }
+
+      try {
+        const response = await fetch(updateTemplate.replace('__ID__', rowId), {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'same-origin',
+          body: JSON.stringify({ name }),
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudo actualizar el nombre.');
+
+        upsertRow(data.requested_product);
+        state.editingRowId = null;
+        showFeedback('Nombre actualizado correctamente.', true);
+        render();
+      } catch (error) {
+        showFeedback(error.message || 'No se pudo actualizar el nombre.');
+      }
+    };
+
+    const deleteRequestedProduct = async (id) => {
+      const rowId = String(id || '').trim();
+      if (!rowId || !deleteTemplate || !canDelete) return;
+
+      let allowDelete = true;
+      if (window.Swal?.fire) {
+        const result = await window.Swal.fire({
+          icon: 'warning',
+          title: 'Eliminar producto solicitado',
+          text: 'Se eliminara este producto solicitado y su historial de control. Esta accion no se puede deshacer.',
+          showCancelButton: true,
+          confirmButtonText: 'Eliminar',
+          cancelButtonText: 'Cancelar',
+          reverseButtons: true,
+          heightAuto: false,
+        });
+        allowDelete = Boolean(result.isConfirmed);
+      } else {
+        allowDelete = window.confirm('Se eliminara este producto solicitado y su historial. Deseas continuar?');
+      }
+
+      if (!allowDelete) return;
+
+      try {
+        const response = await fetch(deleteTemplate.replace('__ID__', rowId), {
+          method: 'DELETE',
+          headers: {
+            Accept: 'application/json',
+            'X-CSRF-Token': csrfToken,
+          },
+          credentials: 'same-origin',
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudo eliminar el producto solicitado.');
+
+        state.rows = state.rows.filter((row) => String(row.id) !== rowId);
+        state.expandedRowIds.delete(rowId);
+        if (state.editingRowId === rowId) state.editingRowId = null;
+        showFeedback('Producto solicitado eliminado.', true);
+        render();
+      } catch (error) {
+        showFeedback(error.message || 'No se pudo eliminar el producto solicitado.');
+      }
+    };
+
     const modalHtml = `
       <div class="space-y-3 text-left">
-        <div class="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3">
-          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-            <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Productos solicitados por clientes</p>
-            <p class="text-xs font-semibold text-slate-600">Total: <span data-rp-total>0</span></p>
-          </div>
-            <p class="mt-1 text-xs text-indigo-700/90">Este es un apartado para anadir productos solicitados por clientes y el numero de solicitudes, para llevar un mejor control correcto solo anexe un producto o sume una cantidad por cada vez que un cliente directamente le haya consultado a usted por x producto. Si toca la descripcion de un producto se desplegara la cantidad de veces y usuarios que indicaron la solicitud de un producto, use este apartado de forma profesional y responsable.</p>
+        <div data-rp-loader class="flex min-h-[240px] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-slate-50/70">
+          <div class="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-indigo-600"></div>
+          <p class="text-sm font-medium text-slate-600">Cargando solicitudes...</p>
         </div>
 
-        <div class="grid gap-2 md:grid-cols-[1fr_auto]">
-          <input type="text" data-rp-search class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Buscar por descripcion">
-          <div class="flex gap-2">
-            <input type="text" data-rp-new-name class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Nuevo producto solicitado">
-            <button type="button" data-rp-add class="inline-flex items-center rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">Agregar</button>
+        <div data-rp-content class="hidden space-y-3">
+          <div class="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3">
+            <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <p class="text-xs font-semibold uppercase tracking-wide text-indigo-700">Productos solicitados por clientes</p>
+              <p class="text-xs font-semibold text-slate-600">Total: <span data-rp-total>0</span></p>
+            </div>
+            <p class="mt-1 text-sm leading-relaxed text-indigo-800">Este es un apartado para anadir productos solicitados por clientes y el numero de solicitudes, para llevar un mejor control correcto solo anexe un producto o sume una cantidad por cada vez que un cliente directamente le haya consultado a usted por x producto. Si toca la descripcion de un producto se desplegara la cantidad de veces y usuarios que indicaron la solicitud de un producto, use este apartado de forma profesional y responsable. No debe anadirse ningun producto que ya este registrado en el inventario aunque el producto este agotado, este control de solicitudes no corresponde para eso.</p>
           </div>
-        </div>
 
-        <p data-rp-feedback class="hidden text-xs font-semibold"></p>
-
-        <div class="overflow-hidden rounded-xl border border-slate-200">
-          <div class="max-h-72 overflow-y-auto">
-            <table class="min-w-full text-left">
-              <thead class="sticky top-0 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th class="px-3 py-2">Descripcion</th>
-                  <th class="px-3 py-2 text-right">Cantidad de solicitudes</th>
-                </tr>
-              </thead>
-              <tbody data-rp-table-body></tbody>
-            </table>
+          <div class="grid gap-2 md:grid-cols-[1fr_auto]">
+            <input type="text" data-rp-search class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Buscar por descripcion">
+            <div class="flex gap-2">
+              <input type="text" data-rp-new-name class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700" placeholder="Nuevo producto solicitado">
+              <button type="button" data-rp-add class="inline-flex items-center rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-700">Agregar</button>
+            </div>
           </div>
-          <div data-rp-empty class="px-3 py-4 text-sm text-slate-500">No hay productos solicitados.</div>
+
+          <p data-rp-feedback class="hidden text-xs font-semibold"></p>
+
+          <div class="overflow-hidden rounded-xl border border-slate-200">
+            <div class="max-h-72 overflow-y-auto">
+              <table class="min-w-full text-left">
+                <thead class="sticky top-0 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-3 py-2">Descripcion</th>
+                    <th class="px-3 py-2 text-right">Cantidad de solicitudes</th>
+                    <th class="px-3 py-2 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody data-rp-table-body></tbody>
+              </table>
+            </div>
+            <div data-rp-empty class="px-3 py-4 text-sm text-slate-500">No hay productos solicitados.</div>
+          </div>
         </div>
       </div>
     `;
@@ -712,6 +845,33 @@
 
       if (tbody) {
         tbody.addEventListener('click', (event) => {
+          const editButton = event.target.closest('[data-rp-edit]');
+          if (editButton) {
+            const id = editButton.getAttribute('data-rp-edit');
+            startEditRow(id);
+            return;
+          }
+
+          const cancelButton = event.target.closest('[data-rp-cancel-edit]');
+          if (cancelButton) {
+            cancelEditRow();
+            return;
+          }
+
+          const saveButton = event.target.closest('[data-rp-save]');
+          if (saveButton) {
+            const id = saveButton.getAttribute('data-rp-save');
+            saveRequestedProductName(id);
+            return;
+          }
+
+          const deleteButton = event.target.closest('[data-rp-delete]');
+          if (deleteButton) {
+            const id = deleteButton.getAttribute('data-rp-delete');
+            deleteRequestedProduct(id);
+            return;
+          }
+
           const toggleButton = event.target.closest('[data-rp-toggle]');
           if (toggleButton) {
             const id = toggleButton.getAttribute('data-rp-toggle');
@@ -733,6 +893,7 @@
       state.rows = [];
       state.query = '';
       state.expandedRowIds = new Set();
+      state.editingRowId = null;
 
       await window.Swal.fire({
         title: 'Solicitudes de productos',
@@ -744,6 +905,7 @@
         cancelButtonText: 'Cerrar',
         heightAuto: false,
         didOpen: async () => {
+          setLoading(true);
           bindModalEvents();
           await fetchList();
         },

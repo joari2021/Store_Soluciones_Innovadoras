@@ -219,6 +219,12 @@ class VentasController < ApplicationController
       return render json: { error: 'Debes indicar el nombre del producto solicitado.' }, status: :unprocessable_entity
     end
 
+    if inventory_product_name_registered?(normalized_name)
+      return render json: {
+        error: 'Ese producto ya existe en inventario (incluso si esta agotado), no corresponde registrarlo aqui.'
+      }, status: :unprocessable_entity
+    end
+
     requested_product = current_business
                         .requested_products
                         .find_by('LOWER(requested_products.name) = ?', normalized_name.downcase)
@@ -256,6 +262,47 @@ class VentasController < ApplicationController
 
     render json: { requested_product: requested_product_payload(requested_product) }
   rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record.errors.full_messages.to_sentence.presence || e.message }, status: :unprocessable_entity
+  end
+
+  def update_requested_product
+    requested_product = current_business.requested_products.find_by(id: params[:id])
+    return render json: { error: 'Producto solicitado no encontrado.' }, status: :not_found if requested_product.blank?
+
+    normalized_name = params[:name].to_s.strip.gsub(/\s+/, ' ')
+    if normalized_name.blank?
+      return render json: { error: 'Debes indicar el nombre del producto solicitado.' }, status: :unprocessable_entity
+    end
+
+    if inventory_product_name_registered?(normalized_name)
+      return render json: {
+        error: 'Ese producto ya existe en inventario (incluso si esta agotado), no corresponde registrarlo aqui.'
+      }, status: :unprocessable_entity
+    end
+
+    if current_business
+       .requested_products
+       .where.not(id: requested_product.id)
+       .where('LOWER(requested_products.name) = ?', normalized_name.downcase)
+       .exists?
+      return render json: { error: 'Ya existe un producto solicitado con ese nombre.' }, status: :unprocessable_entity
+    end
+
+    requested_product.update!(name: normalized_name)
+    render json: { requested_product: requested_product_payload(requested_product) }
+  rescue ActiveRecord::RecordInvalid => e
+    render json: { error: e.record.errors.full_messages.to_sentence.presence || e.message }, status: :unprocessable_entity
+  end
+
+  def destroy_requested_product
+    return render json: { error: 'Acceso denegado.' }, status: :forbidden unless current_user_admin?
+
+    requested_product = current_business.requested_products.find_by(id: params[:id])
+    return render json: { error: 'Producto solicitado no encontrado.' }, status: :not_found if requested_product.blank?
+
+    requested_product.destroy!
+    render json: { success: true, id: requested_product.id }
+  rescue ActiveRecord::RecordNotDestroyed => e
     render json: { error: e.record.errors.full_messages.to_sentence.presence || e.message }, status: :unprocessable_entity
   end
 
@@ -5338,6 +5385,16 @@ class VentasController < ApplicationController
       event_kind: event_kind,
       requests_count_after: requested_product.requests_count.to_i
     )
+  end
+
+  def inventory_product_name_registered?(name)
+    normalized = name.to_s.strip.gsub(/\s+/, ' ')
+    return false if normalized.blank?
+
+    current_business
+      .productos
+      .where('LOWER(productos.descripcion) = ?', normalized.downcase)
+      .exists?
   end
 
   def normalize_cashea_sale_payload(raw_payload)
