@@ -97,16 +97,17 @@
             Espera al encargado para abrir turno
           </span>
         <% end %>
-
-        <button type="button"
-                id="ventas-requested-products-trigger"
-                data-list-url="<%= requested_products_ventas_path %>"
-                data-create-url="<%= requested_products_ventas_path %>"
-                data-increment-url-template="<%= increment_requested_product_ventas_path(id: '__ID__') %>"
-                class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100">
-          <i data-lucide="clipboard-list" class="h-4 w-4"></i>
-          <span class="hidden lg:inline">Solicitudes</span>
-        </button>
+        <% if current_user_admin? %>
+          <button type="button"
+                  id="ventas-requested-products-trigger"
+                  data-list-url="<%= requested_products_ventas_path %>"
+                  data-create-url="<%= requested_products_ventas_path %>"
+                  data-increment-url-template="<%= increment_requested_product_ventas_path(id: '__ID__') %>"
+                  class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100">
+            <i data-lucide="clipboard-list" class="h-4 w-4"></i>
+            <span class="hidden lg:inline">Solicitudes</span>
+          </button>
+        <% end %>
       <% end %>
     <% end %>
     <% if Rails.env.development? && current_user_admin? %>
