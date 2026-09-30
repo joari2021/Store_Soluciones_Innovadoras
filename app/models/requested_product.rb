@@ -1,5 +1,6 @@
 class RequestedProduct < ApplicationRecord
   belongs_to :business
+  has_many :requested_product_events, -> { order(created_at: :desc, id: :desc) }, dependent: :destroy
 
   before_validation :normalize_name
 

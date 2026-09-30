@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_30_121000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_30_124500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -805,6 +805,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_121000) do
     t.index ["user_id"], name: "index_recovery_invoices_on_user_id"
   end
 
+  create_table "requested_product_events", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "requested_product_id", null: false
+    t.bigint "user_id"
+    t.string "user_name", null: false
+    t.string "event_kind", null: false
+    t.integer "requests_count_after", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_requested_product_events_on_business_id"
+    t.index ["event_kind"], name: "index_requested_product_events_on_event_kind"
+    t.index ["requested_product_id", "created_at"], name: "idx_requested_product_events_product_created_at"
+    t.index ["requested_product_id"], name: "index_requested_product_events_on_requested_product_id"
+    t.index ["user_id"], name: "index_requested_product_events_on_user_id"
+  end
+
   create_table "requested_products", force: :cascade do |t|
     t.bigint "business_id", null: false
     t.string "name", null: false
@@ -1318,6 +1334,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_121000) do
   add_foreign_key "recovery_invoice_items", "recovery_invoices"
   add_foreign_key "recovery_invoices", "businesses"
   add_foreign_key "recovery_invoices", "users"
+  add_foreign_key "requested_product_events", "businesses"
+  add_foreign_key "requested_product_events", "requested_products"
+  add_foreign_key "requested_product_events", "users"
   add_foreign_key "requested_products", "businesses"
   add_foreign_key "saime_users", "users"
   add_foreign_key "service_expense_structures", "services"

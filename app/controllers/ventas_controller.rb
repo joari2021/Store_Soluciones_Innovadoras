@@ -198,7 +198,7 @@ class VentasController < ApplicationController
   end
 
   def requested_products
-    products = current_business.requested_products.ordered_by_name
+    products = current_business.requested_products.includes(:requested_product_events).ordered_by_name
 
     if params[:q].present?
       query = params[:q].to_s.strip
@@ -228,12 +228,11 @@ class VentasController < ApplicationController
       requested_product.with_lock do
         requested_product.requests_count = requested_product.requests_count.to_i + 1
         requested_product.save!
+        append_requested_product_event!(requested_product: requested_product, event_kind: 'incremented')
       end
     else
-      requested_product = current_business.requested_products.create!(
-        name: normalized_name,
-        requests_count: 1
-      )
+      requested_product = current_business.requested_products.create!(name: normalized_name, requests_count: 1)
+      append_requested_product_event!(requested_product: requested_product, event_kind: 'created')
       created = true
     end
 
@@ -252,6 +251,7 @@ class VentasController < ApplicationController
     requested_product.with_lock do
       requested_product.requests_count = requested_product.requests_count.to_i + 1
       requested_product.save!
+      append_requested_product_event!(requested_product: requested_product, event_kind: 'incremented')
     end
 
     render json: { requested_product: requested_product_payload(requested_product) }
@@ -5311,11 +5311,33 @@ class VentasController < ApplicationController
   end
 
   def requested_product_payload(row)
+    events = row.requested_product_events.recent_first
+
     {
       id: row.id,
       name: row.name.to_s,
-      requests_count: row.requests_count.to_i
+      requests_count: row.requests_count.to_i,
+      events: events.map do |event|
+        {
+          id: event.id,
+          event_kind: event.event_kind,
+          user_name: event.user_name.to_s,
+          requests_count_after: event.requests_count_after.to_i,
+          happened_at: event.created_at&.iso8601,
+          happened_at_label: event.created_at&.in_time_zone('America/Caracas')&.strftime('%d-%m-%Y %H:%M')
+        }
+      end
     }
+  end
+
+  def append_requested_product_event!(requested_product:, event_kind:)
+    requested_product.requested_product_events.create!(
+      business: current_business,
+      user: Current.user,
+      user_name: Current.user&.display_name.to_s.strip.presence || Current.user&.username.to_s.strip.presence || 'Usuario',
+      event_kind: event_kind,
+      requests_count_after: requested_product.requests_count.to_i
+    )
   end
 
   def normalize_cashea_sale_payload(raw_payload)
