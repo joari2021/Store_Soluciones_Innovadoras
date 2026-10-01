@@ -409,7 +409,21 @@ class ServicesController < ApplicationController
 
     amount_in_debt_currency = conversion[:amount].to_d.round(2)
 
-    if !force_total_settlement && amount_in_debt_currency > pending_line_usd + 0.01.to_d
+    expected_account_currency = pending_cost_expected_account_currency_for(
+      line: line,
+      debt_currency: debt.currency
+    )
+    pending_reference_amount = line['display_pending_reference_total'].to_d.round(2)
+    closes_line_by_reference_coverage =
+      !force_total_settlement &&
+      expected_account_currency.present? &&
+      account.currency.to_s.upcase == expected_account_currency.to_s.upcase &&
+      pending_reference_amount.positive? &&
+      amount_original.to_d >= (pending_reference_amount - 0.01.to_d)
+
+    effective_force_total_settlement = force_total_settlement || closes_line_by_reference_coverage
+
+    if !effective_force_total_settlement && amount_in_debt_currency > pending_line_usd + 0.01.to_d
       return redirect_to redirect_path,
                          alert: 'El pago excede el saldo pendiente de la clasificacion seleccionada.'
     end
@@ -421,10 +435,10 @@ class ServicesController < ApplicationController
                            ActiveModel::Type::Boolean.new.cast(params[:update_source_cost])
                          end
 
-    amount_applied_to_line = if force_total_settlement
+    amount_applied_to_line = if effective_force_total_settlement
                                if zero_amount_entry
                                  0.to_d
-                               elsif update_source_cost
+                               elsif force_total_settlement && update_source_cost
                                  amount_in_debt_currency
                                else
                                  pending_line_usd
@@ -435,7 +449,7 @@ class ServicesController < ApplicationController
 
     Debt.transaction do
       line['paid_usd'] = (line['paid_usd'].to_d + amount_applied_to_line).round(2).to_f
-      if force_total_settlement && zero_amount_entry
+      if effective_force_total_settlement && zero_amount_entry
         line['amount_usd'] = line['paid_usd'].to_d.round(2).to_f
       elsif force_total_settlement && update_source_cost
         line['amount_usd'] = line['paid_usd'].to_d.round(2).to_f
@@ -510,7 +524,7 @@ class ServicesController < ApplicationController
           notes: "Pago costo servicio [DEBT:#{debt.id}] [LINE:#{line_id}]"
         )
 
-        if force_total_settlement
+        if effective_force_total_settlement
           effective_rate = if amount_original.to_d.positive?
                              (amount_applied_to_line / amount_original.to_d).round(8)
                            else
