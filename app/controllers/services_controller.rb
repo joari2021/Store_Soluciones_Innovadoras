@@ -547,19 +547,15 @@ class ServicesController < ApplicationController
       end
 
       if payment && include_commission && commission_amount.positive? && account.account_type == 'bank_account'
-        commission_description = if payment_method == 'mobile'
-                                   'Comision de pago movil'
-                                 else
-                                   'Comision de transferencia'
-                                 end
-
-        account.account_movements.create!(
-          movement_kind: 'expense',
-          amount: commission_amount,
-          description: "#{commission_description} [DEBT:#{debt.id}] [LINE:#{line_id}] [DP:#{payment.id}] [COMMISSION]",
-          occurred_at: movement_occurred_at,
-          payment_method: pending_cost_account_movement_method(payment_method),
-          reference: reference.presence
+        create_pending_cost_commission_records!(
+          debt: debt,
+          line_id: line_id,
+          payment: payment,
+          account: account,
+          payment_method: payment_method,
+          reference: reference,
+          commission_amount: commission_amount,
+          movement_occurred_at: movement_occurred_at,
         )
       end
 
@@ -650,6 +646,14 @@ class ServicesController < ApplicationController
       details['pending_usd'] = pending_usd_total.to_f
       details['status'] = pending_cost_status_from_lines(lines)
       details['lines'] = lines
+
+      commission_expenses = linked_pending_cost_commission_expenses_for_payment(payment)
+      commission_expenses.each do |expense|
+        expense.expense_payments.includes(:account).each do |expense_payment|
+          pending_cost_remove_account_movement_for_expense_payment!(expense_payment)
+        end
+        expense.destroy!
+      end
 
       pending_cost_account_movements_for_payment(payment: payment, debt: debt, line: line).each(&:destroy!)
       payment.destroy!
@@ -2443,6 +2447,99 @@ class ServicesController < ApplicationController
     return 'mobile_payment' if payment_method.to_s == 'mobile'
 
     payment_method.to_s
+  end
+
+  def create_pending_cost_commission_records!(debt:, line_id:, payment:, account:, payment_method:, reference:,
+                                              commission_amount:, movement_occurred_at:)
+    category = pending_cost_bank_services_expense_category
+    method = pending_cost_commission_expense_payment_method(payment_method)
+    normalized_reference = pending_cost_commission_reference(reference, payment_method)
+
+    commission_expense = Expense.create!(
+      business: debt.business,
+      name: "Comision bancaria - Costo de servicio ##{debt.id}",
+      description: "Comision bancaria costo de servicio [DEBT:#{debt.id}] [LINE:#{line_id}] [DP:#{payment.id}] [SERVICE_COST_COMMISSION]",
+      expense_type: 'variable',
+      frequency: 'once',
+      amount: commission_amount,
+      currency: account.currency,
+      start_date: payment.occurred_at,
+      expense_category: category,
+    )
+
+    expense_payment = commission_expense.expense_payments.create!(
+      account: account,
+      amount: commission_amount,
+      currency: account.currency,
+      payment_method: method,
+      reference: normalized_reference,
+      occurred_at: payment.occurred_at,
+      notes: "Comision costo servicio [DEBT:#{debt.id}] [LINE:#{line_id}] [DP:#{payment.id}]",
+    )
+
+    commission_expense.register_payment!(payment.occurred_at)
+
+    movement_attrs = {
+      movement_kind: 'expense',
+      amount: commission_amount,
+      description: "Comision bancaria costo de servicio [DEBT:#{debt.id}] [LINE:#{line_id}] [DP:#{payment.id}] [GASTO:#{commission_expense.id}] [PAGO_GASTO:#{expense_payment.id}] [COMMISSION]",
+      occurred_at: movement_occurred_at,
+      payment_method: pending_cost_account_movement_method(payment_method),
+    }
+    movement_attrs[:reference] = normalized_reference if normalized_reference.present?
+    account.account_movements.create!(movement_attrs)
+  end
+
+  def linked_pending_cost_commission_expenses_for_payment(payment)
+    Expense.where(business_id: payment.debt.business_id)
+           .where('description LIKE ?', "%[DP:#{payment.id}]%")
+           .where('description LIKE ?', '%[SERVICE_COST_COMMISSION]%')
+           .to_a
+  end
+
+  def pending_cost_remove_account_movement_for_expense_payment!(expense_payment)
+    account = expense_payment.account
+    return if account.blank?
+
+    movement = account.account_movements
+                      .where(movement_kind: 'expense')
+                      .where('description LIKE ?', "%[PAGO_GASTO:#{expense_payment.id}]%")
+                      .order(created_at: :desc)
+                      .first
+
+    movement ||= account.account_movements
+                       .where(movement_kind: 'expense', amount: expense_payment.amount, occurred_at: expense_payment.occurred_at)
+                       .where('description LIKE ?', "%[GASTO:#{expense_payment.expense_id}]%")
+                       .order(created_at: :desc)
+                       .first
+
+    movement&.destroy!
+  end
+
+  def pending_cost_bank_services_expense_category
+    category_name = 'Servicios Bancarios'
+    existing = ExpenseCategory.where('LOWER(name) = ?', category_name.downcase).first
+    return existing if existing.present?
+
+    ExpenseCategory.create!(name: category_name, business: current_business)
+  end
+
+  def pending_cost_commission_expense_payment_method(method)
+    case method.to_s
+    when 'mobile', 'mobile_payment'
+      'mobile'
+    when 'debit_card'
+      'debit_card'
+    else
+      'transfer'
+    end
+  end
+
+  def pending_cost_commission_reference(reference, method)
+    return '' if method.to_s == 'debit_card'
+
+    digits = reference.to_s.gsub(/\D/, '')
+    digits.match?(/\A\d{4}\z/) ? digits : ''
   end
 
   def paginate_pending_cost_sold_rows(rows:)
