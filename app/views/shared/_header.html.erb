@@ -534,6 +534,7 @@
         const rowId = String(row.id);
         const isExpanded = state.expandedRowIds.has(rowId);
         const isEditing = state.editingRowId === rowId;
+        const isIncrementing = Number(state.pendingIncrementsById[rowId] || 0) > 0;
         const events = Array.isArray(row.events) ? row.events : [];
         const detailsHtml = events.length > 0
           ? `
@@ -569,7 +570,7 @@
             <td class="px-3 py-2 text-right">
               <div class="inline-flex items-center gap-2">
                 <span class="min-w-[2rem] text-sm font-bold text-indigo-700">${Number(row.requests_count || 0)}</span>
-                <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100" data-rp-increment="${row.id}" title="Sumar solicitud" aria-label="Sumar solicitud">
+                <button type="button" class="inline-flex h-7 w-7 items-center justify-center rounded-full border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60" data-rp-increment="${row.id}" title="${isIncrementing ? 'Guardando...' : 'Sumar solicitud'}" aria-label="Sumar solicitud" ${isIncrementing ? 'disabled' : ''}>
                   +
                 </button>
               </div>
@@ -735,6 +736,7 @@
         showFeedback(error.message || 'No se pudo actualizar la solicitud.');
       } finally {
         decrementPendingRequests(rowId);
+        render();
       }
     };
 
