@@ -391,8 +391,11 @@ class ServicesController < ApplicationController
     commission_amount = parse_pending_cost_decimal(params[:commission_amount])
     commission_amount = 0.to_d unless commission_amount.positive?
 
-    if include_commission && commission_amount <= 0 && amount_original.positive?
-      commission_amount = (amount_original * 0.003).round(2)
+    if include_commission && amount_original.positive?
+      commission_amount = calculate_pending_cost_account_commission_amount(
+        amount: amount_original,
+        account: account
+      )
     end
 
     if include_commission && commission_amount.negative?
@@ -3193,6 +3196,24 @@ class ServicesController < ApplicationController
     BigDecimal(normalized)
   rescue ArgumentError
     0.to_d
+  end
+
+  def calculate_pending_cost_account_commission_amount(amount:, account:)
+    return 0.to_d if account.blank?
+
+    percent = account.send_commission_percent.to_d.round(6) rescue 0.to_d
+    min_amount = account.send_commission_min.to_d.round(2) rescue 0.to_d
+    calc = amount.to_d.abs * (percent / 100)
+    rounding = (account.send_commission_rounding.presence || 'superior') rescue 'superior'
+
+    commission = if rounding.to_s == 'inferior'
+      BigDecimal(((calc * 100).floor / 100.0).to_s)
+    else
+      calc.round(2, BigDecimal::ROUND_HALF_UP)
+    end
+
+    commission = min_amount if commission < min_amount
+    commission.round(2)
   end
 
   def parse_pending_cost_payment_date(value)

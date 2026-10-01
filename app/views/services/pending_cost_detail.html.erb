@@ -127,7 +127,10 @@
               data: {
                 account_type: account.account_type,
                 account_currency: account.currency,
-                account_symbol: account.currency_symbol
+                account_symbol: account.currency_symbol,
+                account_send_commission_percent: account.send_commission_percent.to_d.round(6).to_s('F'),
+                account_send_commission_min: account.send_commission_min.to_d.round(2).to_s('F'),
+                account_send_commission_rounding: account.send_commission_rounding.to_s
               }
             }
           ] %>
@@ -284,7 +287,7 @@
                     <%= check_box_tag :include_commission, '1', false,
                                       class: 'h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500',
                                       data: { pending_cost_commission_toggle: true } %>
-                    Incluir comision (0,30%)
+                    Incluir comision de envio
                   </label>
                   <div>
                     <%= label_tag nil, 'Comision', class: 'block text-[11px] font-semibold uppercase tracking-wide text-slate-500' %>
@@ -643,6 +646,9 @@
 
       const selectedOption = accountSelect.options?.[accountSelect.selectedIndex];
       const accountSymbol = String(selectedOption?.dataset?.accountSymbol || '$').trim() || '$';
+      const commissionPercent = Number(selectedOption?.dataset?.accountSendCommissionPercent || 0) || 0;
+      const commissionMin = Number(selectedOption?.dataset?.accountSendCommissionMin || 0) || 0;
+      const commissionRounding = String(selectedOption?.dataset?.accountSendCommissionRounding || 'superior').trim().toLowerCase();
       applyMoneySymbolToInput(commissionInput, accountSymbol);
 
       const isBank = String(selectedOption?.dataset?.accountType || '') === 'bank_account';
@@ -665,7 +671,11 @@
         return;
       }
 
-      const suggestedCommission = Math.round((paymentAmount * 0.003) * 100) / 100;
+      const rawCommission = paymentAmount * (commissionPercent / 100);
+      const roundedCommission = commissionRounding === 'inferior'
+        ? Math.floor(rawCommission * 100) / 100
+        : Math.round(rawCommission * 100) / 100;
+      const suggestedCommission = Math.max(roundedCommission, commissionMin);
       applyMoneySymbolToInput(commissionInput, accountSymbol, suggestedCommission);
     };
 
