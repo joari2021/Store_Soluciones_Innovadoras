@@ -5789,9 +5789,33 @@
         cartBackdrop.addEventListener('click', () => setCartModalOpen(false));
       }
 
+      const productRequiresSalePriceSetup = (product) => {
+        if (!product) return false;
+
+        const available = Number(getAvailableTotal(product)) || 0;
+        const priceUsd = Number(product.price_usd || 0) || 0;
+        return available > 0 && priceUsd <= 0;
+      };
+
+      const showMissingSalePriceAlert = () => {
+        if (!window.Swal) return;
+
+        window.Swal.fire({
+          icon: 'warning',
+          text: 'Este producto aun no esta disponible para la venta, espere que el administrador le establezca el precio de venta',
+          confirmButtonText: 'OK',
+          heightAuto: false,
+        });
+      };
+
       const addToCart = (productId, variationId, quantity) => {
         const product = productsById.get(String(productId));
         if (!product) return;
+
+        if (productRequiresSalePriceSetup(product)) {
+          showMissingSalePriceAlert();
+          return;
+        }
 
         const normalizedVariation = normalizeVariationId(variationId);
         const safeQuantity = clampProductQuantity(quantity, product);
@@ -8052,6 +8076,13 @@
             showCustomerCatalogOnlyAlert();
             return;
           }
+
+          const product = productsById.get(String(productId));
+          if (productRequiresSalePriceSetup(product)) {
+            showMissingSalePriceAlert();
+            return;
+          }
+
           if (!window.Swal) {
             addToCart(productId, null, 1);
             return;
