@@ -415,7 +415,6 @@ class ServicesController < ApplicationController
     )
     pending_reference_amount = line['display_pending_reference_total'].to_d.round(2)
     closes_line_by_reference_coverage =
-      !force_total_settlement &&
       expected_account_currency.present? &&
       account.currency.to_s.upcase == expected_account_currency.to_s.upcase &&
       pending_reference_amount.positive? &&
@@ -439,7 +438,7 @@ class ServicesController < ApplicationController
                                if zero_amount_entry
                                  0.to_d
                                elsif force_total_settlement && update_source_cost
-                                 amount_in_debt_currency
+                                 [amount_in_debt_currency, pending_line_usd].max.round(2)
                                else
                                  pending_line_usd
                                end
@@ -2746,6 +2745,7 @@ class ServicesController < ApplicationController
 
       amount_usd = line['amount_usd'].to_d.round(2)
       paid_usd = stored_line.to_h['paid_usd'].to_d.round(2)
+      paid_usd = amount_usd if stored_line.to_h['status'].to_s == 'paid'
       paid_usd = amount_usd if paid_usd > amount_usd
 
       pending_usd = (amount_usd - paid_usd).round(2)
@@ -3324,11 +3324,21 @@ class ServicesController < ApplicationController
     quantity = line_quantity.to_d
     quantity = 1.to_d unless quantity.positive?
 
-    reference_total_amount = convert_usd_to_reference_amount(
-      amount_usd: line_total_usd,
-      reference: reference,
-      on_date: on_date
-    )
+    reference_currency = pending_cost_reference_currency(reference)
+    paid_currency_code = paid_currency.to_s.strip.upcase
+
+    reference_total_amount = 0.to_d
+    if reference_currency.present? && paid_currency_code == reference_currency
+      reference_total_amount = paid_amount_original.to_d.round(2)
+    end
+
+    if reference_total_amount.to_d <= 0
+      reference_total_amount = convert_usd_to_reference_amount(
+        amount_usd: line_total_usd,
+        reference: reference,
+        on_date: on_date
+      )
+    end
 
     if reference_total_amount.to_d <= 0
       reference_total_amount = convert_paid_amount_to_reference_amount(
