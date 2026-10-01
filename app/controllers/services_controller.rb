@@ -207,6 +207,18 @@ class ServicesController < ApplicationController
                          alert: 'No hay detalles de costo disponibles para este registro.'
     end
 
+    @pending_cost_payments_by_line = pending_cost_debt_payments_by_line(debt: debt)
+    apply_pending_cost_detail_display_amounts!(
+      lines: lines,
+      debt: debt,
+      payments_by_line: @pending_cost_payments_by_line
+    )
+    reconcile_pending_cost_lines_with_payment_history!(
+      debt: debt,
+      lines: lines,
+      payments_by_line: @pending_cost_payments_by_line
+    )
+
     payable_lines = lines.select { |line| pending_cost_line_payable?(line) }
     pending_usd = payable_lines.sum { |line| line['pending_usd'].to_d }.round(2)
     paid_usd = payable_lines.sum { |line| line['paid_usd'].to_d }.round(2)
@@ -221,13 +233,6 @@ class ServicesController < ApplicationController
       pending_usd: pending_usd,
       status: pending_cost_status_from_lines(payable_lines)
     }
-
-    @pending_cost_payments_by_line = pending_cost_debt_payments_by_line(debt: debt)
-    apply_pending_cost_detail_display_amounts!(
-      lines: lines,
-      debt: debt,
-      payments_by_line: @pending_cost_payments_by_line
-    )
 
     @pending_cost_currency_rates = build_pending_cost_currency_rates(rows: [@pending_cost_row],
                                                                      accounts: @pending_cost_accounts)
@@ -3074,6 +3079,59 @@ class ServicesController < ApplicationController
     line['display_secondary_total'] = (total_reference * bs_rate).round(2).to_f
     line['display_secondary_paid'] = (paid_reference * bs_rate).round(2).to_f
     line['display_secondary_pending'] = (pending_reference * bs_rate).round(2).to_f
+  end
+
+  def reconcile_pending_cost_lines_with_payment_history!(debt:, lines:, payments_by_line:)
+    changed = false
+
+    Array(lines).each do |line|
+      next unless pending_cost_line_payable?(line)
+
+      reference = line['display_currency_reference'].to_s.strip
+      reference_currency = pending_cost_reference_currency(reference)
+      next unless %w[VES USD EUR USDT].include?(reference_currency)
+
+      total_reference = line['display_amount_reference_total'].to_d.round(2)
+      next unless total_reference.positive?
+
+      payments = Array(payments_by_line.to_h[line['line_id'].to_s])
+      paid_reference = payments.sum do |payment|
+        convert_paid_amount_to_reference_amount(
+          amount: payment.amount,
+          from_currency: payment.currency,
+          reference: reference,
+          on_date: payment.occurred_at
+        )
+      end.round(2)
+
+      next unless paid_reference >= (total_reference - 0.01.to_d)
+      next unless line['pending_usd'].to_d.positive?
+
+      line['paid_usd'] = line['amount_usd'].to_d.round(2).to_f
+      line['pending_usd'] = 0.0
+      line['status'] = 'paid'
+      changed = true
+    end
+
+    return unless changed
+
+    payable_lines = Array(lines).select { |line| pending_cost_line_payable?(line) }
+    details = debt.service_cost_details_hash.deep_dup
+    details['version'] ||= 1
+    details['service_id'] ||= debt.service_id
+    details['service_name'] ||= debt.service&.description.to_s
+    details['total_usd'] = payable_lines.sum { |line| line['amount_usd'].to_d }.round(2).to_f
+    details['paid_usd'] = payable_lines.sum { |line| line['paid_usd'].to_d }.round(2).to_f
+    details['pending_usd'] = payable_lines.sum { |line| line['pending_usd'].to_d }.round(2).to_f
+    details['status'] = pending_cost_status_from_lines(payable_lines)
+    details['lines'] = lines
+
+    debt.update!(
+      service_cost_details: details,
+      service_cost_pending: details['pending_usd'].to_d.positive?
+    )
+
+    sync_paid_service_cost_snapshot_to_sale!(debt: debt, details: details)
   end
 
   def pending_cost_secondary_symbol_for(currency)
