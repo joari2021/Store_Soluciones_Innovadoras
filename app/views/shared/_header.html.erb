@@ -402,6 +402,7 @@
       saving: false,
       expandedRowIds: new Set(),
       editingRowId: null,
+      pendingIncrementsById: {},
     };
 
     const escapeHtml = (value) => String(value ?? '')
@@ -440,6 +441,30 @@
           : [],
       });
       sortRows();
+    };
+
+    const findRowById = (id) => {
+      const rowId = String(id || '').trim();
+      if (!rowId) return null;
+      return state.rows.find((item) => String(item.id) === rowId) || null;
+    };
+
+    const incrementPendingRequests = (id) => {
+      const rowId = String(id || '').trim();
+      if (!rowId) return;
+      const current = Number(state.pendingIncrementsById[rowId] || 0);
+      state.pendingIncrementsById[rowId] = current + 1;
+    };
+
+    const decrementPendingRequests = (id) => {
+      const rowId = String(id || '').trim();
+      if (!rowId) return;
+      const current = Number(state.pendingIncrementsById[rowId] || 0);
+      if (current <= 1) {
+        delete state.pendingIncrementsById[rowId];
+        return;
+      }
+      state.pendingIncrementsById[rowId] = current - 1;
     };
 
     const toggleRowDetails = (id) => {
@@ -668,9 +693,19 @@
 
     const incrementRequestedProduct = async (id) => {
       if (!id || !incrementTemplate) return;
+      const rowId = String(id || '').trim();
+      if (!rowId) return;
+
+      const optimisticRow = findRowById(rowId);
+      if (optimisticRow) {
+        optimisticRow.requests_count = Number(optimisticRow.requests_count || 0) + 1;
+        render();
+      }
+
+      incrementPendingRequests(rowId);
 
       try {
-        const response = await fetch(incrementTemplate.replace('__ID__', String(id)), {
+        const response = await fetch(incrementTemplate.replace('__ID__', rowId), {
           method: 'PATCH',
           headers: {
             Accept: 'application/json',
@@ -682,10 +717,24 @@
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'No se pudo actualizar la solicitud.');
 
+        const visibleCountBeforeMerge = Number(findRowById(rowId)?.requests_count || 0);
         upsertRow(data.requested_product);
+
+        const mergedRow = findRowById(rowId);
+        if (mergedRow) {
+          mergedRow.requests_count = Math.max(Number(mergedRow.requests_count || 0), visibleCountBeforeMerge);
+        }
+
         render();
       } catch (error) {
+        const rollbackRow = findRowById(rowId);
+        if (rollbackRow) {
+          rollbackRow.requests_count = Math.max(Number(rollbackRow.requests_count || 0) - 1, 0);
+          render();
+        }
         showFeedback(error.message || 'No se pudo actualizar la solicitud.');
+      } finally {
+        decrementPendingRequests(rowId);
       }
     };
 
