@@ -381,19 +381,19 @@
   })();
 
   (() => {
-    if (window.requestedProductsModalBound) return;
-    window.requestedProductsModalBound = true;
+    const setupRequestedProductsModal = () => {
+      const trigger = document.getElementById('ventas-requested-products-trigger');
+      if (!trigger) return;
+      if (trigger.dataset.rpModalBound === '1') return;
+      trigger.dataset.rpModalBound = '1';
 
-    const trigger = document.getElementById('ventas-requested-products-trigger');
-    if (!trigger) return;
-
-    const listUrl = String(trigger.dataset.listUrl || '').trim();
-    const createUrl = String(trigger.dataset.createUrl || '').trim();
-    const updateTemplate = String(trigger.dataset.updateUrlTemplate || '').trim();
-    const incrementTemplate = String(trigger.dataset.incrementUrlTemplate || '').trim();
-    const deleteTemplate = String(trigger.dataset.deleteUrlTemplate || '').trim();
-    const canDelete = String(trigger.dataset.canDelete || '') === '1';
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const listUrl = String(trigger.dataset.listUrl || '').trim();
+      const createUrl = String(trigger.dataset.createUrl || '').trim();
+      const updateTemplate = String(trigger.dataset.updateUrlTemplate || '').trim();
+      const incrementTemplate = String(trigger.dataset.incrementUrlTemplate || '').trim();
+      const deleteTemplate = String(trigger.dataset.deleteUrlTemplate || '').trim();
+      const canDelete = String(trigger.dataset.canDelete || '') === '1';
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
 
     const state = {
       rows: [],
@@ -888,30 +888,39 @@
       }
     };
 
-    trigger.addEventListener('click', async () => {
-      if (!window.Swal) return;
+      trigger.addEventListener('click', async () => {
+        if (!window.Swal) return;
 
-      state.rows = [];
-      state.query = '';
-      state.expandedRowIds = new Set();
-      state.editingRowId = null;
+        state.rows = [];
+        state.query = '';
+        state.expandedRowIds = new Set();
+        state.editingRowId = null;
 
-      await window.Swal.fire({
-        title: 'Solicitudes de productos',
-        html: modalHtml,
-        width: 860,
-        showCloseButton: true,
-        showConfirmButton: false,
-        showCancelButton: true,
-        cancelButtonText: 'Cerrar',
-        heightAuto: false,
-        didOpen: async () => {
-          setLoading(true);
-          bindModalEvents();
-          await fetchList();
-        },
+        await window.Swal.fire({
+          title: 'Solicitudes de productos',
+          html: modalHtml,
+          width: 860,
+          showCloseButton: true,
+          showConfirmButton: false,
+          showCancelButton: true,
+          cancelButtonText: 'Cerrar',
+          heightAuto: false,
+          didOpen: async () => {
+            setLoading(true);
+            bindModalEvents();
+            await fetchList();
+          },
+        });
       });
-    });
+    };
+
+    if (!window.requestedProductsModalLifecycleBound) {
+      window.requestedProductsModalLifecycleBound = true;
+      document.addEventListener('turbo:load', setupRequestedProductsModal);
+      document.addEventListener('DOMContentLoaded', setupRequestedProductsModal);
+    }
+
+    setupRequestedProductsModal();
   })();
 
   (() => {
