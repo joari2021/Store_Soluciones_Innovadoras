@@ -833,6 +833,9 @@ class DebtsController < ApplicationController
     grouped_debts = debts_in_same_edit_group(group_root_for(@debt))
     delete_group = params[:delete_scope].to_s == 'group'
     debts_to_delete = delete_group ? grouped_debts : [original_debt]
+    deleted_debt_ids = debts_to_delete.flat_map do |debt|
+      [debt.id, *linked_loan_commission_debt_ids_for_origin(debt)]
+    end.compact.uniq
     remove_movements = params[:delete_mode].to_s == 'with_movements'
     movements_to_remove = remove_movements ? linked_account_movements_for_debts(debts_to_delete) : []
     reassigned_payments_count = 0
@@ -867,7 +870,24 @@ class DebtsController < ApplicationController
       notice = "#{notice} #{reassigned_payments_count} pagos reasignados al resto del grupo."
     end
 
-    redirect_after_debt_destroy(notice: notice, delete_group: delete_group)
+    respond_to do |format|
+      format.json do
+        render json: {
+          message: notice,
+          deleted_debt_ids: deleted_debt_ids,
+          deleted_count: deleted_debt_ids.size,
+          delete_group: delete_group,
+        }
+      end
+      format.html { redirect_after_debt_destroy(notice: notice, delete_group: delete_group) }
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    error_message = e.record&.errors&.full_messages&.to_sentence.presence || e.message
+
+    respond_to do |format|
+      format.json { render json: { error: error_message }, status: :unprocessable_entity }
+      format.html { redirect_after_debt_destroy(notice: error_message, delete_group: delete_group) }
+    end
   end
 
   def create_cliente
@@ -1882,6 +1902,10 @@ class DebtsController < ApplicationController
   def linked_loan_commission_debts_for_origin(debt)
     marker = loan_commission_marker_for_origin_debt(debt.id)
     current_business.debts.where('name LIKE ?', "%#{marker}%").to_a
+  end
+
+  def linked_loan_commission_debt_ids_for_origin(debt)
+    linked_loan_commission_debts_for_origin(debt).map(&:id)
   end
 
   def remove_loan_commission_records_for_debt!(debt)

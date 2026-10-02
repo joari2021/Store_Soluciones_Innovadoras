@@ -166,7 +166,7 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Deudas asociadas</p>
-      <span class="text-xs font-semibold text-slate-500"><%= @show_debt_rows.size %> deudas</span>
+      <span class="text-xs font-semibold text-slate-500" data-debts-associated-count="true"><%= @show_debt_rows.size %> deudas</span>
     </div>
     <% if @show_debt_rows.any? %>
       <% grouped_by_currency = @show_debt_rows.group_by { |row| row[:debt].currency } %>
@@ -220,7 +220,7 @@
                 <th class="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100">
+            <tbody class="divide-y divide-slate-100" data-debts-table-body="true">
               <% rows.each_with_index do |row, row_index| %>
                 <% debt = row[:debt] %>
                 <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
@@ -229,7 +229,7 @@
                 <% amount_ves = CurrencyConverter.convert(amount: debt.amount.to_d, from_currency: debt.currency, to_currency: 'VES', on_date: conversion_date)&.dig(:amount).to_d %>
                 <% source_link = debt_source_link_data(debt) %>
                 <% sale_id = debt_source_sale_id(debt) %>
-                <tr>
+                <tr data-debt-row-id="<%= debt.id %>">
                   <td class="px-4 py-3"><%= debt.issued_on ? debt.issued_on.strftime("%d/%m/%Y") : "-" %></td>
                   <td class="px-4 py-3"><%= debt.due_on ? debt.due_on.strftime("%d/%m/%Y") : "-" %></td>
                   <td class="px-4 py-3">
@@ -325,7 +325,7 @@
                               group_cliente_id: params[:group_cliente_id],
                               only_active: params[:only_active],
                               group_token: params[:group_token]
-                            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar", aria: { label: "Eliminar" }, data: { turbo_method: :delete, swal_delete: "debt" } do %>
+                            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar", aria: { label: "Eliminar" }, data: { turbo_method: :delete, swal_delete: "debt", debt_delete_link: 'true', debt_delete_id: debt.id } do %>
                           <i data-lucide="trash" class="h-4 w-4"></i>
                         <% end %>
                       <% end %>
@@ -348,7 +348,7 @@
 
                   <% if week_boundary %>
                     <% summary = weekly_summaries[current_week_key] || {} %>
-                    <tr class="bg-slate-50/70">
+                    <tr class="bg-slate-50/70" data-weekly-summary-row="true">
                       <td colspan="3" class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">
                         Semana <%= summary[:week_start]&.strftime('%d/%m/%Y') %> al <%= summary[:week_end]&.strftime('%d/%m/%Y') %>
                       </td>
@@ -828,6 +828,7 @@
                 const registerPaymentPendingBs = root.querySelector("[data-register-payment-pending-bs='true']");
                 const registerPaymentBaseUsd = Number.parseFloat(registerPaymentSummary?.dataset?.baseUsd || "0");
                 const commissionSupportedMethods = ["interbank_transfer", "mobile_payment"];
+                const csrfToken = document.querySelector("meta[name='csrf-token']")?.getAttribute("content") || "";
 
                 const showInfoAlert = ({ title, text }) => {
                   if (window.Swal) {
@@ -1751,6 +1752,105 @@
                     title: "No permitido",
                     text: blockedDeleteButton.dataset.paymentDeleteBlockedMessage || "Este pago no puede eliminarse con tu perfil.",
                   });
+                });
+
+                root.addEventListener("click", async (event) => {
+                  const deleteLink = event.target.closest("[data-debt-delete-link='true']");
+                  if (!deleteLink) return;
+
+                  event.preventDefault();
+
+                  let confirmed = false;
+                  if (window.Swal) {
+                    const result = await window.Swal.fire({
+                      icon: "warning",
+                      title: "Eliminar deuda",
+                      text: "Tambien se eliminara cualquier comision de prestamo asociada y su movimiento en cuenta. Esta accion no se puede deshacer.",
+                      showCancelButton: true,
+                      confirmButtonText: "Eliminar",
+                      cancelButtonText: "Cancelar",
+                      reverseButtons: true,
+                      heightAuto: false,
+                      scrollbarPadding: false,
+                    });
+                    confirmed = !!result.isConfirmed;
+                  } else {
+                    confirmed = window.confirm("Esta accion no se puede deshacer. Deseas eliminar la deuda?");
+                  }
+
+                  if (!confirmed) return;
+
+                  const href = deleteLink.getAttribute("href");
+                  if (!href) return;
+
+                  const previousDisabled = deleteLink.getAttribute("aria-disabled");
+                  deleteLink.setAttribute("aria-disabled", "true");
+                  deleteLink.classList.add("pointer-events-none", "opacity-60");
+
+                  try {
+                    const response = await fetch(href, {
+                      method: "DELETE",
+                      headers: {
+                        Accept: "application/json",
+                        "X-CSRF-Token": csrfToken,
+                        "X-Requested-With": "XMLHttpRequest",
+                      },
+                      credentials: "same-origin",
+                    });
+
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(data.error || "No se pudo eliminar la deuda.");
+
+                    const deletedIds = Array.isArray(data.deleted_debt_ids) ? data.deleted_debt_ids : [];
+                    const fallbackId = String(deleteLink.dataset.debtDeleteId || "").trim();
+                    if (deletedIds.length === 0 && fallbackId.length > 0) {
+                      deletedIds.push(fallbackId);
+                    }
+
+                    deletedIds.forEach((id) => {
+                      root.querySelectorAll(`[data-debt-row-id="${id}"]`).forEach((row) => row.remove());
+                    });
+
+                    root.querySelectorAll("[data-weekly-summary-row='true']").forEach((row) => row.remove());
+
+                    const totalRows = root.querySelectorAll("[data-debt-row-id]").length;
+                    const countLabel = root.querySelector("[data-debts-associated-count='true']");
+                    if (countLabel) {
+                      countLabel.textContent = `${totalRows} deudas`;
+                    }
+
+                    if (window.Swal) {
+                      window.Swal.fire({
+                        icon: "success",
+                        title: "Deuda eliminada",
+                        text: data.message || "La deuda fue eliminada correctamente.",
+                        timer: 1600,
+                        showConfirmButton: false,
+                        heightAuto: false,
+                        scrollbarPadding: false,
+                      });
+                    }
+                  } catch (error) {
+                    if (window.Swal) {
+                      window.Swal.fire({
+                        icon: "error",
+                        title: "No se pudo eliminar",
+                        text: error.message || "Ocurrio un error eliminando la deuda.",
+                        confirmButtonText: "Entendido",
+                        heightAuto: false,
+                        scrollbarPadding: false,
+                      });
+                    } else {
+                      window.alert(error.message || "Ocurrio un error eliminando la deuda.");
+                    }
+                  } finally {
+                    if (previousDisabled === null) {
+                      deleteLink.removeAttribute("aria-disabled");
+                    } else {
+                      deleteLink.setAttribute("aria-disabled", previousDisabled);
+                    }
+                    deleteLink.classList.remove("pointer-events-none", "opacity-60");
+                  }
                 });
               })();
             </script>
