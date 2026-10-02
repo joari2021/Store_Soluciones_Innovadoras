@@ -319,15 +319,23 @@
                         <i data-lucide="pencil" class="h-4 w-4"></i>
                       </button>
                       <% if can_manage_action?(:destroy_debt) %>
-                        <%= link_to debt_path(
-                              debt,
-                              group_currency: params[:group_currency],
-                              group_cliente_id: params[:group_cliente_id],
-                              only_active: params[:only_active],
-                              group_token: params[:group_token]
-                            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar", aria: { label: "Eliminar" }, data: { turbo_method: :delete, swal_delete: "debt", debt_delete_link: 'true', debt_delete_id: debt.id } do %>
+                        <button
+                          type="button"
+                          class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100"
+                          title="Eliminar"
+                          aria-label="Eliminar"
+                          data-debt-delete-link="true"
+                          data-debt-delete-id="<%= debt.id %>"
+                          data-debt-delete-url="<%= debt_path(
+                            debt,
+                            group_currency: params[:group_currency],
+                            group_cliente_id: params[:group_cliente_id],
+                            only_active: params[:only_active],
+                            group_token: params[:group_token]
+                          ) %>"
+                        >
                           <i data-lucide="trash" class="h-4 w-4"></i>
-                        <% end %>
+                        </button>
                       <% end %>
                     <% end %>
                   </td>
@@ -1808,15 +1816,15 @@
 
                   if (!confirmed) return;
 
-                  const href = deleteLink.getAttribute("href");
-                  if (!href) return;
+                  const deleteUrl = String(deleteLink.dataset.debtDeleteUrl || "").trim();
+                  if (!deleteUrl) return;
 
                   const previousDisabled = deleteLink.getAttribute("aria-disabled");
                   deleteLink.setAttribute("aria-disabled", "true");
                   deleteLink.classList.add("pointer-events-none", "opacity-60");
 
                   try {
-                    const response = await fetch(href, {
+                    const response = await fetch(deleteUrl, {
                       method: "DELETE",
                       headers: {
                         Accept: "application/json",

@@ -2630,6 +2630,14 @@ class DebtsController < ApplicationController
 
     return redirect_to debts_path, notice: notice if show_params.empty?
 
+    group_debts = debts_for_destroy_redirect(show_params)
+    if group_debts.blank?
+      return redirect_to debts_path, notice: notice
+    end
+
+    group_has_pending_balance = group_debts.any? { |debt| debt.balance.to_d > 0.01.to_d }
+    return redirect_to debts_path, notice: notice unless group_has_pending_balance
+
     next_debt = debt_for_show_redirect(show_params)
     if next_debt.present?
       redirect_to debt_path(next_debt, show_params), notice: notice
@@ -2664,6 +2672,33 @@ class DebtsController < ApplicationController
     end
 
     scope.order(created_at: :desc, id: :desc).first
+  end
+
+  def debts_for_destroy_redirect(show_params)
+    token = show_params[:group_token].to_s.strip
+    if token.present?
+      return current_business
+             .debts
+             .excluding_service_cost_records
+             .where(group_token: token)
+             .to_a
+    end
+
+    scope = current_business.debts.excluding_service_cost_records
+
+    currency = show_params[:group_currency].to_s.strip.upcase
+    if currency.present?
+      scope = scope.where(currency: group_scope_currencies_for(currency: currency, debt_kind: @debt&.debt_kind || 'receivable'))
+    end
+
+    cliente_param = show_params[:group_cliente_id].to_s
+    if cliente_param == 'none'
+      scope = scope.where(cliente_id: nil)
+    elsif cliente_param.present?
+      scope = scope.where(cliente_id: cliente_param.to_i)
+    end
+
+    scope.to_a
   end
 
   def legacy_group_token_for(debt)
