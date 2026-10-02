@@ -795,7 +795,12 @@ class DebtsController < ApplicationController
 
     Debt.transaction do
       debts_to_save.each(&:save!)
-      debts_to_remove.each(&:destroy!)
+      debts_to_remove.each do |debt|
+        remove_loan_commission_records_for_debt!(debt)
+        next unless debt.persisted?
+
+        debt.destroy!
+      end
 
       success = record_loan_disbursements(debts_to_save, normalized_entries)
       raise ActiveRecord::Rollback unless success
@@ -833,6 +838,10 @@ class DebtsController < ApplicationController
     reassigned_payments_count = 0
 
     Debt.transaction do
+      debts_to_delete.each do |debt|
+        remove_loan_commission_records_for_debt!(debt)
+      end
+
       unless remove_movements
         reassigned_payments_count = reassign_deleted_debt_payments!(
           debts_to_delete: debts_to_delete,
@@ -841,7 +850,11 @@ class DebtsController < ApplicationController
       end
 
       movements_to_remove.each(&:destroy!)
-      debts_to_delete.each(&:destroy!)
+      debts_to_delete.each do |debt|
+        next unless debt.persisted?
+
+        debt.destroy!
+      end
     end
 
     notice = debts_to_delete.size > 1 ? "#{debts_to_delete.size} deudas eliminadas." : 'Deuda eliminada.'
