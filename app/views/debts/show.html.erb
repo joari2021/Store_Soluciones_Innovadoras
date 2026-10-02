@@ -17,7 +17,7 @@
       <div>
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Detalle</p>
         <h1 class="text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl"><%= @debt.counterparty_display_name %></h1>
-        <p class="mt-1 text-sm text-slate-500"><%= @grouped_debts.size %> deudas asociadas en este registro.</p>
+        <p class="mt-1 text-sm text-slate-500" data-group-debt-hero-count="true"><%= @grouped_debts.size %> deudas asociadas en este registro.</p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <% if current_user_admin? && @debt.persisted? %>
@@ -36,7 +36,7 @@
       </div>
     </div>
   </div>
-  <div class="grid gap-4 md:grid-cols-2">
+  <div class="grid gap-4 md:grid-cols-2" data-debt-summary-grid="true">
     <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Informacion</p>
       <dl class="mt-4 grid gap-3 text-sm text-slate-600">
@@ -842,6 +842,34 @@
                     });
                   } else {
                     window.alert(text);
+                  }
+                };
+
+                const refreshDebtSummaryPanels = async () => {
+                  const response = await fetch(window.location.href, {
+                    headers: {
+                      Accept: "text/html",
+                      "X-Requested-With": "XMLHttpRequest",
+                    },
+                    credentials: "same-origin",
+                    cache: "no-store",
+                  });
+
+                  if (!response.ok) throw new Error("No se pudo refrescar el resumen de deudas.");
+
+                  const html = await response.text();
+                  const parsed = new DOMParser().parseFromString(html, "text/html");
+
+                  const freshSummaryGrid = parsed.querySelector("[data-debt-summary-grid='true']");
+                  const currentSummaryGrid = root.querySelector("[data-debt-summary-grid='true']");
+                  if (freshSummaryGrid && currentSummaryGrid) {
+                    currentSummaryGrid.replaceWith(freshSummaryGrid);
+                  }
+
+                  const freshHeroCount = parsed.querySelector("[data-group-debt-hero-count='true']");
+                  const currentHeroCount = root.querySelector("[data-group-debt-hero-count='true']");
+                  if (freshHeroCount && currentHeroCount) {
+                    currentHeroCount.textContent = freshHeroCount.textContent;
                   }
                 };
 
@@ -1818,6 +1846,8 @@
                     if (countLabel) {
                       countLabel.textContent = `${totalRows} deudas`;
                     }
+
+                    await refreshDebtSummaryPanels();
 
                     if (window.Swal) {
                       window.Swal.fire({
