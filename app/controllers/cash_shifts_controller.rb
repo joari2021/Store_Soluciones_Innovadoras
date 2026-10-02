@@ -661,7 +661,13 @@ class CashShiftsController < ApplicationController
             "No se encontro el lote ##{stock_lot_id} para restaurar stock de la venta ##{venta.id}."
     end
 
-    row = lot.variation_row_for(variation_id, create_if_missing: true)
+    resolved_variation_id = resolve_variation_id_for_lot_restore(
+      producto: producto,
+      lot: lot,
+      requested_variation_id: variation_id,
+    )
+
+    row = lot.variation_row_for(resolved_variation_id, create_if_missing: true)
     if row.blank?
       return false unless strict
 
@@ -683,6 +689,26 @@ class CashShiftsController < ApplicationController
     row.update!(quantity_remaining: current_remaining + quantity_units.to_d)
     lot.sync_quantity_remaining_from_variations!
     true
+  end
+
+  def resolve_variation_id_for_lot_restore(producto:, lot:, requested_variation_id:)
+    requested_id = requested_variation_id.to_i
+    if requested_id.positive? && producto.product_variations.where(id: requested_id).exists?
+      return requested_id
+    end
+
+    lot_variation_ids = lot.stock_lot_variations
+                           .where.not(product_variation_id: nil)
+                           .distinct
+                           .pluck(:product_variation_id)
+                           .compact
+
+    return lot_variation_ids.first if lot_variation_ids.size == 1
+
+    product_variation_ids = producto.product_variations.order(:id).limit(2).pluck(:id)
+    return product_variation_ids.first if product_variation_ids.size == 1
+
+    requested_variation_id
   end
 
   def delete_account_movements_for_sale!(venta)
