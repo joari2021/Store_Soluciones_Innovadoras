@@ -549,7 +549,8 @@ class DebtsController < ApplicationController
         loan_account_id: loan_movement&.account_id,
         loan_account_name: loan_account&.name,
         loan_account_currency: loan_account&.currency,
-        loan_amount: loan_movement&.amount.to_d
+        loan_amount: loan_movement&.amount.to_d,
+        loan_reference: loan_movement&.reference.to_s.strip
       }
     end
 
