@@ -1659,7 +1659,8 @@ class DebtsController < ApplicationController
       end
 
       loan_reference = entry[:loan_reference].to_s.gsub(/\D/, '').slice(0, 4)
-      if account.account_type == 'bank_account' && !loan_reference.match?(/\A\d{4}\z/)
+      requires_loan_reference = account.account_type == 'bank_account' && account.currency.to_s.upcase == 'VES'
+      if requires_loan_reference && !loan_reference.match?(/\A\d{4}\z/)
         @debt.errors.add(:base, "Deuda #{index + 1}: la referencia del prestamo debe tener 4 digitos.")
         valid = false
       end

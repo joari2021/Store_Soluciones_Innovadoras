@@ -144,6 +144,7 @@
           <% row_description = row[:description].presence || row["description"].presence %>
           <% row_loan_enabled = ActiveModel::Type::Boolean.new.cast(row[:loan_enabled].presence || row["loan_enabled"].presence) %>
           <% row_loan_account_id = row[:loan_account_id].presence || row["loan_account_id"].presence %>
+          <% row_loan_reference = row[:loan_reference].presence || row["loan_reference"].presence %>
           <% loan_kind_enabled = %w[receivable payable].include?(form.object.debt_kind.to_s) %>
           <% row_issued_value = normalize_display_date.call(row_issued_on) %>
           <% row_due_value = normalize_display_date.call(row_due_on) %>
@@ -175,6 +176,17 @@
                                  include_blank: "Selecciona una cuenta",
                                  class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500",
                                  data: { debt_entry_loan_account: true } %>
+                </div>
+                <div class="mt-2 hidden" data-debt-entry-loan-reference-wrapper="true">
+                  <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600">Referencia del pago</label>
+                  <%= text_field_tag "debt_entries[#{index}][loan_reference]",
+                                     row_loan_reference,
+                                     maxlength: 4,
+                                     inputmode: "numeric",
+                                     autocomplete: "off",
+                                     placeholder: "4 digitos",
+                                     class: "mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500",
+                                     data: { debt_entry_loan_reference: true } %>
                 </div>
                 <p class="mt-1 text-[11px] text-slate-500">Al elegir cuenta se fija la moneda y simbolo del monto.</p>
               </div>
@@ -258,6 +270,10 @@
                   <option value="">Selecciona una cuenta</option>
                   <%= grouped_options_for_select(loan_account_options) %>
                 </select>
+              </div>
+              <div class="mt-2 hidden" data-debt-entry-loan-reference-wrapper="true">
+                <label class="block text-xs font-semibold uppercase tracking-wide text-slate-600">Referencia del pago</label>
+                <input type="text" name="debt_entries[__INDEX__][loan_reference]" maxlength="4" inputmode="numeric" autocomplete="off" placeholder="4 digitos" class="mt-1 block w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm focus:border-emerald-500 focus:ring-emerald-500" data-debt-entry-loan-reference="true">
               </div>
               <p class="mt-1 text-[11px] text-slate-500">Al elegir cuenta se fija la moneda y simbolo del monto.</p>
             </div>
@@ -1017,6 +1033,8 @@
         const loanEnabledHidden = row.querySelector("[data-debt-entry-loan-enabled-hidden='true']");
         const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
         const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+        const loanReferenceWrapper = row.querySelector("[data-debt-entry-loan-reference-wrapper='true']");
+        const loanReferenceField = row.querySelector("[data-debt-entry-loan-reference='true']");
         const loansAvailable = isLoanEligibleDebt();
 
         if (loanSection) {
@@ -1036,6 +1054,24 @@
         [loanAccountField].forEach((field) => {
           if (field) field.disabled = !shouldShowFields;
         });
+
+        const selectedOption = loanAccountField?.options?.[loanAccountField.selectedIndex];
+        const accountType = String(selectedOption?.dataset?.accountType || "").trim();
+        const accountCurrency = String(selectedOption?.dataset?.accountCurrency || "").trim().toUpperCase();
+        const requiresLoanReference = shouldShowFields && accountType === "bank_account" && accountCurrency === "VES";
+
+        if (loanReferenceWrapper) {
+          loanReferenceWrapper.classList.toggle("hidden", !requiresLoanReference);
+        }
+
+        if (loanReferenceField) {
+          loanReferenceField.disabled = !requiresLoanReference;
+          loanReferenceField.required = requiresLoanReference;
+
+          if (!requiresLoanReference) {
+            loanReferenceField.value = "";
+          }
+        }
 
         syncDebtEntryCurrencyLockFromLoan(row);
       };
@@ -1175,6 +1211,7 @@
         const removeButton = row.querySelector("[data-debt-entry-remove='true']");
         const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
         const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+        const loanReferenceField = row.querySelector("[data-debt-entry-loan-reference='true']");
         const recalculateDebtTotals = () => {
           updateDebtEntryAmountHidden(row);
           updateDebtTotals();
@@ -1222,6 +1259,13 @@
             updateDebtEntryLoanVisibility(row);
             syncPaymentCurrencyFromDebt();
             updateDebtTotals();
+          });
+        }
+
+        if (loanReferenceField) {
+          loanReferenceField.addEventListener("input", () => {
+            const digits = String(loanReferenceField.value || "").replace(/\D/g, "").slice(0, 4);
+            loanReferenceField.value = digits;
           });
         }
 
@@ -1283,6 +1327,7 @@
           const issuedOnInput = row.querySelector("[data-debt-entry-issued-on='true']");
           const loanCheckbox = row.querySelector("[data-debt-entry-loan-enabled='true']");
           const loanAccountField = row.querySelector("[data-debt-entry-loan-account='true']");
+          const loanReferenceField = row.querySelector("[data-debt-entry-loan-reference='true']");
 
           const amount = parseMaskedValue(amountInput);
           const currency = String(currencyField?.value || "").trim();
@@ -1323,6 +1368,26 @@
               }
               loanAccountField?.focus();
               return false;
+            }
+
+            const selectedOption = loanAccountField?.options?.[loanAccountField.selectedIndex];
+            const accountType = String(selectedOption?.dataset?.accountType || "").trim();
+            const accountCurrency = String(selectedOption?.dataset?.accountCurrency || "").trim().toUpperCase();
+            const requiresLoanReference = accountType === "bank_account" && accountCurrency === "VES";
+
+            if (requiresLoanReference) {
+              const referenceDigits = String(loanReferenceField?.value || "").replace(/\D/g, "").slice(0, 4);
+              if (!/^\d{4}$/.test(referenceDigits)) {
+                if (window.AppToast?.error) {
+                  window.AppToast.error(`La deuda ${index + 1} requiere una referencia de 4 digitos para la cuenta bancaria en Bs.`);
+                }
+                if (loanReferenceField) {
+                  loanReferenceField.value = referenceDigits;
+                  loanReferenceField.focus();
+                }
+                return false;
+              }
+              if (loanReferenceField) loanReferenceField.value = referenceDigits;
             }
           }
         }
