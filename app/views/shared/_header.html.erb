@@ -97,7 +97,7 @@
             Espera al encargado para abrir turno
           </span>
         <% end %>
-        <% if current_user_admin? %>
+        <% if current_user_admin? || current_user_manager? || current_user_standard_staff? %>
           <button type="button"
                   id="ventas-requested-products-trigger"
                   data-list-url="<%= requested_products_ventas_path %>"
@@ -105,7 +105,7 @@
               data-update-url-template="<%= update_requested_product_ventas_path(id: '__ID__') %>"
                   data-increment-url-template="<%= increment_requested_product_ventas_path(id: '__ID__') %>"
               data-delete-url-template="<%= destroy_requested_product_ventas_path(id: '__ID__') %>"
-              data-can-delete="<%= current_user_admin? ? '1' : '0' %>"
+                  data-can-delete="<%= current_user_admin? ? '1' : '0' %>"
                   class="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-indigo-100">
             <i data-lucide="clipboard-list" class="h-4 w-4"></i>
             <span class="hidden lg:inline">Solicitudes</span>
@@ -780,22 +780,7 @@
       const rowId = String(id || '').trim();
       if (!rowId || !deleteTemplate || !canDelete) return;
 
-      let allowDelete = true;
-      if (window.Swal?.fire) {
-        const result = await window.Swal.fire({
-          icon: 'warning',
-          title: 'Eliminar producto solicitado',
-          text: 'Se eliminara este producto solicitado y su historial de control. Esta accion no se puede deshacer.',
-          showCancelButton: true,
-          confirmButtonText: 'Eliminar',
-          cancelButtonText: 'Cancelar',
-          reverseButtons: true,
-          heightAuto: false,
-        });
-        allowDelete = Boolean(result.isConfirmed);
-      } else {
-        allowDelete = window.confirm('Se eliminara este producto solicitado y su historial. Deseas continuar?');
-      }
+      const allowDelete = window.confirm('Se eliminara este producto solicitado y su historial. Deseas continuar?');
 
       if (!allowDelete) return;
 
