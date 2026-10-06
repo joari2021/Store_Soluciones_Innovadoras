@@ -417,18 +417,12 @@ class ServicesController < ApplicationController
 
     amount_in_debt_currency = conversion[:amount].to_d.round(2)
 
-    expected_account_currency = pending_cost_expected_account_currency_for(
-      line: line,
-      debt_currency: debt.currency
-    )
-    pending_reference_amount = line['display_pending_reference_total'].to_d.round(2)
-    closes_line_by_reference_coverage =
-      expected_account_currency.present? &&
-      account.currency.to_s.upcase == expected_account_currency.to_s.upcase &&
-      pending_reference_amount.positive? &&
-      amount_original.to_d >= (pending_reference_amount - 0.01.to_d)
+    # Para pago parcial solo se debe saldar cuando el monto convertido en la fecha
+    # realmente cubra el pendiente de la linea en moneda de deuda.
+    closes_line_by_converted_coverage = !zero_amount_entry &&
+                                        amount_in_debt_currency >= (pending_line_usd - 0.01.to_d)
 
-    effective_force_total_settlement = force_total_settlement || closes_line_by_reference_coverage
+    effective_force_total_settlement = force_total_settlement || closes_line_by_converted_coverage
 
     if !effective_force_total_settlement && amount_in_debt_currency > pending_line_usd + 0.01.to_d
       return redirect_to redirect_path,
