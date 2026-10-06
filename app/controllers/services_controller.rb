@@ -388,14 +388,19 @@ class ServicesController < ApplicationController
     end
 
     include_commission = ActiveModel::Type::Boolean.new.cast(params[:include_commission])
-    commission_amount = parse_pending_cost_decimal(params[:commission_amount])
-    commission_amount = 0.to_d unless commission_amount.positive?
+    commission_amount_param = params[:commission_amount].to_s.strip
+    manual_commission_provided = commission_amount_param.present?
+    commission_amount = 0.to_d
 
     if include_commission && amount_original.positive?
-      commission_amount = calculate_pending_cost_account_commission_amount(
-        amount: amount_original,
-        account: account
-      )
+      commission_amount = if manual_commission_provided
+                            parse_pending_cost_decimal(commission_amount_param)
+                          else
+                            calculate_pending_cost_account_commission_amount(
+                              amount: amount_original,
+                              account: account
+                            )
+                          end
     end
 
     if include_commission && commission_amount.negative?
