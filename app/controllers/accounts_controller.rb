@@ -1064,6 +1064,7 @@ class AccountsController < ApplicationController
       :cashea_allow_pos,
       :cashea_allow_biopago,
       *1.upto(6).map { |level| "cashea_level_#{level}_initial_percent".to_sym },
+      *1.upto(6).map { |level| "cashea_principal_level_#{level}_initial_percent".to_sym },
       :theme_color,
       :active,
       :settlement_account_id,

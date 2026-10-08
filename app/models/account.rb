@@ -137,6 +137,8 @@ class Account < ApplicationRecord
   1.upto(6) do |level|
     validates "cashea_level_#{level}_initial_percent",
               numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
+    validates "cashea_principal_level_#{level}_initial_percent",
+              numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
   end
   validates :shared_key, presence: true
   validates :cash_role, inclusion: { in: CASH_ROLES.keys }, allow_nil: true, if: :supports_cash_role?
@@ -496,6 +498,18 @@ class Account < ApplicationRecord
     cashea_allow_biopago != false
   end
 
+  def cashea_initial_percent_for(level:, line: 'cotidiana')
+    normalized_level = level.to_i
+    return 0.to_d unless normalized_level.between?(1, 6)
+
+    line_key = line.to_s.downcase
+    if line_key == 'principal'
+      public_send("cashea_principal_level_#{normalized_level}_initial_percent").to_d
+    else
+      public_send("cashea_level_#{normalized_level}_initial_percent").to_d
+    end
+  end
+
   def cash_box_account?
     account_type == 'cash_box'
   end
@@ -572,6 +586,9 @@ class Account < ApplicationRecord
     1.upto(6) do |level|
       attribute = "cashea_level_#{level}_initial_percent"
       self[attribute] = self[attribute].to_d.round(2)
+
+      principal_attribute = "cashea_principal_level_#{level}_initial_percent"
+      self[principal_attribute] = self[principal_attribute].to_d.round(2)
     end
     self.cashea_cotidiana_category_ids = cashea_cotidiana_only_category_ids
     self.cashea_allow_pos = true if cashea_allow_pos.nil?
