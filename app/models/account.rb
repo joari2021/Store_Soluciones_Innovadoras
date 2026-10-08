@@ -504,9 +504,15 @@ class Account < ApplicationRecord
 
     line_key = line.to_s.downcase
     if line_key == 'principal'
-      public_send("cashea_principal_level_#{normalized_level}_initial_percent").to_d
+      principal_attribute = "cashea_principal_level_#{normalized_level}_initial_percent"
+      return 0.to_d unless respond_to?(principal_attribute)
+
+      public_send(principal_attribute).to_d
     else
-      public_send("cashea_level_#{normalized_level}_initial_percent").to_d
+      base_attribute = "cashea_level_#{normalized_level}_initial_percent"
+      return 0.to_d unless respond_to?(base_attribute)
+
+      public_send(base_attribute).to_d
     end
   end
 
