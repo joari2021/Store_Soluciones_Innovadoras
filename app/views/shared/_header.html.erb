@@ -208,38 +208,38 @@
       <button id="cashea-levels-toggle" type="button" class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-amber-200 transition-colors hover:bg-amber-50 cursor-pointer" aria-haspopup="true" aria-expanded="false" aria-label="Ver iniciales Cashea">
         <%= image_tag 'logo cashea.jpg', class: 'h-full w-full object-cover object-center', alt: 'Cashea' %>
       </button>
-      <div id="cashea-levels-panel" class="absolute right-0 mt-3 hidden w-[26rem] overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-xl">
+      <div id="cashea-levels-panel" class="absolute right-0 mt-3 hidden w-[30rem] overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-xl">
         <div class="border-b border-amber-100 bg-amber-50 px-4 py-3">
           <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">Niveles Cashea</p>
           <p class="mt-1 text-sm font-semibold text-slate-800">Inicial permitido por nivel y linea</p>
         </div>
         <div class="p-3">
           <% if header_cashea_account.present? %>
-            <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Linea cotidiana</p>
-              <div class="mt-2 space-y-1.5">
-                <% 1.upto(6) do |level| %>
-                  <% percent = header_cashea_account.cashea_initial_percent_for(level: level, line: 'cotidiana') %>
-                  <div class="flex items-center justify-between rounded-lg border border-amber-100 bg-white px-3 py-2">
-                    <span class="text-sm font-semibold text-slate-700">Nivel <%= level %></span>
-                    <span class="text-sm font-bold text-amber-700"><%= number_with_precision(percent, precision: 2, strip_insignificant_zeros: true) %>%</span>
-                  </div>
-                <% end %>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-amber-700">Linea cotidiana</p>
+                <div class="mt-2 space-y-1.5">
+                  <% 1.upto(6) do |level| %>
+                    <% percent = header_cashea_account.cashea_initial_percent_for(level: level, line: 'cotidiana') %>
+                    <div class="flex items-center gap-1.5 rounded-lg border border-amber-100 bg-white px-2.5 py-1.5">
+                      <span class="text-sm font-semibold text-slate-700">Nivel <%= level %></span>
+                      <span class="text-sm font-bold text-amber-700"><%= number_with_precision(percent, precision: 2, strip_insignificant_zeros: true) %>%</span>
+                    </div>
+                  <% end %>
+                </div>
               </div>
-            </div>
 
-            <div class="my-3 border-t border-dashed border-slate-300"></div>
-
-            <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-700">Linea principal</p>
-              <div class="mt-2 space-y-1.5">
-                <% 1.upto(6) do |level| %>
-                  <% percent = header_cashea_account.cashea_initial_percent_for(level: level, line: 'principal') %>
-                  <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 py-2">
-                    <span class="text-sm font-semibold text-slate-700">Nivel <%= level %></span>
-                    <span class="text-sm font-bold text-slate-800"><%= number_with_precision(percent, precision: 2, strip_insignificant_zeros: true) %>%</span>
-                  </div>
-                <% end %>
+              <div class="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-700">Linea principal</p>
+                <div class="mt-2 space-y-1.5">
+                  <% 1.upto(6) do |level| %>
+                    <% percent = header_cashea_account.cashea_initial_percent_for(level: level, line: 'principal') %>
+                    <div class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
+                      <span class="text-sm font-semibold text-slate-700">Nivel <%= level %></span>
+                      <span class="text-sm font-bold text-slate-800"><%= number_with_precision(percent, precision: 2, strip_insignificant_zeros: true) %>%</span>
+                    </div>
+                  <% end %>
+                </div>
               </div>
             </div>
           <% else %>
