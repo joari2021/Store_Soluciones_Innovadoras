@@ -2,11 +2,11 @@
 <html lang="es">
   <head>
     <meta charset="utf-8">
-    <title>Lista Factura Interempresa #<%= purchase_invoice.id %></title>
+    <title>Lista Factura Interempresa #<%= @purchase_invoice.id %></title>
     <style>
       @page {
-        size: A4 landscape;
-        margin: 8mm;
+        size: A4 portrait;
+        margin: 7mm;
       }
 
       * {
@@ -17,8 +17,8 @@
         margin: 0;
         color: #0f172a;
         font-family: Arial, sans-serif;
-        font-size: 10px;
-        line-height: 1.2;
+        font-size: 9px;
+        line-height: 1.15;
       }
 
       .header {
@@ -27,7 +27,7 @@
 
       .title {
         margin: 0;
-        font-size: 15px;
+        font-size: 13px;
         font-weight: 700;
       }
 
@@ -35,8 +35,8 @@
         margin-top: 3px;
         display: flex;
         flex-wrap: wrap;
-        gap: 10px;
-        font-size: 9px;
+        gap: 8px;
+        font-size: 8px;
       }
 
       table {
@@ -62,12 +62,13 @@
       th,
       td {
         border: 1px solid #94a3b8;
-        padding: 3px 4px;
+        padding: 2px 3px;
         vertical-align: top;
+        word-break: break-word;
       }
 
       th {
-        font-size: 9px;
+        font-size: 8px;
         text-transform: uppercase;
         letter-spacing: 0.03em;
         background: #e2e8f0;
@@ -86,15 +87,15 @@
       }
 
       .w-item {
-        width: 4%;
+        width: 6%;
       }
 
       .w-product {
-        width: 33%;
+        width: 29%;
       }
 
       .w-presentation {
-        width: 12%;
+        width: 14%;
       }
 
       .w-factor {
@@ -102,11 +103,11 @@
       }
 
       .w-total {
-        width: 9%;
+        width: 10%;
       }
 
       .w-variation {
-        width: 23%;
+        width: 22%;
       }
 
       .w-variation-qty {
@@ -114,9 +115,15 @@
       }
 
       .footer-note {
-        margin-top: 6px;
+        margin-top: 4px;
         font-size: 8px;
         color: #334155;
+      }
+
+      @media screen {
+        body {
+          padding: 8px;
+        }
       }
     </style>
   </head>
@@ -134,19 +141,17 @@
            as_text
          end
        end %>
-
     <div class="header">
-      <h1 class="title">Lista detallada de productos · Factura interempresa #<%= purchase_invoice.id %></h1>
+      <h1 class="title">Lista detallada de productos · Factura interempresa #<%= @purchase_invoice.id %></h1>
       <div class="meta">
-        <span>Fecha emisión: <%= l(purchase_invoice.fecha_emision, format: :short) rescue purchase_invoice.fecha_emision %></span>
-        <span>Proveedor: <%= purchase_invoice.supplier_display_name %></span>
-        <span>Generado: <%= generated_at.strftime('%d/%m/%Y %H:%M:%S') %></span>
-        <% if purchase_invoice.source_business_id.present? %>
-          <span>Negocio origen ID: <%= purchase_invoice.source_business_id %></span>
+        <span>Fecha emisión: <%= l(@purchase_invoice.fecha_emision, format: :short) rescue @purchase_invoice.fecha_emision %></span>
+        <span>Proveedor: <%= @purchase_invoice.supplier_display_name %></span>
+        <span>Generado: <%= @generated_at.strftime('%d/%m/%Y %H:%M:%S') %></span>
+        <% if @purchase_invoice.source_business_id.present? %>
+          <span>Negocio origen ID: <%= @purchase_invoice.source_business_id %></span>
         <% end %>
       </div>
     </div>
-
     <table>
       <thead>
         <tr>
@@ -160,8 +165,8 @@
         </tr>
       </thead>
       <tbody>
-        <% if list_rows.any? %>
-          <% list_rows.each do |row| %>
+        <% if @list_rows.any? %>
+          <% @list_rows.each do |row| %>
             <% detail_count = row[:details].size %>
             <% row[:details].each_with_index do |detail, detail_index| %>
               <tr>
@@ -184,9 +189,14 @@
         <% end %>
       </tbody>
     </table>
-
     <p class="footer-note">
       Documento generado desde la factura interempresa. Diseño optimizado para incluir la mayor cantidad de renglones por página sin omitir producto, presentación, variaciones ni cantidades.
     </p>
+
+    <script>
+      window.addEventListener('load', () => {
+        window.print();
+      }, { once: true });
+    </script>
   </body>
 </html>

@@ -116,7 +116,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
         <% if intercompany_invoice %>
-          <%= link_to 'Generar archivo lista',
+          <%= link_to 'Imprimir lista',
                       intercompany_product_list_purchase_invoice_path(@purchase_invoice),
                       class: 'inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300',
                       target: '_blank',

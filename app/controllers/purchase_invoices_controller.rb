@@ -197,25 +197,10 @@ class PurchaseInvoicesController < ApplicationController
       return
     end
 
-    generated_at = Time.current.in_time_zone('America/Caracas')
-    list_rows = build_intercompany_product_list_rows(@purchase_invoice)
-    filename = "lista_factura_interempresa_#{@purchase_invoice.id}_#{generated_at.strftime('%Y%m%d_%H%M%S')}.html"
+    @generated_at = Time.current.in_time_zone('America/Caracas')
+    @list_rows = build_intercompany_product_list_rows(@purchase_invoice)
 
-    html = render_to_string(
-      template: 'purchase_invoices/intercompany_product_list',
-      layout: false,
-      formats: [:html],
-      locals: {
-        purchase_invoice: @purchase_invoice,
-        list_rows: list_rows,
-        generated_at: generated_at
-      }
-    )
-
-    send_data html,
-              filename: filename,
-              type: 'text/html; charset=utf-8',
-              disposition: 'attachment'
+    render :intercompany_product_list, layout: false
   end
 
   def new
