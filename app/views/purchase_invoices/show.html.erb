@@ -1,4 +1,4 @@
-<div class="space-y-6 no-print">
+<div class="space-y-6">
   <% highlight_active = @highlight_from_lot && @highlighted_item_id.present? %>
   <% format_decimal_input = lambda do |value, scale = 2|
        next '' if value.nil?
@@ -116,11 +116,11 @@
       <div class="flex flex-wrap items-center gap-2">
         <%= link_to 'Volver', purchase_invoices_path, class: 'inline-flex items-center justify-center rounded-xl bg-sky-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer' %>
         <% if intercompany_invoice %>
-          <button type="button"
-                  onclick="window.print()"
-                  class="inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300">
-            Imprimir lista
-          </button>
+          <%= link_to 'Generar archivo lista',
+                      intercompany_product_list_purchase_invoice_path(@purchase_invoice),
+                      class: 'inline-flex cursor-pointer items-center justify-center rounded-xl bg-slate-800 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300',
+                      target: '_blank',
+                      rel: 'noopener' %>
         <% end %>
         <%= link_to 'Editar factura',
                     edit_purchase_invoice_path(@purchase_invoice),
@@ -381,58 +381,6 @@
     </div>
   <% end %>
 </div>
-<% if intercompany_invoice %>
-  <div class="intercompany-print-list print-only">
-    <h1 class="print-title">Factura interempresa #<%= @purchase_invoice.id %></h1>
-    <p class="print-subtitle">
-      Fecha: <%= l(@purchase_invoice.fecha_emision, format: :short) rescue @purchase_invoice.fecha_emision %>
-      <% if @purchase_invoice.source_business_id.present? %>
-        · Negocio origen ID: <%= @purchase_invoice.source_business_id %>
-      <% end %>
-    </p>
-
-    <table class="print-table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Producto</th>
-          <th>Presentación</th>
-          <th>Variaciones</th>
-          <th>Cantidad</th>
-        </tr>
-      </thead>
-      <tbody>
-        <% row_data.each_with_index do |row, index| %>
-          <% item = row[:item] %>
-          <% producto = item.producto %>
-          <% presentation_text = if producto.present?
-                                  producto.presentation_display_suffix.to_s.gsub(/[()]/, '').presence || '-'
-                                else
-                                  '-'
-                                end %>
-          <% variation_details = if row[:variation_breakdown_rows].any?
-                                  row[:variation_breakdown_rows].map do |entry|
-                                    description = entry['description'].presence || 'Variación'
-                                    quantity = format_decimal_input.call(entry['quantity'], 2)
-                                    "#{description}: #{quantity}"
-                                  end.join(' | ')
-                                elsif row[:product_variations].one?
-                                  "#{row[:product_variations].first[:description].presence || 'Unica'}: #{format_decimal_input.call(row[:quantity_units], 2)}"
-                                else
-                                  '-'
-                                end %>
-          <tr>
-            <td><%= index + 1 %></td>
-            <td><%= row[:product_name] %></td>
-            <td><%= presentation_text %></td>
-            <td><%= variation_details %></td>
-            <td><%= format_decimal_input.call(row[:quantity_units], 2) %></td>
-          </tr>
-        <% end %>
-      </tbody>
-    </table>
-  </div>
-<% end %>
 <% if highlight_active %>
   <script>
     document.addEventListener('turbo:load', () => {
@@ -446,55 +394,3 @@
     }, { once: true });
   </script>
 <% end %>
-<style>
-  .print-only {
-    display: none;
-  }
-
-  @media print {
-    .no-print {
-      display: none !important;
-    }
-
-    .print-only {
-      display: block !important;
-    }
-
-    .intercompany-print-list {
-      padding: 0;
-      color: #0f172a;
-      font-size: 12px;
-    }
-
-    .print-title {
-      margin: 0;
-      font-size: 20px;
-      font-weight: 700;
-    }
-
-    .print-subtitle {
-      margin: 6px 0 12px;
-      font-size: 12px;
-    }
-
-    .print-table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: fixed;
-    }
-
-    .print-table th,
-    .print-table td {
-      border: 1px solid #cbd5e1;
-      padding: 6px;
-      text-align: left;
-      vertical-align: top;
-      word-break: break-word;
-    }
-
-    .print-table th {
-      background: #f8fafc;
-      font-weight: 700;
-    }
-  }
-</style>

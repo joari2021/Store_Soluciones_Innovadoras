@@ -172,6 +172,10 @@ Rails.application.routes.draw do
   end
   resources :discount_schedules, path: "descuentos-programados", only: %i[index create edit update destroy]
   resources :purchase_invoices, path: "facturas-compra" do
+    member do
+      get :intercompany_product_list, path: "intercompany/lista-productos"
+    end
+
     collection do
       get :source_business_accounts, path: "intercompany/source-business-accounts"
       get :inventory_absorption, path: "intercompany/absorber-inventario"

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <title>Lista Factura Interempresa #<%= purchase_invoice.id %></title>
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 8mm;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: #0f172a;
+        font-family: Arial, sans-serif;
+        font-size: 10px;
+        line-height: 1.2;
+      }
+
+      .header {
+        margin-bottom: 8px;
+      }
+
+      .title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+      }
+
+      .meta {
+        margin-top: 3px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        font-size: 9px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      tfoot {
+        display: table-footer-group;
+      }
+
+      tr,
+      td,
+      th {
+        page-break-inside: avoid;
+      }
+
+      th,
+      td {
+        border: 1px solid #94a3b8;
+        padding: 3px 4px;
+        vertical-align: top;
+      }
+
+      th {
+        font-size: 9px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        background: #e2e8f0;
+      }
+
+      .c-center {
+        text-align: center;
+      }
+
+      .c-right {
+        text-align: right;
+      }
+
+      .product {
+        font-weight: 600;
+      }
+
+      .w-item {
+        width: 4%;
+      }
+
+      .w-product {
+        width: 33%;
+      }
+
+      .w-presentation {
+        width: 12%;
+      }
+
+      .w-factor {
+        width: 9%;
+      }
+
+      .w-total {
+        width: 9%;
+      }
+
+      .w-variation {
+        width: 23%;
+      }
+
+      .w-variation-qty {
+        width: 10%;
+      }
+
+      .footer-note {
+        margin-top: 6px;
+        font-size: 8px;
+        color: #334155;
+      }
+    </style>
+  </head>
+  <body>
+    <% format_decimal_compact = lambda do |value, scale = 2|
+         next '0' if value.nil?
+
+         number = value.to_d.round(scale)
+         as_text = number.to_s('F')
+         if as_text.include?('.')
+           integer_part, decimal_part = as_text.split('.', 2)
+           cleaned_decimal = decimal_part.to_s.gsub(/0+\z/, '')
+           cleaned_decimal.present? ? "#{integer_part}.#{cleaned_decimal}" : integer_part
+         else
+           as_text
+         end
+       end %>
+
+    <div class="header">
+      <h1 class="title">Lista detallada de productos · Factura interempresa #<%= purchase_invoice.id %></h1>
+      <div class="meta">
+        <span>Fecha emisión: <%= l(purchase_invoice.fecha_emision, format: :short) rescue purchase_invoice.fecha_emision %></span>
+        <span>Proveedor: <%= purchase_invoice.supplier_display_name %></span>
+        <span>Generado: <%= generated_at.strftime('%d/%m/%Y %H:%M:%S') %></span>
+        <% if purchase_invoice.source_business_id.present? %>
+          <span>Negocio origen ID: <%= purchase_invoice.source_business_id %></span>
+        <% end %>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="w-item c-center">#</th>
+          <th class="w-product">Producto</th>
+          <th class="w-presentation">Presentación</th>
+          <th class="w-factor c-center">Factor unidad</th>
+          <th class="w-total c-center">Cant. total</th>
+          <th class="w-variation">Variación</th>
+          <th class="w-variation-qty c-right">Cant. variación</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if list_rows.any? %>
+          <% list_rows.each do |row| %>
+            <% detail_count = row[:details].size %>
+            <% row[:details].each_with_index do |detail, detail_index| %>
+              <tr>
+                <% if detail_index.zero? %>
+                  <td class="c-center" rowspan="<%= detail_count %>"><%= row[:index] %></td>
+                  <td class="product" rowspan="<%= detail_count %>"><%= row[:product_name] %></td>
+                  <td rowspan="<%= detail_count %>"><%= row[:presentation] %></td>
+                  <td class="c-center" rowspan="<%= detail_count %>"><%= format_decimal_compact.call(row[:unit_factor], 2) %></td>
+                  <td class="c-center" rowspan="<%= detail_count %>"><%= format_decimal_compact.call(row[:quantity_units], 2) %></td>
+                <% end %>
+                <td><%= detail[:description] %></td>
+                <td class="c-right"><%= format_decimal_compact.call(detail[:quantity], 2) %></td>
+              </tr>
+            <% end %>
+          <% end %>
+        <% else %>
+          <tr>
+            <td colspan="7">Sin productos registrados en esta factura.</td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+
+    <p class="footer-note">
+      Documento generado desde la factura interempresa. Diseño optimizado para incluir la mayor cantidad de renglones por página sin omitir producto, presentación, variaciones ni cantidades.
+    </p>
+  </body>
+</html>

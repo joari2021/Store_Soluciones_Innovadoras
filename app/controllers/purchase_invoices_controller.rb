@@ -32,7 +32,7 @@ class PurchaseInvoicesController < ApplicationController
   before_action :require_business
   before_action :require_admin
   before_action :ensure_purchase_invoice_columns_loaded
-  before_action :set_purchase_invoice, only: %i[show edit update destroy]
+  before_action :set_purchase_invoice, only: %i[show edit update destroy intercompany_product_list]
   before_action :load_global_suppliers, only: %i[index new edit create update]
   before_action :load_bs_accounts, only: %i[new create edit update]
   before_action :load_intercompany_options, only: %i[index new create edit update inventory_absorption absorb_source_inventory]
@@ -189,6 +189,33 @@ class PurchaseInvoicesController < ApplicationController
                              parsed_id = params[:highlighted_item_id].to_i
                              parsed_id.positive? ? parsed_id : nil
                            end
+  end
+
+  def intercompany_product_list
+    unless @purchase_invoice.intercompany?
+      redirect_to purchase_invoice_path(@purchase_invoice), alert: 'La lista detallada solo está disponible para facturas interempresa.'
+      return
+    end
+
+    generated_at = Time.current.in_time_zone('America/Caracas')
+    list_rows = build_intercompany_product_list_rows(@purchase_invoice)
+    filename = "lista_factura_interempresa_#{@purchase_invoice.id}_#{generated_at.strftime('%Y%m%d_%H%M%S')}.html"
+
+    html = render_to_string(
+      template: 'purchase_invoices/intercompany_product_list',
+      layout: false,
+      formats: [:html],
+      locals: {
+        purchase_invoice: @purchase_invoice,
+        list_rows: list_rows,
+        generated_at: generated_at
+      }
+    )
+
+    send_data html,
+              filename: filename,
+              type: 'text/html; charset=utf-8',
+              disposition: 'attachment'
   end
 
   def new
@@ -518,6 +545,92 @@ class PurchaseInvoicesController < ApplicationController
 
   def set_purchase_invoice
     @purchase_invoice = current_business.purchase_invoices.find(params[:id])
+  end
+
+  def build_intercompany_product_list_rows(invoice)
+    invoice.purchase_invoice_items.includes(producto: :product_variations).order(:id).map.with_index(1) do |item, index|
+      producto = item.producto
+      product_variations = producto&.product_variations&.order(:id)&.map do |variation|
+        { id: variation.id, description: variation.description }
+      end || []
+      variation_lookup_by_id = product_variations.index_by { |variation| variation[:id].to_s }
+      single_variation_description = if product_variations.one?
+                                       product_variations.first[:description].presence || 'Unica'
+                                     end
+
+      variation_rows = normalized_intercompany_invoice_item_variation_rows(
+        item: item,
+        variation_lookup_by_id: variation_lookup_by_id,
+        single_variation_description: single_variation_description
+      )
+
+      cantidad_packs = item.cantidad.to_d
+      unid_x_pack = item.unid_x_pack.to_d
+      variation_units_total = variation_rows.sum { |entry| entry[:quantity].to_d }
+      quantity_units = if variation_units_total.positive?
+                         variation_units_total
+                       elsif unid_x_pack.positive?
+                         unid_x_pack
+                       else
+                         cantidad_packs
+                       end
+
+      details = if variation_rows.any?
+                  variation_rows.map do |entry|
+                    {
+                      description: entry[:description],
+                      quantity: entry[:quantity].to_d
+                    }
+                  end
+                elsif product_variations.one?
+                  [{ description: (product_variations.first[:description].presence || 'Unica'), quantity: quantity_units }]
+                else
+                  [{ description: 'Sin detalle', quantity: quantity_units }]
+                end
+
+      {
+        index: index,
+        product_name: resolved_invoice_item_product_name(item),
+        presentation: producto&.presentation_display_suffix.to_s.gsub(/[()]/, '').presence || '-',
+        unit_factor: unid_x_pack,
+        quantity_units: quantity_units,
+        details: details
+      }
+    end
+  end
+
+  def normalized_intercompany_invoice_item_variation_rows(item:, variation_lookup_by_id:, single_variation_description:)
+    raw_rows = item.variation_breakdown.is_a?(Array) ? item.variation_breakdown : []
+
+    raw_rows.filter_map do |entry|
+      next unless entry.is_a?(Hash)
+
+      variation_id = (entry['variation_id'] || entry[:variation_id]).presence
+      stored_description = (entry['description'] || entry[:description]).to_s.strip
+      resolved_description = if variation_id.present?
+                               variation_lookup_by_id.dig(variation_id.to_s, :description)
+                             end
+      resolved_description = resolved_description.presence || single_variation_description.presence || stored_description.presence || 'Variación'
+
+      {
+        description: resolved_description,
+        quantity: (entry['quantity'] || entry[:quantity]).to_d
+      }
+    end
+  end
+
+  def resolved_invoice_item_product_name(item)
+    raw_product_name = item.product_name.to_s.strip
+    if raw_product_name.present?
+      producto_descripcion = item.producto&.descripcion.to_s.strip
+      if producto_descripcion.present? && raw_product_name.casecmp(producto_descripcion).zero?
+        return item.producto&.display_name_with_presentation.presence || raw_product_name
+      end
+
+      return raw_product_name
+    end
+
+    item.producto&.display_name_with_presentation || item.producto&.descripcion || 'Selecciona un producto'
   end
 
   def load_global_suppliers
