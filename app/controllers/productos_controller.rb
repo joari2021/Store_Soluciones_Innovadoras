@@ -174,32 +174,35 @@ class ProductosController < ApplicationController
       return render json: [] unless source_business
 
       rows = if query.present?
-               sanitized_query = ActiveRecord::Base.sanitize_sql_like(query)
                query_terms = query.downcase.split(/\s+/).map(&:strip).reject(&:blank?).uniq
                products_scope = source_business.productos
 
-               if query_terms.any?
-                 products_scope = products_scope.where(
-                   query_terms.map.with_index { |_, idx| "LOWER(productos.descripcion) LIKE :term#{idx}" }.join(' OR '),
-                   query_terms.each_with_index.to_h { |term, idx| ["term#{idx}".to_sym, "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"] }
-                 )
-               else
-                 products_scope = products_scope.where('productos.descripcion ILIKE ?', "%#{sanitized_query}%")
-               end
-
                scoped_rows = products_scope
+                             .whose_name_starts_with(query)
                              .includes(:product_variations, :stock_lots)
                              .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
                              .limit(10)
 
-               if scoped_rows.blank?
-                 source_business.productos
-                                .includes(:product_variations, :stock_lots)
-                                .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
-                                .limit(10)
-               else
-                 scoped_rows
+               if scoped_rows.blank? && query_terms.any?
+                 fallback_scope = products_scope
+                                  .left_joins(:product_variations, :categoria)
+
+                 query_terms.each do |term|
+                   pattern = "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"
+                   fallback_scope = fallback_scope.where(
+                     "productos.descripcion ILIKE :query OR COALESCE(product_variations.description, '') ILIKE :query OR COALESCE(categorias.nombre, '') ILIKE :query",
+                     query: pattern
+                   )
+                 end
+
+                 scoped_rows = fallback_scope
+                               .distinct
+                               .includes(:product_variations, :stock_lots)
+                               .reorder(Arel.sql('LOWER(productos.descripcion) ASC'))
+                               .limit(10)
                end
+
+               scoped_rows
              else
                source_business.productos
                               .includes(:product_variations, :stock_lots)
