@@ -17,8 +17,8 @@
         margin: 0;
         color: #0f172a;
         font-family: Arial, sans-serif;
-        font-size: 9px;
-        line-height: 1.15;
+        font-size: 10px;
+        line-height: 1.2;
       }
 
       .header {
@@ -27,7 +27,7 @@
 
       .title {
         margin: 0;
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 700;
       }
 
@@ -36,7 +36,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        font-size: 8px;
+        font-size: 9px;
       }
 
       table {
@@ -68,7 +68,7 @@
       }
 
       th {
-        font-size: 8px;
+        font-size: 9px;
         text-transform: uppercase;
         letter-spacing: 0.03em;
         background: #e2e8f0;
@@ -86,12 +86,8 @@
         font-weight: 600;
       }
 
-      .w-item {
-        width: 6%;
-      }
-
       .w-product {
-        width: 29%;
+        width: 35%;
       }
 
       .w-presentation {
@@ -107,7 +103,7 @@
       }
 
       .w-variation {
-        width: 22%;
+        width: 25%;
       }
 
       .w-variation-qty {
@@ -155,7 +151,6 @@
     <table>
       <thead>
         <tr>
-          <th class="w-item c-center">#</th>
           <th class="w-product">Producto</th>
           <th class="w-presentation">Presentación</th>
           <th class="w-factor c-center">Factor unidad</th>
@@ -171,7 +166,6 @@
             <% row[:details].each_with_index do |detail, detail_index| %>
               <tr>
                 <% if detail_index.zero? %>
-                  <td class="c-center" rowspan="<%= detail_count %>"><%= row[:index] %></td>
                   <td class="product" rowspan="<%= detail_count %>"><%= row[:product_name] %></td>
                   <td rowspan="<%= detail_count %>"><%= row[:presentation] %></td>
                   <td class="c-center" rowspan="<%= detail_count %>"><%= format_decimal_compact.call(row[:unit_factor], 2) %></td>
@@ -184,7 +178,7 @@
           <% end %>
         <% else %>
           <tr>
-            <td colspan="7">Sin productos registrados en esta factura.</td>
+            <td colspan="6">Sin productos registrados en esta factura.</td>
           </tr>
         <% end %>
       </tbody>
