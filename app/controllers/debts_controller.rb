@@ -2118,7 +2118,7 @@ class DebtsController < ApplicationController
     current_business
       .accounts
       .where(active: true)
-      .where.not(account_type: Account::SPECIAL_ACCOUNT_TYPES)
+      .where.not(account_type: 'cashea')
       .where.not("REPLACE(LOWER(name), ' ', '') LIKE ?", '%payall%')
   end
 
