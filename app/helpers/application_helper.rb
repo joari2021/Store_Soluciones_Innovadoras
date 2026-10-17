@@ -246,7 +246,7 @@ module ApplicationHelper
 
     normalized_variation = normalized_relevant_variation_name(variation_name)
     if normalized_variation.present?
-      resolved_name = "#{resolved_name} (#{normalized_variation})"
+      resolved_name = "#{resolved_name} #{normalized_variation}"
     end
 
     if product.respond_to?(:pack?) && product.pack?
