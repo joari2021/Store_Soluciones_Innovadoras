@@ -438,7 +438,11 @@
                                    system_reference: service_system_label
                                  )
                                else
-                                 display_item_name
+                                 format_sale_line_item_name(
+                                   product: item.producto,
+                                   base_name: item.product_name.presence || item.producto&.descripcion || display_item_name,
+                                   variation_name: item.variation_name
+                                 )
                                end %>
       <% if is_service_item && base_is_ves && subtotal_usd.positive? %>
         <% non_printing_breakdown_base = tasa.positive? ? (service_non_printing_breakdown_total_usd * tasa).round(2) : 0.to_d %>

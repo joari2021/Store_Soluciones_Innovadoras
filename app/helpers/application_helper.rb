@@ -237,6 +237,39 @@ module ApplicationHelper
     }
   end
 
+  def format_sale_line_item_name(product:, base_name:, variation_name: nil)
+    resolved_name = if product.present?
+                      product.descripcion.to_s.strip.presence
+                    end
+    resolved_name ||= base_name.to_s.strip.presence
+    resolved_name ||= 'Producto'
+
+    normalized_variation = normalized_relevant_variation_name(variation_name)
+    if normalized_variation.present?
+      resolved_name = "#{resolved_name} (#{normalized_variation})"
+    end
+
+    if product.respond_to?(:pack?) && product.pack?
+      units_per_pack = product.cant_presentation.to_i
+      units_per_pack = 1 if units_per_pack <= 0
+
+      resolved_name = resolved_name.gsub(/\s*\(pack\s+de\s+\d+\s+unid(?:s)?\)\s*\z/i, '').strip
+      resolved_name = "#{resolved_name} (pack de #{units_per_pack} unids)"
+    end
+
+    resolved_name.squish
+  end
+
+  def normalized_relevant_variation_name(value)
+    label = value.to_s.strip
+    return nil if label.blank?
+
+    normalized = I18n.transliterate(label).downcase
+    return nil if normalized == 'unica'
+
+    label
+  end
+
   private
 
   def strip_internal_metadata_tags(text)

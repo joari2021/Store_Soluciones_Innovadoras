@@ -587,14 +587,12 @@ class VentasController < ApplicationController
 
       product = current_business.productos.find_by(id: item["product_id"]) if item["product_id"].present?
       variation = product&.product_variations&.find_by(id: item["variation_id"]) if item["variation_id"].present?
-
-      item_name = if variation.present?
-                    "#{product.descripcion} (#{variation.description})"
-                  elsif product.present?
-                    product.descripcion
-                  else
-                    item["name"].to_s.strip.presence || "Item"
-                  end
+      variation_name = variation&.description.to_s.strip.presence || item["variation_name"].to_s.strip.presence
+      item_name = helpers.format_sale_line_item_name(
+        product: product,
+        base_name: item["name"].to_s.strip.presence || product&.descripcion || "Item",
+        variation_name: variation_name,
+      )
 
       {
         name: item_name,
