@@ -43,7 +43,7 @@
                  data-pack-id="<%= producto.id %>">
           <div class="absolute inset-x-0 top-0 h-20 bg-gradient-to-r from-amber-100/70 via-orange-50/60 to-white/0"></div>
           <div class="relative">
-            <span class="absolute left-2 top-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold <%= stock_badge_class %>">
+            <span class="absolute left-2 top-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold <%= stock_badge_class %>" data-pack-stock-badge="true">
               <%= format_quantity(total_stock, precision: 0) %>
             </span>
             <div class="mt-8 aspect-square overflow-hidden rounded-2xl border border-white/80 bg-slate-50 flex items-center justify-center text-slate-300">
@@ -93,6 +93,69 @@
         minimumFractionDigits: 0,
         maximumFractionDigits: 2,
       });
+
+      const resolveStockBadgeClass = (stock) => {
+        const qty = Number(stock || 0);
+        if (!(qty > 0)) return 'bg-rose-100 text-rose-700 ring-1 ring-rose-200';
+        if (qty < 6) return 'bg-amber-100 text-amber-700 ring-1 ring-amber-200';
+        return 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200';
+      };
+
+      const applyPackUpdate = (pack) => {
+        if (!pack || pack.id == null) return;
+        const packId = String(pack.id);
+        packsById.set(packId, pack);
+
+        const card = grid.querySelector(`[data-pack-card="true"][data-pack-id="${packId}"]`);
+        if (!card) return;
+
+        const totalStock = Number(pack.total_stock || 0);
+        const badge = card.querySelector('[data-pack-stock-badge="true"]');
+        if (badge) {
+          badge.textContent = formatQty(totalStock);
+          badge.className = `absolute left-2 top-2 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-bold ${resolveStockBadgeClass(totalStock)}`;
+        }
+
+        card.classList.remove('cursor-pointer', 'cursor-not-allowed', 'opacity-70');
+        if (totalStock > 0) {
+          card.classList.add('cursor-pointer');
+        } else {
+          card.classList.add('cursor-not-allowed', 'opacity-70');
+        }
+      };
+
+      const submitUnpackAjax = async ({ pack, selectedRows }) => {
+        const formData = new FormData();
+        formData.append('product_id', pack.id);
+        selectedRows.forEach((row, index) => {
+          formData.append(`rows[${index}][variation_id]`, row.variation_id);
+          formData.append(`rows[${index}][packs]`, row.packs);
+        });
+
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const response = await fetch('<%= process_unpack_productos_path %>', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            ...(csrf ? { 'X-CSRF-Token': csrf } : {})
+          },
+          body: formData,
+          credentials: 'same-origin'
+        });
+
+        let payload = {};
+        try {
+          payload = await response.json();
+        } catch (_error) {
+          payload = {};
+        }
+
+        if (!response.ok) {
+          throw new Error(String(payload.error || 'No se pudo registrar el desempaque.'));
+        }
+
+        return payload;
+      };
 
       const openVariationModal = async (pack) => {
         if (!pack) return;
@@ -189,41 +252,28 @@
 
       if (!confirm.isConfirmed) return;
 
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = '<%= process_unpack_productos_path %>';
+      try {
+        const payload = await submitUnpackAjax({ pack, selectedRows });
+        if (payload?.pack) {
+          applyPackUpdate(payload.pack);
+        }
 
-      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      if (csrf) {
-        const csrfInput = document.createElement('input');
-        csrfInput.type = 'hidden';
-        csrfInput.name = 'authenticity_token';
-        csrfInput.value = csrf;
-        form.appendChild(csrfInput);
+        await swal.fire({
+          icon: 'success',
+          title: 'Desempaque registrado',
+          text: String(payload?.message || 'La operación se registró correctamente.'),
+          timer: 1400,
+          showConfirmButton: false,
+          heightAuto: false,
+        });
+      } catch (error) {
+        await swal.fire({
+          icon: 'error',
+          title: 'No se pudo registrar',
+          text: String(error?.message || 'Intenta nuevamente.'),
+          heightAuto: false,
+        });
       }
-
-      const productInput = document.createElement('input');
-      productInput.type = 'hidden';
-      productInput.name = 'product_id';
-      productInput.value = pack.id;
-      form.appendChild(productInput);
-
-      selectedRows.forEach((row, index) => {
-        const variationInput = document.createElement('input');
-        variationInput.type = 'hidden';
-        variationInput.name = `rows[${index}][variation_id]`;
-        variationInput.value = row.variation_id;
-        form.appendChild(variationInput);
-
-        const packsInput = document.createElement('input');
-        packsInput.type = 'hidden';
-        packsInput.name = `rows[${index}][packs]`;
-        packsInput.value = row.packs;
-        form.appendChild(packsInput);
-      });
-
-      document.body.appendChild(form);
-      form.submit();
       };
 
       grid.addEventListener('click', async (event) => {

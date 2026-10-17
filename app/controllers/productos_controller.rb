@@ -628,15 +628,28 @@ class ProductosController < ApplicationController
 
   def process_unpack
     pack_product = current_business.productos.find_by(id: params[:product_id])
-    return redirect_to unpack_packs_productos_path, alert: 'Producto pack no encontrado.' if pack_product.blank?
+    if pack_product.blank?
+      message = 'Producto pack no encontrado.'
+      return respond_to do |format|
+               format.html { redirect_to unpack_packs_productos_path, alert: message }
+               format.json { render json: { error: message }, status: :not_found }
+             end
+    end
     unless pack_product.pack?
-      return redirect_to unpack_packs_productos_path, alert: 'Solo se pueden destapar productos tipo pack.'
+      message = 'Solo se pueden destapar productos tipo pack.'
+      return respond_to do |format|
+               format.html { redirect_to unpack_packs_productos_path, alert: message }
+               format.json { render json: { error: message }, status: :unprocessable_entity }
+             end
     end
 
     parsed_rows = parse_unpack_rows(params[:rows])
     if parsed_rows.empty?
-      return redirect_to unpack_packs_productos_path,
-                         alert: 'Debes seleccionar al menos una variacion con packs a destapar.'
+      message = 'Debes seleccionar al menos una variacion con packs a destapar.'
+      return respond_to do |format|
+               format.html { redirect_to unpack_packs_productos_path, alert: message }
+               format.json { render json: { error: message }, status: :unprocessable_entity }
+             end
     end
 
     performed_on = parse_filter_date(params[:performed_on]) || Time.current.in_time_zone('America/Caracas').to_date
@@ -645,9 +658,26 @@ class ProductosController < ApplicationController
       apply_unpack!(pack_product: pack_product, parsed_rows: parsed_rows, performed_on: performed_on)
     end
 
-    redirect_to unpack_packs_productos_path, notice: 'Desempaque registrado correctamente.'
+    reloaded_pack = current_business.productos
+                                  .includes(:product_variations, :stock_lot_variations, :stock_lots)
+                                  .find(pack_product.id)
+
+    respond_to do |format|
+      format.html { redirect_to unpack_packs_productos_path, notice: 'Desempaque registrado correctamente.' }
+      format.json do
+        render json: {
+          success: true,
+          message: 'Desempaque registrado correctamente.',
+          pack: unpack_pack_payload_for(reloaded_pack)
+        }, status: :ok
+      end
+    end
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to unpack_packs_productos_path, alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+    message = e.record&.errors&.full_messages&.to_sentence.presence || e.message
+    respond_to do |format|
+      format.html { redirect_to unpack_packs_productos_path, alert: message }
+      format.json { render json: { error: message }, status: :unprocessable_entity }
+    end
   end
 
   def unpack_histories
@@ -853,6 +883,22 @@ class ProductosController < ApplicationController
     return 0.to_d if lot_costs.blank?
 
     lot_costs.max
+  end
+
+  def unpack_pack_payload_for(producto)
+    {
+      id: producto.id,
+      name: producto.display_name_with_presentation,
+      cant_presentation: producto.cant_presentation.to_i,
+      total_stock: producto.total_quantity.to_d.to_f,
+      variations: producto.product_variations.sort_by(&:id).map do |variation|
+        {
+          id: variation.id,
+          name: variation.description.to_s,
+          available: available_variation_quantity(producto: producto, variation: variation).to_d.to_f
+        }
+      end
+    }
   end
 
   def inventory_variation_totals_for_export(producto)
