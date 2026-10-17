@@ -94,6 +94,15 @@
         maximumFractionDigits: 2,
       });
 
+      const parseDecimalInput = (rawValue) => {
+        const raw = String(rawValue ?? '').trim();
+        if (!raw) return 0;
+
+        const normalized = raw.includes(',') ? raw.replace(/\./g, '').replace(',', '.') : raw;
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
       const resolveStockBadgeClass = (stock) => {
         const qty = Number(stock || 0);
         if (!(qty > 0)) return 'bg-rose-100 text-rose-700 ring-1 ring-rose-200';
@@ -183,7 +192,7 @@
                     <p class="text-sm font-semibold text-slate-700">${String(row.name || 'Variación')}</p>
                     <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Disp: ${formatQty(available)}</span>
                   </div>
-                  <input type="number" min="0" step="1" max="${available}" value="" placeholder="Cantidad de packs" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-variation-input="${row.id}" ${available <= 0 ? 'disabled' : ''}>
+                  <input type="number" min="0" step="0.01" max="${available}" value="" placeholder="Cantidad de packs" class="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" data-variation-input="${row.id}" ${available <= 0 ? 'disabled' : ''}>
                 </div>
               `;
             }).join('')}
@@ -207,9 +216,10 @@
             const input = dialog.querySelector(`[data-variation-input="${row.id}"]`);
             if (!input) return;
             const available = Number(row.available || 0);
-            let packsQty = Number.parseInt(String(input.value || '0'), 10);
+            let packsQty = parseDecimalInput(input.value || '0');
             if (!Number.isFinite(packsQty) || packsQty < 0) packsQty = 0;
-            if (packsQty > available) packsQty = Math.floor(available);
+            packsQty = Math.round(packsQty * 100) / 100;
+            if (packsQty > available) packsQty = available;
             if (packsQty <= 0) return;
             selections.push({ variation_id: row.id, packs: packsQty, units: packsQty * Number(pack.cant_presentation || 1) });
           });
