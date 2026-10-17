@@ -1082,11 +1082,13 @@ class CashShiftsController < ApplicationController
   end
 
   def pending_shift_movements_scope(account:, cash_shift:)
+    cutoff_at = cash_shift.closed_at || Time.current
+
     account
       .account_movements
       .where(account_settlement_id: nil)
       .where(movement_kind: "income")
-      .where(occurred_at: shift_time_range_for(cash_shift))
+      .where("occurred_at <= ?", cutoff_at)
   end
 
   def shift_movements_scope(cash_shift)
