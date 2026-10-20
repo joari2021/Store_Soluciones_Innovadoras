@@ -8,7 +8,7 @@ class DebtsController < ApplicationController
   before_action :ensure_can_edit_debt!, only: %i[edit update]
   before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
   before_action :ensure_can_transfer_debt!, only: %i[transfer_group transfer_destination_clients]
-  before_action :set_debt, only: %i[show edit update destroy transfer_group]
+  before_action :set_debt, only: %i[show edit update destroy transfer_group cashea_week_rows]
   before_action :load_parties, only: %i[new create edit update]
   before_action :load_accounts, only: %i[new create edit update]
   before_action :load_currency_rates, only: %i[new create edit update]
@@ -398,96 +398,7 @@ class DebtsController < ApplicationController
       balance_for_overdue > 0.01.to_d && debt.due_on.present? && debt.due_on <= Date.current
     end
     @can_register_group_payment = current_user_admin? || current_user_manager?
-
-    grouped_payments_by_signature = @payments.group_by do |payment|
-      [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
-    end
-
-    @show_payment_rows = []
-
-    @payments.each do |payment|
-      shift = cash_shift_for_payment(payment)
-      closed_shift = shift&.closed?
-      delete_allowed = current_user_admin? || shift&.open?
-      delete_block_reason = if closed_shift && !current_user_admin?
-                              'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
-                            elsif shift.nil? && !current_user_admin?
-                              'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
-                            end
-
-      payment_row = {
-        payment: payment,
-        equivalent_usd_bcv: payment_amount_usd_bcv(payment),
-        commission_amount: payment.respond_to?(:commission_amount) ? payment.commission_amount.to_d.round(2) : 0.to_d,
-        debt_label: payment.excess_payment? ? 'Excedente' : (payment.debt&.description.to_s.strip.presence || 'Deuda sin descripcion'),
-        delete_allowed: delete_allowed,
-        delete_warning: closed_shift,
-        delete_block_reason: delete_block_reason,
-        is_excess: payment.excess_payment?,
-      }
-
-      unless @debt.payable?
-        @show_payment_rows << payment_row
-        next
-      end
-
-      if payment.excess_payment?
-        @show_payment_rows << payment_row
-        next
-      end
-
-      payment_movements_total = principal_payment_account_movements_for(payment).sum { |movement| movement.amount.to_d }.round(2)
-      if payment_movements_total <= (payment.amount.to_d + 0.01.to_d)
-        @show_payment_rows << payment_row
-        next
-      end
-
-      signature = [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
-      has_explicit_excess_payment = grouped_payments_by_signature.fetch(signature, []).any? do |candidate|
-        candidate.id != payment.id && candidate.excess_payment?
-      end
-      if has_explicit_excess_payment
-        @show_payment_rows << payment_row
-        next
-      end
-
-      movement_excess_amount = (payment_movements_total - payment.amount.to_d).round(2)
-      if movement_excess_amount <= 0.01.to_d
-        @show_payment_rows << payment_row
-        next
-      end
-
-      movement_excess_usd_bcv = CurrencyConverter.convert(
-        amount: movement_excess_amount,
-        from_currency: payment.currency,
-        to_currency: 'USD',
-        on_date: payment.occurred_at,
-      )&.dig(:amount).to_d.round(2)
-
-      synthetic_excess_payment = DebtPayment.new(
-        debt: payment.debt,
-        account: payment.account,
-        amount: movement_excess_amount,
-        currency: payment.currency,
-        payment_method: payment.payment_method,
-        reference: payment.reference,
-        occurred_at: payment.occurred_at,
-        notes: "[VIRTUAL_OVERPAYMENT_FROM_DP:#{payment.id}]"
-      )
-
-      @show_payment_rows << {
-        payment: synthetic_excess_payment,
-        equivalent_usd_bcv: movement_excess_usd_bcv,
-        commission_amount: 0.to_d,
-        debt_label: 'Excedente (movimiento)',
-        delete_allowed: false,
-        delete_warning: false,
-        delete_block_reason: 'El excedente se muestra como control con base en el movimiento real de la cuenta.',
-        is_excess: true,
-      }
-
-      @show_payment_rows << payment_row
-    end
+    @show_payment_rows = build_show_payment_rows(payments: @payments)
 
     if @debt.payable?
       excess_rows = @show_payment_rows.select { |row| row[:is_excess] }
@@ -505,53 +416,31 @@ class DebtsController < ApplicationController
 
     @show_weekly_summary_enabled = cashea_group_for_show?(@debt)
 
-    debts_for_rows = @grouped_debts.sort_by do |debt|
-      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
-      created_at = debt.created_at || Time.zone.at(0)
-      [-issued_on.jd, -created_at.to_i, -debt.id.to_i]
-    end
+    @show_debt_rows = build_show_debt_rows(
+      grouped_debts: @grouped_debts,
+      group_is_usdt: group_is_usdt,
+      effective_allocations: effective_allocations,
+      effective_native_allocations: effective_native_allocations,
+      weekly_summary_enabled: @show_weekly_summary_enabled,
+    )
 
-    sale_totals_by_id = {}
     if @show_weekly_summary_enabled
-      sale_ids = debts_for_rows.filter_map { |debt| debt_source_sale_id_for_summary(debt) }.uniq
-      sale_totals_by_id = sales_total_usd_bcv_by_id(sale_ids)
-    end
+      @cashea_debt_week_starts = @show_debt_rows.map { |row| debt_week_start_for(row[:debt]) }.uniq.sort.reverse
+      @cashea_visible_debt_week_starts = @cashea_debt_week_starts.first(2)
+      @cashea_next_debt_week_start = @cashea_debt_week_starts[@cashea_visible_debt_week_starts.length]
+      @show_debt_rows_visible = @show_debt_rows.select do |row|
+        @cashea_visible_debt_week_starts.include?(debt_week_start_for(row[:debt]))
+      end
 
-    @show_debt_rows = debts_for_rows.map do |debt|
-      loan_movement = original_loan_account_movement_for_debt(debt)
-      loan_account = loan_movement&.account
-      source_sale_id = debt_source_sale_id_for_summary(debt)
-      allocation = if group_is_usdt
-                     effective_native_allocations.fetch(debt.id)
-                   else
-                     effective_allocations.fetch(debt.id)
-                   end
-      amount_for_row = allocation[:amount]
-      paid_for_row = allocation[:paid]
-      balance_for_row = allocation[:balance]
-      row_status = if balance_for_row <= 0.01.to_d
-                     'Pagada'
-                   elsif paid_for_row > 0.01.to_d
-                     'Parcial'
-                   else
-                     'Pendiente'
-                   end
-
-      {
-        debt: debt,
-        amount_usd_bcv: amount_for_row,
-        paid_usd_bcv: paid_for_row,
-        balance_usd_bcv: balance_for_row,
-        source_sale_id: source_sale_id,
-        source_sale_total_usd_bcv: sale_totals_by_id[source_sale_id].to_d,
-        status: row_status,
-        loan_enabled: loan_movement.present?,
-        loan_account_id: loan_movement&.account_id,
-        loan_account_name: loan_account&.name,
-        loan_account_currency: loan_account&.currency,
-        loan_amount: loan_movement&.amount.to_d,
-        loan_reference: loan_movement&.reference.to_s.strip
-      }
+      @cashea_payment_week_starts = @show_payment_rows.map { |row| payment_week_start_for(row[:payment]) }.uniq.sort.reverse
+      @cashea_visible_payment_week_starts = @cashea_payment_week_starts.first(2)
+      @cashea_next_payment_week_start = @cashea_payment_week_starts[@cashea_visible_payment_week_starts.length]
+      @show_payment_rows_visible = @show_payment_rows.select do |row|
+        @cashea_visible_payment_week_starts.include?(payment_week_start_for(row[:payment]))
+      end
+    else
+      @show_debt_rows_visible = @show_debt_rows
+      @show_payment_rows_visible = @show_payment_rows
     end
 
     @intercompany_group_payment_mode = intercompany_group_payment_mode?(@grouped_debts)
@@ -571,6 +460,92 @@ class DebtsController < ApplicationController
     @show_currency_options = [@show_group_currency]
     @transfer_target_businesses = transfer_target_businesses
     @transfer_source_client_sentinel = TRANSFER_SOURCE_CLIENT_SENTINEL
+  end
+
+  def cashea_week_rows
+    @debt = group_root_for(@debt)
+    grouped_debts = sort_debts(debts_for_show(@debt)).uniq { |item| item.id }
+    show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
+
+    unless cashea_group_for_show?(@debt)
+      render json: { error: 'Este grupo no usa carga semanal de Cashea.' }, status: :unprocessable_entity
+      return
+    end
+
+    week_start = parse_week_start_param(params[:week_start])
+    if week_start.blank?
+      render json: { error: 'Semana invalida.' }, status: :unprocessable_entity
+      return
+    end
+
+    week_end = week_start + 6.days
+    section = params[:section].to_s
+
+    response_payload = {}
+
+    if section.blank? || section == 'debts'
+      group_is_usdt = show_group_currency.to_s.upcase == 'USDT'
+      effective_allocations = effective_usd_bcv_allocations_for_group(grouped_debts)
+      effective_native_allocations = group_is_usdt ? effective_native_allocations_for_group(grouped_debts) : {}
+      debt_rows = build_show_debt_rows(
+        grouped_debts: grouped_debts,
+        group_is_usdt: group_is_usdt,
+        effective_allocations: effective_allocations,
+        effective_native_allocations: effective_native_allocations,
+        weekly_summary_enabled: true,
+      )
+
+      week_rows = debt_rows.select do |row|
+        debt_week_start_for(row[:debt]) == week_start
+      end
+
+      week_starts = debt_rows.map { |row| debt_week_start_for(row[:debt]) }.uniq.sort.reverse
+      next_week_start = week_starts.find { |date| date < week_start }
+
+      response_payload[:debt_rows_by_currency] = week_rows.group_by { |row| row[:debt].currency.to_s.upcase }.each_with_object({}) do |(currency, currency_rows), hash|
+        hash[currency] = render_to_string(
+          partial: 'debts/debt_rows',
+          formats: [:html],
+          locals: {
+            rows: currency_rows,
+            is_usdt: currency == 'USDT',
+            customer_debt_view: current_user_customer_mode?,
+            weekly_summary_enabled: true,
+          },
+        )
+      end
+      response_payload[:next_debt_week_start] = next_week_start&.iso8601
+      response_payload[:loaded_debt_count] = week_rows.size
+    end
+
+    if section.blank? || section == 'payments'
+      payments = DebtPayment
+                 .where(debt_id: grouped_debts.map(&:id))
+                 .includes(:account, :debt)
+                 .order(occurred_at: :desc, created_at: :desc)
+      payment_rows = build_show_payment_rows(payments: payments)
+      week_rows = payment_rows.select do |row|
+        payment_week_start_for(row[:payment]) == week_start
+      end
+
+      week_starts = payment_rows.map { |row| payment_week_start_for(row[:payment]) }.uniq.sort.reverse
+      next_week_start = week_starts.find { |date| date < week_start }
+
+      response_payload[:payment_rows_html] = render_to_string(
+        partial: 'debts/payment_rows',
+        formats: [:html],
+        locals: {
+          rows: week_rows,
+          group_is_usdt: show_group_currency.to_s.upcase == 'USDT',
+        },
+      )
+      response_payload[:next_payment_week_start] = next_week_start&.iso8601
+      response_payload[:loaded_payment_count] = week_rows.size
+    end
+
+    render json: response_payload
+  rescue ArgumentError
+    render json: { error: 'Semana invalida.' }, status: :unprocessable_entity
   end
 
   def transfer_destination_clients
@@ -2346,6 +2321,171 @@ class DebtsController < ApplicationController
     return false unless debt.receivable?
 
     debt.counterparty_display_name.to_s.strip.downcase.include?('cashea')
+  end
+
+  def parse_week_start_param(value)
+    raw = value.to_s.strip
+    return nil if raw.blank?
+
+    Date.iso8601(raw).beginning_of_week(:monday)
+  rescue Date::Error
+    nil
+  end
+
+  def debt_week_start_for(debt)
+    reference_date = debt.issued_on || debt.created_at&.to_date || Date.current
+    reference_date.beginning_of_week(:monday)
+  end
+
+  def payment_week_start_for(payment)
+    reference_date = payment.occurred_at || payment.created_at&.to_date || Date.current
+    reference_date.beginning_of_week(:monday)
+  end
+
+  def build_show_payment_rows(payments:)
+    grouped_payments_by_signature = payments.group_by do |payment|
+      [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
+    end
+
+    rows = []
+
+    payments.each do |payment|
+      shift = cash_shift_for_payment(payment)
+      closed_shift = shift&.closed?
+      delete_allowed = current_user_admin? || shift&.open?
+      delete_block_reason = if closed_shift && !current_user_admin?
+                              'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
+                            elsif shift.nil? && !current_user_admin?
+                              'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
+                            end
+
+      payment_row = {
+        payment: payment,
+        equivalent_usd_bcv: payment_amount_usd_bcv(payment),
+        commission_amount: payment.respond_to?(:commission_amount) ? payment.commission_amount.to_d.round(2) : 0.to_d,
+        debt_label: payment.excess_payment? ? 'Excedente' : (payment.debt&.description.to_s.strip.presence || 'Deuda sin descripcion'),
+        delete_allowed: delete_allowed,
+        delete_warning: closed_shift,
+        delete_block_reason: delete_block_reason,
+        is_excess: payment.excess_payment?,
+      }
+
+      unless @debt.payable?
+        rows << payment_row
+        next
+      end
+
+      if payment.excess_payment?
+        rows << payment_row
+        next
+      end
+
+      payment_movements_total = principal_payment_account_movements_for(payment).sum { |movement| movement.amount.to_d }.round(2)
+      if payment_movements_total <= (payment.amount.to_d + 0.01.to_d)
+        rows << payment_row
+        next
+      end
+
+      signature = [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
+      has_explicit_excess_payment = grouped_payments_by_signature.fetch(signature, []).any? do |candidate|
+        candidate.id != payment.id && candidate.excess_payment?
+      end
+      if has_explicit_excess_payment
+        rows << payment_row
+        next
+      end
+
+      movement_excess_amount = (payment_movements_total - payment.amount.to_d).round(2)
+      if movement_excess_amount <= 0.01.to_d
+        rows << payment_row
+        next
+      end
+
+      movement_excess_usd_bcv = CurrencyConverter.convert(
+        amount: movement_excess_amount,
+        from_currency: payment.currency,
+        to_currency: 'USD',
+        on_date: payment.occurred_at,
+      )&.dig(:amount).to_d.round(2)
+
+      synthetic_excess_payment = DebtPayment.new(
+        debt: payment.debt,
+        account: payment.account,
+        amount: movement_excess_amount,
+        currency: payment.currency,
+        payment_method: payment.payment_method,
+        reference: payment.reference,
+        occurred_at: payment.occurred_at,
+        notes: "[VIRTUAL_OVERPAYMENT_FROM_DP:#{payment.id}]"
+      )
+
+      rows << {
+        payment: synthetic_excess_payment,
+        equivalent_usd_bcv: movement_excess_usd_bcv,
+        commission_amount: 0.to_d,
+        debt_label: 'Excedente (movimiento)',
+        delete_allowed: false,
+        delete_warning: false,
+        delete_block_reason: 'El excedente se muestra como control con base en el movimiento real de la cuenta.',
+        is_excess: true,
+      }
+
+      rows << payment_row
+    end
+
+    rows
+  end
+
+  def build_show_debt_rows(grouped_debts:, group_is_usdt:, effective_allocations:, effective_native_allocations:,
+                           weekly_summary_enabled:)
+    debts_for_rows = grouped_debts.sort_by do |debt|
+      issued_on = debt.issued_on || debt.created_at&.to_date || Date.new(1970, 1, 1)
+      created_at = debt.created_at || Time.zone.at(0)
+      [-issued_on.jd, -created_at.to_i, -debt.id.to_i]
+    end
+
+    sale_totals_by_id = {}
+    if weekly_summary_enabled
+      sale_ids = debts_for_rows.filter_map { |debt| debt_source_sale_id_for_summary(debt) }.uniq
+      sale_totals_by_id = sales_total_usd_bcv_by_id(sale_ids)
+    end
+
+    debts_for_rows.map do |debt|
+      loan_movement = original_loan_account_movement_for_debt(debt)
+      loan_account = loan_movement&.account
+      source_sale_id = debt_source_sale_id_for_summary(debt)
+      allocation = if group_is_usdt
+                     effective_native_allocations.fetch(debt.id)
+                   else
+                     effective_allocations.fetch(debt.id)
+                   end
+      amount_for_row = allocation[:amount]
+      paid_for_row = allocation[:paid]
+      balance_for_row = allocation[:balance]
+      row_status = if balance_for_row <= 0.01.to_d
+                     'Pagada'
+                   elsif paid_for_row > 0.01.to_d
+                     'Parcial'
+                   else
+                     'Pendiente'
+                   end
+
+      {
+        debt: debt,
+        amount_usd_bcv: amount_for_row,
+        paid_usd_bcv: paid_for_row,
+        balance_usd_bcv: balance_for_row,
+        source_sale_id: source_sale_id,
+        source_sale_total_usd_bcv: sale_totals_by_id[source_sale_id].to_d,
+        status: row_status,
+        loan_enabled: loan_movement.present?,
+        loan_account_id: loan_movement&.account_id,
+        loan_account_name: loan_account&.name,
+        loan_account_currency: loan_account&.currency,
+        loan_amount: loan_movement&.amount.to_d,
+        loan_reference: loan_movement&.reference.to_s.strip
+      }
+    end
   end
 
   def debt_source_sale_id_for_summary(debt)

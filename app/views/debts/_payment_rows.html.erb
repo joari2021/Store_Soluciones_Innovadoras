@@ -1,0 +1,36 @@
+<% rows.each do |row| %>
+  <% payment = row[:payment] %>
+  <% payment_symbol = Account::CURRENCIES.dig(payment.currency, :symbol) || payment.currency %>
+  <tr>
+    <td class="px-4 py-3"><%= payment.occurred_at.strftime("%d/%m/%Y") %></td>
+    <td class="px-4 py-3"><%= debt_display_description_with_source_link(row[:debt_label]) %></td>
+    <td class="px-4 py-3"><%= payment.account.name %></td>
+    <td class="px-4 py-3"><%= payment.currency %></td>
+    <td class="px-4 py-3"><%= payment.payment_method_label.presence || '-' %></td>
+    <td class="px-4 py-3"><%= payment.reference.presence || '-' %></td>
+    <td class="px-4 py-3 text-right"><%= number_to_currency(row[:commission_amount], unit: "#{payment_symbol} ") %></td>
+    <td class="px-4 py-3 text-right"><%= number_to_currency(payment.amount, unit: "#{payment_symbol} ") %></td>
+    <% unless group_is_usdt %>
+      <td class="px-4 py-3 text-right"><%= number_to_currency(row[:equivalent_usd_bcv], unit: "$ ") %></td>
+    <% end %>
+    <td class="px-4 py-3 text-right">
+      <% if row[:delete_allowed] %>
+        <%= link_to debt_debt_payment_path(
+              @debt,
+              payment,
+              group_currency: params[:group_currency],
+              group_cliente_id: params[:group_cliente_id],
+              only_active: params[:only_active],
+              group_token: params[:group_token]
+            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar pago", aria: { label: "Eliminar pago" }, data: { turbo_method: :delete, swal_delete: 'debt_payment', swal_text: (row[:delete_warning] ? 'Este pago pertenece a un turno ya cerrado y se eliminará junto con sus movimientos asociados. Esta acción no se puede deshacer.' : nil) } do %>
+          <i data-lucide="trash" class="h-4 w-4"></i>
+        <% end %>
+      <% else %>
+        <% blocked_reason = row[:delete_block_reason].presence || "Este pago no puede eliminarse con tu perfil." %>
+        <button type="button" class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-slate-100 p-2 text-slate-500" title="<%= blocked_reason %>" aria-label="<%= blocked_reason %>" data-payment-delete-blocked="true" data-payment-delete-blocked-message="<%= blocked_reason %>">
+          <i data-lucide="trash" class="h-4 w-4"></i>
+        </button>
+      <% end %>
+    </td>
+  </tr>
+<% end %>
