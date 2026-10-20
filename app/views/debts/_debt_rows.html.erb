@@ -21,7 +21,6 @@
     <% end %>
   <% end %>
 <% end %>
-
 <% rows.each_with_index do |row, row_index| %>
   <% debt = row[:debt] %>
   <% debt_symbol = Account::CURRENCIES.dig(debt.currency, :symbol) || debt.currency %>
@@ -141,7 +140,6 @@
       <% end %>
     </td>
   </tr>
-
   <% if weekly_summary_enabled %>
     <% current_date = debt.issued_on || debt.created_at&.to_date || Date.current %>
     <% current_week_start = current_date.beginning_of_week(:monday) %>
@@ -154,7 +152,6 @@
                          "#{next_week_start.iso8601}_#{(next_week_start + 6.days).iso8601}"
                        end %>
     <% week_boundary = next_week_key != current_week_key %>
-
     <% if week_boundary %>
       <% summary = weekly_summaries[current_week_key] || {} %>
       <tr class="bg-slate-50/70" data-weekly-summary-row="true">

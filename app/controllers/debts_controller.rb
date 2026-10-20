@@ -433,7 +433,7 @@ class DebtsController < ApplicationController
       end
 
       @cashea_payment_week_starts = @show_payment_rows.map { |row| payment_week_start_for(row[:payment]) }.uniq.sort.reverse
-      @cashea_visible_payment_week_starts = @cashea_payment_week_starts.first(2)
+      @cashea_visible_payment_week_starts = @cashea_payment_week_starts.first(1)
       @cashea_next_payment_week_start = @cashea_payment_week_starts[@cashea_visible_payment_week_starts.length]
       @show_payment_rows_visible = @show_payment_rows.select do |row|
         @cashea_visible_payment_week_starts.include?(payment_week_start_for(row[:payment]))
