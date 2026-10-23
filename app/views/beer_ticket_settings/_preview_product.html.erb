@@ -1,9 +1,9 @@
 <% if preview_product.present? %>
   <div class="h-full w-full overflow-hidden rounded-full">
     <% if preview_product.foto.attached? %>
-      <%= image_tag preview_product.foto, class: 'h-full w-full scale-[1.4] translate-y-[6%] object-cover', alt: preview_product.display_name_with_presentation %>
+      <%= image_tag preview_product.foto, class: 'h-full w-full scale-[1.3] translate-y-[12%] object-contain', alt: preview_product.display_name_with_presentation %>
     <% else %>
-      <%= image_tag 'default_image.jpeg', class: 'h-full w-full scale-[1.4] translate-y-[6%] object-cover', alt: 'Imagen por defecto' %>
+      <%= image_tag 'default_image.jpeg', class: 'h-full w-full scale-[1.3] translate-y-[12%] object-contain', alt: 'Imagen por defecto' %>
     <% end %>
   </div>
 <% else %>
