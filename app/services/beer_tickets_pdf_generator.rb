@@ -12,7 +12,7 @@ class BeerTicketsPdfGenerator
     align: :right,
   }.freeze
 
-  def initialize(batch:, view_context:)
+  def initialize(batch:, view_context: nil)
     @batch = batch
     @view_context = view_context
     @product = batch.producto
@@ -83,9 +83,10 @@ class BeerTicketsPdfGenerator
 
     # Clip to a circle to match the design area.
     pdf.save_graphics_state do
+      previous_fill_color = pdf.fill_color
       pdf.fill_color 'FFFFFF'
       pdf.fill_circle [circle_x, circle_y], diameter / 2.0
-      pdf.restore_color
+      pdf.fill_color previous_fill_color
 
       pdf.canvas do
         pdf.clip_path do
@@ -106,7 +107,7 @@ class BeerTicketsPdfGenerator
     serial_x = x + (width * 0.77)
     serial_y = y - (height * 0.79)
 
-    pdf.font('Times-Italic') do
+    pdf.font('Times-Roman') do
       pdf.text_box serial_text,
                    at: [serial_x, serial_y],
                    width: width * 0.19,

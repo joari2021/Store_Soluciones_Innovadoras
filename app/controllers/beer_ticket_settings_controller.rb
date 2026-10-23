@@ -110,6 +110,9 @@ class BeerTicketSettingsController < ApplicationController
 
     filename = "tickets-#{batch.producto.id}-#{batch.formatted_start_serial}-#{batch.formatted_end_serial}.pdf"
     send_data pdf_content, filename: filename, type: 'application/pdf', disposition: 'inline'
+  rescue StandardError => e
+    Rails.logger.error("[BeerTicketSettingsController#batch_pdf] #{e.class}: #{e.message}\n#{e.backtrace&.first(25)&.join("\n")}")
+    redirect_to beer_ticket_setting_path, alert: 'No se pudo generar el PDF del lote. Revisa que el producto tenga una imagen valida y vuelve a intentar.'
   end
 
   private
