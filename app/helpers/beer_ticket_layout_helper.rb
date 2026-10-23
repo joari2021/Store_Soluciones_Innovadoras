@@ -9,7 +9,7 @@ module BeerTicketLayoutHelper
       product_scale: 1.3,
       product_translate_y_pct: 12.0,
       serial_right_pct: 15.5,
-      serial_bottom_pct: 8.7,
+      serial_bottom_pct: 7.8,
       serial_font_cm: 0.25,
       serial_font_preview_rem: 0.82,
     }
