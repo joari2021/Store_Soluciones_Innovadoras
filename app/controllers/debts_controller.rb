@@ -339,11 +339,30 @@ class DebtsController < ApplicationController
     grouped_debts = debts_for_show(@debt)
     @grouped_debts = sort_debts(grouped_debts).uniq { |item| item.id }
     @show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
+    @show_weekly_summary_enabled = cashea_group_for_show?(@debt)
 
-    @payments = DebtPayment
-                .where(debt_id: @grouped_debts.map(&:id))
-                .includes(:account, :debt)
-                .order(occurred_at: :desc, created_at: :desc)
+    payments_scope = DebtPayment.where(debt_id: @grouped_debts.map(&:id))
+    @show_last_payment_at = payments_scope.order(occurred_at: :desc, created_at: :desc).limit(1).pick(:occurred_at)
+
+    payment_week_starts = payment_week_starts_for_scope(payments_scope)
+    @cashea_payment_week_starts = @show_weekly_summary_enabled ? payment_week_starts : []
+    @cashea_visible_payment_week_starts = @show_weekly_summary_enabled ? payment_week_starts.first(1) : []
+    @cashea_next_payment_week_start = if @show_weekly_summary_enabled
+                                        payment_week_starts[@cashea_visible_payment_week_starts.length]
+                                      end
+
+    @payments = if @show_weekly_summary_enabled && @cashea_visible_payment_week_starts.any?
+                  week_start = @cashea_visible_payment_week_starts.first
+                  week_end = week_start + 6.days
+                  payments_scope
+                    .where(occurred_at: week_start..week_end)
+                    .includes(:account, :debt)
+                    .order(occurred_at: :desc, created_at: :desc)
+                else
+                  payments_scope
+                    .includes(:account, :debt)
+                    .order(occurred_at: :desc, created_at: :desc)
+                end
 
     @show_total_amount_usd_bcv = total_usd_amount(@grouped_debts)
     @show_total_paid_usd_bcv = total_usd_paid_for_debts(@grouped_debts)
@@ -361,7 +380,6 @@ class DebtsController < ApplicationController
                                             else
                                               0.to_d
                                             end
-    @show_last_payment_at = @payments.first&.occurred_at
     # Total balance in the group's native currency (used for non-USD groups like USDT, EUR)
     @show_total_balance_in_group_currency = if @show_group_currency.to_s.upcase == 'USD'
                                               0.to_d
@@ -400,10 +418,18 @@ class DebtsController < ApplicationController
       end.round(2)
     end
 
-    @show_weekly_summary_enabled = cashea_group_for_show?(@debt)
+    debt_rows_source = @grouped_debts
+    if @show_weekly_summary_enabled
+      @cashea_debt_week_starts = @grouped_debts.map { |debt| debt_week_start_for(debt) }.uniq.sort.reverse
+      @cashea_visible_debt_week_starts = @cashea_debt_week_starts.first(2)
+      @cashea_next_debt_week_start = @cashea_debt_week_starts[@cashea_visible_debt_week_starts.length]
+      debt_rows_source = @grouped_debts.select do |debt|
+        @cashea_visible_debt_week_starts.include?(debt_week_start_for(debt))
+      end
+    end
 
     @show_debt_rows = build_show_debt_rows(
-      grouped_debts: @grouped_debts,
+      grouped_debts: debt_rows_source,
       group_is_usdt: group_is_usdt,
       effective_allocations: effective_allocations,
       effective_native_allocations: effective_native_allocations,
@@ -411,19 +437,8 @@ class DebtsController < ApplicationController
     )
 
     if @show_weekly_summary_enabled
-      @cashea_debt_week_starts = @show_debt_rows.map { |row| debt_week_start_for(row[:debt]) }.uniq.sort.reverse
-      @cashea_visible_debt_week_starts = @cashea_debt_week_starts.first(2)
-      @cashea_next_debt_week_start = @cashea_debt_week_starts[@cashea_visible_debt_week_starts.length]
-      @show_debt_rows_visible = @show_debt_rows.select do |row|
-        @cashea_visible_debt_week_starts.include?(debt_week_start_for(row[:debt]))
-      end
-
-      @cashea_payment_week_starts = @show_payment_rows.map { |row| payment_week_start_for(row[:payment]) }.uniq.sort.reverse
-      @cashea_visible_payment_week_starts = @cashea_payment_week_starts.first(1)
-      @cashea_next_payment_week_start = @cashea_payment_week_starts[@cashea_visible_payment_week_starts.length]
-      @show_payment_rows_visible = @show_payment_rows.select do |row|
-        @cashea_visible_payment_week_starts.include?(payment_week_start_for(row[:payment]))
-      end
+      @show_debt_rows_visible = @show_debt_rows
+      @show_payment_rows_visible = @show_payment_rows
     else
       @show_debt_rows_visible = @show_debt_rows
       @show_payment_rows_visible = @show_payment_rows
@@ -473,19 +488,17 @@ class DebtsController < ApplicationController
       group_is_usdt = show_group_currency.to_s.upcase == 'USDT'
       effective_allocations = effective_usd_bcv_allocations_for_group(grouped_debts)
       effective_native_allocations = group_is_usdt ? effective_native_allocations_for_group(grouped_debts) : {}
+      week_debts = grouped_debts.select { |debt| debt_week_start_for(debt) == week_start }
       debt_rows = build_show_debt_rows(
-        grouped_debts: grouped_debts,
+        grouped_debts: week_debts,
         group_is_usdt: group_is_usdt,
         effective_allocations: effective_allocations,
         effective_native_allocations: effective_native_allocations,
         weekly_summary_enabled: true,
       )
 
-      week_rows = debt_rows.select do |row|
-        debt_week_start_for(row[:debt]) == week_start
-      end
-
-      week_starts = debt_rows.map { |row| debt_week_start_for(row[:debt]) }.uniq.sort.reverse
+      week_rows = debt_rows
+      week_starts = grouped_debts.map { |debt| debt_week_start_for(debt) }.uniq.sort.reverse
       next_week_start = week_starts.find { |date| date < week_start }
 
       response_payload[:debt_rows_by_currency] = week_rows.group_by { |row| row[:debt].currency.to_s.upcase }.each_with_object({}) do |(currency, currency_rows), hash|
@@ -505,17 +518,15 @@ class DebtsController < ApplicationController
     end
 
     if section.blank? || section == 'payments'
-      payments = DebtPayment
-                 .where(debt_id: grouped_debts.map(&:id))
+      payments_scope = DebtPayment.where(debt_id: grouped_debts.map(&:id))
+      week_starts = payment_week_starts_for_scope(payments_scope)
+      next_week_start = week_starts.find { |date| date < week_start }
+      payments = payments_scope
+                 .where(occurred_at: week_start..week_end)
                  .includes(:account, :debt)
                  .order(occurred_at: :desc, created_at: :desc)
       payment_rows = build_show_payment_rows(payments: payments)
-      week_rows = payment_rows.select do |row|
-        payment_week_start_for(row[:payment]) == week_start
-      end
-
-      week_starts = payment_rows.map { |row| payment_week_start_for(row[:payment]) }.uniq.sort.reverse
-      next_week_start = week_starts.find { |date| date < week_start }
+      week_rows = payment_rows
 
       response_payload[:payment_rows_html] = render_to_string(
         partial: 'debts/payment_rows',
@@ -2336,7 +2347,21 @@ class DebtsController < ApplicationController
     reference_date.beginning_of_week(:monday)
   end
 
+  def payment_week_starts_for_scope(scope)
+    scope
+      .pluck(:occurred_at, :created_at)
+      .map do |occurred_at, created_at|
+        reference_date = occurred_at || created_at&.to_date
+        reference_date&.beginning_of_week(:monday)
+      end
+      .compact
+      .uniq
+      .sort
+      .reverse
+  end
+
   def build_show_payment_rows(payments:)
+    @cash_shifts_for_payment_lookup = nil
     grouped_payments_by_signature = payments.group_by do |payment|
       [payment.debt_id, payment.account_id, payment.occurred_at, payment.reference.to_s]
     end
@@ -3006,10 +3031,9 @@ class DebtsController < ApplicationController
     payment_date = payment.occurred_at
     return nil if payment_date.blank?
 
-    current_business
-      .cash_shifts
-      .order(opened_at: :desc)
-      .detect do |shift|
+    @cash_shifts_for_payment_lookup ||= current_business.cash_shifts.order(opened_at: :desc).to_a
+
+    @cash_shifts_for_payment_lookup.detect do |shift|
         start_date = shift.opened_at.in_time_zone('America/Caracas').to_date
         end_date = (shift.closed_at || Time.current).in_time_zone('America/Caracas').to_date
         payment_date >= start_date && payment_date <= end_date
