@@ -1,4 +1,6 @@
 class BeerTicketSettingsController < ApplicationController
+  require 'base64'
+
   before_action :require_business
   before_action :require_admin
   before_action :set_beer_ticket_setting
@@ -109,7 +111,7 @@ class BeerTicketSettingsController < ApplicationController
     @product = batch.producto
     @serials = (batch.start_serial..batch.end_serial).to_a
     @ticket_background_path = helpers.asset_path('ticket cervezas.jpg')
-    @ticket_product_image_path = @product.foto.attached? ? helpers.url_for(@product.foto) : helpers.asset_path('default_image.jpeg')
+    @ticket_product_image_path = ticket_product_image_data_url(@product)
     @print_title = "Tickets #{@product.display_name_with_presentation} #{batch.formatted_start_serial}-#{batch.formatted_end_serial}"
 
     batch.update_columns(printed_at: Time.current) if batch.printed_at.blank?
@@ -213,5 +215,20 @@ class BeerTicketSettingsController < ApplicationController
       name: producto.display_name_with_presentation,
       image_url: producto.foto.attached? ? url_for(producto.foto) : nil
     }
+  end
+
+  def ticket_product_image_data_url(product)
+    if product&.foto&.attached?
+      blob = product.foto.blob
+      content_type = blob.content_type.presence || 'image/jpeg'
+      encoded = Base64.strict_encode64(product.foto.download)
+      return "data:#{content_type};base64,#{encoded}"
+    end
+
+    fallback_path = Rails.root.join('app/assets/images/default_image.jpeg')
+    fallback_binary = File.binread(fallback_path)
+    "data:image/jpeg;base64,#{Base64.strict_encode64(fallback_binary)}"
+  rescue StandardError
+    helpers.asset_path('default_image.jpeg')
   end
 end
