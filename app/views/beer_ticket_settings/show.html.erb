@@ -49,7 +49,7 @@
         <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-3">
           <div class="relative mx-auto w-full max-w-xl overflow-hidden rounded-xl border border-slate-300 bg-white">
             <%= image_tag 'ticket cervezas.jpg', class: 'h-auto w-full object-cover', alt: 'Diseno ticket cervezas', loading: 'lazy', decoding: 'async' %>
-            <div class="pointer-events-none absolute px-1 text-[1.15rem] leading-none tracking-wide text-slate-900" style="font-family: 'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive; font-weight: 700; right: <%= ticket_layout[:serial_right_pct] %>%; bottom: <%= ticket_layout[:serial_bottom_pct] %>%" data-beer-ticket-serial-overlay="true">
+            <div class="pointer-events-none absolute px-1 leading-none tracking-wide text-slate-900" style="font-family: 'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive; font-size: <%= ticket_layout[:serial_font_preview_rem] %>rem; font-weight: 700; right: <%= ticket_layout[:serial_right_pct] %>%; bottom: <%= ticket_layout[:serial_bottom_pct] %>%" data-beer-ticket-serial-overlay="true">
               <%= @beer_ticket_setting.formatted_next_serial %>
             </div>
             <div class="absolute aspect-square overflow-hidden rounded-full" style="left: <%= ticket_layout[:product_left_pct] %>%; top: <%= ticket_layout[:product_top_pct] %>%; height: <%= ticket_layout[:product_height_pct] %>%" data-beer-ticket-preview-container="true">

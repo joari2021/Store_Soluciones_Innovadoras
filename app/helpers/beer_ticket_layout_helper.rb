@@ -10,7 +10,8 @@ module BeerTicketLayoutHelper
       product_translate_y_pct: 12.0,
       serial_right_pct: 15.5,
       serial_bottom_pct: 10.0,
-      serial_font_cm: 0.42,
+      serial_font_cm: 0.30,
+      serial_font_preview_rem: 0.96,
     }
   end
 end
