@@ -81,24 +81,19 @@ class BeerTicketsPdfGenerator
     circle_x = x + (width * 0.20)
     circle_y = y - (height * 0.20)
 
-    # Clip to a circle to match the design area.
+    # Draw a white circular base and place the product image inside.
+    # Using simple positioning here avoids unsupported clipping APIs in production.
     pdf.save_graphics_state do
       previous_fill_color = pdf.fill_color
       pdf.fill_color 'FFFFFF'
       pdf.fill_circle [circle_x, circle_y], diameter / 2.0
       pdf.fill_color previous_fill_color
 
-      pdf.canvas do
-        pdf.clip_path do
-          pdf.circle [circle_x, circle_y], diameter / 2.0
-        end
-
-        image_w = diameter * 0.72
-        image_h = diameter * 1.05
-        image_x = circle_x - (image_w / 2.0)
-        image_y = circle_y + (image_h / 2.0) - (diameter * 0.08)
-        pdf.image image_path, at: [image_x, image_y], width: image_w, height: image_h
-      end
+      image_w = diameter * 0.72
+      image_h = diameter * 1.05
+      image_x = circle_x - (image_w / 2.0)
+      image_y = circle_y + (image_h / 2.0) - (diameter * 0.08)
+      pdf.image image_path, at: [image_x, image_y], width: image_w, height: image_h
     end
   end
 
