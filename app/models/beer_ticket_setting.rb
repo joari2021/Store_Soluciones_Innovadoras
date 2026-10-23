@@ -3,6 +3,7 @@ class BeerTicketSetting < ApplicationRecord
 
   has_many :beer_ticket_setting_products, dependent: :destroy
   has_many :productos, through: :beer_ticket_setting_products, source: :producto
+  has_many :beer_ticket_batches, through: :beer_ticket_setting_products
 
   validates :next_serial, numericality: { only_integer: true, greater_than: 0 }
 

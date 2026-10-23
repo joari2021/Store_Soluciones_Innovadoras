@@ -91,3 +91,4 @@ gem "dockerfile-rails", ">= 1.6", :group => :development
 #gem "certified", :group => :production
 
 gem "tailwindcss-rails", "~> 4.2"
+gem "prawn", "~> 2.5"

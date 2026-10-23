@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_23_121000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_23_134000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -168,11 +168,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_23_121000) do
     t.index ["saime_user_id"], name: "index_appointments_on_saime_user_id"
   end
 
+  create_table "beer_ticket_batches", force: :cascade do |t|
+    t.bigint "beer_ticket_setting_product_id", null: false
+    t.integer "start_serial", null: false
+    t.integer "end_serial", null: false
+    t.integer "ticket_count", null: false
+    t.boolean "active", default: true, null: false
+    t.datetime "printed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["beer_ticket_setting_product_id", "created_at"], name: "idx_beer_ticket_batches_on_product_and_created_at"
+    t.index ["beer_ticket_setting_product_id"], name: "idx_beer_ticket_batches_on_setting_product"
+  end
+
   create_table "beer_ticket_setting_products", force: :cascade do |t|
     t.bigint "beer_ticket_setting_id", null: false
     t.bigint "producto_id", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.integer "next_serial", default: 1, null: false
     t.index ["beer_ticket_setting_id", "producto_id"], name: "idx_beer_ticket_setting_products_on_setting_and_producto", unique: true
     t.index ["beer_ticket_setting_id"], name: "idx_beer_ticket_setting_products_on_setting_id"
     t.index ["producto_id"], name: "index_beer_ticket_setting_products_on_producto_id"
@@ -1280,6 +1294,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_23_121000) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "appointments", "saime_users"
+  add_foreign_key "beer_ticket_batches", "beer_ticket_setting_products"
   add_foreign_key "beer_ticket_setting_products", "beer_ticket_settings"
   add_foreign_key "beer_ticket_setting_products", "productos"
   add_foreign_key "beer_ticket_settings", "businesses"

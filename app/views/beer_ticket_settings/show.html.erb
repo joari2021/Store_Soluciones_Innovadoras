@@ -2,6 +2,7 @@
   data-update-url="<%= beer_ticket_setting_path %>"
   data-search-url="<%= search_products_beer_ticket_setting_path %>"
   data-add-url="<%= add_product_beer_ticket_setting_path %>"
+  data-create-batch-url="<%= create_batch_beer_ticket_setting_path %>"
   data-remove-url-template="<%= remove_product_beer_ticket_setting_path(producto_id: '__PRODUCT_ID__') %>">
   <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -47,7 +48,7 @@
         <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-3">
           <div class="relative mx-auto w-full max-w-xl overflow-hidden rounded-xl border border-slate-300 bg-white">
             <%= image_tag 'ticket cervezas.jpg', class: 'h-auto w-full object-cover', alt: 'Diseno ticket cervezas', loading: 'lazy', decoding: 'async' %>
-            <div class="pointer-events-none absolute bottom-[10%] right-[15.5%] px-1 text-[1.15rem] leading-none font-black tracking-wide text-slate-900" data-beer-ticket-serial-overlay="true">
+            <div class="pointer-events-none absolute bottom-[10%] right-[15.5%] px-1 text-[1.15rem] leading-none tracking-wide text-slate-900" style="font-family: 'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive; font-weight: 700;" data-beer-ticket-serial-overlay="true">
               <%= @beer_ticket_setting.formatted_next_serial %>
             </div>
             <div class="absolute left-[19.5%] top-[25.5%] h-[48%] aspect-square overflow-hidden rounded-full" data-beer-ticket-preview-container="true">
@@ -78,7 +79,15 @@
         <span class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700" data-beer-ticket-selected-count="true"><%= @controlled_products.size %></span>
       </div>
       <div class="mt-3" data-beer-ticket-products-wrapper="true">
-        <%= render partial: 'beer_ticket_settings/controlled_products_list', locals: { controlled_products: @controlled_products } %>
+        <%= render partial: 'beer_ticket_settings/controlled_products_list', locals: { controlled_products: @controlled_products, setting_products: @controlled_setting_products } %>
+      </div>
+
+      <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4" data-beer-ticket-create-form-wrapper="true">
+        <%= render partial: 'beer_ticket_settings/create_batch_form', locals: { setting_products: @controlled_setting_products, selected_producto_id: @selected_controlled_product&.producto_id } %>
+      </div>
+
+      <div class="mt-6" data-beer-ticket-batches-wrapper="true">
+        <%= render partial: 'beer_ticket_settings/product_batches', locals: { setting_products: @controlled_setting_products } %>
       </div>
     </article>
   </div>
@@ -93,6 +102,7 @@
     const updateUrl = root.dataset.updateUrl;
     const searchUrl = root.dataset.searchUrl;
     const addUrl = root.dataset.addUrl;
+    const createBatchUrl = root.dataset.createBatchUrl;
     const removeTemplate = root.dataset.removeUrlTemplate;
 
     const enabledInput = root.querySelector('[data-beer-ticket-enabled="true"]');
@@ -105,6 +115,8 @@
     const productsWrapper = root.querySelector('[data-beer-ticket-products-wrapper="true"]');
     const previewContainer = root.querySelector('[data-beer-ticket-preview-container="true"]');
     const selectedCount = root.querySelector('[data-beer-ticket-selected-count="true"]');
+    const batchesWrapper = root.querySelector('[data-beer-ticket-batches-wrapper="true"]');
+    const createFormWrapper = root.querySelector('[data-beer-ticket-create-form-wrapper="true"]');
 
     const normalize = (value) => String(value || '')
       .normalize('NFD')
@@ -225,9 +237,37 @@
       if (selectedCount) {
         selectedCount.textContent = String(payload.count || 0);
       }
+      if (batchesWrapper && typeof payload.batches_html === 'string') {
+        batchesWrapper.innerHTML = payload.batches_html;
+      }
+      if (createFormWrapper && typeof payload.create_form_html === 'string') {
+        createFormWrapper.innerHTML = payload.create_form_html;
+      }
       if (window.lucide && typeof window.lucide.createIcons === 'function') {
         window.lucide.createIcons();
       }
+    };
+
+    const syncBatchCount = () => {
+      const productSelect = root.querySelector('[data-beer-ticket-batch-product="true"]');
+      const startInput = root.querySelector('[data-beer-ticket-batch-start="true"]');
+      const endInput = root.querySelector('[data-beer-ticket-batch-end="true"]');
+      const countInput = root.querySelector('[data-beer-ticket-batch-count="true"]');
+      if (!productSelect || !startInput || !endInput || !countInput) return;
+
+      const selectedOption = productSelect.options[productSelect.selectedIndex];
+      const nextSerial = Number.parseInt(selectedOption?.dataset?.nextSerial || '1', 10);
+      const safeStart = Number.isFinite(nextSerial) && nextSerial > 0 ? nextSerial : 1;
+      startInput.value = String(safeStart).padStart(4, '0');
+
+      let endSerial = Number.parseInt(endInput.value, 10);
+      if (!Number.isFinite(endSerial) || endSerial < safeStart) {
+        endSerial = safeStart;
+        endInput.value = String(endSerial);
+      }
+
+      const count = endSerial - safeStart + 1;
+      countInput.value = `${count} ticket${count === 1 ? '' : 's'}`;
     };
 
     const postJson = async (url, payload) => {
@@ -336,12 +376,61 @@
         try {
           const payload = await deleteJson(removeUrl);
           applyProductsPayload(payload);
-          setStatus('Producto removido del control.', 'muted');
+          setStatus(payload.message || 'Producto removido del control.', 'muted');
         } catch (error) {
           setStatus(error.message, 'error');
         }
       });
     }
+
+    root.addEventListener('change', (event) => {
+      if (event.target.matches('[data-beer-ticket-batch-product="true"]')) {
+        syncBatchCount();
+      }
+    });
+
+    root.addEventListener('input', (event) => {
+      if (event.target.matches('[data-beer-ticket-batch-end="true"]')) {
+        syncBatchCount();
+      }
+    });
+
+    root.addEventListener('click', async (event) => {
+      const createButton = event.target.closest('[data-beer-ticket-create-batch="true"]');
+      if (!createButton) return;
+
+      const productSelect = root.querySelector('[data-beer-ticket-batch-product="true"]');
+      const endInput = root.querySelector('[data-beer-ticket-batch-end="true"]');
+      if (!productSelect || !endInput) {
+        setStatus('No hay productos disponibles para crear tickets.', 'error');
+        return;
+      }
+
+      const productoId = productSelect.value;
+      const endSerial = endInput.value;
+
+      if (!productoId) {
+        setStatus('Selecciona un producto.', 'error');
+        return;
+      }
+
+      createButton.disabled = true;
+      createButton.classList.add('opacity-70', 'cursor-not-allowed');
+
+      try {
+        const payload = await postJson(createBatchUrl, { producto_id: productoId, end_serial: endSerial });
+        applyProductsPayload(payload);
+        setStatus(payload.message || 'Lote de tickets creado.');
+        syncBatchCount();
+      } catch (error) {
+        setStatus(error.message, 'error');
+      } finally {
+        createButton.disabled = false;
+        createButton.classList.remove('opacity-70', 'cursor-not-allowed');
+      }
+    });
+
+    syncBatchCount();
 
     document.addEventListener('click', (event) => {
       if (!searchResults || !searchInput) return;
