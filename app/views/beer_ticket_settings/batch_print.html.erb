@@ -12,15 +12,14 @@
   }
 
   .tickets-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.18cm;
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(3, 5cm);
+    gap: 0.22cm;
+    justify-content: center;
     align-content: flex-start;
   }
 
   .beer-ticket {
-    flex: 0 0 5cm;
     position: relative;
     width: 5cm;
     border: 1px dashed #cbd5e1;
