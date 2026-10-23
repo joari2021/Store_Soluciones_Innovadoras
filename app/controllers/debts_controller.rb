@@ -147,28 +147,14 @@ class DebtsController < ApplicationController
       return
     end
 
-    @debt = current_business.debts.new(
+    redirect_to new_debt_path(
       debt_kind: 'receivable',
-      issued_on: Date.current,
       cliente_id: cliente_id,
-      currency: currency
+      currency: currency,
+      group_currency: currency,
+      group_cliente_id: cliente_id,
+      only_active: 1,
     )
-
-    @grouped_debts = []
-    @show_group_currency = currency
-    @payments = []
-    @show_total_amount_usd_bcv = 0.to_d
-    @show_total_paid_usd_bcv = 0.to_d
-    @show_total_balance_usd_bcv = 0.to_d
-    @show_last_payment_at = nil
-    @show_overdue_count = 0
-    @show_payment_rows = []
-    @show_debt_rows = []
-
-    @loan_accounts = loan_accounts_for_group_currency(currency)
-    @show_currency_options = [currency]
-
-    render :show
   end
 
   def new
