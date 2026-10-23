@@ -47,10 +47,10 @@
         <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-3">
           <div class="relative mx-auto w-full max-w-xl overflow-hidden rounded-xl border border-slate-300 bg-white">
             <%= image_tag 'ticket cervezas.jpg', class: 'h-auto w-full object-cover', alt: 'Diseno ticket cervezas', loading: 'lazy', decoding: 'async' %>
-            <div class="pointer-events-none absolute bottom-[8%] right-[17%] px-1 text-sm font-black tracking-wide text-slate-900" data-beer-ticket-serial-overlay="true">
+            <div class="pointer-events-none absolute bottom-[8%] right-[17%] px-1 text-[1.15rem] leading-none font-black tracking-wide text-slate-900" data-beer-ticket-serial-overlay="true">
               <%= @beer_ticket_setting.formatted_next_serial %>
             </div>
-            <div class="absolute left-[14.5%] top-[22.5%] h-[44%] aspect-square overflow-hidden rounded-full" data-beer-ticket-preview-container="true">
+            <div class="absolute left-[18.5%] top-[22.5%] h-[44%] aspect-square overflow-hidden rounded-full" data-beer-ticket-preview-container="true">
               <%= render partial: 'beer_ticket_settings/preview_product', locals: { preview_product: @preview_product } %>
             </div>
           </div>
