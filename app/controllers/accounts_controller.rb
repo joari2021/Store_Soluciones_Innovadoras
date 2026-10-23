@@ -296,28 +296,27 @@ class AccountsController < ApplicationController
   def register_payment
     allow_negative_balance = ActiveModel::Type::Boolean.new.cast(params[:allow_negative_balance])
     if Account::SPECIAL_ACCOUNT_TYPES.include?(@account.account_type)
-      return redirect_to account_path(@account), alert: "No se pueden registrar pagos en cuentas especiales."
+      return respond_register_payment_error("No se pueden registrar pagos en cuentas especiales.")
     end
 
     concept = params[:concept].to_s.strip
-    return redirect_to account_path(@account), alert: "Indica el concepto del pago." if concept.blank?
+    return respond_register_payment_error("Indica el concepto del pago.") if concept.blank?
 
     payment_date = parse_transfer_date(params[:payment_date])
-    return redirect_to account_path(@account), alert: "Indica una fecha valida para el pago." if payment_date.blank?
+    return respond_register_payment_error("Indica una fecha valida para el pago.") if payment_date.blank?
 
     amount = parse_transfer_decimal(params[:amount])
-    return redirect_to account_path(@account), alert: "Indica un monto valido mayor a 0." unless amount.positive?
+    return respond_register_payment_error("Indica un monto valido mayor a 0.") unless amount.positive?
 
     movement_kind = normalize_payment_movement_kind(params[:movement_kind])
     if movement_kind.blank?
-      return redirect_to account_path(@account),
-                         alert: "Selecciona un tipo de movimiento valido (debito o credito)."
+      return respond_register_payment_error("Selecciona un tipo de movimiento valido (debito o credito).")
     end
 
     include_commission = ActiveModel::Type::Boolean.new.cast(params[:include_commission])
     commission_amount = include_commission ? parse_transfer_decimal(params[:commission_amount]) : 0.to_d
     if include_commission && !commission_amount.positive?
-      return redirect_to account_path(@account), alert: "Indica un monto de comision valido mayor a 0."
+      return respond_register_payment_error("Indica un monto de comision valido mayor a 0.")
     end
 
     total_debit = movement_kind == "expense" ? (amount + commission_amount).round(2) : 0.to_d
@@ -329,7 +328,7 @@ class AccountsController < ApplicationController
     reference = params[:reference].to_s.strip
 
     if @account.account_type == "bank_account" && !valid_bank_reference?(reference)
-      return redirect_to account_path(@account), alert: "La referencia debe tener exactamente 4 digitos."
+      return respond_register_payment_error("La referencia debe tener exactamente 4 digitos.")
     end
 
     movement = nil
@@ -362,9 +361,31 @@ class AccountsController < ApplicationController
     end
 
     notice_message = movement_kind == "expense" ? "Pago registrado correctamente." : "Credito registrado correctamente."
-    redirect_to account_path(@account, movement_id: movement.id), notice: notice_message
+    respond_to do |format|
+      format.html { redirect_to account_path(@account, movement_id: movement.id), notice: notice_message }
+      format.json do
+        row_html = render_to_string(
+          partial: 'accounts/movement_row',
+          formats: [:html],
+          locals: {
+            movement: movement,
+            highlighted_movement: true,
+            can_verify_bank_movements: (current_user_admin? && @account.account_type == 'bank_account'),
+          },
+        )
+
+        render json: {
+          success: true,
+          message: notice_message,
+          movement_id: movement.id,
+          movement_row_html: row_html,
+          account_balance: @account.reload.balance.to_d.to_f,
+          account_balance_label: helpers.format_money(@account.balance, unit: @account.currency_symbol),
+        }
+      end
+    end
   rescue ActiveRecord::RecordInvalid => e
-    redirect_to account_path(@account), alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
+    respond_register_payment_error(e.record&.errors&.full_messages&.to_sentence.presence || e.message)
   end
 
   def edit_movement
@@ -1110,6 +1131,13 @@ class AccountsController < ApplicationController
 
   def load_cashea_categories
     @cashea_categories = current_business.categorias.order(:nombre)
+  end
+
+  def respond_register_payment_error(message)
+    respond_to do |format|
+      format.html { redirect_to account_path(@account), alert: message }
+      format.json { render json: { success: false, error: message }, status: :unprocessable_entity }
+    end
   end
 
   def build_biopago_pending_close_info(account)

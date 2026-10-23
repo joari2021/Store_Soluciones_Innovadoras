@@ -1,0 +1,73 @@
+<% signed_amount = movement.signed_amount %>
+<% amount_positive = signed_amount >= 0 %>
+<% highlighted_movement = local_assigns.fetch(:highlighted_movement, false) %>
+<% can_verify = local_assigns.fetch(:can_verify_bank_movements, false) %>
+<% movement_source_link = account_movement_source_link_data(movement) %>
+<tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
+    data-movement-row="true"
+    data-movement-id="<%= movement.id %>"
+    data-movement-occurred-at="<%= movement.occurred_at.in_time_zone('America/Caracas').iso8601 %>"
+    data-movement-sort-timestamp="<%= movement.occurred_at.in_time_zone('America/Caracas').to_i %>"
+    data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>">
+  <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
+  <td class="px-5 py-3 text-xs text-slate-500" data-movement-date-cell="true"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
+  <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
+  <td class="px-5 py-3 text-xs text-slate-600"><%= account_movement_reference(movement).presence || '-' %></td>
+  <td class="px-5 py-3 text-sm text-slate-600"><%= account_movement_display_description(movement) %></td>
+  <td class="px-5 py-3 text-right text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>"><%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %></td>
+  <td class="px-5 py-3 text-right">
+    <div class="inline-flex items-center justify-end gap-2">
+      <% if can_verify %>
+        <% movement_verified = movement.respond_to?(:verified) && movement.verified? %>
+        <button type="button"
+                class="js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border shadow-sm transition-colors <%= movement_verified ? 'border-amber-400 bg-amber-100 text-amber-700 hover:bg-amber-200' : 'border-slate-300 bg-white text-slate-500 hover:bg-slate-100 hover:text-slate-700' %>"
+                data-verify-toggle="true"
+                data-movement-id="<%= movement.id %>"
+                data-verified="<%= movement_verified ? 'true' : 'false' %>"
+                data-tooltip="<%= movement_verified ? 'Quitar verificado' : 'Marcar verificado' %>"
+                data-tooltip-side="left"
+                aria-label="<%= movement_verified ? 'Quitar verificado' : 'Marcar verificado' %>">
+          <i data-lucide="star" class="h-4 w-4 <%= movement_verified ? 'fill-current' : '' %>"></i>
+        </button>
+      <% end %>
+      <% if movement_source_link.present? %>
+        <%= link_to movement_source_link[:path],
+                  class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-sky-300 bg-sky-50 text-sky-700 shadow-sm transition-colors hover:bg-sky-100 hover:text-sky-800',
+                  data: { turbo_frame: '_top', tooltip: movement_source_link[:label], tooltip_side: 'left' },
+                  aria: { label: movement_source_link[:label] } do %>
+          <i data-lucide="eye" class="h-4 w-4"></i>
+        <% end %>
+      <% end %>
+      <% if current_user_admin? %>
+        <button type="button"
+                class="js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 shadow-sm transition-colors hover:bg-indigo-100 hover:text-indigo-800"
+                data-edit-time-toggle="true"
+                data-edit-time-url="<%= update_movement_time_account_path(@account, movement_id: movement.id) %>"
+                data-current-time="<%= movement.occurred_at.in_time_zone('America/Caracas').strftime('%H:%M') %>"
+                data-tooltip="Editar hora del movimiento"
+                data-tooltip-side="left"
+                aria-label="Editar hora del movimiento">
+          <i data-lucide="clock-3" class="h-4 w-4"></i>
+        </button>
+      <% end %>
+      <% if manual_account_movement_editable?(movement) %>
+        <%= link_to edit_movement_account_path(@account, movement_id: movement.id),
+                  class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-amber-300 bg-amber-50 text-amber-700 shadow-sm transition-colors hover:bg-amber-100 hover:text-amber-800',
+                  data: { tooltip: 'Editar movimiento manual', tooltip_side: 'left' },
+                  aria: { label: 'Editar movimiento manual' } do %>
+          <i data-lucide="pencil" class="h-4 w-4"></i>
+        <% end %>
+      <% end %>
+      <% if current_user_admin? %>
+        <%= link_to destroy_movement_account_path(@account, movement_id: movement.id),
+                  data: { turbo_method: :delete, swal_delete: 'account_movement', async_delete: 'account_movement', movement_id: movement.id, tooltip: 'Eliminar movimiento', tooltip_side: 'left' },
+                  class: 'js-icon-tooltip inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-rose-300 bg-rose-50 text-rose-700 shadow-sm transition-colors hover:bg-rose-100 hover:text-rose-800',
+                  aria: { label: 'Eliminar movimiento' } do %>
+          <i data-lucide="trash-2" class="h-4 w-4"></i>
+        <% end %>
+      <% elsif movement_source_link.blank? %>
+        <span class="text-xs text-slate-400">-</span>
+      <% end %>
+    </div>
+  </td>
+</tr>
