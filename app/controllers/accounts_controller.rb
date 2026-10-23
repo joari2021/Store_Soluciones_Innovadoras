@@ -504,7 +504,13 @@ class AccountsController < ApplicationController
       return render json: { error: "Esta accion solo esta disponible para cuentas bancarias." }, status: :forbidden
     end
 
-    @movement.update!(verified: !@movement.verified?)
+    requested_verified = if params.key?(:verified)
+                           ActiveModel::Type::Boolean.new.cast(params[:verified])
+                         else
+                           !@movement.verified?
+                         end
+
+    @movement.update!(verified: requested_verified)
 
     render json: {
       id: @movement.id,

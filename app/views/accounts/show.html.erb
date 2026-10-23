@@ -440,6 +440,9 @@
         const movementId = button.dataset.movementId;
         if (!movementId) return;
 
+        const currentVerified = String(button.dataset.verified || 'false') === 'true';
+        const nextVerified = !currentVerified;
+
         button.disabled = true;
         try {
           const response = await fetch(endpointForToggle(movementId), {
@@ -449,7 +452,7 @@
               'X-CSRF-Token': token,
               'Accept': 'application/json',
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ verified: nextVerified }),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) {
