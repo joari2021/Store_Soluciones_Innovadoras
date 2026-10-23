@@ -847,11 +847,19 @@ class DebtsController < ApplicationController
 
     respond_to do |format|
       format.json do
+        show_params = {
+          group_currency: params[:group_currency].presence,
+          group_cliente_id: params[:group_cliente_id].presence,
+          only_active: params[:only_active].presence,
+          group_token: params[:group_token].presence
+        }.compact
+
         render json: {
           message: notice,
           deleted_debt_ids: deleted_debt_ids,
           deleted_count: deleted_debt_ids.size,
           delete_group: delete_group,
+          refresh_url: debt_refresh_url_after_destroy(show_params: show_params, delete_group: delete_group),
         }
       end
       format.html { redirect_after_debt_destroy(notice: notice, delete_group: delete_group) }
@@ -2785,6 +2793,22 @@ class DebtsController < ApplicationController
     else
       redirect_to debts_path, notice: notice
     end
+  end
+
+  def debt_refresh_url_after_destroy(show_params:, delete_group:)
+    return debts_path if delete_group
+    return debts_path if show_params.blank?
+
+    group_debts = debts_for_destroy_redirect(show_params)
+    return debts_path if group_debts.blank?
+
+    group_has_pending_balance = group_debts.any? { |debt| debt.balance.to_d > 0.01.to_d }
+    return debts_path unless group_has_pending_balance
+
+    next_debt = debt_for_show_redirect(show_params)
+    return debts_path if next_debt.blank?
+
+    debt_path(next_debt, show_params)
   end
 
   def debt_for_show_redirect(show_params)

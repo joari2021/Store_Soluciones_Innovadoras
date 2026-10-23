@@ -675,8 +675,11 @@
                   }
                 };
 
-                const refreshDebtSummaryPanels = async () => {
-                  const response = await fetch(window.location.href, {
+                const refreshDebtSummaryPanels = async (targetUrl = null) => {
+                  const safeTargetUrl = String(targetUrl || window.location.href || "").trim();
+                  if (!safeTargetUrl) return false;
+
+                  const response = await fetch(safeTargetUrl, {
                     headers: {
                       Accept: "text/html",
                       "X-Requested-With": "XMLHttpRequest",
@@ -685,7 +688,7 @@
                     cache: "no-store",
                   });
 
-                  if (!response.ok) throw new Error("No se pudo refrescar el resumen de deudas.");
+                  if (!response.ok) return false;
 
                   const html = await response.text();
                   const parsed = new DOMParser().parseFromString(html, "text/html");
@@ -701,6 +704,8 @@
                   if (freshHeroCount && currentHeroCount) {
                     currentHeroCount.textContent = freshHeroCount.textContent;
                   }
+
+                  return true;
                 };
 
                 const resetAddDebtForm = () => {
@@ -1773,7 +1778,7 @@
                       countLabel.textContent = `${totalRows} deudas`;
                     }
 
-                    await refreshDebtSummaryPanels();
+                    await refreshDebtSummaryPanels(data.refresh_url);
 
                     if (window.Swal) {
                       window.Swal.fire({
