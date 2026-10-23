@@ -310,6 +310,11 @@ class ExpensesController < ApplicationController
 
     commission_amount = parse_decimal(payment_params[:commission_amount])
     if commission_amount <= 0
+      payment_amount = parse_decimal(payment_params[:payment_amount])
+      commission_amount = calculate_commission_amount_for_account(amount: payment_amount, account: account)
+    end
+
+    if commission_amount <= 0
       origin_expense.errors.add(:base, 'Indica un monto de comision mayor a cero.')
       return false
     end
@@ -370,6 +375,23 @@ class ExpensesController < ApplicationController
 
   def commission_applicable_for_method?(payment_method)
     %w[transfer mobile].include?(payment_method.to_s)
+  end
+
+  def calculate_commission_amount_for_account(amount:, account:)
+    percent = account.send_commission_percent.to_d.round(6) rescue 0.to_d
+    min_amount = account.send_commission_min.to_d.round(2) rescue 0.to_d
+    calc = amount.to_d.abs * (percent / 100)
+    rounding = (account.send_commission_rounding.presence || 'superior') rescue 'superior'
+
+    commission = case rounding.to_s
+                 when 'inferior'
+                   BigDecimal(((calc * 100).floor / 100.0).to_s)
+                 else
+                   calc.round(2, BigDecimal::ROUND_HALF_UP)
+                 end
+
+    commission = min_amount if commission < min_amount
+    commission.round(2)
   end
 
   def bank_service_expense_category

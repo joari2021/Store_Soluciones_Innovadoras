@@ -281,7 +281,10 @@
 
     const parseMaskedValue = (input) => {
       if (!input) return 0;
-      if (window.MoneyInputMask?.parseValue) return window.MoneyInputMask.parseValue(input);
+      if (window.MoneyInputMask?.parseValue) {
+        const parsed = Number(window.MoneyInputMask.parseValue(input));
+        return Number.isFinite(parsed) ? Math.max(parsed, 0) : 0;
+      }
 
       const compact = String(input.value || "")
         .replace(/\s/g, "")
