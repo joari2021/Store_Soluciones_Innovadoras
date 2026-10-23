@@ -11,28 +11,34 @@
   }
 
   .tickets-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 5cm);
-    grid-auto-rows: 2cm;
-    gap: 0;
-    justify-content: center;
-    align-content: start;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.18cm;
+    justify-content: flex-start;
+    align-content: flex-start;
   }
 
   .beer-ticket {
+    flex: 0 0 5cm;
     position: relative;
     width: 5cm;
-    height: 2cm;
-    overflow: hidden;
-    border: 0;
+    border: 1px dashed #cbd5e1;
+    border-radius: 3px;
+    overflow: visible;
     break-inside: avoid;
     page-break-inside: avoid;
   }
 
+  .beer-ticket-canvas {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+
   .beer-ticket-bg {
     width: 100%;
-    height: 100%;
-    object-fit: cover;
+    height: auto;
     display: block;
   }
 
@@ -77,21 +83,25 @@
     .batch-caption {
       display: none;
     }
+
+    .beer-ticket {
+      border-color: #dbe6ef;
+    }
   }
 </style>
-
 <p class="batch-caption">
   Lote: <%= @batch.formatted_start_serial %> - <%= @batch.formatted_end_serial %> | Producto: <%= @product.display_name_with_presentation %> | Cantidad: <%= @batch.ticket_count %>
 </p>
-
 <div class="tickets-grid">
   <% @serials.each do |serial| %>
     <article class="beer-ticket">
-      <img src="<%= @ticket_background_path %>" alt="Ticket de cerveza" class="beer-ticket-bg">
-      <div class="beer-ticket-product-circle">
-        <img src="<%= @ticket_product_image_path %>" alt="Imagen producto" class="beer-ticket-product">
+      <div class="beer-ticket-canvas">
+        <img src="<%= @ticket_background_path %>" alt="Ticket de cerveza" class="beer-ticket-bg">
+        <div class="beer-ticket-product-circle">
+          <img src="<%= @ticket_product_image_path %>" alt="Imagen producto" class="beer-ticket-product">
+        </div>
+        <div class="beer-ticket-serial"><%= format('%04d', serial.to_i) %></div>
       </div>
-      <div class="beer-ticket-serial"><%= format('%04d', serial.to_i) %></div>
     </article>
   <% end %>
 </div>
