@@ -1,0 +1,13 @@
+<% if preview_product.present? %>
+  <div class="h-full w-full overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <% if preview_product.foto.attached? %>
+      <%= image_tag preview_product.foto, class: 'h-full w-full object-cover', alt: preview_product.display_name_with_presentation %>
+    <% else %>
+      <%= image_tag 'default_image.jpeg', class: 'h-full w-full object-cover', alt: 'Imagen por defecto' %>
+    <% end %>
+  </div>
+<% else %>
+  <div class="flex h-full w-full items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white text-center text-xs font-semibold uppercase tracking-wider text-slate-400">
+    Selecciona un producto
+  </div>
+<% end %>

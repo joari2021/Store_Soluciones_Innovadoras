@@ -258,6 +258,7 @@ class Business < ApplicationRecord
   has_many :venta_payments, through: :ventas
   has_many :cash_shifts, dependent: :destroy
   has_many :cambio_efectivos, dependent: :destroy
+  has_one :beer_ticket_setting, dependent: :destroy
   has_many :pack_unwraps, dependent: :destroy
   has_many :product_usages, dependent: :destroy
   has_many :discount_schedules, dependent: :destroy

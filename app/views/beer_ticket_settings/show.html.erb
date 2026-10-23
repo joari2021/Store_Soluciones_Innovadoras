@@ -1,0 +1,362 @@
+<section class="space-y-6 fade-in" data-beer-ticket-root="true"
+  data-update-url="<%= beer_ticket_setting_path %>"
+  data-search-url="<%= search_products_beer_ticket_setting_path %>"
+  data-add-url="<%= add_product_beer_ticket_setting_path %>"
+  data-remove-url-template="<%= remove_product_beer_ticket_setting_path(producto_id: '__PRODUCT_ID__') %>">
+  <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 p-5 shadow-sm md:p-6">
+    <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-widest text-sky-600">Configuracion</p>
+        <h1 class="text-2xl font-extrabold tracking-tight text-slate-800">Tickets de Cervezas</h1>
+        <p class="mt-1 text-sm text-slate-500">Controla activacion, serial y productos con ticket.</p>
+      </div>
+      <%= link_to configurations_path, class: 'inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50' do %>
+        Volver a configuraciones
+      <% end %>
+    </div>
+  </div>
+
+  <div class="grid gap-5 xl:grid-cols-[1.1fr_1fr]">
+    <div class="space-y-5">
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-bold text-slate-800">1. Activar tickets de cervezas</h2>
+        <p class="mt-1 text-sm text-slate-500">Por defecto queda desactivado para no afectar ventas actuales.</p>
+        <label class="mt-4 inline-flex items-center gap-3 text-sm font-semibold text-slate-700">
+          <input type="checkbox"
+                class="h-5 w-5 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+                data-beer-ticket-enabled="true"
+                <%= @beer_ticket_setting.enabled? ? 'checked' : '' %>>
+          Activar tickets de cervezas
+        </label>
+        <p class="mt-2 text-xs font-semibold text-emerald-700" data-beer-ticket-status="true"></p>
+      </article>
+
+      <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-bold text-slate-800">2. Ver diseno de ticket</h2>
+        <p class="mt-1 text-sm text-slate-500">Ubica visualmente el serial y la imagen del producto sobre tu diseno base.</p>
+
+        <div class="mt-4 grid gap-4 md:grid-cols-[13rem_1fr] md:items-end">
+          <div>
+            <label for="beer_ticket_next_serial" class="block text-sm font-medium text-slate-700">Siguiente serial</label>
+            <input id="beer_ticket_next_serial"
+                  type="number"
+                  min="1"
+                  value="<%= @beer_ticket_setting.next_serial %>"
+                  class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                  data-beer-ticket-serial-input="true">
+            <p class="mt-1 text-xs text-slate-500">Formato mostrado: <span class="font-semibold text-slate-700" data-beer-ticket-serial-preview="true"><%= @beer_ticket_setting.formatted_next_serial %></span></p>
+          </div>
+        </div>
+
+        <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 p-3">
+          <div class="relative mx-auto w-full max-w-xl overflow-hidden rounded-xl border border-slate-300 bg-white">
+            <%= image_tag 'ticket cervezas.jpg', class: 'h-auto w-full object-cover', alt: 'Diseno ticket cervezas', loading: 'lazy', decoding: 'async' %>
+            <div class="pointer-events-none absolute right-[7%] top-[9%] rounded-md border border-slate-900/20 bg-white/85 px-2 py-1 text-sm font-black text-slate-900 shadow" data-beer-ticket-serial-overlay="true">
+              <%= @beer_ticket_setting.formatted_next_serial %>
+            </div>
+            <div class="absolute bottom-[12%] right-[7%] h-[26%] w-[32%] overflow-hidden rounded-lg border border-slate-900/20 bg-white/85 p-1 shadow" data-beer-ticket-preview-container="true">
+              <%= render partial: 'beer_ticket_settings/preview_product', locals: { preview_product: @preview_product } %>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-bold text-slate-800">3. Productos controlados por ticket</h2>
+      <p class="mt-1 text-sm text-slate-500">Busca por nombre y agrega productos a la lista de control.</p>
+
+      <div class="mt-4 relative">
+        <label for="beer-ticket-product-search" class="block text-sm font-medium text-slate-700">Buscador de productos</label>
+        <div class="relative mt-1">
+          <input id="beer-ticket-product-search"
+                type="text"
+                autocomplete="off"
+                placeholder="Escribe para filtrar coincidencias..."
+                class="block w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+                data-beer-ticket-search-input="true">
+          <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400"></i>
+        </div>
+
+        <div class="absolute z-20 mt-2 hidden w-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg" data-beer-ticket-search-results="true"></div>
+      </div>
+
+      <div class="mt-5 flex items-center justify-between">
+        <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Lista seleccionada</p>
+        <span class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700" data-beer-ticket-selected-count="true"><%= @controlled_products.size %></span>
+      </div>
+
+      <div class="mt-3" data-beer-ticket-products-wrapper="true">
+        <%= render partial: 'beer_ticket_settings/controlled_products_list', locals: { controlled_products: @controlled_products } %>
+      </div>
+    </article>
+  </div>
+</section>
+
+<script>
+  document.addEventListener('turbo:load', () => {
+    const root = document.querySelector('[data-beer-ticket-root="true"]');
+    if (!root || root.dataset.bound === 'true') return;
+    root.dataset.bound = 'true';
+
+    const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const updateUrl = root.dataset.updateUrl;
+    const searchUrl = root.dataset.searchUrl;
+    const addUrl = root.dataset.addUrl;
+    const removeTemplate = root.dataset.removeUrlTemplate;
+
+    const enabledInput = root.querySelector('[data-beer-ticket-enabled="true"]');
+    const statusNode = root.querySelector('[data-beer-ticket-status="true"]');
+    const serialInput = root.querySelector('[data-beer-ticket-serial-input="true"]');
+    const serialPreview = root.querySelector('[data-beer-ticket-serial-preview="true"]');
+    const serialOverlay = root.querySelector('[data-beer-ticket-serial-overlay="true"]');
+    const searchInput = root.querySelector('[data-beer-ticket-search-input="true"]');
+    const searchResults = root.querySelector('[data-beer-ticket-search-results="true"]');
+    const productsWrapper = root.querySelector('[data-beer-ticket-products-wrapper="true"]');
+    const previewContainer = root.querySelector('[data-beer-ticket-preview-container="true"]');
+    const selectedCount = root.querySelector('[data-beer-ticket-selected-count="true"]');
+
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+    const formatSerial = (value) => {
+      const parsed = Number.parseInt(value, 10);
+      const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+      return String(safe).padStart(4, '0');
+    };
+
+    const setStatus = (text, type = 'ok') => {
+      if (!statusNode) return;
+      statusNode.textContent = text;
+      statusNode.classList.remove('text-emerald-700', 'text-rose-600', 'text-slate-500');
+      if (type === 'error') {
+        statusNode.classList.add('text-rose-600');
+      } else if (type === 'muted') {
+        statusNode.classList.add('text-slate-500');
+      } else {
+        statusNode.classList.add('text-emerald-700');
+      }
+    };
+
+    const patchSetting = async (payload) => {
+      const response = await fetch(updateUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-Token': token
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = Array.isArray(data.errors) ? data.errors.join(', ') : 'No se pudo guardar la configuracion.';
+        throw new Error(message);
+      }
+
+      if (serialPreview) serialPreview.textContent = data.formatted_next_serial || formatSerial(serialInput?.value);
+      if (serialOverlay) serialOverlay.textContent = data.formatted_next_serial || formatSerial(serialInput?.value);
+      return data;
+    };
+
+    if (enabledInput) {
+      enabledInput.addEventListener('change', async () => {
+        try {
+          await patchSetting({ enabled: enabledInput.checked });
+          setStatus('Configuracion guardada.');
+        } catch (error) {
+          enabledInput.checked = !enabledInput.checked;
+          setStatus(error.message, 'error');
+        }
+      });
+    }
+
+    if (serialInput) {
+      let serialTimer = null;
+      serialInput.addEventListener('input', () => {
+        const formatted = formatSerial(serialInput.value);
+        if (serialPreview) serialPreview.textContent = formatted;
+        if (serialOverlay) serialOverlay.textContent = formatted;
+
+        if (serialTimer) window.clearTimeout(serialTimer);
+        serialTimer = window.setTimeout(async () => {
+          try {
+            await patchSetting({ next_serial: serialInput.value });
+            setStatus('Serial actualizado.');
+          } catch (error) {
+            setStatus(error.message, 'error');
+          }
+        }, 350);
+      });
+    }
+
+    const hideResults = () => {
+      if (!searchResults) return;
+      searchResults.classList.add('hidden');
+      searchResults.innerHTML = '';
+    };
+
+    const renderSearchResults = (rows) => {
+      if (!searchResults) return;
+
+      if (!rows.length) {
+        searchResults.innerHTML = '<div class="px-3 py-2 text-sm text-slate-500">No hay coincidencias disponibles.</div>';
+        searchResults.classList.remove('hidden');
+        return;
+      }
+
+      searchResults.innerHTML = rows.map((row) => {
+        const imageNode = row.image_url
+          ? `<img src="${row.image_url}" alt="${row.name}" class="h-8 w-8 rounded object-cover border border-slate-200">`
+          : '<span class="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 bg-slate-100 text-[10px] font-bold text-slate-500">IMG</span>';
+
+        return `
+          <button type="button" class="flex w-full items-center gap-3 border-b border-slate-100 px-3 py-2 text-left hover:bg-sky-50" data-add-product-id="${row.id}">
+            ${imageNode}
+            <span class="truncate text-sm font-semibold text-slate-700">${row.name}</span>
+          </button>
+        `;
+      }).join('');
+
+      searchResults.classList.remove('hidden');
+    };
+
+    const applyProductsPayload = (payload) => {
+      if (productsWrapper && typeof payload.products_html === 'string') {
+        productsWrapper.innerHTML = payload.products_html;
+      }
+      if (previewContainer && typeof payload.preview_html === 'string') {
+        previewContainer.innerHTML = payload.preview_html;
+      }
+      if (selectedCount) {
+        selectedCount.textContent = String(payload.count || 0);
+      }
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+    };
+
+    const postJson = async (url, payload) => {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-Token': token
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo completar la accion.');
+      }
+      return data;
+    };
+
+    const deleteJson = async (url) => {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'X-CSRF-Token': token
+        }
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo eliminar el producto.');
+      }
+      return data;
+    };
+
+    if (searchInput) {
+      let searchTimer = null;
+      let controller = null;
+
+      searchInput.addEventListener('input', () => {
+        const raw = searchInput.value;
+        const query = normalize(raw);
+
+        if (searchTimer) window.clearTimeout(searchTimer);
+        if (controller) controller.abort();
+
+        if (!query.length) {
+          hideResults();
+          return;
+        }
+
+        searchTimer = window.setTimeout(async () => {
+          controller = new AbortController();
+
+          try {
+            const url = `${searchUrl}?q=${encodeURIComponent(raw)}`;
+            const response = await fetch(url, {
+              headers: { 'Accept': 'application/json' },
+              signal: controller.signal
+            });
+            if (!response.ok) {
+              hideResults();
+              return;
+            }
+
+            const data = await response.json();
+            renderSearchResults(Array.isArray(data) ? data : []);
+          } catch (_error) {
+            hideResults();
+          }
+        }, 250);
+      });
+    }
+
+    if (searchResults) {
+      searchResults.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-add-product-id]');
+        if (!button) return;
+
+        const productId = button.dataset.addProductId;
+        if (!productId) return;
+
+        try {
+          const payload = await postJson(addUrl, { producto_id: productId });
+          applyProductsPayload(payload);
+          setStatus('Producto agregado al control.');
+          if (searchInput) searchInput.value = '';
+          hideResults();
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+    }
+
+    if (productsWrapper) {
+      productsWrapper.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-remove-controlled-product="true"]');
+        if (!button) return;
+
+        const productId = button.dataset.productId;
+        if (!productId) return;
+
+        const removeUrl = removeTemplate.replace('__PRODUCT_ID__', productId);
+
+        try {
+          const payload = await deleteJson(removeUrl);
+          applyProductsPayload(payload);
+          setStatus('Producto removido del control.', 'muted');
+        } catch (error) {
+          setStatus(error.message, 'error');
+        }
+      });
+    }
+
+    document.addEventListener('click', (event) => {
+      if (!searchResults || !searchInput) return;
+      if (searchResults.contains(event.target) || searchInput.contains(event.target)) return;
+      hideResults();
+    });
+  });
+</script>

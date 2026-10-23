@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_30_124500) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_23_121000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -93,6 +93,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_124500) do
     t.decimal "receive_commission_min", precision: 14, scale: 2, default: "0.0", null: false
     t.string "send_commission_rounding", default: "superior", null: false
     t.string "receive_commission_rounding", default: "superior", null: false
+    t.decimal "cashea_principal_level_1_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cashea_principal_level_2_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cashea_principal_level_3_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cashea_principal_level_4_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cashea_principal_level_5_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
+    t.decimal "cashea_principal_level_6_initial_percent", precision: 5, scale: 2, default: "0.0", null: false
     t.index ["account_type"], name: "index_accounts_on_account_type"
     t.index ["active"], name: "index_accounts_on_active"
     t.index ["business_id"], name: "index_accounts_on_business_id"
@@ -160,6 +166,25 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_124500) do
     t.datetime "updated_at", null: false
     t.string "client"
     t.index ["saime_user_id"], name: "index_appointments_on_saime_user_id"
+  end
+
+  create_table "beer_ticket_setting_products", force: :cascade do |t|
+    t.bigint "beer_ticket_setting_id", null: false
+    t.bigint "producto_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["beer_ticket_setting_id", "producto_id"], name: "idx_beer_ticket_setting_products_on_setting_and_producto", unique: true
+    t.index ["beer_ticket_setting_id"], name: "idx_beer_ticket_setting_products_on_setting_id"
+    t.index ["producto_id"], name: "index_beer_ticket_setting_products_on_producto_id"
+  end
+
+  create_table "beer_ticket_settings", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.boolean "enabled", default: false, null: false
+    t.integer "next_serial", default: 1, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id"], name: "index_beer_ticket_settings_on_business_id", unique: true
   end
 
   create_table "business_user_assignments", force: :cascade do |t|
@@ -1255,6 +1280,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_30_124500) do
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
   add_foreign_key "appointments", "saime_users"
+  add_foreign_key "beer_ticket_setting_products", "beer_ticket_settings"
+  add_foreign_key "beer_ticket_setting_products", "productos"
+  add_foreign_key "beer_ticket_settings", "businesses"
   add_foreign_key "business_user_assignments", "businesses"
   add_foreign_key "business_user_assignments", "users"
   add_foreign_key "cambio_efectivos", "businesses"

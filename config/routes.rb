@@ -172,6 +172,12 @@ Rails.application.routes.draw do
     end
   end
   resources :discount_schedules, path: "descuentos-programados", only: %i[index create edit update destroy]
+  resources :configurations, path: "configuracion", only: %i[index]
+  resource :beer_ticket_setting, path: "configuracion/tickets-cervezas", only: %i[show update] do
+    get :search_products, path: "buscar-productos"
+    post :add_product, path: "agregar-producto"
+    delete "producto/:producto_id", action: :remove_product, as: :remove_product
+  end
   resources :purchase_invoices, path: "facturas-compra" do
     member do
       get :intercompany_product_list, path: "intercompany/lista-productos"
