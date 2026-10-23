@@ -20,8 +20,11 @@ Rails.application.configure do
   # key such as config/credentials/production.key. This key is used to decrypt credentials (and other encrypted files).
   # config.require_master_key = true
 
-  # Disable serving static files from `public/`, relying on NGINX/Apache to do so instead.
-  # config.public_file_server.enabled = false
+  # Serve static files from /public when the platform requests it (Heroku sets this env var).
+  config.public_file_server.enabled = ENV["RAILS_SERVE_STATIC_FILES"].present?
+  config.public_file_server.headers = {
+    "Cache-Control" => "public, max-age=31536000, immutable"
+  }
 
   # Compress CSS using a preprocessor.
   # config.assets.css_compressor = :sass

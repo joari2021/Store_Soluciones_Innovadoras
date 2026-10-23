@@ -142,9 +142,9 @@
         </svg>
       </button>
       <% if producto.foto.present? %>
-        <img src="<%= url_for(producto.foto) %>" alt="Imagen de <%= producto.display_name_with_presentation %>" class="h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover" />
+        <img src="<%= url_for(producto.foto) %>" alt="Imagen de <%= producto.display_name_with_presentation %>" class="h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover" loading="lazy" decoding="async" />
       <% else %>
-        <%= image_tag 'default_image.jpeg', class: 'h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover', alt: 'Imagen por defecto' %>
+        <%= image_tag 'default_image.jpeg', class: 'h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover', alt: 'Imagen por defecto', loading: 'lazy', decoding: 'async' %>
       <% end %>
       <div class="min-w-0">
         <p class="truncate text-sm font-semibold text-slate-800"><%= producto.display_name_with_presentation %></p>
