@@ -19,6 +19,14 @@
     </div>
   </div>
   <% if @global_suppliers.any? %>
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-global-suppliers-filter-root="true">
+      <label for="global-suppliers-live-search" class="block text-sm font-medium text-slate-700">Buscar proveedor global</label>
+      <div class="relative mt-1">
+        <input id="global-suppliers-live-search" type="text" autocomplete="off" placeholder="Escribe nombre, RIF u origen..." class="block w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500" data-global-suppliers-live-search="true">
+        <i data-lucide="search" class="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400"></i>
+      </div>
+      <p class="mt-2 hidden text-xs font-semibold text-amber-700" data-global-suppliers-no-results="true">No hay proveedores globales que coincidan con esa búsqueda.</p>
+    </div>
     <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div class="overflow-x-auto">
         <table class="min-w-full table-auto text-sm text-slate-700">
@@ -34,7 +42,7 @@
           </thead>
           <tbody class="divide-y divide-slate-100">
             <% @global_suppliers.each_with_index do |supplier, index| %>
-              <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>">
+              <tr class="<%= index.even? ? 'bg-white' : 'bg-slate-50/50' %>" data-global-supplier-row="true" data-global-supplier-query="<%= [supplier.name, supplier.rif, supplier.source_business&.name].join(' ') %>">
                 <td class="px-6 py-4 font-semibold text-slate-800"><%= supplier.name %></td>
                 <td class="px-6 py-4"><%= supplier.rif.presence || '-' %></td>
                 <td class="px-6 py-4 text-slate-600"><%= supplier.source_business&.name || '-' %></td>
@@ -62,3 +70,40 @@
     </div>
   <% end %>
 </div>
+
+<script>
+  document.addEventListener('turbo:load', () => {
+    const root = document.querySelector('[data-global-suppliers-filter-root="true"]');
+    if (!root || root.dataset.bound === 'true') return;
+    root.dataset.bound = 'true';
+
+    const input = root.querySelector('[data-global-suppliers-live-search="true"]');
+    const noResults = root.querySelector('[data-global-suppliers-no-results="true"]');
+    if (!input) return;
+
+    const normalize = (value) => String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+    const applyFilter = () => {
+      const query = normalize(input.value);
+      const rows = Array.from(document.querySelectorAll('[data-global-supplier-row="true"]'));
+      let visibleCount = 0;
+
+      rows.forEach((row) => {
+        const rowQuery = normalize(row.dataset.globalSupplierQuery);
+        const visible = query.length === 0 || rowQuery.includes(query);
+        row.classList.toggle('hidden', !visible);
+        if (visible) visibleCount += 1;
+      });
+
+      if (noResults) {
+        noResults.classList.toggle('hidden', visibleCount > 0 || query.length === 0);
+      }
+    };
+
+    input.addEventListener('input', applyFilter);
+  });
+</script>
