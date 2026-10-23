@@ -1,3 +1,4 @@
+<% ticket_layout = beer_ticket_layout_config %>
 <style>
   @page {
     size: Letter;
@@ -44,9 +45,9 @@
 
   .beer-ticket-product-circle {
     position: absolute;
-    left: 19.5%;
-    top: 25.5%;
-    width: 48%;
+    left: <%= ticket_layout[:product_left_pct] %>%;
+    top: <%= ticket_layout[:product_top_pct] %>%;
+    height: <%= ticket_layout[:product_height_pct] %>%;
     aspect-ratio: 1 / 1;
     border-radius: 999px;
     overflow: hidden;
@@ -56,17 +57,17 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-    transform: scale(1.3) translateY(12%);
+    transform: scale(<%= ticket_layout[:product_scale] %>) translateY(<%= ticket_layout[:product_translate_y_pct] %>%);
     transform-origin: center center;
   }
 
   .beer-ticket-serial {
     position: absolute;
-    right: 15.5%;
-    bottom: 10%;
+    right: <%= ticket_layout[:serial_right_pct] %>%;
+    bottom: <%= ticket_layout[:serial_bottom_pct] %>%;
     color: #0f172a;
     font-family: 'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive;
-    font-size: 0.42cm;
+    font-size: <%= ticket_layout[:serial_font_cm] %>cm;
     font-weight: 700;
     line-height: 1;
     letter-spacing: 0.01em;
