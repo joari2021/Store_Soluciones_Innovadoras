@@ -1,0 +1,97 @@
+<style>
+  @page {
+    size: Letter;
+    margin: 0.18in;
+  }
+
+  .sheet {
+    width: 8.14in !important;
+    min-height: 10.64in !important;
+    padding: 0 !important;
+  }
+
+  .tickets-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 5cm);
+    grid-auto-rows: 2cm;
+    gap: 0;
+    justify-content: center;
+    align-content: start;
+  }
+
+  .beer-ticket {
+    position: relative;
+    width: 5cm;
+    height: 2cm;
+    overflow: hidden;
+    border: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .beer-ticket-bg {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .beer-ticket-product-circle {
+    position: absolute;
+    left: 19.5%;
+    top: 25.5%;
+    width: 48%;
+    aspect-ratio: 1 / 1;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .beer-ticket-product {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    transform: scale(1.3) translateY(12%);
+    transform-origin: center center;
+  }
+
+  .beer-ticket-serial {
+    position: absolute;
+    right: 15.5%;
+    bottom: 10%;
+    color: #0f172a;
+    font-family: 'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive;
+    font-size: 0.42cm;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.01em;
+  }
+
+  .batch-caption {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: #334155;
+    font-weight: 700;
+  }
+
+  @media print {
+    .batch-caption {
+      display: none;
+    }
+  }
+</style>
+
+<p class="batch-caption">
+  Lote: <%= @batch.formatted_start_serial %> - <%= @batch.formatted_end_serial %> | Producto: <%= @product.display_name_with_presentation %> | Cantidad: <%= @batch.ticket_count %>
+</p>
+
+<div class="tickets-grid">
+  <% @serials.each do |serial| %>
+    <article class="beer-ticket">
+      <img src="<%= @ticket_background_path %>" alt="Ticket de cerveza" class="beer-ticket-bg">
+      <div class="beer-ticket-product-circle">
+        <img src="<%= @ticket_product_image_path %>" alt="Imagen producto" class="beer-ticket-product">
+      </div>
+      <div class="beer-ticket-serial"><%= format('%04d', serial.to_i) %></div>
+    </article>
+  <% end %>
+</div>

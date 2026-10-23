@@ -1,7 +1,6 @@
 <% setting_products = Array(setting_products) %>
 <h3 class="text-sm font-extrabold uppercase tracking-wider text-slate-700">5. Lotes creados e impresión</h3>
 <p class="mt-1 text-xs text-slate-500">Cada lote genera hojas en PDF listas para imprimir en tamaño carta, tickets de 5 cm x 2 cm.</p>
-
 <% if setting_products.any? %>
   <div class="mt-3 space-y-3">
     <% setting_products.each do |setting_product| %>
@@ -18,7 +17,6 @@
           </div>
           <span class="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-bold text-sky-700"><%= batches.size %> lote<%= batches.size == 1 ? '' : 's' %></span>
         </div>
-
         <% if batches.any? %>
           <div class="mt-3 overflow-hidden rounded-xl border border-slate-200">
             <table class="min-w-full text-xs text-slate-700">
@@ -40,7 +38,7 @@
                       <%= link_to batch_pdf_beer_ticket_setting_path(batch_id: batch.id),
                                   target: '_blank',
                                   class: 'inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 font-semibold text-sky-700 hover:bg-sky-100' do %>
-                        Imprimir PDF
+                        Imprimir / Guardar PDF
                       <% end %>
                     </td>
                   </tr>

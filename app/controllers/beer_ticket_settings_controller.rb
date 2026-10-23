@@ -105,11 +105,16 @@ class BeerTicketSettingsController < ApplicationController
       return
     end
 
-    pdf_content = BeerTicketsPdfGenerator.new(batch: batch, view_context: view_context).render
+    @batch = batch
+    @product = batch.producto
+    @serials = (batch.start_serial..batch.end_serial).to_a
+    @ticket_background_path = helpers.asset_path('ticket cervezas.jpg')
+    @ticket_product_image_path = @product.foto.attached? ? helpers.url_for(@product.foto) : helpers.asset_path('default_image.jpeg')
+    @print_title = "Tickets #{@product.display_name_with_presentation} #{batch.formatted_start_serial}-#{batch.formatted_end_serial}"
+
     batch.update_columns(printed_at: Time.current) if batch.printed_at.blank?
 
-    filename = "tickets-#{batch.producto.id}-#{batch.formatted_start_serial}-#{batch.formatted_end_serial}.pdf"
-    send_data pdf_content, filename: filename, type: 'application/pdf', disposition: 'inline'
+    render :batch_print, layout: 'print'
   rescue StandardError => e
     Rails.logger.error("[BeerTicketSettingsController#batch_pdf] #{e.class}: #{e.message}\n#{e.backtrace&.first(25)&.join("\n")}")
     redirect_to beer_ticket_setting_path, alert: 'No se pudo generar el PDF del lote. Revisa que el producto tenga una imagen valida y vuelve a intentar.'
