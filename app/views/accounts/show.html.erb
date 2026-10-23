@@ -1,4 +1,4 @@
-<div class="space-y-6">
+<div class="space-y-6" data-account-verify-root="true">
   <% movement_query_params = @movement_query_params || {} %>
   <% can_verify_bank_movements = current_user_admin? && @account.account_type == 'bank_account' %>
   <% theme = @account.theme_config %>
@@ -189,6 +189,9 @@
       <p class="mt-1 text-sm text-slate-500">
         <%= (@account.settlement_enabled? && current_user_admin?) ? 'Solo movimientos sin cierre asociado.' : 'Ordenado desde el más reciente al más antiguo.' %>
       </p>
+      <p class="mt-1 text-xs font-semibold text-slate-500" data-movement-visible-counter="true">
+        Mostrando <span data-movement-visible-count="true"><%= @account_movements.size %></span> movimientos en esta página.
+      </p>
       <%= form_with url: account_path(@account), method: :get, local: true, class: 'mt-4 grid gap-3 md:grid-cols-[minmax(0,12rem)_minmax(0,12rem)_minmax(0,12rem)_auto] md:items-end' do %>
         <div>
           <label for="account_movement_filter_from" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Desde</label>
@@ -337,7 +340,7 @@
         </table>
       </div>
       <% if @pagy.pages > 1 %>
-        <div class="border-t border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-5 py-4">
+        <div class="border-t border-slate-200 bg-gradient-to-r from-slate-50 via-white to-slate-50 px-5 py-4" data-movements-pagination="true" data-current-page="<%= @pagy.page %>" data-items-per-page="<%= @pagy.items %>" data-total-count="<%= @pagy.count %>">
           <div class="flex flex-wrap items-center justify-center gap-2">
             <% if @pagy.prev %>
               <%= link_to account_path(@account, movement_query_params.merge(page: @pagy.prev)),
@@ -363,6 +366,9 @@
               <% end %>
             <% end %>
           </div>
+          <p class="mt-3 text-center text-xs font-semibold text-slate-500" data-movements-pagination-summary="true">
+            Total de movimientos filtrados: <span data-movements-total-count="true"><%= @pagy.count %></span>
+          </p>
         </div>
       <% end %>
     <% else %>
@@ -375,9 +381,14 @@
 <% if can_verify_bank_movements %>
   <script>
     (() => {
-      const verifyAllButton = document.querySelector('[data-verify-range-trigger="true"]');
-      const fromInput = document.getElementById('account_movement_filter_from');
-      const toInput = document.getElementById('account_movement_filter_to');
+      const verifyRoot = document.querySelector('[data-account-verify-root="true"]');
+      if (!verifyRoot) return;
+      if (verifyRoot.dataset.verifyToggleBound === 'true') return;
+      verifyRoot.dataset.verifyToggleBound = 'true';
+
+      const verifyAllButton = verifyRoot.querySelector('[data-verify-range-trigger="true"]');
+      const fromInput = verifyRoot.querySelector('#account_movement_filter_from');
+      const toInput = verifyRoot.querySelector('#account_movement_filter_to');
       if (!verifyAllButton || !fromInput || !toInput) return;
 
       const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -422,7 +433,7 @@
         if (row) row.dataset.movementVerified = verified ? 'true' : 'false';
       };
 
-      document.addEventListener('click', async (event) => {
+      verifyRoot.addEventListener('click', async (event) => {
         const button = event.target.closest('[data-verify-toggle="true"]');
         if (!button) return;
 
@@ -479,7 +490,7 @@
             return;
           }
 
-          document.querySelectorAll('[data-verify-toggle="true"]').forEach((button) => {
+          verifyRoot.querySelectorAll('[data-verify-toggle="true"]').forEach((button) => {
             applyVerifiedState(button, true);
           });
 
@@ -693,6 +704,10 @@
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
       const movementsTableBody = document.getElementById('account-movements-table-body');
       const balanceValueLabel = document.querySelector('[data-account-current-balance="true"]');
+      const visibleCountLabel = document.querySelector('[data-movement-visible-count="true"]');
+      const paginationBox = document.querySelector('[data-movements-pagination="true"]');
+      const paginationTotalLabel = document.querySelector('[data-movements-total-count="true"]');
+      const paginationSummaryLabel = document.querySelector('[data-movements-pagination-summary="true"]');
       const amountInput = modal.querySelector('[data-payment-amount]');
       const conceptInput = modal.querySelector('[data-payment-concept]');
       const movementKindInput = modal.querySelector('[data-payment-kind]');
@@ -877,6 +892,41 @@
         rows.forEach((row) => movementsTableBody.appendChild(row));
       };
 
+      const syncVisibleMovementCount = () => {
+        if (!movementsTableBody || !visibleCountLabel) return;
+        const count = movementsTableBody.querySelectorAll('[data-movement-row="true"]').length;
+        visibleCountLabel.textContent = String(count);
+      };
+
+      const syncPaginationAfterInsert = () => {
+        if (!paginationBox) {
+          syncVisibleMovementCount();
+          return;
+        }
+
+        const itemsPerPage = Number.parseInt(paginationBox.dataset.itemsPerPage || '0', 10);
+        const currentPage = Number.parseInt(paginationBox.dataset.currentPage || '1', 10);
+        const previousTotal = Number.parseInt(paginationBox.dataset.totalCount || '0', 10);
+        const nextTotal = previousTotal + 1;
+
+        paginationBox.dataset.totalCount = String(nextTotal);
+        if (paginationTotalLabel) paginationTotalLabel.textContent = String(nextTotal);
+
+        if (paginationSummaryLabel) {
+          paginationSummaryLabel.textContent = `Total de movimientos filtrados: ${nextTotal} · actualizado en vivo`;
+        }
+
+        if (movementsTableBody && itemsPerPage > 0 && currentPage === 1) {
+          const rows = Array.from(movementsTableBody.querySelectorAll('[data-movement-row="true"]'));
+          if (rows.length > itemsPerPage) {
+            const lastRow = rows[rows.length - 1];
+            lastRow.remove();
+          }
+        }
+
+        syncVisibleMovementCount();
+      };
+
       const resetPaymentForm = () => {
         if (paymentForm) paymentForm.reset();
         if (movementKindInput) movementKindInput.value = 'expense';
@@ -920,6 +970,7 @@
           if (movementsTableBody && payload.movement_row_html) {
             movementsTableBody.insertAdjacentHTML('beforeend', String(payload.movement_row_html));
             sortRowsByDateDesc();
+            syncPaginationAfterInsert();
           }
 
           if (window.lucide?.createIcons) {
@@ -938,6 +989,10 @@
           const availableLabel = modal.querySelector('[data-payment-available]');
           if (availableLabel) {
             availableLabel.textContent = `Disponible: ${formatAmount(available)}`;
+          }
+
+          if (!paginationBox) {
+            syncVisibleMovementCount();
           }
 
           resetPaymentForm();
