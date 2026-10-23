@@ -934,6 +934,7 @@
       let draftSyncRequestSequence = 0;
       let draftSyncAbortController = null;
       let draftFinalizationInProgress = false;
+      let checkoutSubmissionInProgress = false;
       let heartbeatIntervalId = null;
       let draftLoadInProgress = false;
       let draftLoadRequestSequence = 0;
@@ -7864,194 +7865,204 @@
       };
 
       const submitVenta = async (payments, change, creditSale = null, forcedBaseCurrency = null, checkoutDiscount = null, casheaSale = null) => {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        if (!csrfToken) {
+        if (checkoutSubmissionInProgress) return;
+
+        checkoutSubmissionInProgress = true;
+        try {
+          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+          if (!csrfToken) {
+            if (window.Swal) {
+              window.Swal.fire({
+                icon: 'error',
+                title: 'Token CSRF no disponible',
+                text: 'Recarga la pagina e intenta de nuevo.',
+                heightAuto: false,
+              });
+            }
+            return;
+          }
+
+          const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
+
+          try {
+            await refreshSelectedClientForCheckout();
+          } catch (error) {
+            if (window.Swal) {
+              if (error?.status === 409 && String(error.message || '').toLowerCase().includes('orden esta abierta por')) {
+                const lockMatch = String(error.message).match(/^La orden esta abierta por (.+?), para poder abrirla pidele que guarde y cierre la orden$/i);
+                window.Swal.fire({
+                  icon: 'warning',
+                  title: 'Orden abierta por otro usuario',
+                  html: lockMatch
+                    ? `La orden esta abierta por <strong>${escapeHtml(lockMatch[1])}</strong>, para poder abrirla pidele que guarde y cierre la orden`
+                    : escapeHtml(String(error.message)),
+                  heightAuto: false,
+                });
+                return;
+              }
+              window.Swal.fire({
+                icon: 'error',
+                title: 'No se pudo actualizar el cliente',
+                text: String(error?.message || 'Recarga la pagina y vuelve a intentar.'),
+                heightAuto: false,
+              });
+            }
+            return;
+          }
+
+          try {
+            await refreshCartServiceSnapshotsForCheckout(selectedBaseCurrency);
+          } catch (error) {
+            if (window.Swal) {
+              window.Swal.fire({
+                icon: 'error',
+                title: 'No se pudo actualizar el precio del servicio',
+                text: String(error?.message || 'Recarga la pagina y vuelve a intentar.'),
+                heightAuto: false,
+              });
+            }
+            return;
+          }
+
+          // Evita que un autosave pendiente cree/actualice borradores durante el checkout final.
+          cancelPendingDraftSync();
+
+          const payload = buildVentaPayload(payments, change, creditSale, selectedBaseCurrency, checkoutDiscount, casheaSale);
+
           if (window.Swal) {
             window.Swal.fire({
-              icon: 'error',
-              title: 'Token CSRF no disponible',
-              text: 'Recarga la pagina e intenta de nuevo.',
+              title: 'Procesando venta',
+              text: 'Guardando la venta, espera...',
+              allowOutsideClick: false,
+              allowEscapeKey: false,
+              didOpen: () => window.Swal.showLoading(),
               heightAuto: false,
             });
           }
-          return;
-        }
 
-        const selectedBaseCurrency = String(forcedBaseCurrency || getSelectedBaseCurrency() || '').toLowerCase() === 'ves' ? 'ves' : 'usd';
+          try {
+            const response = await fetch('/ventas', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken,
+              },
+              body: JSON.stringify({ venta: payload }),
+            });
 
-        try {
-          await refreshSelectedClientForCheckout();
-        } catch (error) {
-          if (window.Swal) {
-            if (error?.status === 409 && String(error.message || '').toLowerCase().includes('orden esta abierta por')) {
-              const lockMatch = String(error.message).match(/^La orden esta abierta por (.+?), para poder abrirla pidele que guarde y cierre la orden$/i);
+            let data = {};
+            try {
+              data = await response.json();
+            } catch (error) {
+              data = {};
+            }
+
+            if (!response.ok) {
+              const requestId = String(response.headers?.get('X-Request-Id') || response.headers?.get('x-request-id') || '').trim();
+              const requestError = new Error(buildHttpErrorMessage({
+                fallbackMessage: 'No se pudo registrar la venta.',
+                response,
+                data,
+                extraDetails: [
+                  requestId ? `request-id: ${requestId}` : '',
+                  'ruta: /ventas',
+                ],
+              }));
+              requestError.payload = data;
+              requestError.status = response.status;
+              throw requestError;
+            }
+
+            if (Array.isArray(data.products)) {
+              syncProductsMap(data.products);
+            }
+
+            if (Object.prototype.hasOwnProperty.call(data, 'loss_recovery_setting')) {
+              applyLossRecoverySetting(data.loss_recovery_setting, { render: false, syncDraft: false });
+            }
+
+            drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
+            if (draftSyncTimeout) {
+              clearTimeout(draftSyncTimeout);
+              draftSyncTimeout = null;
+            }
+            draftSyncedFingerprint = null;
+            activeDraftId = null;
+            activeDraftCreatedById = null;
+            activeDraftVisibility = null;
+            applySyncedReservationSnapshot(new Map());
+            cart.clear();
+            setSelectedClient(null);
+            renderDraftTags();
+            renderCart();
+
+            if (window.Swal) {
+              const saleShowUrl = `/ventas/${encodeURIComponent(String(data.id || ''))}`;
+              const successTitle = isCustomerPosMode ? 'Pedido registrado' : 'Venta registrada';
+              const successText = isCustomerPosMode
+                ? 'El pedido fue realizado con exito. Debe ser aprobado por el encargado y tendra 24 horas para culminarlo. Sus productos han sido reservados.'
+                : 'La venta fue registrada correctamente.';
+              const successConfirmText = isCustomerPosMode ? 'Ver pedido' : 'Ver venta';
+              const result = await window.Swal.fire({
+                icon: 'success',
+                title: successTitle,
+                text: successText,
+                showCancelButton: true,
+                confirmButtonText: successConfirmText,
+                cancelButtonText: 'Cerrar',
+                reverseButtons: true,
+                heightAuto: false,
+              });
+
+              if (result.isConfirmed && data.id) {
+                window.location.href = saleShowUrl;
+              }
+            }
+          } catch (error) {
+            const duplicatePayment = error?.payload?.duplicate_payment;
+            if (duplicatePayment && window.Swal) {
+              const accountName = escapeHtml(String(duplicatePayment.account_name || 'Cuenta bancaria'));
+              const amountNumber = Number(duplicatePayment.amount);
+              const currencyCode = String(duplicatePayment.currency || '').trim();
+              const currencySymbol = String(duplicatePayment.currency_symbol || '').trim();
+              const amountLabel = Number.isFinite(amountNumber)
+                ? `${currencySymbol || currencyCode} ${amountNumber.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : `${escapeHtml(String(duplicatePayment.amount || '-'))} ${escapeHtml(currencyCode)}`;
+              const paymentDate = escapeHtml(String(duplicatePayment.payment_date || '-'));
+              const saleId = String(duplicatePayment.venta_id || '').trim();
+              const saleUrl = String(duplicatePayment.venta_url || '').trim();
+              const saleLinkHtml = saleUrl
+                ? `<a href="${escapeHtml(saleUrl)}" class="inline-flex items-center justify-center rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100">Ir a la venta ${saleId ? `#${escapeHtml(saleId)}` : ''}</a>`
+                : '';
+
               window.Swal.fire({
-                icon: 'warning',
-                title: 'Orden abierta por otro usuario',
-                html: lockMatch
-                  ? `La orden esta abierta por <strong>${escapeHtml(lockMatch[1])}</strong>, para poder abrirla pidele que guarde y cierre la orden`
-                  : escapeHtml(String(error.message)),
+                icon: 'error',
+                title: 'Pago bancario duplicado',
+                html: `
+                  <div class="space-y-2 text-left text-sm text-slate-600">
+                    <p>Ya existe un pago registrado con los mismos datos:</p>
+                    <p><strong>Cuenta:</strong> ${accountName}</p>
+                    <p><strong>Monto:</strong> ${amountLabel}</p>
+                    <p><strong>Fecha:</strong> ${paymentDate}</p>
+                    ${saleLinkHtml}
+                  </div>
+                `,
                 heightAuto: false,
               });
               return;
             }
-            window.Swal.fire({
-              icon: 'error',
-              title: 'No se pudo actualizar el cliente',
-              text: String(error?.message || 'Recarga la pagina y vuelve a intentar.'),
-              heightAuto: false,
-            });
-          }
-          return;
-        }
 
-        try {
-          await refreshCartServiceSnapshotsForCheckout(selectedBaseCurrency);
-        } catch (error) {
-          if (window.Swal) {
-            window.Swal.fire({
-              icon: 'error',
-              title: 'No se pudo actualizar el precio del servicio',
-              text: String(error?.message || 'Recarga la pagina y vuelve a intentar.'),
-              heightAuto: false,
-            });
-          }
-          return;
-        }
-
-        const payload = buildVentaPayload(payments, change, creditSale, selectedBaseCurrency, checkoutDiscount, casheaSale);
-
-        if (window.Swal) {
-          window.Swal.fire({
-            title: 'Procesando venta',
-            text: 'Guardando la venta, espera...',
-            allowOutsideClick: false,
-            allowEscapeKey: false,
-            didOpen: () => window.Swal.showLoading(),
-            heightAuto: false,
-          });
-        }
-
-        try {
-          const response = await fetch('/ventas', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-CSRF-Token': csrfToken,
-            },
-            body: JSON.stringify({ venta: payload }),
-          });
-
-          let data = {};
-          try {
-            data = await response.json();
-          } catch (error) {
-            data = {};
-          }
-
-          if (!response.ok) {
-            const requestId = String(response.headers?.get('X-Request-Id') || response.headers?.get('x-request-id') || '').trim();
-            const requestError = new Error(buildHttpErrorMessage({
-              fallbackMessage: 'No se pudo registrar la venta.',
-              response,
-              data,
-              extraDetails: [
-                requestId ? `request-id: ${requestId}` : '',
-                'ruta: /ventas',
-              ],
-            }));
-            requestError.payload = data;
-            requestError.status = response.status;
-            throw requestError;
-          }
-
-          if (Array.isArray(data.products)) {
-            syncProductsMap(data.products);
-          }
-
-          if (Object.prototype.hasOwnProperty.call(data, 'loss_recovery_setting')) {
-            applyLossRecoverySetting(data.loss_recovery_setting, { render: false, syncDraft: false });
-          }
-
-          drafts = Array.isArray(data.drafts) ? data.drafts : drafts;
-          if (draftSyncTimeout) {
-            clearTimeout(draftSyncTimeout);
-            draftSyncTimeout = null;
-          }
-          draftSyncedFingerprint = null;
-          activeDraftId = null;
-          activeDraftCreatedById = null;
-          activeDraftVisibility = null;
-          applySyncedReservationSnapshot(new Map());
-          cart.clear();
-          setSelectedClient(null);
-          renderDraftTags();
-          renderCart();
-
-          if (window.Swal) {
-            const saleShowUrl = `/ventas/${encodeURIComponent(String(data.id || ''))}`;
-            const successTitle = isCustomerPosMode ? 'Pedido registrado' : 'Venta registrada';
-            const successText = isCustomerPosMode
-              ? 'El pedido fue realizado con exito. Debe ser aprobado por el encargado y tendra 24 horas para culminarlo. Sus productos han sido reservados.'
-              : 'La venta fue registrada correctamente.';
-            const successConfirmText = isCustomerPosMode ? 'Ver pedido' : 'Ver venta';
-            const result = await window.Swal.fire({
-              icon: 'success',
-              title: successTitle,
-              text: successText,
-              showCancelButton: true,
-              confirmButtonText: successConfirmText,
-              cancelButtonText: 'Cerrar',
-              reverseButtons: true,
-              heightAuto: false,
-            });
-
-            if (result.isConfirmed && data.id) {
-              window.location.href = saleShowUrl;
+            if (window.Swal) {
+              window.Swal.fire({
+                icon: 'error',
+                title: 'Error al registrar',
+                text: error.message,
+                heightAuto: false,
+              });
             }
           }
-        } catch (error) {
-          const duplicatePayment = error?.payload?.duplicate_payment;
-          if (duplicatePayment && window.Swal) {
-            const accountName = escapeHtml(String(duplicatePayment.account_name || 'Cuenta bancaria'));
-            const amountNumber = Number(duplicatePayment.amount);
-            const currencyCode = String(duplicatePayment.currency || '').trim();
-            const currencySymbol = String(duplicatePayment.currency_symbol || '').trim();
-            const amountLabel = Number.isFinite(amountNumber)
-              ? `${currencySymbol || currencyCode} ${amountNumber.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-              : `${escapeHtml(String(duplicatePayment.amount || '-'))} ${escapeHtml(currencyCode)}`;
-            const paymentDate = escapeHtml(String(duplicatePayment.payment_date || '-'));
-            const saleId = String(duplicatePayment.venta_id || '').trim();
-            const saleUrl = String(duplicatePayment.venta_url || '').trim();
-            const saleLinkHtml = saleUrl
-              ? `<a href="${escapeHtml(saleUrl)}" class="inline-flex items-center justify-center rounded-lg border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-semibold text-sky-700 hover:bg-sky-100">Ir a la venta ${saleId ? `#${escapeHtml(saleId)}` : ''}</a>`
-              : '';
-
-            window.Swal.fire({
-              icon: 'error',
-              title: 'Pago bancario duplicado',
-              html: `
-                <div class="space-y-2 text-left text-sm text-slate-600">
-                  <p>Ya existe un pago registrado con los mismos datos:</p>
-                  <p><strong>Cuenta:</strong> ${accountName}</p>
-                  <p><strong>Monto:</strong> ${amountLabel}</p>
-                  <p><strong>Fecha:</strong> ${paymentDate}</p>
-                  ${saleLinkHtml}
-                </div>
-              `,
-              heightAuto: false,
-            });
-            return;
-          }
-
-          if (window.Swal) {
-            window.Swal.fire({
-              icon: 'error',
-              title: 'Error al registrar',
-              text: error.message,
-              heightAuto: false,
-            });
-          }
+        } finally {
+          checkoutSubmissionInProgress = false;
         }
       };
 
@@ -11247,6 +11258,10 @@
       };
 
       const persistDraft = async ({ clearAfterSave = true, releaseLock = null, silent = false, draftVisibility = null, draftCheckoutStatus = null } = {}) => {
+        if (checkoutSubmissionInProgress && !clearAfterSave) {
+          return false;
+        }
+
         if (cart.size === 0) {
           if (draftLoadInProgress && !clearAfterSave) {
             return false;
@@ -11577,6 +11592,8 @@
       window.addEventListener('beforeunload', releaseDraftLockOnUnload);
 
       const queueActiveDraftSync = () => {
+        if (checkoutSubmissionInProgress) return;
+
         const hasItems = cart.size > 0;
         const hasActiveDraft = Boolean(activeDraftId);
         if (!hasItems && !activeDraftId) {
