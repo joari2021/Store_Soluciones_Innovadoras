@@ -25,7 +25,7 @@
                   <th class="px-3 py-2 text-left">Creado</th>
                   <th class="px-3 py-2 text-left">Rango</th>
                   <th class="px-3 py-2 text-right">Cantidad</th>
-                  <th class="px-3 py-2 text-right">Impresión</th>
+                  <th class="px-3 py-2 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -35,11 +35,18 @@
                     <td class="px-3 py-2 font-semibold"><%= batch.formatted_start_serial %> - <%= batch.formatted_end_serial %></td>
                     <td class="px-3 py-2 text-right"><%= batch.ticket_count %></td>
                     <td class="px-3 py-2 text-right">
-                      <%= link_to batch_pdf_beer_ticket_setting_path(batch_id: batch.id),
-                                  target: '_blank',
-                                  class: 'inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 font-semibold text-sky-700 hover:bg-sky-100' do %>
-                        Imprimir / Guardar PDF
-                      <% end %>
+                      <div class="inline-flex items-center gap-2">
+                        <%= link_to batch_pdf_beer_ticket_setting_path(batch_id: batch.id),
+                                    target: '_blank',
+                                    class: 'inline-flex items-center rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 font-semibold text-sky-700 hover:bg-sky-100' do %>
+                          Imprimir / Guardar PDF
+                        <% end %>
+                        <%= link_to destroy_batch_beer_ticket_setting_path(batch_id: batch.id),
+                                    data: { turbo_method: :delete, turbo_confirm: '¿Eliminar este lote de tickets? Esta acción no se puede deshacer.' },
+                                    class: 'inline-flex items-center rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 font-semibold text-rose-700 hover:bg-rose-100' do %>
+                          Eliminar lote
+                        <% end %>
+                      </div>
                     </td>
                   </tr>
                 <% end %>

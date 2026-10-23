@@ -178,6 +178,7 @@ Rails.application.routes.draw do
     post :add_product, path: "agregar-producto"
     post :create_batch, path: "crear-lote"
     get "lotes/:batch_id/pdf", action: :batch_pdf, as: :batch_pdf
+    delete "lotes/:batch_id", action: :destroy_batch, as: :destroy_batch
     delete "producto/:producto_id", action: :remove_product, as: :remove_product
   end
   resources :purchase_invoices, path: "facturas-compra" do

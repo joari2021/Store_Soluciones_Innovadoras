@@ -120,6 +120,31 @@ class BeerTicketSettingsController < ApplicationController
     redirect_to beer_ticket_setting_path, alert: 'No se pudo generar el PDF del lote. Revisa que el producto tenga una imagen valida y vuelve a intentar.'
   end
 
+  def destroy_batch
+    batch = @beer_ticket_setting.beer_ticket_batches.find_by(id: params[:batch_id])
+    if batch.blank?
+      respond_to do |format|
+        format.html { redirect_to beer_ticket_setting_path, alert: 'No se encontro el lote seleccionado.' }
+        format.json { render json: { error: 'No se encontro el lote seleccionado.' }, status: :not_found }
+      end
+      return
+    end
+
+    batch.destroy!
+
+    respond_to do |format|
+      format.html { redirect_to beer_ticket_setting_path, notice: 'Lote eliminado correctamente.' }
+      format.json do
+        render_updated_products_payload(message: 'Lote eliminado correctamente.')
+      end
+    end
+  rescue ActiveRecord::RecordInvalid => e
+    respond_to do |format|
+      format.html { redirect_to beer_ticket_setting_path, alert: e.message }
+      format.json { render json: { error: e.message }, status: :unprocessable_entity }
+    end
+  end
+
   private
 
   def set_beer_ticket_setting
