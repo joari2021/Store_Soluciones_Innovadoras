@@ -341,7 +341,7 @@
                 </select>
               </div>
               <p class="text-[11px] text-slate-500" data-transfer-commission-hint>
-                La comision se habilita para transferencia a otro banco y pago movil. Se sugiere 0,30 % del monto origen y puedes ajustarla manualmente.
+                La comision se habilita para transferencia a otro banco y pago movil. Se calcula con la configuracion de envio de la cuenta origen (porcentaje, redondeo y minimo).
               </p>
               <p class="text-[11px] font-semibold text-slate-600" data-transfer-commission-result>
                 Selecciona metodo y cuenta pagadora para calcular el impacto de la comision.
@@ -568,6 +568,27 @@
           const commissionApplies = () => ['interbank_transfer', 'mobile_payment'].includes(String(methodSelect?.value || ''));
           const originIsCashBox = () => String(currentOrigin?.account_type || '').toLowerCase() === 'cash_box';
 
+          const originSendCommissionConfig = () => {
+            const percent = Number.parseFloat(currentOrigin?.send_commission_percent || '0') || 0;
+            const minimum = Number.parseFloat(currentOrigin?.send_commission_min || '0') || 0;
+            const rounding = String(currentOrigin?.send_commission_rounding || 'superior').toLowerCase() === 'inferior'
+              ? 'inferior'
+              : 'superior';
+
+            return { percent, minimum, rounding };
+          };
+
+          const calculateOriginCommission = (amount) => {
+            const safeAmount = Number.isFinite(amount) ? Math.max(amount, 0) : 0;
+            const { percent, minimum, rounding } = originSendCommissionConfig();
+            const raw = safeAmount * (percent / 100);
+            const cents = rounding === 'inferior'
+              ? Math.floor(raw * 100)
+              : Math.round(raw * 100);
+            const rounded = cents / 100;
+            return Math.max(rounded, minimum);
+          };
+
           const rebuildTargetOptions = () => {
             if (!targetSelect) return;
             targetSelect.innerHTML = '<option value="">Selecciona una cuenta</option>';
@@ -774,8 +795,11 @@
             }
 
             if (commissionHint) {
+              const { percent, minimum } = originSendCommissionConfig();
+              const originSymbol = currentOrigin?.symbol || '$';
+              const minimumLabel = formatMoneyText(minimum, originSymbol);
               commissionHint.textContent = enabled
-                ? 'Comision sugerida: 0,30 % del monto origen. Puedes ajustarla manualmente y elegir cual de las dos cuentas la paga.'
+                ? `Comision sugerida segun cuenta origen: ${percent.toFixed(2).replace('.', ',')} % (minimo ${minimumLabel}). Puedes ajustarla manualmente y elegir cual de las dos cuentas la paga.`
                 : 'La comision se habilita para transferencia a otro banco y pago movil. Para transferencia a tercero no aplica.';
             }
 
@@ -804,7 +828,7 @@
               return;
             }
 
-            let suggested = originAmount * 0.003;
+            let suggested = calculateOriginCommission(originAmount);
 
             if (transferDate && String(currentOrigin.currency).toUpperCase() !== String(payerAccount.currency).toUpperCase()) {
               const rates = await loadRatesForDate(transferDate);

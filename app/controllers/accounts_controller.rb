@@ -713,12 +713,27 @@ class AccountsController < ApplicationController
     %w[interbank_transfer mobile_payment].include?(payment_method.to_s)
   end
 
-  def calculated_transfer_commission(amount_from)
-    (amount_from.to_d * 0.003).round(2)
+  def calculated_transfer_commission(amount_from, from_account:)
+    account = from_account
+    return 0.to_d if account.blank?
+
+    percent = account.send_commission_percent.to_d
+    minimum = account.send_commission_min.to_d
+    rounding = account.send_commission_rounding.to_s.presence || "superior"
+
+    raw_commission = amount_from.to_d * (percent / 100)
+    cents = if rounding == "inferior"
+        (raw_commission * 100).floor
+      else
+        (raw_commission * 100).round
+      end
+
+    rounded_commission = (BigDecimal(cents.to_s) / 100).round(2)
+    [rounded_commission, minimum].max.round(2)
   end
 
   def suggested_transfer_commission_amount(amount_from:, from_account:, commission_account:, transfer_date:)
-    base_commission = calculated_transfer_commission(amount_from)
+    base_commission = calculated_transfer_commission(amount_from, from_account: from_account)
     return base_commission if commission_account.blank?
     return base_commission if from_account.currency == commission_account.currency
 
@@ -986,6 +1001,9 @@ class AccountsController < ApplicationController
         symbol: account.currency_symbol,
         balance: account.balance.to_d.to_f,
         account_type: account.account_type,
+        send_commission_percent: account.send_commission_percent.to_d.to_f,
+        send_commission_min: account.send_commission_min.to_d.to_f,
+        send_commission_rounding: account.send_commission_rounding.to_s.presence || "superior",
         group_label: group_label,
         group_rank: Account::ACCOUNT_GROUP_LABELS.index(group_label) || 99,
       }
@@ -1012,6 +1030,9 @@ class AccountsController < ApplicationController
                       symbol: account.currency_symbol,
                       balance: account.balance.to_d.to_f,
                       account_type: account.account_type,
+                      send_commission_percent: account.send_commission_percent.to_d.to_f,
+                      send_commission_min: account.send_commission_min.to_d.to_f,
+                      send_commission_rounding: account.send_commission_rounding.to_s.presence || "superior",
                       group_label: Account.group_label_for_type(account.account_type),
                       group_rank: Account::ACCOUNT_GROUP_LABELS.index(Account.group_label_for_type(account.account_type)) || 99,
                     }
