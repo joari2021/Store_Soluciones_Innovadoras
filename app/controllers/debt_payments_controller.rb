@@ -16,21 +16,24 @@ class DebtPaymentsController < ApplicationController
   end
 
   def destroy
-    shift = cash_shift_for_payment(@debt_payment)
+    payments_to_delete = grouped_payments_for_deletion(@debt_payment)
+    payments_for_shift_validation = payments_to_delete.select { |payment| payment.debt.business_id == current_business.id }
+    shifts = payments_for_shift_validation.map { |payment| cash_shift_for_payment(payment) }
+    closed_shift_present = shifts.compact.any?(&:closed?)
+    unknown_shift_present = shifts.any?(&:nil?)
 
-    if shift&.closed? && !current_user_admin?
+    if closed_shift_present && !current_user_admin?
       redirect_to debt_path(@debt, show_return_params),
                   alert: 'Este pago pertenece a un turno ya cerrado. Solo el administrador puede eliminarlo.'
       return
     end
 
-    if shift.nil? && !current_user_admin?
+    if unknown_shift_present && !current_user_admin?
       redirect_to debt_path(@debt, show_return_params),
                   alert: 'No se pudo determinar un turno abierto para este pago. Solo el administrador puede eliminarlo.'
       return
     end
 
-    payments_to_delete = [@debt_payment] + mirror_synced_payments_for(@debt_payment)
     movements_to_delete = payments_to_delete.flat_map { |payment| linked_account_movements_for_payment(payment) }
     movements_to_delete = movements_to_delete.uniq { |movement| movement.id }
     commission_expenses_to_delete = payments_to_delete.flat_map { |payment| linked_commission_expenses_for_payment(payment) }
@@ -42,8 +45,12 @@ class DebtPaymentsController < ApplicationController
       payments_to_delete.each(&:destroy!)
     end
 
-    notice = 'Pago eliminado junto con sus movimientos en cuentas.'
-    notice = "#{notice} El pago pertenecía a un turno cerrado." if shift&.closed?
+    notice = if payments_to_delete.size > 1
+               "Pago eliminado junto con su desglose (#{payments_to_delete.size} pagos) y sus movimientos en cuentas."
+             else
+               'Pago eliminado junto con sus movimientos en cuentas.'
+             end
+    notice = "#{notice} El pago pertenecía a un turno cerrado." if closed_shift_present
     redirect_to debt_path(@debt, show_return_params), notice: notice
   rescue ActiveRecord::RecordInvalid => e
     redirect_to debt_path(@debt, show_return_params), alert: e.message
@@ -127,6 +134,8 @@ class DebtPaymentsController < ApplicationController
     total_pending = total_balance_in_payment_currency(@grouped_debts, payment_currency, occurred_on)
     overpayment_amount = [amount.to_d - total_pending, 0.to_d].max.round(2)
 
+    grouped_batch_token = generated_grouped_payment_batch_token
+
     payments_to_persist = build_grouped_payments(
       account: account,
       amount: amount,
@@ -134,6 +143,7 @@ class DebtPaymentsController < ApplicationController
       occurred_on: occurred_on,
       allow_overpayment: allow_overpayment,
       commission_context: commission_context,
+      grouped_batch_token: grouped_batch_token,
     )
 
     return handle_payment_form_error if payments_to_persist.blank?
@@ -151,6 +161,7 @@ class DebtPaymentsController < ApplicationController
         account: account,
         payment_currency: payment_currency,
         occurred_on: occurred_on,
+        grouped_batch_token: grouped_batch_token,
       )
       return handle_payment_form_error if payments_to_persist.blank?
     end
@@ -164,6 +175,7 @@ class DebtPaymentsController < ApplicationController
         account: account,
         payment_currency: payment_currency,
         occurred_on: occurred_on,
+        grouped_batch_token: grouped_batch_token,
       ) if @debt.payable?
 
       if commission_context[:include_commission]
@@ -604,7 +616,7 @@ class DebtPaymentsController < ApplicationController
   end
 
   def build_grouped_payments(account:, amount:, payment_currency:, occurred_on:, allow_overpayment: false,
-                             commission_context: nil)
+                             commission_context: nil, grouped_batch_token: nil)
     remaining_amount = amount.to_d.round(2)
     payments = []
     ordered_debts = sort_debts(@grouped_debts)
@@ -625,7 +637,7 @@ class DebtPaymentsController < ApplicationController
         payment_method: debt_payment_params[:payment_method].presence,
         reference: debt_payment_params[:reference].presence,
         occurred_at: occurred_on,
-        notes: debt_payment_params[:notes],
+        notes: append_grouped_batch_note(debt_payment_params[:notes], grouped_batch_token),
       )
 
       unless payment.valid?
@@ -673,7 +685,7 @@ class DebtPaymentsController < ApplicationController
         payment_method: debt_payment_params[:payment_method].presence,
         reference: debt_payment_params[:reference].presence,
         occurred_at: occurred_on,
-        notes: debt_payment_params[:notes],
+        notes: append_grouped_batch_note(debt_payment_params[:notes], grouped_batch_token),
       )
 
       unless overpayment.valid?
@@ -709,7 +721,7 @@ class DebtPaymentsController < ApplicationController
         payment_method: debt_payment_params[:payment_method].presence,
         reference: debt_payment_params[:reference].presence,
         occurred_at: occurred_on,
-        notes: debt_payment_params[:notes],
+        notes: append_grouped_batch_note(debt_payment_params[:notes], grouped_batch_token),
       )
 
       unless fallback_overpayment.valid?
@@ -763,7 +775,8 @@ class DebtPaymentsController < ApplicationController
     end
   end
 
-  def ensure_visible_overpayment_payment(payments:, overpayment_amount:, account:, payment_currency:, occurred_on:)
+  def ensure_visible_overpayment_payment(payments:, overpayment_amount:, account:, payment_currency:, occurred_on:,
+                                         grouped_batch_token: nil)
     amount = overpayment_amount.to_d.round(2)
     return payments if amount <= 0.01.to_d
     return payments unless payments.size == 1
@@ -790,7 +803,7 @@ class DebtPaymentsController < ApplicationController
       payment_method: debt_payment_params[:payment_method].presence,
       reference: debt_payment_params[:reference].presence,
       occurred_at: occurred_on,
-      notes: debt_payment_params[:notes],
+      notes: append_grouped_batch_note(debt_payment_params[:notes], grouped_batch_token),
     )
 
     if zero_converted_amount_error?(overpayment)
@@ -810,7 +823,8 @@ class DebtPaymentsController < ApplicationController
     payments + [overpayment]
   end
 
-  def ensure_persisted_overpayment_visibility!(payments:, requested_amount:, account:, payment_currency:, occurred_on:)
+  def ensure_persisted_overpayment_visibility!(payments:, requested_amount:, account:, payment_currency:, occurred_on:,
+                                               grouped_batch_token: nil)
     return if payments.blank?
 
     requested = requested_amount.to_d.round(2)
@@ -828,7 +842,7 @@ class DebtPaymentsController < ApplicationController
       payment_method: debt_payment_params[:payment_method].presence,
       reference: debt_payment_params[:reference].presence,
       occurred_at: occurred_on,
-      notes: debt_payment_params[:notes],
+      notes: append_grouped_batch_note(debt_payment_params[:notes], grouped_batch_token),
     )
 
     overpayment.skip_account_movement = true
@@ -1064,6 +1078,75 @@ class DebtPaymentsController < ApplicationController
     Expense.where(business_id: payment.debt.business_id)
            .where('description LIKE ?', "%[DP:#{payment.id}]%")
            .to_a
+  end
+
+  def grouped_payments_for_deletion(payment)
+    mirrored_business_ids = mirror_synced_payments_for(payment).map { |entry| entry.debt&.business_id }
+    business_ids = ([payment.debt.business_id] + mirrored_business_ids).compact.uniq
+
+    local_group = grouped_payments_by_batch_token(payment: payment, business_ids: business_ids)
+    local_group = grouped_payments_by_signature_fallback(payment: payment) if local_group.blank?
+
+    expanded = local_group.flat_map do |entry|
+      [entry] + mirror_synced_payments_for(entry)
+    end
+
+    expanded.uniq(&:id)
+  end
+
+  def grouped_payments_by_batch_token(payment:, business_ids:)
+    token = grouped_batch_token_from_notes(payment.notes)
+    return [] if token.blank?
+
+    DebtPayment.joins(:debt)
+               .where(debts: { business_id: business_ids })
+               .where('debt_payments.notes ILIKE ?', "%[GROUP_BATCH:#{token}]%")
+               .to_a
+  end
+
+  def grouped_payments_by_signature_fallback(payment)
+    grouped_debt_ids = @grouped_debts.map(&:id)
+    return [payment] if grouped_debt_ids.blank?
+
+    signature_scope = DebtPayment.where(debt_id: grouped_debt_ids)
+                                .where(account_id: payment.account_id)
+                                .where(currency: payment.currency)
+                                .where(payment_method: payment.payment_method)
+                                .where(reference: payment.reference)
+                                .where(occurred_at: payment.occurred_at)
+
+    candidates = signature_scope.to_a
+    return [payment] if candidates.blank?
+
+    window_anchor = candidates.find { |entry| linked_account_movements_for_payment(entry).any? } || payment
+    start_window = window_anchor.created_at - 10.seconds
+    end_window = window_anchor.created_at + 10.seconds
+
+    grouped = candidates.select do |entry|
+      entry.created_at >= start_window && entry.created_at <= end_window
+    end
+
+    grouped.presence || [payment]
+  end
+
+  def grouped_batch_token_from_notes(notes)
+    notes.to_s[/\[GROUP_BATCH:([^\]]+)\]/, 1].to_s.strip
+  end
+
+  def append_grouped_batch_note(notes, grouped_batch_token)
+    token = grouped_batch_token.to_s.strip
+    base = notes.to_s.strip
+    return base if token.blank?
+    return base if base.include?("[GROUP_BATCH:#{token}]")
+
+    [base, "[GROUP_BATCH:#{token}]"]
+      .reject(&:blank?)
+      .join(' ')
+      .strip
+  end
+
+  def generated_grouped_payment_batch_token
+    "#{Time.current.to_i}-#{SecureRandom.hex(6)}"
   end
 
   def mirror_synced_payments_for(payment)

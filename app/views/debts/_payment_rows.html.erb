@@ -22,7 +22,7 @@
               group_cliente_id: params[:group_cliente_id],
               only_active: params[:only_active],
               group_token: params[:group_token]
-            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar pago", aria: { label: "Eliminar pago" }, data: { turbo_method: :delete, swal_delete: 'debt_payment', swal_text: (row[:delete_warning] ? 'Este pago pertenece a un turno ya cerrado y se eliminará junto con sus movimientos asociados. Esta acción no se puede deshacer.' : nil) } do %>
+            ), class: "inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100", title: "Eliminar pago", aria: { label: "Eliminar pago" }, data: { turbo_method: :delete, swal_delete: 'debt_payment', swal_text: (row[:delete_warning] ? 'Este pago pertenece a un turno ya cerrado y se eliminará todo su desglose junto con sus movimientos asociados. Esta acción no se puede deshacer.' : 'Se eliminará todo el desglose que corresponde a este pago y sus movimientos asociados. Esta acción no se puede deshacer.') } do %>
           <i data-lucide="trash" class="h-4 w-4"></i>
         <% end %>
       <% else %>
