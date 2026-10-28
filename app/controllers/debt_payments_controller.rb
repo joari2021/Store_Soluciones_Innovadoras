@@ -16,7 +16,10 @@ class DebtPaymentsController < ApplicationController
   end
 
   def destroy
-    payments_to_delete = grouped_payments_for_deletion(@debt_payment)
+    payments_to_delete = normalize_grouped_payment_entries(
+      grouped_payments_for_deletion(@debt_payment),
+      fallback_payment: @debt_payment,
+    )
     payments_for_shift_validation = payments_to_delete.select { |payment| payment.debt.business_id == current_business.id }
     shifts = payments_for_shift_validation.map { |payment| cash_shift_for_payment(payment) }
     closed_shift_present = shifts.compact.any?(&:closed?)
@@ -1187,6 +1190,9 @@ class DebtPaymentsController < ApplicationController
   end
 
   def mirror_synced_payments_for(payment)
+    return [] unless payment.is_a?(DebtPayment)
+    return [] if payment.debt.blank?
+
     business_ids = [payment.debt.business_id, payment.debt.mirror_debt&.business_id].compact.uniq
     return [] if business_ids.empty?
 
