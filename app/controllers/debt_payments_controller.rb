@@ -57,7 +57,8 @@ class DebtPaymentsController < ApplicationController
   rescue StandardError => e
     Rails.logger.error("[DebtPaymentsController#destroy] Error eliminando pago agrupado id=#{@debt_payment&.id}: #{e.class} - #{e.message}")
     Rails.logger.error(e.backtrace.join("\n")) if e.backtrace.present?
-    redirect_to debt_path(@debt, show_return_params), alert: 'Ocurrio un error eliminando el pago agrupado. Intenta nuevamente.'
+    alert_message = "Ocurrio un error eliminando el pago agrupado: #{e.class} - #{e.message}"
+    redirect_to debt_path(@debt, show_return_params), alert: alert_message
   end
 
   def create
