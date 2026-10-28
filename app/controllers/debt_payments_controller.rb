@@ -35,6 +35,7 @@ class DebtPaymentsController < ApplicationController
     end
 
     movements_to_delete = payments_to_delete.flat_map { |payment| linked_account_movements_for_payment(payment) }
+    movements_to_delete += orphan_group_movements_for_deleted_payments(payments_to_delete)
     movements_to_delete = movements_to_delete.uniq { |movement| movement.id }
     commission_expenses_to_delete = payments_to_delete.flat_map { |payment| linked_commission_expenses_for_payment(payment) }
     commission_expenses_to_delete = commission_expenses_to_delete.uniq { |expense| expense.id }
@@ -1098,7 +1099,39 @@ class DebtPaymentsController < ApplicationController
       [entry] + mirror_synced_payments_for(entry)
     end
 
-    expanded.uniq(&:id)
+    normalize_grouped_payment_entries(expanded, fallback_payment: payment)
+  end
+
+  def normalize_grouped_payment_entries(entries, fallback_payment:)
+    raw_entries = Array(entries).compact
+    unexpected_entries = raw_entries.reject { |entry| entry.is_a?(DebtPayment) }
+
+    if unexpected_entries.present?
+      classes = unexpected_entries.map { |entry| entry.class.name }.uniq.join(',')
+      ids = unexpected_entries.filter_map do |entry|
+        next unless entry.is_a?(Hash)
+
+        entry[:id] || entry['id'] || entry[:debt_payment_id] || entry['debt_payment_id']
+      end.join(',')
+
+      Rails.logger.warn("[DebtPaymentsController#grouped_payments_for_deletion] Entradas no DebtPayment detectadas classes=#{classes} ids=#{ids}")
+    end
+
+    ids = raw_entries.filter_map do |entry|
+      case entry
+      when DebtPayment
+        entry.id
+      when Hash
+        entry[:id] || entry['id'] || entry[:debt_payment_id] || entry['debt_payment_id']
+      else
+        entry.respond_to?(:id) ? entry.id : nil
+      end
+    end.map(&:to_i).select(&:positive?).uniq
+
+    ids << fallback_payment.id if fallback_payment&.id.present?
+
+    payments = DebtPayment.includes(:debt).where(id: ids.uniq).to_a
+    payments.presence || [fallback_payment].compact
   end
 
   def grouped_payments_by_batch_token(payment:, business_ids:)
@@ -1167,6 +1200,40 @@ class DebtPaymentsController < ApplicationController
                             .to_a
 
     (referenced_payments + mirrored_from_current).uniq(&:id)
+  end
+
+  def orphan_group_movements_for_deleted_payments(payments)
+    return [] if payments.blank?
+
+    business_ids = payments.map { |entry| entry.debt&.business_id }.compact.uniq
+    return [] unless business_ids.size == 1
+
+    account_ids = payments.map(&:account_id).compact.uniq
+    return [] if account_ids.blank?
+
+    created_at_values = payments.map(&:created_at).compact
+    return [] if created_at_values.blank?
+
+    window_start = created_at_values.min - 2.minutes
+    window_end = created_at_values.max + 2.minutes
+
+    candidates = account_movements_scope_for_business(business_ids.first)
+                 .where(account_id: account_ids)
+                 .where(created_at: window_start..window_end)
+                 .where("description ~ ?", "\\[DP:\\d+\\]")
+                 .to_a
+
+    referenced_payment_ids = candidates.filter_map do |movement|
+      movement.description.to_s[/\[DP:(\d+)\]/, 1].to_i
+    end.select(&:positive?).uniq
+    return [] if referenced_payment_ids.blank?
+
+    existing_payment_ids = DebtPayment.where(id: referenced_payment_ids).pluck(:id)
+
+    candidates.select do |movement|
+      payment_id = movement.description.to_s[/\[DP:(\d+)\]/, 1].to_i
+      payment_id.positive? && !existing_payment_ids.include?(payment_id)
+    end
   end
 
   def business_account_movements_scope
