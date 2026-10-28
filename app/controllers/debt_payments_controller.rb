@@ -1112,7 +1112,7 @@ class DebtPaymentsController < ApplicationController
   end
 
   def grouped_payments_by_signature_fallback(payment)
-    grouped_debt_ids = @grouped_debts.map(&:id)
+    grouped_debt_ids = debts_in_same_group(payment.debt).map(&:id)
     return [payment] if grouped_debt_ids.blank?
 
     signature_scope = DebtPayment.where(debt_id: grouped_debt_ids)
@@ -1122,16 +1122,13 @@ class DebtPaymentsController < ApplicationController
                                 .where(reference: payment.reference)
                                 .where(occurred_at: payment.occurred_at)
 
-    candidates = signature_scope.to_a
+    creation_window = 20.seconds
+    candidates = signature_scope
+                 .where(created_at: (payment.created_at - creation_window)..(payment.created_at + creation_window))
+                 .to_a
     return [payment] if candidates.blank?
 
-    window_anchor = candidates.find { |entry| linked_account_movements_for_payment(entry).any? } || payment
-    start_window = window_anchor.created_at - 10.seconds
-    end_window = window_anchor.created_at + 10.seconds
-
-    grouped = candidates.select do |entry|
-      entry.created_at >= start_window && entry.created_at <= end_window
-    end
+    grouped = (candidates + [payment]).uniq(&:id)
 
     grouped.presence || [payment]
   end
