@@ -16,9 +16,15 @@ class DebtPaymentsController < ApplicationController
   end
 
   def destroy
+    base_payment = coerce_debt_payment_record(@debt_payment) || coerce_debt_payment_record(params[:id])
+    if base_payment.blank?
+      redirect_to debt_path(@debt, show_return_params), alert: 'No se encontró el pago a eliminar.'
+      return
+    end
+
     payments_to_delete = normalize_grouped_payment_entries(
-      grouped_payments_for_deletion(@debt_payment),
-      fallback_payment: @debt_payment,
+      grouped_payments_for_deletion(base_payment),
+      fallback_payment: base_payment,
     )
     payments_for_shift_validation = payments_to_delete.select { |payment| payment.debt.business_id == current_business.id }
     shifts = payments_for_shift_validation.map { |payment| cash_shift_for_payment(payment) }
@@ -1090,7 +1096,8 @@ class DebtPaymentsController < ApplicationController
   end
 
   def grouped_payments_for_deletion(payment)
-    return [payment].compact if payment.blank?
+    payment = coerce_debt_payment_record(payment)
+    return [] if payment.blank?
 
     grouped_ids = [payment.id]
 
@@ -1139,6 +1146,22 @@ class DebtPaymentsController < ApplicationController
 
     payments = DebtPayment.includes(:debt).where(id: grouped_ids.uniq).to_a
     payments.presence || [payment]
+  end
+
+  def coerce_debt_payment_record(entry)
+    return entry if entry.is_a?(DebtPayment)
+
+    candidate_id = case entry
+                   when Hash
+                     entry[:id] || entry['id'] || entry[:debt_payment_id] || entry['debt_payment_id']
+                   else
+                     entry.respond_to?(:id) ? entry.id : entry
+                   end
+
+    numeric_id = candidate_id.to_i
+    return nil unless numeric_id.positive?
+
+    DebtPayment.includes(:debt).find_by(id: numeric_id)
   end
 
   def normalize_grouped_payment_entries(entries, fallback_payment:)
