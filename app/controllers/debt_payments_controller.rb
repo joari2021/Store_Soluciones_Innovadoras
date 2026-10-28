@@ -1092,22 +1092,53 @@ class DebtPaymentsController < ApplicationController
   def grouped_payments_for_deletion(payment)
     return [payment].compact if payment.blank?
 
-    mirrored_seed = normalize_grouped_payment_entries(
-      mirror_synced_payments_for(payment),
-      fallback_payment: nil,
-    )
-    mirrored_business_ids = mirrored_seed.filter_map { |entry| entry.debt&.business_id }
-    business_ids = ([payment.debt.business_id] + mirrored_business_ids).compact.uniq
+    grouped_ids = [payment.id]
 
-    local_group = grouped_payments_by_batch_token(payment: payment, business_ids: business_ids)
-    local_group = grouped_payments_by_signature_fallback(payment: payment) if local_group.blank?
-    local_group = normalize_grouped_payment_entries(local_group, fallback_payment: payment)
-
-    expanded = local_group.compact.flat_map do |entry|
-      [entry] + mirror_synced_payments_for(entry)
+    token = grouped_batch_token_from_notes(payment.notes)
+    if token.present?
+      token_business_ids = [payment.debt&.business_id, payment.debt&.mirror_debt&.business_id].compact.uniq
+      if token_business_ids.present?
+        grouped_ids |= DebtPayment.joins(:debt)
+                                .where(debts: { business_id: token_business_ids })
+                                .where('debt_payments.notes ILIKE ?', "%[GROUP_BATCH:#{token}]%")
+                                .pluck(:id)
+      end
     end
 
-    normalize_grouped_payment_entries(expanded, fallback_payment: payment)
+    if grouped_ids.size == 1
+      grouped_ids |= grouped_payments_by_signature_fallback(payment: payment).filter_map(&:id)
+    end
+
+    # Expandimos espejos por ids para evitar depender de objetos intermedios.
+    queue_ids = grouped_ids.dup
+    index = 0
+    while index < queue_ids.size
+      current_id = queue_ids[index]
+      index += 1
+
+      current_payment = DebtPayment.includes(:debt).find_by(id: current_id)
+      next if current_payment.blank? || current_payment.debt.blank?
+
+      mirror_business_ids = [current_payment.debt.business_id, current_payment.debt.mirror_debt&.business_id].compact.uniq
+      next if mirror_business_ids.empty?
+
+      scope = DebtPayment.joins(:debt).where(debts: { business_id: mirror_business_ids })
+
+      referenced_id = current_payment.notes.to_s[/\[MIRROR_FROM_DP:(\d+)\]/, 1].to_i
+      referenced_ids = referenced_id.positive? ? [referenced_id] : []
+      mirrored_from_current_ids = scope.where('debt_payments.notes ILIKE ?', "%[MIRROR_FROM_DP:#{current_payment.id}]%").pluck(:id)
+
+      new_ids = (referenced_ids + mirrored_from_current_ids).map(&:to_i).select(&:positive?).uniq
+      new_ids.each do |candidate_id|
+        next if grouped_ids.include?(candidate_id)
+
+        grouped_ids << candidate_id
+        queue_ids << candidate_id
+      end
+    end
+
+    payments = DebtPayment.includes(:debt).where(id: grouped_ids.uniq).to_a
+    payments.presence || [payment]
   end
 
   def normalize_grouped_payment_entries(entries, fallback_payment:)
