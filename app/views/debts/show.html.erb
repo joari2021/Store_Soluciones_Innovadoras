@@ -1617,6 +1617,80 @@
                   });
                 });
 
+                root.addEventListener("click", (event) => {
+                  const statsButton = event.target.closest("[data-cashea-week-stats-open='true']");
+                  if (!statsButton) return;
+
+                  event.preventDefault();
+
+                  const parseAmount = (value) => {
+                    const amount = Number.parseFloat(String(value || "0"));
+                    return Number.isFinite(amount) ? amount : 0;
+                  };
+
+                  const formatUsd = (amount) => `$ ${Number(amount || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+                  const weekLabel = String(statsButton.dataset.casheaWeekLabel || "").trim();
+                  const totalVentasCotidiana = parseAmount(statsButton.dataset.totalVentasCotidiana);
+                  const totalVentasPrincipal = parseAmount(statsButton.dataset.totalVentasPrincipal);
+                  const servicioTecnologico = parseAmount(statsButton.dataset.servicioTecnologico);
+                  const totalFinanciadoCotidiana = parseAmount(statsButton.dataset.totalFinanciadoCotidiana);
+                  const totalFinanciadoPrincipal = parseAmount(statsButton.dataset.totalFinanciadoPrincipal);
+                  const comisionFinanciamiento = parseAmount(statsButton.dataset.comisionFinanciamiento);
+
+                  if (window.Swal) {
+                    window.Swal.fire({
+                      title: `Datos Estadisticos de Cashea${weekLabel ? ` · Semana ${weekLabel}` : ""}`,
+                      html: `
+                        <div class="overflow-x-auto text-left">
+                          <table class="min-w-full text-sm text-slate-700">
+                            <tbody>
+                              <tr class="border-b border-slate-200">
+                                <td class="py-2 pr-4 font-semibold">Total ventas linea cotidiana</td>
+                                <td class="py-2 text-right">${formatUsd(totalVentasCotidiana)}</td>
+                              </tr>
+                              <tr class="border-b border-slate-200">
+                                <td class="py-2 pr-4 font-semibold">Total ventas linea principal</td>
+                                <td class="py-2 text-right">${formatUsd(totalVentasPrincipal)}</td>
+                              </tr>
+                              <tr class="border-b border-slate-200">
+                                <td class="py-2 pr-4 font-semibold">Servicio tecnologico</td>
+                                <td class="py-2 text-right">${formatUsd(servicioTecnologico)}</td>
+                              </tr>
+                              <tr class="border-b border-slate-200">
+                                <td class="py-2 pr-4 font-semibold">Total financiado linea cotidiana</td>
+                                <td class="py-2 text-right">${formatUsd(totalFinanciadoCotidiana)}</td>
+                              </tr>
+                              <tr class="border-b border-slate-200">
+                                <td class="py-2 pr-4 font-semibold">Total financiado linea principal</td>
+                                <td class="py-2 text-right">${formatUsd(totalFinanciadoPrincipal)}</td>
+                              </tr>
+                              <tr>
+                                <td class="py-2 pr-4 font-semibold">Comision de financiamiento</td>
+                                <td class="py-2 text-right">${formatUsd(comisionFinanciamiento)}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      `,
+                      confirmButtonText: "Cerrar",
+                      width: 700,
+                      heightAuto: false,
+                      scrollbarPadding: false,
+                    });
+                  } else {
+                    window.alert([
+                      `Semana: ${weekLabel || "N/A"}`,
+                      `Total ventas linea cotidiana: ${formatUsd(totalVentasCotidiana)}`,
+                      `Total ventas linea principal: ${formatUsd(totalVentasPrincipal)}`,
+                      `Servicio tecnologico: ${formatUsd(servicioTecnologico)}`,
+                      `Total financiado linea cotidiana: ${formatUsd(totalFinanciadoCotidiana)}`,
+                      `Total financiado linea principal: ${formatUsd(totalFinanciadoPrincipal)}`,
+                      `Comision de financiamiento: ${formatUsd(comisionFinanciamiento)}`,
+                    ].join("\n"));
+                  }
+                });
+
                 root.addEventListener("click", async (event) => {
                   const loadWeekButton = event.target.closest("[data-cashea-load-week='true']");
                   if (!loadWeekButton) return;

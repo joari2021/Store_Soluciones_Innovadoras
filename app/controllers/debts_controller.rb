@@ -2463,16 +2463,18 @@ class DebtsController < ApplicationController
       [-issued_on.jd, -created_at.to_i, -debt.id.to_i]
     end
 
-    sale_totals_by_id = {}
+    sale_stats_by_id = {}
     if weekly_summary_enabled
       sale_ids = debts_for_rows.filter_map { |debt| debt_source_sale_id_for_summary(debt) }.uniq
-      sale_totals_by_id = sales_total_usd_bcv_by_id(sale_ids)
+      sale_stats_by_id = sales_stats_usd_bcv_by_id(sale_ids)
     end
 
     debts_for_rows.map do |debt|
       loan_movement = original_loan_account_movement_for_debt(debt)
       loan_account = loan_movement&.account
       source_sale_id = debt_source_sale_id_for_summary(debt)
+      source_sale_stats = sale_stats_by_id[source_sale_id] || {}
+      source_sale_line = cashea_line_for_debt_and_sale(debt: debt, sale_line: source_sale_stats[:cashea_line])
       allocation = if group_is_usdt
                      effective_native_allocations.fetch(debt.id)
                    else
@@ -2495,7 +2497,9 @@ class DebtsController < ApplicationController
         paid_usd_bcv: paid_for_row,
         balance_usd_bcv: balance_for_row,
         source_sale_id: source_sale_id,
-        source_sale_total_usd_bcv: sale_totals_by_id[source_sale_id].to_d,
+        source_sale_total_usd_bcv: source_sale_stats[:total_usd].to_d,
+        source_sale_total_with_commission_usd_bcv: source_sale_stats[:total_with_commission_usd].to_d,
+        source_sale_line: source_sale_line,
         status: row_status,
         loan_enabled: loan_movement.present?,
         loan_account_id: loan_movement&.account_id,
@@ -2518,7 +2522,7 @@ class DebtsController < ApplicationController
     match[1].to_i
   end
 
-  def sales_total_usd_bcv_by_id(sale_ids)
+  def sales_stats_usd_bcv_by_id(sale_ids)
     return {} if sale_ids.blank?
 
     current_business.ventas.where(id: sale_ids).each_with_object({}) do |sale, hash|
@@ -2530,8 +2534,40 @@ class DebtsController < ApplicationController
         total_usd = tasa.positive? ? (total_bs / tasa).round(2) : 0.to_d
       end
 
-      hash[sale.id] = total_usd.round(2)
+      cashea_payload = sale.notes_payload['cashea_sale']
+      sale_line = if cashea_payload.is_a?(Hash) && cashea_payload['enabled']
+                    normalized = cashea_payload['selected_line'].to_s.strip.downcase
+                    %w[cotidiana principal].include?(normalized) ? normalized : nil
+                  end
+
+      total_with_commission_usd = if cashea_payload.is_a?(Hash)
+                                    cashea_payload['total_with_commission_usd'].to_d
+                                  else
+                                    0.to_d
+                                  end
+
+      if sale_line == 'principal' && total_with_commission_usd <= 0
+        total_with_commission_usd = (total_usd * 1.05).round(2)
+      end
+      total_with_commission_usd = total_usd if total_with_commission_usd <= 0
+
+      hash[sale.id] = {
+        total_usd: total_usd.round(2),
+        total_with_commission_usd: total_with_commission_usd.round(2),
+        cashea_line: sale_line,
+      }
     end
+  end
+
+  def cashea_line_for_debt_and_sale(debt:, sale_line: nil)
+    normalized_sale_line = sale_line.to_s.strip.downcase
+    return normalized_sale_line if %w[cotidiana principal].include?(normalized_sale_line)
+
+    description = debt.description.to_s.downcase
+    return 'principal' if description.include?('linea principal')
+    return 'cotidiana' if description.include?('linea cotidiana')
+
+    nil
   end
 
   def group_overpayment_totals(payments, total_usd_amount:)
