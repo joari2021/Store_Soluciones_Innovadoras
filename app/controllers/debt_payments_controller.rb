@@ -1092,11 +1092,16 @@ class DebtPaymentsController < ApplicationController
   def grouped_payments_for_deletion(payment)
     return [payment].compact if payment.blank?
 
-    mirrored_business_ids = mirror_synced_payments_for(payment).map { |entry| entry.debt&.business_id }
+    mirrored_seed = normalize_grouped_payment_entries(
+      mirror_synced_payments_for(payment),
+      fallback_payment: nil,
+    )
+    mirrored_business_ids = mirrored_seed.filter_map { |entry| entry.debt&.business_id }
     business_ids = ([payment.debt.business_id] + mirrored_business_ids).compact.uniq
 
     local_group = grouped_payments_by_batch_token(payment: payment, business_ids: business_ids)
     local_group = grouped_payments_by_signature_fallback(payment: payment) if local_group.blank?
+    local_group = normalize_grouped_payment_entries(local_group, fallback_payment: payment)
 
     expanded = local_group.compact.flat_map do |entry|
       [entry] + mirror_synced_payments_for(entry)
