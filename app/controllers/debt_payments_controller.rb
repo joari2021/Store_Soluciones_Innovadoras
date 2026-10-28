@@ -52,8 +52,12 @@ class DebtPaymentsController < ApplicationController
              end
     notice = "#{notice} El pago pertenecía a un turno cerrado." if closed_shift_present
     redirect_to debt_path(@debt, show_return_params), notice: notice
-  rescue ActiveRecord::RecordInvalid => e
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
     redirect_to debt_path(@debt, show_return_params), alert: e.message
+  rescue StandardError => e
+    Rails.logger.error("[DebtPaymentsController#destroy] Error eliminando pago agrupado id=#{@debt_payment&.id}: #{e.class} - #{e.message}")
+    Rails.logger.error(e.backtrace.join("\n")) if e.backtrace.present?
+    redirect_to debt_path(@debt, show_return_params), alert: 'Ocurrio un error eliminando el pago agrupado. Intenta nuevamente.'
   end
 
   def create
@@ -1081,13 +1085,15 @@ class DebtPaymentsController < ApplicationController
   end
 
   def grouped_payments_for_deletion(payment)
+    return [payment].compact if payment.blank?
+
     mirrored_business_ids = mirror_synced_payments_for(payment).map { |entry| entry.debt&.business_id }
     business_ids = ([payment.debt.business_id] + mirrored_business_ids).compact.uniq
 
     local_group = grouped_payments_by_batch_token(payment: payment, business_ids: business_ids)
     local_group = grouped_payments_by_signature_fallback(payment: payment) if local_group.blank?
 
-    expanded = local_group.flat_map do |entry|
+    expanded = local_group.compact.flat_map do |entry|
       [entry] + mirror_synced_payments_for(entry)
     end
 
