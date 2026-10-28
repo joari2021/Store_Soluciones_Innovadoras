@@ -1637,6 +1637,7 @@
                   const totalFinanciadoCotidiana = parseAmount(statsButton.dataset.totalFinanciadoCotidiana);
                   const totalFinanciadoPrincipal = parseAmount(statsButton.dataset.totalFinanciadoPrincipal);
                   const comisionFinanciamiento = parseAmount(statsButton.dataset.comisionFinanciamiento);
+                  const totalPagarCashea = servicioTecnologico + comisionFinanciamiento;
 
                   if (window.Swal) {
                     window.Swal.fire({
@@ -1653,9 +1654,12 @@
                                 <td class="py-2 pr-4 font-semibold">Total ventas linea principal</td>
                                 <td class="py-2 text-right">${formatUsd(totalVentasPrincipal)}</td>
                               </tr>
-                              <tr class="border-b border-slate-200">
-                                <td class="py-2 pr-4 font-semibold">Servicio tecnologico</td>
-                                <td class="py-2 text-right">${formatUsd(servicioTecnologico)}</td>
+                              <tr>
+                                <td colspan="2" class="py-1"></td>
+                              </tr>
+                              <tr class="border border-amber-200 bg-amber-50">
+                                <td class="py-2 pr-4 font-bold text-amber-800">Servicio tecnologico</td>
+                                <td class="py-2 text-right font-bold text-amber-800">${formatUsd(servicioTecnologico)}</td>
                               </tr>
                               <tr class="border-b border-slate-200">
                                 <td class="py-2 pr-4 font-semibold">Total financiado linea cotidiana</td>
@@ -1666,8 +1670,18 @@
                                 <td class="py-2 text-right">${formatUsd(totalFinanciadoPrincipal)}</td>
                               </tr>
                               <tr>
-                                <td class="py-2 pr-4 font-semibold">Comision de financiamiento</td>
-                                <td class="py-2 text-right">${formatUsd(comisionFinanciamiento)}</td>
+                                <td colspan="2" class="py-1"></td>
+                              </tr>
+                              <tr class="border border-sky-200 bg-sky-50">
+                                <td class="py-2 pr-4 font-bold text-sky-800">Comision de financiamiento</td>
+                                <td class="py-2 text-right font-bold text-sky-800">${formatUsd(comisionFinanciamiento)}</td>
+                              </tr>
+                              <tr>
+                                <td colspan="2" class="py-1"></td>
+                              </tr>
+                              <tr class="border border-emerald-300 bg-emerald-100">
+                                <td class="py-2 pr-4 font-extrabold text-emerald-900">Total a pagar a Cashea</td>
+                                <td class="py-2 text-right font-extrabold text-emerald-900">${formatUsd(totalPagarCashea)}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -1687,6 +1701,7 @@
                       `Total financiado linea cotidiana: ${formatUsd(totalFinanciadoCotidiana)}`,
                       `Total financiado linea principal: ${formatUsd(totalFinanciadoPrincipal)}`,
                       `Comision de financiamiento: ${formatUsd(comisionFinanciamiento)}`,
+                      `Total a pagar a Cashea: ${formatUsd(totalPagarCashea)}`,
                     ].join("\n"));
                   }
                 });
