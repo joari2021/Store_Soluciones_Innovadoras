@@ -26,7 +26,18 @@ class DebtPaymentsController < ApplicationController
       grouped_payments_for_deletion(base_payment),
       fallback_payment: base_payment,
     )
-    payments_for_shift_validation = payments_to_delete.select { |payment| payment.debt.business_id == current_business.id }
+    payments_to_delete = payments_to_delete
+                         .filter_map { |entry| coerce_debt_payment_record(entry) }
+                         .uniq(&:id)
+
+    if payments_to_delete.blank?
+      redirect_to debt_path(@debt, show_return_params), alert: 'No se encontró el pago a eliminar.'
+      return
+    end
+
+    payments_for_shift_validation = payments_to_delete.select do |payment|
+      payment.debt.present? && payment.debt.business_id == current_business.id
+    end
     shifts = payments_for_shift_validation.map { |payment| cash_shift_for_payment(payment) }
     closed_shift_present = shifts.compact.any?(&:closed?)
     unknown_shift_present = shifts.any?(&:nil?)
@@ -1083,6 +1094,9 @@ class DebtPaymentsController < ApplicationController
   end
 
   def linked_account_movements_for_payment(payment)
+    payment = coerce_debt_payment_record(payment)
+    return [] if payment.blank? || payment.debt.blank?
+
     account_movements_scope_for_business(payment.debt.business_id)
       .where(account_id: payment.account_id)
       .where('description ILIKE ?', "%[DP:#{payment.id}]%")
@@ -1090,6 +1104,9 @@ class DebtPaymentsController < ApplicationController
   end
 
   def linked_commission_expenses_for_payment(payment)
+    payment = coerce_debt_payment_record(payment)
+    return [] if payment.blank? || payment.debt.blank?
+
     Expense.where(business_id: payment.debt.business_id)
            .where('description LIKE ?', "%[DP:#{payment.id}]%")
            .to_a
@@ -1268,15 +1285,16 @@ class DebtPaymentsController < ApplicationController
   end
 
   def orphan_group_movements_for_deleted_payments(payments)
-    return [] if payments.blank?
+    normalized_payments = Array(payments).filter_map { |entry| coerce_debt_payment_record(entry) }
+    return [] if normalized_payments.blank?
 
-    business_ids = payments.map { |entry| entry.debt&.business_id }.compact.uniq
+    business_ids = normalized_payments.map { |entry| entry.debt&.business_id }.compact.uniq
     return [] unless business_ids.size == 1
 
-    account_ids = payments.map(&:account_id).compact.uniq
+    account_ids = normalized_payments.map(&:account_id).compact.uniq
     return [] if account_ids.blank?
 
-    created_at_values = payments.map(&:created_at).compact
+    created_at_values = normalized_payments.map(&:created_at).compact
     return [] if created_at_values.blank?
 
     window_start = created_at_values.min - 2.minutes
