@@ -1223,7 +1223,10 @@ class DebtPaymentsController < ApplicationController
                .to_a
   end
 
-  def grouped_payments_by_signature_fallback(payment)
+  def grouped_payments_by_signature_fallback(payment:)
+    payment = coerce_debt_payment_record(payment)
+    return [] if payment.blank?
+
     grouped_debt_ids = debts_in_same_group(payment.debt).map(&:id)
     return [payment] if grouped_debt_ids.blank?
 
