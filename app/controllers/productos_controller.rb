@@ -138,10 +138,18 @@ class ProductosController < ApplicationController
     end_date = Time.current.in_time_zone('America/Caracas').to_date - 1.day
     start_date = end_date - 27.days
 
+    intercompany_sale_ids = current_business
+                .debts
+                .where(debt_kind: 'receivable')
+                .where.not(venta_id: nil)
+                .where('debts.description LIKE ?', '%[IC_MIRROR]%')
+                .select(:venta_id)
+
     raw_daily_totals = VentaItem
                        .joins(:venta)
                        .where(producto_id: producto.id)
                        .where(ventas: { business_id: current_business.id, status: 'paid' })
+               .where.not(ventas: { id: intercompany_sale_ids })
                        .where('DATE(ventas.created_at) BETWEEN ? AND ?', start_date, end_date)
                        .group('DATE(ventas.created_at)')
                        .sum(:quantity)
