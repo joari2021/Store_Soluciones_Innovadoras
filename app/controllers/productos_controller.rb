@@ -135,7 +135,7 @@ class ProductosController < ApplicationController
   def sales_stats
     producto = current_business.productos.find(params[:id])
 
-    end_date = Time.current.in_time_zone('America/Caracas').to_date
+    end_date = Time.current.in_time_zone('America/Caracas').to_date - 1.day
     start_date = end_date - 27.days
 
     raw_daily_totals = VentaItem
