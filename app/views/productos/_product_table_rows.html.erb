@@ -147,7 +147,19 @@
         <%= image_tag 'default_image.jpeg', class: 'h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 object-cover', alt: 'Imagen por defecto', loading: 'lazy', decoding: 'async' %>
       <% end %>
       <div class="min-w-0">
-        <p class="truncate text-sm font-semibold text-slate-800"><%= producto.display_name_with_presentation %></p>
+        <div class="flex items-center gap-2">
+          <p class="truncate text-sm font-semibold text-slate-800"><%= producto.display_name_with_presentation %></p>
+          <button
+            type="button"
+            class="js-product-sales-stats inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-cyan-200 bg-cyan-50 text-cyan-700 transition-colors hover:bg-cyan-100"
+            data-product-sales-stats-url="<%= sales_stats_producto_path(producto, format: :json) %>"
+            data-product-name="<%= producto.display_name_with_presentation %>"
+            title="Ver estadísticas de ventas"
+            aria-label="Ver estadísticas de ventas"
+          >
+            <i data-lucide="bar-chart-3" class="h-4 w-4"></i>
+          </button>
+        </div>
         <p class="mt-0.5 text-xs text-slate-500"><%= variations.size == 1 ? '1 variacion' : "#{variations.size} variaciones" %></p>
       </div>
     </div>

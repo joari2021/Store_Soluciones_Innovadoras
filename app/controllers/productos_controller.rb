@@ -132,6 +132,50 @@ class ProductosController < ApplicationController
     render json: paginated_productos_payload if request.format.json?
   end
 
+  def sales_stats
+    producto = current_business.productos.find(params[:id])
+
+    end_date = Time.current.in_time_zone('America/Caracas').to_date
+    start_date = end_date - 27.days
+
+    raw_daily_totals = VentaItem
+                       .joins(:venta)
+                       .where(producto_id: producto.id)
+                       .where(ventas: { business_id: current_business.id, status: 'paid' })
+                       .where('DATE(ventas.created_at) BETWEEN ? AND ?', start_date, end_date)
+                       .group('DATE(ventas.created_at)')
+                       .sum(:quantity)
+
+    daily_totals = raw_daily_totals.each_with_object({}) do |(key, value), memo|
+      memo[key.to_date] = value.to_d
+    end
+
+    weekly_segments = 4.times.map do |index|
+      segment_start = start_date + (index * 7).days
+      segment_end = segment_start + 6.days
+      total_quantity = (segment_start..segment_end).sum { |date| daily_totals[date].to_d }
+
+      {
+        index: index + 1,
+        label: "#{segment_start.strftime('%d/%m')} - #{segment_end.strftime('%d/%m')}",
+        start_on: segment_start,
+        end_on: segment_end,
+        total_quantity: total_quantity.round(3).to_f,
+      }
+    end
+
+    weekly_average = (weekly_segments.sum { |segment| segment[:total_quantity].to_d } / 4.to_d).round(3)
+
+    render json: {
+      product_id: producto.id,
+      product_name: producto.display_name_with_presentation,
+      range_start: start_date,
+      range_end: end_date,
+      weeks: weekly_segments,
+      weekly_average_quantity: weekly_average.to_f,
+    }
+  end
+
   def catalogo
     @catalog_businesses = Business.order(:name)
 

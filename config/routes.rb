@@ -20,6 +20,10 @@ Rails.application.routes.draw do
   resources :header_notifications, only: %i[destroy]
 
   resources :productos do
+    member do
+      get :sales_stats, path: "estadisticas-ventas"
+    end
+
     collection do
       get :catalogo
       get :import_from_global, path: "importar-desde-global"
