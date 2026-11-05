@@ -171,9 +171,11 @@
           }
         };
 
-        const openShift = async () => {
-          const balancesConfirmed = await requestOpeningBalancesConfirmation();
-          if (!balancesConfirmed) return;
+        const openShift = async ({ allowWithoutBcvUpdate = false, skipInitialConfirmation = false, skipBalancesConfirmation = false } = {}) => {
+          if (!skipBalancesConfirmation) {
+            const balancesConfirmed = await requestOpeningBalancesConfirmation();
+            if (!balancesConfirmed) return;
+          }
 
           const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
           if (!csrfToken) {
@@ -188,10 +190,26 @@
             return;
           }
 
-          if (window.Swal) {
+          if (!skipInitialConfirmation) {
+            if (window.Swal) {
+              window.Swal.fire({
+                title: 'Actualizando tasas BCV',
+                html: '<p class="text-sm text-slate-600">Espere un momento, se estan actualizando las tasas.</p>',
+                allowOutsideClick: false,
+                allowEscapeKey: false,
+                showConfirmButton: false,
+                heightAuto: false,
+                didOpen: () => {
+                  window.Swal.showLoading();
+                },
+              });
+            } else if (!window.confirm('Se actualizaran las tasas BCV y luego se abrira el turno. Deseas continuar?')) {
+              return;
+            }
+          } else if (window.Swal) {
             window.Swal.fire({
-              title: 'Actualizando tasas BCV',
-              html: '<p class="text-sm text-slate-600">Espere un momento, se estan actualizando las tasas.</p>',
+              title: 'Abriendo turno',
+              html: '<p class="text-sm text-slate-600">Abriendo turno sin actualizar tasas BCV por confirmacion del administrador.</p>',
               allowOutsideClick: false,
               allowEscapeKey: false,
               showConfirmButton: false,
@@ -200,8 +218,6 @@
                 window.Swal.showLoading();
               },
             });
-          } else if (!window.confirm('Se actualizaran las tasas BCV y luego se abrira el turno. Deseas continuar?')) {
-            return;
           }
 
           try {
@@ -213,7 +229,7 @@
                 'X-CSRF-Token': csrfToken,
               },
               credentials: 'same-origin',
-              body: JSON.stringify({}),
+              body: JSON.stringify({ allow_without_bcv_update: allowWithoutBcvUpdate }),
             });
 
             const data = await response.json().catch(() => ({}));
@@ -222,6 +238,8 @@
 
             if (!response.ok || !data.success) {
               const existingOpenShift = /ya existe un turno abierto/i.test(String(data.error || ''));
+              const bcvUpdateFailed = /no se pudo actualizar correctamente alguna tasa bcv/i.test(String(data.error || ''));
+              const serverAllowsBypass = data.allow_without_bcv_update === true;
               if (existingOpenShift) {
                 if (window.Swal) {
                   const existingResult = await window.Swal.fire({
@@ -260,13 +278,43 @@
                 return;
               }
 
+              if (bcvUpdateFailed && serverAllowsBypass && !allowWithoutBcvUpdate) {
+                if (window.Swal) {
+                  const bypassResult = await window.Swal.fire({
+                    icon: 'warning',
+                    title: 'No se pudo actualizar la tasa BCV',
+                    html: '<p class="text-sm text-slate-600">Desea abrir el turno aunque no se pudo actualizar la tasa?</p>',
+                    showCancelButton: true,
+                    confirmButtonText: 'Si',
+                    cancelButtonText: 'No',
+                    heightAuto: false,
+                  });
+
+                  if (bypassResult.isConfirmed) {
+                    await openShift({ allowWithoutBcvUpdate: true, skipInitialConfirmation: true, skipBalancesConfirmation: true });
+                  }
+                  return;
+                }
+
+                if (window.confirm('No se pudo actualizar la tasa BCV. Desea abrir el turno aunque no se pudo actualizar la tasa?')) {
+                  await openShift({ allowWithoutBcvUpdate: true, skipInitialConfirmation: true, skipBalancesConfirmation: true });
+                }
+                return;
+              }
+
               throw new Error(String(data.error || 'No se pudo actualizar correctamente alguna tasa BCV. Intente de nuevo o comuniquese con el administrador.'));
             }
 
             const scraperStatus = String(data.scraper_status || '').trim();
-            const resultText = scraperStatus === 'up_to_date'
-              ? 'Las tasas ya estan actualizadas y el turno se abrio correctamente.'
-              : 'Las tasas han sido actualizadas y el turno se abrio correctamente.';
+            const resultText = (() => {
+              if (scraperStatus === 'up_to_date') {
+                return 'Las tasas ya estan actualizadas y el turno se abrio correctamente.';
+              }
+              if (scraperStatus === 'skipped_by_admin') {
+                return 'El turno se abrio sin actualizar las tasas BCV por confirmacion del administrador.';
+              }
+              return 'Las tasas han sido actualizadas y el turno se abrio correctamente.';
+            })();
             const ratesHtml = buildRatesHtml(data.rates_snapshot);
 
             if (window.Swal) {
