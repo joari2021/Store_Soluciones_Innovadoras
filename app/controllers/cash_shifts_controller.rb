@@ -83,12 +83,23 @@ class CashShiftsController < ApplicationController
              end
     end
 
-    scraper_result = BcvScraperService.call
-    unless bcv_scrape_successful?(scraper_result)
-      error_message = "No se pudo actualizar correctamente alguna tasa BCV. Intente de nuevo o comuniquese con el administrador."
-      return respond_to do |format|
+    open_without_bcv_update = allow_open_without_bcv_update?
+    scraper_result = if open_without_bcv_update
+             { status: :skipped_by_admin }
+    else
+             BcvScraperService.call
+    end
+
+    unless open_without_bcv_update || bcv_scrape_successful?(scraper_result)
+             error_message = "No se pudo actualizar correctamente alguna tasa BCV. Intente de nuevo o comuniquese con el administrador."
+             return respond_to do |format|
                format.html { redirect_to cash_shifts_path, alert: error_message }
-               format.json { render json: { error: error_message }, status: :unprocessable_entity }
+               format.json do
+                 render json: {
+                   error: error_message,
+                   allow_without_bcv_update: current_user_admin?,
+                 }, status: :unprocessable_entity
+               end
              end
     end
 
@@ -102,11 +113,14 @@ class CashShiftsController < ApplicationController
     )
 
     if @cash_shift.save
-      rates_message = if scraper_result[:status].to_sym == :up_to_date
-          "Las tasas ya estan actualizadas."
-        else
-          "Las tasas han sido actualizadas."
-        end
+      rates_message = case scraper_result[:status].to_sym
+      when :up_to_date
+        "Las tasas ya estan actualizadas."
+      when :skipped_by_admin
+        "El turno se abrio sin actualizar las tasas BCV por confirmacion del administrador."
+      else
+        "Las tasas han sido actualizadas."
+      end
 
       success_message = "#{rates_message} El turno se abrio correctamente."
       rates_snapshot = open_shift_rates_snapshot
@@ -1346,5 +1360,11 @@ class CashShiftsController < ApplicationController
     return true if reference_date.blank?
 
     latest_dolar >= reference_date && latest_euro >= reference_date
+  end
+
+  def allow_open_without_bcv_update?
+    return false unless current_user_admin?
+
+    ActiveModel::Type::Boolean.new.cast(params[:allow_without_bcv_update])
   end
 end

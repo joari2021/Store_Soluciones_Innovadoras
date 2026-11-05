@@ -10,6 +10,7 @@ class CashShiftsControllerTest < ActionDispatch::IntegrationTest
 
     @opener_user, @opener_password = create_manager_user!(business: @business, prefix: 'open')
     @other_user, @other_password = create_manager_user!(business: @business, prefix: 'other')
+    @admin_user, @admin_password = create_admin_user!(business: @business, prefix: 'admin')
 
     @cash_shift = @business.cash_shifts.create!(
       opened_by: @opener_user,
@@ -246,6 +247,43 @@ class CashShiftsControllerTest < ActionDispatch::IntegrationTest
 
     payload = JSON.parse(response.body)
     assert_match(/No se pudo actualizar correctamente alguna tasa BCV/i, payload.fetch('error'))
+    assert_equal false, payload.fetch('allow_without_bcv_update')
+  end
+
+  test 'admin can open shift without BCV update when explicitly allowed' do
+    login!(@admin_user, @admin_password)
+    post select_business_path(@business)
+    @cash_shift.update!(status: 'closed', closed_at: Time.current, closed_by: @opener_user)
+
+    assert_difference('CashShift.where(status: "open").count', 1) do
+      with_bcv_scraper_result(nil) do
+        post cash_shifts_path, params: { allow_without_bcv_update: true }, as: :json
+      end
+    end
+
+    assert_response :success
+
+    payload = JSON.parse(response.body)
+    assert payload.fetch('success')
+    assert_equal 'skipped_by_admin', payload.fetch('scraper_status')
+    assert_match(/sin actualizar las tasas BCV/i, payload.fetch('message'))
+  end
+
+  test 'manager cannot open shift without BCV update' do
+    login!(@opener_user, @opener_password)
+    @cash_shift.update!(status: 'closed', closed_at: Time.current, closed_by: @opener_user)
+
+    assert_no_difference('CashShift.count') do
+      with_bcv_scraper_result(nil) do
+        post cash_shifts_path, params: { allow_without_bcv_update: true }, as: :json
+      end
+    end
+
+    assert_response :unprocessable_entity
+
+    payload = JSON.parse(response.body)
+    assert_match(/No se pudo actualizar correctamente alguna tasa BCV/i, payload.fetch('error'))
+    assert_equal false, payload.fetch('allow_without_bcv_update')
   end
 
   private
@@ -276,6 +314,23 @@ class CashShiftsControllerTest < ActionDispatch::IntegrationTest
       authorization_level: 'manager',
       active: true,
       full_name: "Usuario #{prefix}"
+    )
+
+    [user, password]
+  end
+
+  def create_admin_user!(business:, prefix:)
+    password = 'ClaveSegura1!'
+    user = User.create!(
+      email: "#{prefix}-#{SecureRandom.hex(4)}@example.com",
+      username: "#{prefix}#{SecureRandom.hex(3)}",
+      password: password,
+      password_confirmation: password,
+      business: business,
+      admin: true,
+      personal: false,
+      active: true,
+      full_name: "Administrador #{prefix}"
     )
 
     [user, password]
