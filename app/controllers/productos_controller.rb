@@ -89,6 +89,7 @@ class ProductosController < ApplicationController
     @low_stock_filter = ActiveModel::Type::Boolean.new.cast(params[:low_stock])
     @below_target_margin_filter = ActiveModel::Type::Boolean.new.cast(params[:below_target_margin])
     @catalog_hidden_filter = ActiveModel::Type::Boolean.new.cast(params[:catalog_hidden])
+    @paired_unpack_units_filter = ActiveModel::Type::Boolean.new.cast(params[:paired_unpack_units])
     @global_supplier_options = global_supplier_filter_options
     @selected_global_supplier_id = parse_global_supplier_filter_id(params[:global_supplier_id])
     @categorias = current_business.categorias.order(nombre: :asc)
@@ -103,7 +104,7 @@ class ProductosController < ApplicationController
                    .order(Arel.sql('LOWER(productos.descripcion) ASC, productos.id ASC'))
 
     @has_productos = current_business.productos.exists?
-    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @catalog_hidden_filter || @selected_categoria_id.present? || @selected_global_supplier_id.present?
+    @filters_applied = @query_text.present? || @low_stock_filter || @below_target_margin_filter || @catalog_hidden_filter || @paired_unpack_units_filter || @selected_categoria_id.present? || @selected_global_supplier_id.present?
 
     filtered_scope = if @query_text.present?
                        base_scope.whose_name_starts_with(@query_text)
@@ -122,6 +123,7 @@ class ProductosController < ApplicationController
 
     filtered_scope = filter_by_low_stock(filtered_scope) if @low_stock_filter
     filtered_scope = filter_by_below_target_margin(filtered_scope) if @below_target_margin_filter
+    filtered_scope = filter_by_paired_unpack_units(filtered_scope) if @paired_unpack_units_filter
 
     @matching_productos_count = filtered_scope.count
     paginated_scope = filtered_scope.includes(:categoria, :profit_margin_preset, :product_variations, stock_lots: [{ stock_lot_variations: :product_variation },
@@ -1461,6 +1463,44 @@ class ProductosController < ApplicationController
     return scope.none if product_ids.empty?
 
     scope.where(id: product_ids)
+  end
+
+  def filter_by_paired_unpack_units(scope)
+    product_ids = paired_unpack_unit_product_ids(scope)
+    return scope.none if product_ids.empty?
+
+    scope.where(id: product_ids)
+  end
+
+  def paired_unpack_unit_product_ids(scope)
+    relation = scope.except(:includes, :preload, :eager_load)
+    rows = relation
+           .where(presentation: [Producto.presentations[:unidad], Producto.presentations[:pack]])
+           .pluck(:id, :descripcion, :presentation, :allow_unpack)
+
+    pack_presentation = Producto.presentations[:pack]
+    unit_presentation = Producto.presentations[:unidad]
+
+    pack_base_names = {}
+    rows.each do |_id, descripcion, presentation, allow_unpack|
+      next unless presentation.to_i == pack_presentation
+      next unless ActiveModel::Type::Boolean.new.cast(allow_unpack)
+
+      base_name = normalize_product_base_description(descripcion)
+      next if base_name.blank?
+
+      pack_base_names[base_name] = true
+    end
+
+    rows.filter_map do |id, descripcion, presentation, _allow_unpack|
+      next unless presentation.to_i == unit_presentation
+
+      base_name = normalize_product_base_description(descripcion)
+      next if base_name.blank?
+      next unless pack_base_names[base_name]
+
+      id
+    end
   end
 
   def calculate_below_target_margin_total_count
