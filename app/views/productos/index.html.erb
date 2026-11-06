@@ -400,6 +400,8 @@
         "[data-products-below-target-margin-input='true']",
       );
       const catalogHiddenInput = scope.querySelector("[data-products-catalog-hidden-input='true']");
+      const pairedUnpackUnitsInput = scope.querySelector("#products_paired_unpack_units");
+      const globalSupplierInput = scope.querySelector("#products_global_supplier_id");
       if (!form) return;
 
       const currentResultsContainer = () =>
@@ -498,6 +500,9 @@
         if (submitButton) submitButton.disabled = loading;
         if (lowStockInput) lowStockInput.disabled = loading;
         if (belowTargetMarginInput) belowTargetMarginInput.disabled = loading;
+        if (catalogHiddenInput) catalogHiddenInput.disabled = loading;
+        if (pairedUnpackUnitsInput) pairedUnpackUnitsInput.disabled = loading;
+        if (globalSupplierInput) globalSupplierInput.disabled = loading;
 
         if (clearLink) {
           clearLink.classList.toggle("pointer-events-none", loading);
@@ -522,11 +527,17 @@
         const queryValue = input ? String(input.value || "").trim() : "";
         const lowStockValue = lowStockInput ? String(lowStockInput.value || "0") === "1" : false;
         const belowTargetValue = belowTargetMarginInput ? String(belowTargetMarginInput.value || "0") === "1" : false;
+        const catalogHiddenValue = catalogHiddenInput ? String(catalogHiddenInput.value || "0") === "1" : false;
+        const pairedUnpackValue = pairedUnpackUnitsInput ? String(pairedUnpackUnitsInput.value || "0") === "1" : false;
+        const globalSupplierValue = globalSupplierInput ? String(globalSupplierInput.value || "").trim() : "";
         const categoryInput = form.querySelector("input[name='category_id']");
 
         root.dataset.productsQueryText = queryValue;
         root.dataset.productsLowStock = lowStockValue ? "true" : "false";
         root.dataset.productsBelowTargetMargin = belowTargetValue ? "true" : "false";
+        root.dataset.productsCatalogHidden = catalogHiddenValue ? "true" : "false";
+        root.dataset.productsPairedUnpackUnits = pairedUnpackValue ? "true" : "false";
+        root.dataset.productsGlobalSupplierId = globalSupplierValue;
         root.dataset.productsCategoryId = String(categoryInput?.value || "").trim();
       };
 
@@ -575,11 +586,17 @@
           const rawQuery = input ? String(input.value || "").trim() : "";
           const rawLowStock = lowStockInput ? String(lowStockInput.value || "0") : "0";
           const rawBelowTarget = belowTargetMarginInput ? String(belowTargetMarginInput.value || "0") : "0";
+          const rawCatalogHidden = catalogHiddenInput ? String(catalogHiddenInput.value || "0") : "0";
+          const rawPairedUnpackUnits = pairedUnpackUnitsInput ? String(pairedUnpackUnitsInput.value || "0") : "0";
+          const rawGlobalSupplierId = globalSupplierInput ? String(globalSupplierInput.value || "").trim() : "";
           const rawCategory = String(form.querySelector("input[name='category_id']")?.value || "").trim();
 
           if (rawQuery) nextUrl.searchParams.set("query_text", rawQuery);
           if (rawLowStock === "1") nextUrl.searchParams.set("low_stock", "1");
           if (rawBelowTarget === "1") nextUrl.searchParams.set("below_target_margin", "1");
+          if (rawCatalogHidden === "1") nextUrl.searchParams.set("catalog_hidden", "1");
+          if (rawPairedUnpackUnits === "1") nextUrl.searchParams.set("paired_unpack_units", "1");
+          if (rawGlobalSupplierId) nextUrl.searchParams.set("global_supplier_id", rawGlobalSupplierId);
           if (rawCategory) nextUrl.searchParams.set("category_id", rawCategory);
 
           window.history.replaceState({}, "", nextUrl.toString());
@@ -625,12 +642,16 @@
           const nextLowStock = targetUrl.searchParams.get("low_stock") === "1" ? "1" : "0";
           const nextBelowTarget = targetUrl.searchParams.get("below_target_margin") === "1" ? "1" : "0";
           const nextCatalogHidden = targetUrl.searchParams.get("catalog_hidden") === "1" ? "1" : "0";
+          const nextPairedUnpackUnits = targetUrl.searchParams.get("paired_unpack_units") === "1" ? "1" : "0";
+          const nextGlobalSupplierId = targetUrl.searchParams.get("global_supplier_id") || "";
           const nextCategoryId = targetUrl.searchParams.get("category_id") || "";
 
           if (input) input.value = nextQuery;
           if (lowStockInput) lowStockInput.value = nextLowStock;
           if (belowTargetMarginInput) belowTargetMarginInput.value = nextBelowTarget;
           if (catalogHiddenInput) catalogHiddenInput.value = nextCatalogHidden;
+          if (pairedUnpackUnitsInput) pairedUnpackUnitsInput.value = nextPairedUnpackUnits;
+          if (globalSupplierInput) globalSupplierInput.value = nextGlobalSupplierId;
           setCategoryValue(nextCategoryId);
           updateCategoryChipState(nextCategoryId);
 
@@ -681,6 +702,20 @@
       if (catalogHiddenInput && catalogHiddenInput.dataset.changeBound !== "true") {
         catalogHiddenInput.dataset.changeBound = "true";
         catalogHiddenInput.addEventListener("change", () => {
+          void submitSearch();
+        });
+      }
+
+      if (pairedUnpackUnitsInput && pairedUnpackUnitsInput.dataset.changeBound !== "true") {
+        pairedUnpackUnitsInput.dataset.changeBound = "true";
+        pairedUnpackUnitsInput.addEventListener("change", () => {
+          void submitSearch();
+        });
+      }
+
+      if (globalSupplierInput && globalSupplierInput.dataset.changeBound !== "true") {
+        globalSupplierInput.dataset.changeBound = "true";
+        globalSupplierInput.addEventListener("change", () => {
           void submitSearch();
         });
       }
@@ -920,6 +955,10 @@
 
           if (root.dataset.productsCatalogHidden === "true") {
             url.searchParams.set("catalog_hidden", "1");
+          }
+
+          if (root.dataset.productsPairedUnpackUnits === "true") {
+            url.searchParams.set("paired_unpack_units", "1");
           }
 
           if (root.dataset.productsCategoryId) {
