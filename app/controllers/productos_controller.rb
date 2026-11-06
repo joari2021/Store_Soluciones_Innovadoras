@@ -1473,28 +1473,27 @@ class ProductosController < ApplicationController
   end
 
   def paired_unpack_unit_product_ids(scope)
-    relation = scope.except(:includes, :preload, :eager_load)
-    rows = relation
-           .where(presentation: [Producto.presentations[:unidad], Producto.presentations[:pack]])
-           .pluck(:id, :descripcion, :presentation, :allow_unpack)
+    # Misma base de datos de la vista "Destapar pack": solo packs destapables.
+    pack_scope = current_business.productos
+                                 .where(presentation: Producto.presentations[:pack])
+                                 .where(allow_unpack: true)
 
-    pack_presentation = Producto.presentations[:pack]
-    unit_presentation = Producto.presentations[:unidad]
-
-    pack_base_names = {}
-    rows.each do |_id, descripcion, presentation, allow_unpack|
-      next unless presentation.to_i == pack_presentation
-      next unless ActiveModel::Type::Boolean.new.cast(allow_unpack)
-
-      base_name = normalize_product_base_description(descripcion)
-      next if base_name.blank?
-
-      pack_base_names[base_name] = true
+    if @query_text.present?
+      escaped = ActiveRecord::Base.sanitize_sql_like(@query_text)
+      pack_scope = pack_scope.where('productos.descripcion ILIKE ?', "%#{escaped}%")
     end
 
-    rows.filter_map do |id, descripcion, presentation, _allow_unpack|
-      next unless presentation.to_i == unit_presentation
+    pack_base_names = pack_scope.pluck(:descripcion).each_with_object({}) do |descripcion, memo|
+      base_name = normalize_product_base_description(descripcion)
+      memo[base_name] = true if base_name.present?
+    end
+    return [] if pack_base_names.empty?
 
+    unit_rows = scope.except(:includes, :preload, :eager_load)
+                     .where(presentation: Producto.presentations[:unidad])
+                     .pluck(:id, :descripcion)
+
+    unit_rows.filter_map do |id, descripcion|
       base_name = normalize_product_base_description(descripcion)
       next if base_name.blank?
       next unless pack_base_names[base_name]
