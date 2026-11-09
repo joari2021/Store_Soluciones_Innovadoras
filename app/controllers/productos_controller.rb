@@ -147,34 +147,55 @@ class ProductosController < ApplicationController
                 .where('debts.description LIKE ?', '%[IC_MIRROR]%')
                 .select(:venta_id)
 
-    raw_daily_totals = VentaItem
-                       .joins(:venta)
-                       .where(producto_id: producto.id)
-                       .where(ventas: { business_id: current_business.id, status: 'paid' })
-               .where.not(ventas: { id: intercompany_sale_ids })
-                       .where('DATE(ventas.created_at) BETWEEN ? AND ?', start_date, end_date)
-                       .group('DATE(ventas.created_at)')
-                       .sum(:quantity)
+    raw_panel_daily_totals = VentaItem
+                             .joins(:venta)
+                             .where(producto_id: producto.id)
+                             .where(ventas: { business_id: current_business.id, status: 'paid' })
+                             .where.not(ventas: { id: intercompany_sale_ids })
+                             .where('DATE(ventas.created_at) BETWEEN ? AND ?', start_date, end_date)
+                             .group('DATE(ventas.created_at)')
+                             .sum(:quantity)
 
-    daily_totals = raw_daily_totals.each_with_object({}) do |(key, value), memo|
+    raw_recovery_daily_totals = RecoveryInvoiceItem
+                                .joins(:recovery_invoice)
+                                .where(producto_id: producto.id)
+                                .where(recovery_invoices: { business_id: current_business.id })
+                                .where('DATE(recovery_invoices.occurred_at) BETWEEN ? AND ?', start_date, end_date)
+                                .group('DATE(recovery_invoices.occurred_at)')
+                                .sum(:quantity)
+
+    sold_daily_totals = Hash.new(0.to_d)
+    raw_panel_daily_totals.each { |key, value| sold_daily_totals[key.to_date] += value.to_d }
+    raw_recovery_daily_totals.each { |key, value| sold_daily_totals[key.to_date] += value.to_d }
+
+    raw_internal_usage_daily_totals = ProductUsage
+                                      .where(business_id: current_business.id, producto_id: producto.id)
+                                      .where(used_on: start_date..end_date)
+                                      .group(:used_on)
+                                      .sum(:quantity)
+
+    internal_usage_daily_totals = raw_internal_usage_daily_totals.each_with_object(Hash.new(0.to_d)) do |(key, value), memo|
       memo[key.to_date] = value.to_d
     end
 
     weekly_segments = 4.times.map do |index|
       segment_start = start_date + (index * 7).days
       segment_end = segment_start + 6.days
-      total_quantity = (segment_start..segment_end).sum { |date| daily_totals[date].to_d }
+      sold_quantity = (segment_start..segment_end).sum { |date| sold_daily_totals[date].to_d }
+      internal_usage_quantity = (segment_start..segment_end).sum { |date| internal_usage_daily_totals[date].to_d }
 
       {
         index: index + 1,
         label: "#{segment_start.strftime('%d/%m')} - #{segment_end.strftime('%d/%m')}",
         start_on: segment_start,
         end_on: segment_end,
-        total_quantity: total_quantity.round(3).to_f,
+        total_quantity: sold_quantity.round(3).to_f,
+        sold_quantity: sold_quantity.round(3).to_f,
+        internal_usage_quantity: internal_usage_quantity.round(3).to_f,
       }
     end
 
-    weekly_average = (weekly_segments.sum { |segment| segment[:total_quantity].to_d } / 4.to_d).round(3)
+    weekly_average = (weekly_segments.sum { |segment| segment[:sold_quantity].to_d } / 4.to_d).round(3)
 
     render json: {
       product_id: producto.id,

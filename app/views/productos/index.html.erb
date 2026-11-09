@@ -812,22 +812,38 @@
 
       const buildSalesStatsModalHtml = (payload) => {
         const weeks = Array.isArray(payload?.weeks) ? payload.weeks : [];
-        const peak = Math.max(...weeks.map((week) => Number(week.total_quantity || 0)), 0);
+        const peak = Math.max(
+          ...weeks.map((week) => Math.max(
+            Number(week.sold_quantity ?? week.total_quantity || 0),
+            Number(week.internal_usage_quantity || 0),
+          )),
+          0,
+        );
         const safePeak = peak > 0 ? peak : 1;
         const avg = Number(payload?.weekly_average_quantity || 0);
 
         const barsHtml = weeks.map((week) => {
-          const quantity = Number(week.total_quantity || 0);
-          const barHeight = Math.max(6, (quantity / safePeak) * 100);
+          const soldQuantity = Number(week.sold_quantity ?? week.total_quantity || 0);
+          const internalUsageQuantity = Number(week.internal_usage_quantity || 0);
+          const soldBarHeight = Math.max(6, (soldQuantity / safePeak) * 100);
+          const internalBarHeight = Math.max(6, (internalUsageQuantity / safePeak) * 100);
 
           return `
             <div class="flex flex-col items-center justify-end gap-2">
-              <span class="text-xs font-semibold text-slate-600">${numberFormatter.format(quantity)}</span>
-              <div class="relative flex h-40 w-full items-end rounded-xl bg-slate-100/80 px-2 py-2">
+              <div class="flex w-full items-center justify-between gap-2 text-[11px] font-semibold text-slate-600">
+                <span title="Vendido por panel + factura de perdida">V: ${numberFormatter.format(soldQuantity)}</span>
+                <span title="Uso interno registrado">U: ${numberFormatter.format(internalUsageQuantity)}</span>
+              </div>
+              <div class="relative flex h-40 w-full items-end gap-2 rounded-xl bg-slate-100/80 px-2 py-2">
                 <div
-                  class="w-full rounded-lg bg-gradient-to-t from-cyan-500 to-sky-400 shadow-sm"
-                  style="height:${barHeight.toFixed(2)}%"
-                  title="${escapeHtml(week.label)}: ${numberFormatter.format(quantity)} unidades"
+                  class="w-1/2 rounded-lg bg-gradient-to-t from-cyan-600 to-sky-500 shadow-sm"
+                  style="height:${soldBarHeight.toFixed(2)}%"
+                  title="${escapeHtml(week.label)} · Vendido: ${numberFormatter.format(soldQuantity)} unidades"
+                ></div>
+                <div
+                  class="w-1/2 rounded-lg bg-gradient-to-t from-amber-500 to-yellow-400 shadow-sm"
+                  style="height:${internalBarHeight.toFixed(2)}%"
+                  title="${escapeHtml(week.label)} · Uso interno: ${numberFormatter.format(internalUsageQuantity)} unidades"
                 ></div>
               </div>
               <span class="text-center text-[11px] font-medium leading-tight text-slate-500">${escapeHtml(week.label)}</span>
@@ -839,7 +855,11 @@
           <div class="space-y-4 text-left">
             <div class="rounded-xl border border-cyan-100 bg-cyan-50/60 p-3">
               <p class="text-xs font-semibold uppercase tracking-wider text-cyan-700">Ultimos 28 dias (bloques de 7 dias)</p>
-              <p class="mt-1 text-sm text-slate-600">Cada barra representa la cantidad vendida en una semana del periodo.</p>
+              <p class="mt-1 text-sm text-slate-600">Cada semana muestra dos barras: vendido (panel de cobro + factura de perdida) y uso interno.</p>
+              <div class="mt-2 flex flex-wrap items-center gap-3 text-xs font-semibold">
+                <span class="inline-flex items-center gap-1 text-slate-700"><span class="h-2.5 w-2.5 rounded-full bg-cyan-600"></span>Vendido</span>
+                <span class="inline-flex items-center gap-1 text-slate-700"><span class="h-2.5 w-2.5 rounded-full bg-amber-500"></span>Uso interno</span>
+              </div>
             </div>
 
             <div class="grid grid-cols-4 gap-3">${barsHtml}</div>
