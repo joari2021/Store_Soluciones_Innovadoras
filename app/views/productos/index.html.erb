@@ -830,9 +830,9 @@
 
           return `
             <div class="flex flex-col items-center justify-end gap-2">
-              <div class="flex w-full items-center justify-between gap-2 text-[11px] font-semibold text-slate-600">
-                <span title="Vendido por panel + factura de perdida">V: ${numberFormatter.format(soldQuantity)}</span>
-                <span title="Uso interno registrado">U: ${numberFormatter.format(internalUsageQuantity)}</span>
+              <div class="flex w-full items-center gap-2 px-2 text-[11px] font-semibold text-slate-600">
+                <span class="inline-flex w-1/2 justify-center" title="Vendido por panel + factura de perdida">V: ${numberFormatter.format(soldQuantity)}</span>
+                <span class="inline-flex w-1/2 justify-center" title="Uso interno registrado">U: ${numberFormatter.format(internalUsageQuantity)}</span>
               </div>
               <div class="relative flex h-40 w-full items-end gap-2 rounded-xl bg-slate-100/80 px-2 py-2">
                 <div
