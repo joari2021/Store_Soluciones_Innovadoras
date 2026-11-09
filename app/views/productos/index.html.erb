@@ -814,7 +814,7 @@
         const weeks = Array.isArray(payload?.weeks) ? payload.weeks : [];
         const peak = Math.max(
           ...weeks.map((week) => Math.max(
-            Number(week.sold_quantity ?? week.total_quantity || 0),
+            Number((week.sold_quantity ?? week.total_quantity) || 0),
             Number(week.internal_usage_quantity || 0),
           )),
           0,
@@ -823,7 +823,7 @@
         const avg = Number(payload?.weekly_average_quantity || 0);
 
         const barsHtml = weeks.map((week) => {
-          const soldQuantity = Number(week.sold_quantity ?? week.total_quantity || 0);
+          const soldQuantity = Number((week.sold_quantity ?? week.total_quantity) || 0);
           const internalUsageQuantity = Number(week.internal_usage_quantity || 0);
           const soldBarHeight = Math.max(6, (soldQuantity / safePeak) * 100);
           const internalBarHeight = Math.max(6, (internalUsageQuantity / safePeak) * 100);
