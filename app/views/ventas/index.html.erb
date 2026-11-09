@@ -3875,16 +3875,6 @@
                 window.Swal.showValidationMessage('Los montos de caja no cuadran con el efectivo a vender.');
                 return null;
               }
-
-              if (montoCajaOperativa > Number(cashBoxAccount.balance || 0)) {
-                window.Swal.showValidationMessage('El monto en caja operativa excede el disponible.');
-                return null;
-              }
-
-              if (montoCajaDeposito > Number(cashDepositAccount.balance || 0)) {
-                window.Swal.showValidationMessage('El monto en caja deposito excede el disponible.');
-                return null;
-              }
             } else {
               if (!primaryBankVesAccount) {
                 window.Swal.showValidationMessage('No existe una cuenta bancaria principal en Bs.');
@@ -3893,11 +3883,6 @@
 
               if ((montoCuentaOrigen - efectivoVendido) > 0.01 || (montoCuentaOrigen - efectivoVendido) < -0.01) {
                 window.Swal.showValidationMessage('El monto a enviar debe coincidir con el monto descontado de la cuenta principal.');
-                return null;
-              }
-
-              if (montoCuentaOrigen > Number(primaryBankVesAccount.balance || 0)) {
-                window.Swal.showValidationMessage('El monto a enviar excede el disponible de la cuenta bancaria principal.');
                 return null;
               }
             }
