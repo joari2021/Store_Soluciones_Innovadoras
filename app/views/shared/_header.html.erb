@@ -141,11 +141,14 @@
         <div class="max-h-64 overflow-y-auto py-2">
           <% if @latest_tasas.present? %>
             <% @latest_tasas.each do |tasa| %>
-              <% fecha_label = tasa.fecha_referencia&.strftime('%d/%m/%Y') || '-' %>
+              <% tasa_description = tasa.respond_to?(:description) ? tasa.description : (tasa[:description] || tasa['description']) %>
+              <% tasa_valor = tasa.respond_to?(:valor) ? tasa.valor : (tasa[:valor] || tasa['valor']) %>
+              <% tasa_fecha = tasa.respond_to?(:fecha_referencia) ? tasa.fecha_referencia : (tasa[:fecha_referencia] || tasa['fecha_referencia']) %>
+              <% fecha_label = tasa_fecha&.strftime('%d/%m/%Y') || '-' %>
               <div class="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-slate-50">
-                <p class="truncate text-sm font-semibold text-slate-800"><%= tasa.description %></p>
+                <p class="truncate text-sm font-semibold text-slate-800"><%= tasa_description.presence || '-' %></p>
                 <div class="flex items-center gap-2">
-                  <span class="text-sm font-semibold text-slate-800 whitespace-nowrap"><%= format_money(tasa.valor, unit: 'Bs') %></span>
+                  <span class="text-sm font-semibold text-slate-800 whitespace-nowrap"><%= format_money(tasa_valor, unit: 'Bs') %></span>
                   <span class="text-xs text-slate-500 whitespace-nowrap"><%= fecha_label %></span>
                 </div>
               </div>
