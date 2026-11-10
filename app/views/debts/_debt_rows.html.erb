@@ -23,10 +23,11 @@
          financing_ids: {}
        } %>
     <% weekly_summaries[week_key][:debt_total_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
+    <% source_sale_id = weekly_row[:source_sale_id] %>
     <% source_sale_line = weekly_row[:source_sale_line].to_s %>
-    <% if source_sale_line == 'cotidiana' %>
+    <% if source_sale_id.present? && source_sale_line == 'cotidiana' %>
       <% weekly_summaries[week_key][:sales_financed_total_cotidiana_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
-    <% elsif source_sale_line == 'principal' %>
+    <% elsif source_sale_id.present? && source_sale_line == 'principal' %>
       <% weekly_summaries[week_key][:sales_financed_total_principal_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
     <% end %>
     <% financing_id = weekly_row[:cashea_user_financing_id] %>
@@ -49,7 +50,6 @@
         <% end %>
       <% end %>
     <% end %>
-    <% source_sale_id = weekly_row[:source_sale_id] %>
     <% if source_sale_id.present? && !weekly_summaries[week_key][:sale_ids].key?(source_sale_id) %>
       <% weekly_summaries[week_key][:sale_ids][source_sale_id] = true %>
       <% weekly_summaries[week_key][:sales_total_usd_bcv] += weekly_row[:source_sale_total_usd_bcv].to_d %>
