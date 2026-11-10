@@ -1,4 +1,7 @@
 class ServicesController < ApplicationController
+  PENDING_COSTS_MAX_SALES = 300
+  PENDING_COSTS_DEFAULT_LOOKBACK_DAYS = 30
+
   before_action :require_business
   before_action -> { require_module_access!(:services) }
   before_action :require_admin, except: %i[index show]
@@ -167,6 +170,7 @@ class ServicesController < ApplicationController
                   .order(created_at: :desc)
 
     sales_scope = apply_pending_cost_sales_date_filters(scope: sales_scope, filters: @pending_cost_filters)
+    sales_scope = sales_scope.limit(PENDING_COSTS_MAX_SALES)
 
     sold_rows = build_pending_cost_sold_service_rows_for_sales(sales: sales_scope.to_a)
     sold_rows = filter_pending_cost_sold_rows(rows: sold_rows, filters: @pending_cost_filters)
@@ -1494,7 +1498,7 @@ class ServicesController < ApplicationController
   end
 
   def pending_cost_filters_from_params
-    {
+    filters = {
       query_text: params[:query_text].to_s.strip,
       fecha_desde: parse_pending_cost_filter_date(params[:fecha_desde]),
       fecha_hasta: parse_pending_cost_filter_date(params[:fecha_hasta]),
@@ -1502,6 +1506,12 @@ class ServicesController < ApplicationController
       manager_id: parse_pending_cost_filter_integer(params[:manager_id]),
       cost_status: normalize_pending_cost_status_filter(params[:cost_status])
     }
+
+    if filters[:fecha_desde].blank? && filters[:fecha_hasta].blank?
+      filters[:fecha_desde] = Date.current - PENDING_COSTS_DEFAULT_LOOKBACK_DAYS
+    end
+
+    filters
   end
 
   def normalize_pending_cost_status_filter(value)
@@ -1824,7 +1834,11 @@ class ServicesController < ApplicationController
         )
 
         debt_lines_by_id = if parent_debt.present?
-                             normalized_pending_cost_lines_for(parent_debt, hydrate_display: false).index_by { |line| line['line_id'].to_s }
+                             normalized_pending_cost_lines_for(
+                               parent_debt,
+                               hydrate_display: false,
+                               use_live_structure: false
+                             ).index_by { |line| line['line_id'].to_s }
                            else
                              {}
                            end
@@ -2540,8 +2554,8 @@ class ServicesController < ApplicationController
     rows[@pagy.offset, @pagy.items] || []
   end
 
-  def normalized_pending_cost_lines_for(debt, hydrate_display: true)
-    lines = if should_use_live_pending_cost_structure?(debt)
+  def normalized_pending_cost_lines_for(debt, hydrate_display: true, use_live_structure: true)
+    lines = if use_live_structure && should_use_live_pending_cost_structure?(debt)
               live_lines = build_live_pending_cost_lines_for(debt: debt)
               if live_lines.present?
                 apply_paid_amounts_to_live_pending_cost_lines(
