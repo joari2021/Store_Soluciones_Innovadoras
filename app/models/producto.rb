@@ -60,10 +60,35 @@ class Producto < ApplicationRecord
   end
 
   def total_quantity
-    total_from_variations = stock_lot_variations.sum(:quantity_remaining).to_d
+    if stock_lots.loaded?
+      total_from_loaded_lot_variations = 0.to_d
+      has_loaded_lot_variations = false
+
+      stock_lots.each do |lot|
+        next unless lot.association(:stock_lot_variations).loaded?
+
+        has_loaded_lot_variations = true
+        total_from_loaded_lot_variations += lot.stock_lot_variations.sum { |row| row.quantity_remaining.to_d }
+      end
+
+      return total_from_loaded_lot_variations if has_loaded_lot_variations && total_from_loaded_lot_variations.positive?
+
+      total_from_loaded_lots = stock_lots.sum { |lot| lot.quantity_remaining.to_d }
+      return total_from_loaded_lots if total_from_loaded_lots.positive?
+    end
+
+    total_from_variations = if stock_lot_variations.loaded?
+                              stock_lot_variations.sum { |row| row.quantity_remaining.to_d }
+                            else
+                              stock_lot_variations.sum(:quantity_remaining).to_d
+                            end
     return total_from_variations if total_from_variations.positive?
 
-    stock_lots.sum(:quantity_remaining).to_d
+    if stock_lots.loaded?
+      stock_lots.sum { |lot| lot.quantity_remaining.to_d }
+    else
+      stock_lots.sum(:quantity_remaining).to_d
+    end
   end
 
   def presentation_display_suffix
@@ -86,19 +111,23 @@ class Producto < ApplicationRecord
   end
 
   def highest_active_lot_unit_cost_usd
-    stock_lots
-      .select do |lot|
-        variation_rows = lot.stock_lot_variations.to_a
-        available_quantity = if variation_rows.any?
-                               variation_rows.sum { |row| row.quantity_remaining.to_d }
-                             else
-                               lot.quantity_remaining.to_d
-                             end
+    lots = stock_lots.loaded? ? stock_lots : stock_lots.includes(:stock_lot_variations)
+    max_cost = nil
 
-        available_quantity.positive?
-      end
-      .map { |lot| lot.unit_cost_usd.to_d }
-      .max
+    lots.each do |lot|
+      variation_rows = lot.stock_lot_variations.loaded? ? lot.stock_lot_variations : lot.stock_lot_variations.to_a
+      available_quantity = if variation_rows.any?
+                             variation_rows.sum { |row| row.quantity_remaining.to_d }
+                           else
+                             lot.quantity_remaining.to_d
+                           end
+      next unless available_quantity.positive?
+
+      unit_cost = lot.unit_cost_usd.to_d
+      max_cost = unit_cost if max_cost.nil? || unit_cost > max_cost
+    end
+
+    max_cost
   end
 
   def target_margin_percentage

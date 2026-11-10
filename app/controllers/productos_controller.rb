@@ -1615,7 +1615,7 @@ class ProductosController < ApplicationController
 
   def below_target_margin_product_ids(scope)
     relation = scope.except(:includes, :preload, :eager_load)
-    relation.includes(:profit_margin_preset, :stock_lots)
+    relation.includes(:profit_margin_preset, stock_lots: :stock_lot_variations)
             .select(&:below_target_margin_for_highest_active_lot?)
             .map(&:id)
   end
