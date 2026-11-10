@@ -2735,12 +2735,22 @@ class DebtsController < ApplicationController
       sale_stats_by_id = sales_stats_usd_bcv_by_id(sale_ids)
     end
 
+    financing_records_by_id = {}
+    if weekly_summary_enabled
+      financing_ids = debts_for_rows.filter_map { |debt| cashea_user_financing_id_for_debt(debt) }.uniq
+      financing_records_by_id = current_business.cashea_user_financings.where(id: financing_ids).index_by(&:id)
+    end
+
     debts_for_rows.map do |debt|
       loan_movement = original_loan_account_movement_for_debt(debt)
       loan_account = loan_movement&.account
       source_sale_id = debt_source_sale_id_for_summary(debt)
       source_sale_stats = sale_stats_by_id[source_sale_id] || {}
       source_sale_line = cashea_line_for_debt_and_sale(debt: debt, sale_line: source_sale_stats[:cashea_line])
+      financing_id = cashea_user_financing_id_for_debt(debt)
+      financing_record = financing_records_by_id[financing_id]
+      financing_line_mode = financing_record&.line_mode.to_s.strip.downcase
+      financing_line_mode = cashea_user_financing_line_for_debt(debt) if financing_line_mode.blank?
       allocation = if group_is_usdt
                      effective_native_allocations.fetch(debt.id)
                    else
@@ -2766,6 +2776,9 @@ class DebtsController < ApplicationController
         source_sale_total_usd_bcv: source_sale_stats[:total_usd].to_d,
         source_sale_total_with_commission_usd_bcv: source_sale_stats[:total_with_commission_usd].to_d,
         source_sale_line: source_sale_line,
+        cashea_user_financing_id: financing_id,
+        cashea_user_financing_line_mode: financing_line_mode,
+        cashea_user_financing_initial_ficticia_usd: financing_record&.initial_ficticia_usd.to_d,
         status: row_status,
         loan_enabled: loan_movement.present?,
         loan_account_id: loan_movement&.account_id,
@@ -2829,6 +2842,19 @@ class DebtsController < ApplicationController
     normalized_sale_line = sale_line.to_s.strip.downcase
     return normalized_sale_line if %w[cotidiana principal].include?(normalized_sale_line)
 
+    description = debt.description.to_s.downcase
+    return 'principal' if description.include?('linea principal')
+    return 'cotidiana' if description.include?('linea cotidiana')
+
+    nil
+  end
+
+  def cashea_user_financing_id_for_debt(debt)
+    id = debt.description.to_s[/\[CASHEA_USER_FINANCING_ID:(\d+)\]/, 1].to_i
+    id.positive? ? id : nil
+  end
+
+  def cashea_user_financing_line_for_debt(debt)
     description = debt.description.to_s.downcase
     return 'principal' if description.include?('linea principal')
     return 'cotidiana' if description.include?('linea cotidiana')

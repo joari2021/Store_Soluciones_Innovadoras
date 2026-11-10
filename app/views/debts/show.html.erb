@@ -1631,15 +1631,31 @@
                   const formatUsd = (amount) => `$ ${Number(amount || 0).toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
                   const weekLabel = String(statsButton.dataset.casheaWeekLabel || "").trim();
-                  const totalVentasCotidiana = parseAmount(statsButton.dataset.totalVentasCotidiana);
-                  const totalVentasPrincipal = parseAmount(statsButton.dataset.totalVentasPrincipal);
-                  const servicioTecnologico = parseAmount(statsButton.dataset.servicioTecnologico);
-                  const totalFinanciadoCotidiana = parseAmount(statsButton.dataset.totalFinanciadoCotidiana);
-                  const totalFinanciadoPrincipal = parseAmount(statsButton.dataset.totalFinanciadoPrincipal);
-                  const comisionFinanciamiento = parseAmount(statsButton.dataset.comisionFinanciamiento);
-                  const totalFinanciadoSemana = totalFinanciadoCotidiana + totalFinanciadoPrincipal;
-                  const totalPagarCashea = servicioTecnologico + comisionFinanciamiento;
-                  const liquidezRestanteNegocio = totalFinanciadoSemana - totalPagarCashea;
+                  const ventasTotalVentasCotidiana = parseAmount(statsButton.dataset.ventasTotalVentasCotidiana);
+                  const ventasTotalVentasPrincipal = parseAmount(statsButton.dataset.ventasTotalVentasPrincipal);
+                  const ventasServicioTecnologico = parseAmount(statsButton.dataset.ventasServicioTecnologico);
+                  const ventasTotalFinanciadoCotidiana = parseAmount(statsButton.dataset.ventasTotalFinanciadoCotidiana);
+                  const ventasTotalFinanciadoPrincipal = parseAmount(statsButton.dataset.ventasTotalFinanciadoPrincipal);
+                  const ventasComisionFinanciamiento = parseAmount(statsButton.dataset.ventasComisionFinanciamiento);
+                  const ventasTotalPagarCashea = parseAmount(statsButton.dataset.ventasTotalPagarCashea);
+
+                  const financiamientoTotalVentasCotidiana = parseAmount(statsButton.dataset.financiamientoTotalVentasCotidiana);
+                  const financiamientoTotalVentasPrincipal = parseAmount(statsButton.dataset.financiamientoTotalVentasPrincipal);
+                  const financiamientoServicioTecnologico = parseAmount(statsButton.dataset.financiamientoServicioTecnologico);
+                  const financiamientoTotalFinanciadoCotidiana = parseAmount(statsButton.dataset.financiamientoTotalFinanciadoCotidiana);
+                  const financiamientoTotalFinanciadoPrincipal = parseAmount(statsButton.dataset.financiamientoTotalFinanciadoPrincipal);
+                  const financiamientoComisionFinanciamiento = parseAmount(statsButton.dataset.financiamientoComisionFinanciamiento);
+                  const financiamientoTotalPagarCashea = parseAmount(statsButton.dataset.financiamientoTotalPagarCashea);
+
+                  const liquidezRestanteNegocio = parseAmount(statsButton.dataset.liquidezRestanteNegocio);
+
+                  const rowHtml = ({ label, ventas, financiamiento, rowClass = "", cellClass = "" }) => `
+                    <tr class="${rowClass}">
+                      <td class="py-2 pr-4 font-semibold">${label}</td>
+                      <td class="py-2 text-right ${cellClass}">${formatUsd(financiamiento)}</td>
+                      <td class="py-2 pl-4 text-right border-l border-slate-200 ${cellClass}">${formatUsd(ventas)}</td>
+                    </tr>
+                  `;
 
                   if (window.Swal) {
                     window.Swal.fire({
@@ -1647,56 +1663,77 @@
                       html: `
                         <div class="overflow-x-auto text-left">
                           <table class="min-w-full text-sm text-slate-700">
+                            <thead>
+                              <tr class="text-xs uppercase tracking-wider text-slate-500">
+                                <th class="py-2 pr-4 text-left">Concepto</th>
+                                <th class="py-2 text-right">Financiamiento</th>
+                                <th class="py-2 pl-4 text-right border-l border-slate-200">Ventas</th>
+                              </tr>
+                            </thead>
                             <tbody>
-                              <tr class="border-b border-slate-200">
-                                <td class="py-2 pr-4 font-semibold">Total ventas linea cotidiana</td>
-                                <td class="py-2 text-right">${formatUsd(totalVentasCotidiana)}</td>
-                              </tr>
-                              <tr class="border-b border-slate-200">
-                                <td class="py-2 pr-4 font-semibold">Total ventas linea principal</td>
-                                <td class="py-2 text-right">${formatUsd(totalVentasPrincipal)}</td>
-                              </tr>
+                              ${rowHtml({
+                                label: "Total ventas linea cotidiana",
+                                ventas: ventasTotalVentasCotidiana,
+                                financiamiento: financiamientoTotalVentasCotidiana,
+                                rowClass: "border-b border-slate-200",
+                              })}
+                              ${rowHtml({
+                                label: "Total ventas linea principal",
+                                ventas: ventasTotalVentasPrincipal,
+                                financiamiento: financiamientoTotalVentasPrincipal,
+                                rowClass: "border-b border-slate-200",
+                              })}
                               <tr>
-                                <td colspan="2" class="py-1"></td>
+                                <td colspan="3" class="py-1"></td>
                               </tr>
-                              <tr class="border border-amber-200 bg-amber-50">
-                                <td class="py-2 pr-4 font-bold text-amber-800">Servicio tecnologico</td>
-                                <td class="py-2 text-right font-bold text-amber-800">${formatUsd(servicioTecnologico)}</td>
-                              </tr>
+                              ${rowHtml({
+                                label: "Servicio tecnologico",
+                                ventas: ventasServicioTecnologico,
+                                financiamiento: financiamientoServicioTecnologico,
+                                rowClass: "border border-amber-200 bg-amber-50",
+                                cellClass: "font-bold text-amber-800",
+                              })}
                               <tr>
-                                <td colspan="2" class="py-2"></td>
+                                <td colspan="3" class="py-2"></td>
                               </tr>
-                              <tr class="border-b border-slate-200">
-                                <td class="py-2 pr-4 font-semibold">Total financiado linea cotidiana</td>
-                                <td class="py-2 text-right">${formatUsd(totalFinanciadoCotidiana)}</td>
-                              </tr>
-                              <tr class="border-b border-slate-200">
-                                <td class="py-2 pr-4 font-semibold">Total financiado linea principal</td>
-                                <td class="py-2 text-right">${formatUsd(totalFinanciadoPrincipal)}</td>
-                              </tr>
+                              ${rowHtml({
+                                label: "Total financiado linea cotidiana",
+                                ventas: ventasTotalFinanciadoCotidiana,
+                                financiamiento: financiamientoTotalFinanciadoCotidiana,
+                                rowClass: "border-b border-slate-200",
+                              })}
+                              ${rowHtml({
+                                label: "Total financiado linea principal",
+                                ventas: ventasTotalFinanciadoPrincipal,
+                                financiamiento: financiamientoTotalFinanciadoPrincipal,
+                                rowClass: "border-b border-slate-200",
+                              })}
                               <tr>
-                                <td colspan="2" class="py-1"></td>
+                                <td colspan="3" class="py-1"></td>
                               </tr>
-                              <tr class="border border-sky-200 bg-sky-50">
-                                <td class="py-2 pr-4 font-bold text-sky-800">Comision de financiamiento</td>
-                                <td class="py-2 text-right font-bold text-sky-800">${formatUsd(comisionFinanciamiento)}</td>
-                              </tr>
+                              ${rowHtml({
+                                label: "Comision de financiamiento",
+                                ventas: ventasComisionFinanciamiento,
+                                financiamiento: financiamientoComisionFinanciamiento,
+                                rowClass: "border border-sky-200 bg-sky-50",
+                                cellClass: "font-bold text-sky-800",
+                              })}
                               <tr>
-                                <td colspan="2" class="py-2"></td>
+                                <td colspan="3" class="py-2"></td>
                               </tr>
+                              ${rowHtml({
+                                label: "Total a pagar a Cashea",
+                                ventas: ventasTotalPagarCashea,
+                                financiamiento: financiamientoTotalPagarCashea,
+                                rowClass: "border border-emerald-300 bg-emerald-100",
+                                cellClass: "font-extrabold text-emerald-900",
+                              })}
                               <tr>
-                                <td colspan="2" class="py-1"></td>
-                              </tr>
-                              <tr class="border border-emerald-300 bg-emerald-100">
-                                <td class="py-2 pr-4 font-extrabold text-emerald-900">Total a pagar a Cashea</td>
-                                <td class="py-2 text-right font-extrabold text-emerald-900">${formatUsd(totalPagarCashea)}</td>
-                              </tr>
-                              <tr>
-                                <td colspan="2" class="py-1"></td>
+                                <td colspan="3" class="py-1"></td>
                               </tr>
                               <tr class="border border-violet-200 bg-violet-50">
                                 <td class="py-2 pr-4 font-bold text-violet-800">Liquidez restante de Negocio</td>
-                                <td class="py-2 text-right font-bold text-violet-800">${formatUsd(liquidezRestanteNegocio)}</td>
+                                <td colspan="2" class="py-2 text-right font-bold text-violet-800">${formatUsd(liquidezRestanteNegocio)}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -1710,13 +1747,20 @@
                   } else {
                     window.alert([
                       `Semana: ${weekLabel || "N/A"}`,
-                      `Total ventas linea cotidiana: ${formatUsd(totalVentasCotidiana)}`,
-                      `Total ventas linea principal: ${formatUsd(totalVentasPrincipal)}`,
-                      `Servicio tecnologico: ${formatUsd(servicioTecnologico)}`,
-                      `Total financiado linea cotidiana: ${formatUsd(totalFinanciadoCotidiana)}`,
-                      `Total financiado linea principal: ${formatUsd(totalFinanciadoPrincipal)}`,
-                      `Comision de financiamiento: ${formatUsd(comisionFinanciamiento)}`,
-                      `Total a pagar a Cashea: ${formatUsd(totalPagarCashea)}`,
+                      `Ventas - Total ventas linea cotidiana: ${formatUsd(ventasTotalVentasCotidiana)}`,
+                      `Ventas - Total ventas linea principal: ${formatUsd(ventasTotalVentasPrincipal)}`,
+                      `Ventas - Servicio tecnologico: ${formatUsd(ventasServicioTecnologico)}`,
+                      `Ventas - Total financiado linea cotidiana: ${formatUsd(ventasTotalFinanciadoCotidiana)}`,
+                      `Ventas - Total financiado linea principal: ${formatUsd(ventasTotalFinanciadoPrincipal)}`,
+                      `Ventas - Comision de financiamiento: ${formatUsd(ventasComisionFinanciamiento)}`,
+                      `Ventas - Total a pagar a Cashea: ${formatUsd(ventasTotalPagarCashea)}`,
+                      `Financiamiento - Total ventas linea cotidiana: ${formatUsd(financiamientoTotalVentasCotidiana)}`,
+                      `Financiamiento - Total ventas linea principal: ${formatUsd(financiamientoTotalVentasPrincipal)}`,
+                      `Financiamiento - Servicio tecnologico: ${formatUsd(financiamientoServicioTecnologico)}`,
+                      `Financiamiento - Total financiado linea cotidiana: ${formatUsd(financiamientoTotalFinanciadoCotidiana)}`,
+                      `Financiamiento - Total financiado linea principal: ${formatUsd(financiamientoTotalFinanciadoPrincipal)}`,
+                      `Financiamiento - Comision de financiamiento: ${formatUsd(financiamientoComisionFinanciamiento)}`,
+                      `Financiamiento - Total a pagar a Cashea: ${formatUsd(financiamientoTotalPagarCashea)}`,
                       `Liquidez restante de Negocio: ${formatUsd(liquidezRestanteNegocio)}`,
                     ].join("\n"));
                   }
