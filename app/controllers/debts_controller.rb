@@ -1310,7 +1310,8 @@ class DebtsController < ApplicationController
   end
 
   def find_or_create_cashea_financing_cliente!
-    existing = current_business.clientes.where('LOWER(name) = ?', 'cashea').order(:id).first
+    cashea_name = 'Grupo Cashea VE, C.A'
+    existing = current_business.clientes.where('LOWER(name) = ?', cashea_name.downcase).order(:id).first
     return existing if existing.present?
 
     base_document = 900_000_000
@@ -1324,7 +1325,7 @@ class DebtsController < ApplicationController
       candidate = current_business.clientes.new(
         document_type: 'J',
         document_number: document_number,
-        name: 'Cashea',
+        name: cashea_name,
         phone: phone,
         address: 'Cliente tecnico para financiamiento Cashea Usuario',
       )
