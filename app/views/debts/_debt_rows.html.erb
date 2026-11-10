@@ -133,7 +133,7 @@
         >
           <i data-lucide="pencil" class="h-4 w-4"></i>
         </button>
-        <% if can_manage_action?(:destroy_debt) %>
+        <% if can_manage_action?(:destroy_debt) && !(debt.receivable? && debt.cashea_user_financing?) %>
           <button
             type="button"
             class="inline-flex cursor-pointer items-center justify-center rounded-xl border border-red-200 bg-red-50 p-2 text-red-600 hover:bg-red-100"

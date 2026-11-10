@@ -896,11 +896,36 @@ class DebtsController < ApplicationController
     original_debt = @debt
     grouped_debts = debts_in_same_edit_group(group_root_for(@debt))
     delete_group = params[:delete_scope].to_s == 'group'
-    debts_to_delete = delete_group ? grouped_debts : [original_debt]
+    debts_to_delete = (delete_group ? grouped_debts : [original_debt]).uniq(&:id)
+
+    if debts_to_delete.any? { |debt| debt.receivable? && debt.cashea_user_financing? }
+      message = 'Las deudas por cobrar creadas por Financiamiento Cashea - Usuario no se pueden eliminar manualmente. Elimina el grupo por pagar correspondiente para borrarlas en cascada.'
+      respond_to do |format|
+        format.json { render json: { error: message }, status: :unprocessable_entity }
+        format.html { redirect_after_debt_destroy(notice: message, delete_group: delete_group) }
+      end
+      return
+    end
+
+    if original_debt.payable? && original_debt.cashea_user_financing? && !delete_group
+      message = 'Este registro de Financiamiento Cashea - Usuario solo puede eliminarse por grupo para mantener la consistencia con sus deudas por cobrar enlazadas.'
+      respond_to do |format|
+        format.json { render json: { error: message }, status: :unprocessable_entity }
+        format.html { redirect_after_debt_destroy(notice: message, delete_group: delete_group) }
+      end
+      return
+    end
+
+    financing_records = cashea_user_financing_records_for_payable_group(debts_to_delete)
+    cascade_receivable_debts = delete_group ? linked_receivable_debts_for_cashea_user_financing(financing_records) : []
+    debts_to_delete = (debts_to_delete + cascade_receivable_debts).uniq(&:id)
+
     deleted_debt_ids = debts_to_delete.flat_map do |debt|
       [debt.id, *linked_loan_commission_debt_ids_for_origin(debt)]
     end.compact.uniq
+
     remove_movements = params[:delete_mode].to_s == 'with_movements'
+    remove_movements = true if cascade_receivable_debts.any?
     movements_to_remove = remove_movements ? linked_account_movements_for_debts(debts_to_delete) : []
     reassigned_payments_count = 0
 
@@ -921,6 +946,12 @@ class DebtsController < ApplicationController
         next unless debt.persisted?
 
         debt.destroy!
+      end
+
+      financing_records.each do |record|
+        next unless record.persisted?
+
+        record.destroy!
       end
     end
 
@@ -2244,6 +2275,39 @@ class DebtsController < ApplicationController
     BigDecimal(cleaned)
   rescue ArgumentError
     0
+  end
+
+  def cashea_user_financing_records_for_payable_group(debts)
+    payable_group_tokens = Array(debts)
+                           .select { |debt| debt.payable? && debt.cashea_user_financing? }
+                           .map { |debt| debt.group_token.to_s.strip }
+                           .reject(&:blank?)
+                           .uniq
+
+    return [] if payable_group_tokens.empty?
+
+    current_business.cashea_user_financings.where(payable_group_token: payable_group_tokens).to_a
+  end
+
+  def linked_receivable_debts_for_cashea_user_financing(financing_records)
+    return [] if financing_records.blank?
+
+    expected_ids = financing_records.flat_map do |record|
+      Array(record.installments).filter_map do |row|
+        row_hash = row.respond_to?(:to_h) ? row.to_h : {}
+        (row_hash['receivable_debt_id'] || row_hash[:receivable_debt_id]).to_i
+      end
+    end.select(&:positive?).uniq
+    return [] if expected_ids.blank?
+
+    marker_by_id = financing_records.each_with_object({}) do |record, hash|
+      hash[record.id] = true
+    end
+
+    current_business.debts.where(id: expected_ids, debt_kind: 'receivable').select do |debt|
+      financing_id = debt.description.to_s[/\[CASHEA_USER_FINANCING_ID:(\d+)\]/, 1].to_i
+      financing_id.positive? && marker_by_id[financing_id]
+    end
   end
 
   def parse_payment_date(value)
