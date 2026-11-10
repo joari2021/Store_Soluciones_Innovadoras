@@ -24,19 +24,22 @@
        } %>
     <% weekly_summaries[week_key][:debt_total_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
     <% source_sale_line = weekly_row[:source_sale_line].to_s %>
+    <% if source_sale_line == 'cotidiana' %>
+      <% weekly_summaries[week_key][:sales_financed_total_cotidiana_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
+    <% elsif source_sale_line == 'principal' %>
+      <% weekly_summaries[week_key][:sales_financed_total_principal_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
+    <% end %>
+
     <% financing_id = weekly_row[:cashea_user_financing_id] %>
     <% financing_line_mode = weekly_row[:cashea_user_financing_line_mode].to_s %>
     <% if financing_id.present? && %w[cotidiana principal].include?(financing_line_mode) %>
       <% if financing_line_mode == 'cotidiana' %>
-        <% weekly_summaries[week_key][:sales_financed_total_cotidiana_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
         <% weekly_summaries[week_key][:financing_financed_total_cotidiana_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
         <% weekly_summaries[week_key][:financing_sales_total_cotidiana_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
       <% elsif financing_line_mode == 'principal' %>
-        <% weekly_summaries[week_key][:sales_financed_total_principal_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
         <% weekly_summaries[week_key][:financing_financed_total_principal_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
         <% weekly_summaries[week_key][:financing_sales_total_principal_usd_bcv] += weekly_row[:amount_usd_bcv].to_d %>
       <% end %>
-
       <% unless weekly_summaries[week_key][:financing_ids].key?(financing_id) %>
         <% weekly_summaries[week_key][:financing_ids][financing_id] = true %>
         <% initial_ficticia = weekly_row[:cashea_user_financing_initial_ficticia_usd].to_d %>
@@ -200,7 +203,6 @@
       <% ventas_servicio_tecnologico = (ventas_servicio_base * 1.16).round(2) %>
       <% ventas_comision_financiamiento = ((ventas_total_financiado_principal * 0.05) + (ventas_total_financiado_cotidiana * 0.02)).round(2) %>
       <% ventas_total_pagar_cashea = (ventas_servicio_tecnologico + ventas_comision_financiamiento).round(2) %>
-
       <% financiamiento_total_ventas_cotidiana = summary[:financing_sales_total_cotidiana_usd_bcv].to_d.round(2) %>
       <% financiamiento_total_ventas_principal = summary[:financing_sales_total_principal_usd_bcv].to_d.round(2) %>
       <% financiamiento_total_financiado_cotidiana = summary[:financing_financed_total_cotidiana_usd_bcv].to_d.round(2) %>
@@ -209,7 +211,6 @@
       <% financiamiento_servicio_tecnologico = (financiamiento_servicio_base * 1.16).round(2) %>
       <% financiamiento_comision_financiamiento = ((financiamiento_total_financiado_principal * 0.05) + (financiamiento_total_financiado_cotidiana * 0.02)).round(2) %>
       <% financiamiento_total_pagar_cashea = (financiamiento_servicio_tecnologico + financiamiento_comision_financiamiento).round(2) %>
-
       <% liquidez_restante_negocio = (
            (ventas_total_financiado_cotidiana + ventas_total_financiado_principal + financiamiento_total_financiado_cotidiana + financiamiento_total_financiado_principal) -
            (ventas_total_pagar_cashea + financiamiento_total_pagar_cashea)

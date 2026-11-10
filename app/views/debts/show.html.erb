@@ -1652,8 +1652,8 @@
                   const rowHtml = ({ label, ventas, financiamiento, rowClass = "", cellClass = "" }) => `
                     <tr class="${rowClass}">
                       <td class="py-2 pr-4 font-semibold">${label}</td>
-                      <td class="py-2 text-right ${cellClass}">${formatUsd(financiamiento)}</td>
-                      <td class="py-2 pl-4 text-right border-l border-slate-200 ${cellClass}">${formatUsd(ventas)}</td>
+                      <td class="py-2 pr-5 text-right ${cellClass}">${formatUsd(financiamiento)}</td>
+                      <td class="py-2 pl-5 text-right border-l-2 border-cyan-200 ${cellClass}">${formatUsd(ventas)}</td>
                     </tr>
                   `;
 
@@ -1666,8 +1666,8 @@
                             <thead>
                               <tr class="text-xs uppercase tracking-wider text-slate-500">
                                 <th class="py-2 pr-4 text-left">Concepto</th>
-                                <th class="py-2 text-right">Financiamiento</th>
-                                <th class="py-2 pl-4 text-right border-l border-slate-200">Ventas</th>
+                                <th class="py-2 pr-5 text-right">Financiamiento</th>
+                                <th class="py-2 pl-5 text-right border-l-2 border-cyan-200">Ventas</th>
                               </tr>
                             </thead>
                             <tbody>
