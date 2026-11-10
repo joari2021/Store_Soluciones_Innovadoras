@@ -163,7 +163,7 @@ class ServicesController < ApplicationController
     sales_scope = current_business
                   .ventas
                   .where(status: 'paid')
-                  .includes(:service_cost_debts, :venta_items)
+                  .includes(:venta_items, service_cost_debts: :service)
                   .order(created_at: :desc)
 
     sales_scope = apply_pending_cost_sales_date_filters(scope: sales_scope, filters: @pending_cost_filters)
@@ -1824,7 +1824,7 @@ class ServicesController < ApplicationController
         )
 
         debt_lines_by_id = if parent_debt.present?
-                             normalized_pending_cost_lines_for(parent_debt).index_by { |line| line['line_id'].to_s }
+                             normalized_pending_cost_lines_for(parent_debt, hydrate_display: false).index_by { |line| line['line_id'].to_s }
                            else
                              {}
                            end
@@ -2033,12 +2033,7 @@ class ServicesController < ApplicationController
   end
 
   def pending_cost_settlements_for_sale(sale:)
-    parsed_notes = begin
-      parsed = JSON.parse(sale.notes.to_s)
-      parsed.is_a?(Hash) ? parsed : {}
-    rescue JSON::ParserError
-      {}
-    end
+    parsed_notes = parse_pending_cost_notes_for_sale(sale)
 
     Array(parsed_notes['service_cost_settlements']).filter_map do |row|
       next unless row.is_a?(Hash)
@@ -2048,12 +2043,7 @@ class ServicesController < ApplicationController
   end
 
   def pending_cost_printing_sales_for_sale(sale:)
-    parsed_notes = begin
-      parsed = JSON.parse(sale.notes.to_s)
-      parsed.is_a?(Hash) ? parsed : {}
-    rescue JSON::ParserError
-      {}
-    end
+    parsed_notes = parse_pending_cost_notes_for_sale(sale)
 
     Array(parsed_notes['sold_service_printings']).filter_map do |row|
       next unless row.is_a?(Hash)
@@ -2063,12 +2053,7 @@ class ServicesController < ApplicationController
   end
 
   def pending_cost_parties_for_sale(sale:)
-    parsed_notes = begin
-      parsed = JSON.parse(sale.notes.to_s)
-      parsed.is_a?(Hash) ? parsed : {}
-    rescue JSON::ParserError
-      {}
-    end
+    parsed_notes = parse_pending_cost_notes_for_sale(sale)
 
     Array(parsed_notes['sold_service_parties']).filter_map do |row|
       next unless row.is_a?(Hash)
@@ -2555,7 +2540,7 @@ class ServicesController < ApplicationController
     rows[@pagy.offset, @pagy.items] || []
   end
 
-  def normalized_pending_cost_lines_for(debt)
+  def normalized_pending_cost_lines_for(debt, hydrate_display: true)
     lines = if should_use_live_pending_cost_structure?(debt)
               live_lines = build_live_pending_cost_lines_for(debt: debt)
               if live_lines.present?
@@ -2614,9 +2599,21 @@ class ServicesController < ApplicationController
         line['status'] = 'paid'
       end
 
-      hydrate_pending_cost_display_amounts!(line: line, debt: debt)
+      hydrate_pending_cost_display_amounts!(line: line, debt: debt) if hydrate_display
       line
     end
+  end
+
+  def parse_pending_cost_notes_for_sale(sale)
+    @pending_cost_notes_cache ||= {}
+    sale_id = sale&.id
+    cache_key = sale_id.present? ? sale_id : sale.object_id
+    return @pending_cost_notes_cache[cache_key] if @pending_cost_notes_cache.key?(cache_key)
+
+    parsed = JSON.parse(sale.notes.to_s)
+    @pending_cost_notes_cache[cache_key] = parsed.is_a?(Hash) ? parsed : {}
+  rescue JSON::ParserError
+    @pending_cost_notes_cache[cache_key] = {}
   end
 
   def pending_cost_line_payable?(line)
