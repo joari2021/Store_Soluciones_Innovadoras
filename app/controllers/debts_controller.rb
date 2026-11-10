@@ -212,6 +212,7 @@ class DebtsController < ApplicationController
     line_mode = payload[:line_mode].to_s.strip.downcase
     user_name = payload[:user_name].to_s.strip
     initial_ficticia_usd = parse_decimal_currency(payload[:initial_ficticia]).to_d.round(2)
+    issued_on = parse_debt_date(payload[:issued_on])
 
     unless CasheaUserFinancing::LINE_MODES.include?(line_mode)
       redirect_to debts_path, alert: 'La linea seleccionada no es valida.'
@@ -220,6 +221,11 @@ class DebtsController < ApplicationController
 
     if user_name.blank?
       redirect_to debts_path, alert: 'Debes indicar el nombre del usuario acreedor.'
+      return
+    end
+
+    if issued_on.blank?
+      redirect_to debts_path, alert: 'Debes indicar una fecha de emision valida.'
       return
     end
 
@@ -249,7 +255,7 @@ class DebtsController < ApplicationController
           description: "Financiamiento Cashea Usuario - Cuota #{quota_number}/#{quota_total} (Linea #{line_mode}) [CASHEA_USER_FINANCING]",
           amount: entry[:amount],
           currency: 'USD',
-          issued_on: Date.current,
+          issued_on: issued_on,
           due_on: entry[:due_on],
           acreedor: user_name,
           group_token: payable_group_token,
@@ -262,7 +268,7 @@ class DebtsController < ApplicationController
           description: "Cuota Cashea Usuario #{user_name} - #{quota_number}/#{quota_total} (Linea #{line_mode}) [CASHEA] [CASHEA_USER_FINANCING]",
           amount: entry[:amount],
           currency: 'USD',
-          issued_on: Date.current,
+          issued_on: issued_on,
           due_on: entry[:due_on],
           cliente_id: cashea_cliente.id,
           group_token: receivable_group_token,
@@ -1095,6 +1101,7 @@ class DebtsController < ApplicationController
       :user_name,
       :line_mode,
       :initial_ficticia,
+      :issued_on,
       installments: %i[amount due_on]
     )
   end
