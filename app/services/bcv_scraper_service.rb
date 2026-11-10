@@ -117,8 +117,31 @@ class BcvScraperService
   end
 
   def self.normalize_decimal(raw_value)
-    sanitized = raw_value.to_s.tr(',', '.').gsub(/[^\d.]/, '')
-    BigDecimal(sanitized).truncate(2)
+    text = raw_value.to_s.strip
+    numeric = text.gsub(/[^\d,\.]/, '')
+
+    raise ArgumentError, "valor BCV invalido: #{raw_value.inspect}" if numeric.blank?
+
+    if numeric.include?(',') && numeric.include?('.')
+      # If both separators exist, the right-most one is treated as decimal separator.
+      if numeric.rindex(',') > numeric.rindex('.')
+        normalized = numeric.delete('.').tr(',', '.')
+      else
+        normalized = numeric.delete(',')
+      end
+    elsif numeric.include?(',')
+      normalized = numeric.delete('.').tr(',', '.')
+    else
+      # If multiple dots exist, treat only the last one as decimal separator.
+      segments = numeric.split('.')
+      normalized = if segments.size > 2
+                     "#{segments[0..-2].join}.#{segments[-1]}"
+                   else
+                     numeric
+                   end
+    end
+
+    BigDecimal(normalized).truncate(2)
   end
 
   def self.extract_fecha_valor(doc)
