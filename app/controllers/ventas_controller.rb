@@ -445,14 +445,31 @@ class VentasController < ApplicationController
     @total_sales = filtered_scope.count
     @sales_with_client = filtered_scope.where.not(cliente_id: nil).count
 
-    summary_sales = filtered_scope
-      .select(:id, :created_at, :base_currency, :total_usd, :total_bs, :tasa_dolar)
-      .to_a
-    summary_reference_service = SaleCurrencyReferenceService.new(summary_sales)
+    @total_usd = 0.to_d
+    @total_ves = 0.to_d
 
-    summary_totals = summary_reference_service.totals_by_sale_id.values
-    @total_usd = summary_totals.sum { |row| row[:usd_total].to_d }.round(2)
-    @total_ves = summary_totals.sum { |row| row[:ves_total].to_d }.round(2)
+    filtered_scope
+      .reorder(nil)
+      .select(:id, :created_at, :base_currency, :total_usd, :total_bs, :tasa_dolar)
+      .in_batches(of: 500) do |batch_scope|
+      summary_sales = batch_scope.pluck(:id, :created_at, :base_currency, :total_usd, :total_bs, :tasa_dolar).map do |row|
+        SaleCurrencyReferenceService::SaleRow.new(
+          id: row[0],
+          created_at: row[1],
+          base_currency: row[2],
+          total_usd: row[3],
+          total_bs: row[4],
+          tasa_dolar: row[5],
+        )
+      end
+
+      summary_totals = SaleCurrencyReferenceService.new(summary_sales).totals_by_sale_id.values
+      @total_usd += summary_totals.sum { |item| item[:usd_total].to_d }
+      @total_ves += summary_totals.sum { |item| item[:ves_total].to_d }
+    end
+
+    @total_usd = @total_usd.round(2)
+    @total_ves = @total_ves.round(2)
 
     ventas_scope = filtered_scope
       .includes(:cliente, :user, :cashier_user, :venta_payments)

@@ -86,6 +86,9 @@ class CashShiftsController < ApplicationController
     open_without_bcv_update = allow_open_without_bcv_update?
     scraper_result = if open_without_bcv_update
              { status: :skipped_by_admin }
+    elsif (cached_result = local_bcv_up_to_date_result).present?
+             enqueue_bcv_refresh_async
+             cached_result
     else
              BcvScraperService.call
     end
@@ -1366,5 +1369,31 @@ class CashShiftsController < ApplicationController
     return false unless current_user_admin?
 
     ActiveModel::Type::Boolean.new.cast(params[:allow_without_bcv_update])
+  end
+
+  def local_bcv_up_to_date_result
+    today = Time.current.in_time_zone("America/Caracas").to_date
+    latest_dolar = TasaCambio.where(description: "Dolar BCV").maximum(:fecha_referencia)
+    latest_euro = TasaCambio.where(description: "Euro BCV").maximum(:fecha_referencia)
+
+    return nil if latest_dolar.blank? || latest_euro.blank?
+    return nil unless latest_dolar >= today && latest_euro >= today
+
+    {
+      status: :up_to_date,
+      fecha_referencia: [latest_dolar, latest_euro].min,
+      ultima_fecha: [latest_dolar, latest_euro].max,
+    }
+  end
+
+  def enqueue_bcv_refresh_async
+    cache_key = "bcv-refresh-enqueued-at"
+    recently_enqueued = Rails.cache.read(cache_key).present?
+    return if recently_enqueued
+
+    BcvScrapeJob.perform_later
+    Rails.cache.write(cache_key, true, expires_in: 15.minutes)
+  rescue StandardError => e
+    Rails.logger.warn("No se pudo encolar BcvScrapeJob para refresco asíncrono: #{e.message}")
   end
 end

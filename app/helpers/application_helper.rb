@@ -157,6 +157,8 @@ module ApplicationHelper
                       .gsub(/\s+pendiente\s+venta\s+#\d+\s*-?/i, ' ')
                       .gsub(/\s*\[(?:VENTA):\d+\]/i, '')
                       .gsub(/\s*\[CASHEA\]/i, '')
+                      .gsub(/\s*\[CASHEA_USER_FINANCING\]/i, '')
+                      .gsub(/\s*\[CASHEA_USER_FINANCING_ID:[^\]]+\]/i, '')
       return cleaned_cashea.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
     end
 
@@ -165,6 +167,8 @@ module ApplicationHelper
               .gsub(/\s*\[(?:CLIENTE_DUENO):[^\]]+\]/i, '')
               .gsub(/\s*\[(?:FACTURA_COMPRA|FACTURA_COMPRA_MIRROR):\d+\]/i, '')
               .gsub(/\s*\[IC_MIRROR\]/i, '')
+              .gsub(/\s*\[CASHEA_USER_FINANCING\]/i, '')
+              .gsub(/\s*\[CASHEA_USER_FINANCING_ID:[^\]]+\]/i, '')
     cleaned.gsub(/\s{2,}/, ' ').strip.presence || 'Deuda sin descripcion'
   end
 

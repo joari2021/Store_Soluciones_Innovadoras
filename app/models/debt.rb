@@ -178,6 +178,10 @@ class Debt < ApplicationRecord
     ActiveModel::Type::Boolean.new.cast(self[:mirror_sync_enabled]) && mirror_debt_id.present?
   end
 
+  def cashea_user_financing?
+    description.to_s.include?('[CASHEA_USER_FINANCING]')
+  end
+
   private
 
   def normalize_service_cost_line(raw_line)

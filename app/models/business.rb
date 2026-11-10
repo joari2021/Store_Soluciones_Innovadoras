@@ -270,6 +270,7 @@ class Business < ApplicationRecord
   has_many :debts, dependent: :destroy
   has_many :debt_payments, through: :debts
   has_many :hidden_debt_groups, dependent: :destroy
+  has_many :cashea_user_financings, dependent: :destroy
   has_many :expense_categories, dependent: :nullify
   has_many :requested_products, dependent: :destroy
   has_many :requested_product_events, dependent: :destroy

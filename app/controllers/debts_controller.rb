@@ -4,7 +4,7 @@ class DebtsController < ApplicationController
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
   helper_method :oldest_overdue_due_on_for_group, :overdue_count_for_group, :overdue_badges_for_group
-  before_action :ensure_can_create_debt!, only: %i[new create prepare_group]
+  before_action :ensure_can_create_debt!, only: %i[new create prepare_group create_cashea_user_financing]
   before_action :ensure_can_edit_debt!, only: %i[edit update]
   before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
   before_action :ensure_can_transfer_debt!, only: %i[transfer_group transfer_destination_clients]
@@ -205,6 +205,98 @@ class DebtsController < ApplicationController
       )
       @debt_entries_form = [default_debt_entry]
     end
+  end
+
+  def create_cashea_user_financing
+    payload = cashea_user_financing_params
+    line_mode = payload[:line_mode].to_s.strip.downcase
+    user_name = payload[:user_name].to_s.strip
+    initial_ficticia_usd = parse_decimal_currency(payload[:initial_ficticia]).to_d.round(2)
+
+    unless CasheaUserFinancing::LINE_MODES.include?(line_mode)
+      redirect_to debts_path, alert: 'La linea seleccionada no es valida.'
+      return
+    end
+
+    if user_name.blank?
+      redirect_to debts_path, alert: 'Debes indicar el nombre del usuario acreedor.'
+      return
+    end
+
+    installments = normalized_cashea_user_financing_installments(payload[:installments], line_mode: line_mode)
+    if installments.blank?
+      redirect_to debts_path, alert: 'Debes completar las cuotas requeridas para la linea seleccionada.'
+      return
+    end
+
+    payable_group_token = generate_debt_group_token
+    cashea_cliente = find_or_create_cashea_financing_cliente!
+    receivable_group_debts = active_receivable_group_debts(cliente_id: cashea_cliente.id, currency: 'USD')
+    receivable_group_token = receivable_group_debts.any? ? debt_group_token(receivable_group_debts.first) : generate_debt_group_token
+
+    created_payable_debts = []
+    created_receivable_debts = []
+    financing_record = nil
+
+    Debt.transaction do
+      installments.each_with_index do |entry, index|
+        quota_number = index + 1
+        quota_total = installments.size
+
+        payable_debt = current_business.debts.create!(
+          debt_kind: 'payable',
+          name: "Financiamiento Cashea Usuario - Cuota #{quota_number}",
+          description: "Financiamiento Cashea Usuario - Cuota #{quota_number}/#{quota_total} (Linea #{line_mode}) [CASHEA_USER_FINANCING]",
+          amount: entry[:amount],
+          currency: 'USD',
+          issued_on: Date.current,
+          due_on: entry[:due_on],
+          acreedor: user_name,
+          group_token: payable_group_token,
+        )
+        created_payable_debts << payable_debt
+
+        receivable_debt = current_business.debts.create!(
+          debt_kind: 'receivable',
+          name: "Cuota Cashea Usuario - #{user_name}",
+          description: "Cuota Cashea Usuario #{user_name} - #{quota_number}/#{quota_total} (Linea #{line_mode}) [CASHEA] [CASHEA_USER_FINANCING]",
+          amount: entry[:amount],
+          currency: 'USD',
+          issued_on: Date.current,
+          due_on: entry[:due_on],
+          cliente_id: cashea_cliente.id,
+          group_token: receivable_group_token,
+        )
+        created_receivable_debts << receivable_debt
+      end
+
+      financing_record = current_business.cashea_user_financings.create!(
+        created_by: Current.user,
+        user_name: user_name,
+        line_mode: line_mode,
+        initial_ficticia_usd: initial_ficticia_usd,
+        payable_group_token: payable_group_token,
+        receivable_group_token: receivable_group_token,
+        installments: installments.each_with_index.map do |entry, index|
+          {
+            position: index + 1,
+            amount_usd: entry[:amount].to_d.round(2).to_s('F'),
+            due_on: entry[:due_on].iso8601,
+            payable_debt_id: created_payable_debts[index]&.id,
+            receivable_debt_id: created_receivable_debts[index]&.id,
+          }
+        end,
+      )
+
+      marker = "[CASHEA_USER_FINANCING_ID:#{financing_record.id}]"
+      created_payable_debts.each { |debt| debt.update!(description: "#{debt.description} #{marker}".strip) }
+      created_receivable_debts.each { |debt| debt.update!(description: "#{debt.description} #{marker}".strip) }
+    end
+
+    notice = "Financiamiento Cashea Usuario creado: #{created_payable_debts.size} deuda(s) por pagar y #{created_receivable_debts.size} deuda(s) por cobrar en Cashea."
+    redirect_to debts_path, notice: notice
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to debts_path, alert: e.record&.errors&.full_messages&.to_sentence.presence || e.message
   end
 
   def create
@@ -967,6 +1059,15 @@ class DebtsController < ApplicationController
     )
   end
 
+  def cashea_user_financing_params
+    params.require(:cashea_user_financing).permit(
+      :user_name,
+      :line_mode,
+      :initial_ficticia,
+      installments: %i[amount due_on]
+    )
+  end
+
   def transfer_group_params
     params.require(:debt_transfer).permit(:destination_business_id, :destination_cliente_id)
   end
@@ -1112,6 +1213,99 @@ class DebtsController < ApplicationController
       :cliente_id,
       :acreedor
     )
+  end
+
+  def normalized_cashea_user_financing_installments(raw_installments, line_mode:)
+    expected_count = line_mode == 'principal' ? 3 : 1
+
+    rows = case raw_installments
+           when ActionController::Parameters
+             raw_installments.to_unsafe_h.sort_by { |key, _| key.to_i }.map { |_, value| value }
+           when Hash
+             raw_installments.sort_by { |key, _| key.to_i }.map { |_, value| value }
+           when Array
+             raw_installments
+           else
+             []
+           end
+
+    selected_rows = rows.first(expected_count)
+    return [] if selected_rows.size != expected_count
+
+    normalized = selected_rows.map.with_index do |row, index|
+      row_hash = row.respond_to?(:to_unsafe_h) ? row.to_unsafe_h : (row.respond_to?(:to_h) ? row.to_h : {})
+      amount = parse_decimal_currency(row_hash[:amount] || row_hash['amount']).to_d.round(2)
+      due_on = parse_debt_date(row_hash[:due_on] || row_hash['due_on'])
+
+      if amount <= 0
+        @debt ||= current_business.debts.new
+        @debt.errors.add(:base, "Cuota #{index + 1}: el monto debe ser mayor a cero.")
+      end
+
+      if due_on.blank?
+        @debt ||= current_business.debts.new
+        @debt.errors.add(:base, "Cuota #{index + 1}: la fecha de vencimiento es obligatoria.")
+      end
+
+      {
+        amount: amount,
+        due_on: due_on,
+      }
+    end
+
+    return [] if @debt&.errors&.any?
+
+    normalized
+  end
+
+  def parse_decimal_currency(value)
+    return 0.to_d if value.nil?
+    return value.to_d if value.is_a?(Numeric)
+
+    cleaned = value.to_s.strip.gsub(/[^\d,\.\-]/, '')
+    return 0.to_d if cleaned.blank?
+
+    normalized = if cleaned.include?(',') && cleaned.include?('.')
+                   cleaned.gsub('.', '').tr(',', '.')
+                 elsif cleaned.include?(',')
+                   cleaned.tr(',', '.')
+                 else
+                   cleaned
+                 end
+
+    BigDecimal(normalized)
+  rescue ArgumentError
+    0.to_d
+  end
+
+  def find_or_create_cashea_financing_cliente!
+    existing = current_business.clientes.where('LOWER(name) = ?', 'cashea').order(:id).first
+    return existing if existing.present?
+
+    base_document = 900_000_000
+    suffix = current_business.id.to_i % 10_000
+    attempt = 0
+
+    loop do
+      document_number = (base_document + suffix + attempt).to_s.rjust(9, '0').last(9)
+      phone = "04#{(attempt % 100_000_0000).to_s.rjust(9, '0')}"
+
+      candidate = current_business.clientes.new(
+        document_type: 'J',
+        document_number: document_number,
+        name: 'Cashea',
+        phone: phone,
+        address: 'Cliente tecnico para financiamiento Cashea Usuario',
+      )
+      return candidate if candidate.save
+
+      if candidate.errors.where(:name).blank? && candidate.errors.where(:document_number).blank?
+        raise ActiveRecord::RecordInvalid.new(candidate)
+      end
+
+      attempt += 1
+      raise ActiveRecord::RecordInvalid.new(candidate) if attempt > 50
+    end
   end
 
   def debt_entries_form_params

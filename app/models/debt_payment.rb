@@ -217,6 +217,8 @@ class DebtPayment < ApplicationRecord
     cleaned = raw_description
               .gsub(/\s*\[(?:VENTA):\d+\]/i, '')
               .gsub(/\s*\[(?:CLIENTE_DUENO):[^\]]+\]/i, '')
+              .gsub(/\s*\[CASHEA_USER_FINANCING\]/i, '')
+              .gsub(/\s*\[CASHEA_USER_FINANCING_ID:[^\]]+\]/i, '')
 
     if cleaned.match?(/\ACuota\s+Cashea\b/i)
       cleaned = cleaned.sub(/\s+pendiente\s+venta\s+#\d+.*\z/i, '')

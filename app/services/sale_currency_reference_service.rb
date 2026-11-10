@@ -1,4 +1,14 @@
 class SaleCurrencyReferenceService
+  SaleRow = Struct.new(
+    :id,
+    :created_at,
+    :base_currency,
+    :total_usd,
+    :total_bs,
+    :tasa_dolar,
+    keyword_init: true
+  )
+
   RATE_DESCRIPTION_BY_KEY = {
     usd_rate: 'Dolar BCV',
     eur_rate: 'Euro BCV'
