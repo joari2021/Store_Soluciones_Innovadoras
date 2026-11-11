@@ -200,12 +200,9 @@ module ApplicationHelper
     sale_id = extract_movement_source_id(description, 'VENTA')
     return nil if sale_id.blank?
 
-    sale = current_business&.ventas&.select(:id)&.find_by(id: sale_id)
-    return nil if sale.blank?
-
     {
-      label: "Ver venta ##{sale.id}",
-      path: venta_path(sale)
+      label: "Ver venta ##{sale_id}",
+      path: venta_path(sale_id)
     }
   end
 
@@ -217,10 +214,7 @@ module ApplicationHelper
     return nil if description.blank?
 
     tagged_sale_id = extract_movement_source_id(description, 'VENTA')
-    return nil if tagged_sale_id.blank?
-
-    sale = current_business&.ventas&.select(:id)&.find_by(id: tagged_sale_id)
-    sale&.id
+    tagged_sale_id.presence&.to_i
   end
 
   def debt_invoice_link_data(value)
@@ -232,12 +226,9 @@ module ApplicationHelper
                  extract_movement_source_id(description, 'PURCHASE_INVOICE')
     return nil if invoice_id.blank?
 
-    invoice = current_business&.purchase_invoices&.select(:id)&.find_by(id: invoice_id)
-    return nil if invoice.blank?
-
     {
-      invoice_id: invoice.id,
-      path: purchase_invoice_path(invoice)
+      invoice_id: invoice_id.to_i,
+      path: purchase_invoice_path(invoice_id)
     }
   end
 
