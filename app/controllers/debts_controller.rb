@@ -16,6 +16,7 @@ class DebtsController < ApplicationController
   def index
     @search_query = params[:q].to_s.strip
     @customer_debt_view = current_user_customer_mode?
+    @cashea_financing_payable_only = cashea_financing_payable_only_filter?
 
     scope = debts_index_scope
     scope_debts = sort_debts(scope.to_a)
@@ -3655,12 +3656,29 @@ class DebtsController < ApplicationController
   end
 
   def debts_index_scope
+    customer_debt_view = if instance_variable_defined?(:@customer_debt_view)
+                           @customer_debt_view
+                         else
+                           current_user_customer_mode?
+                         end
+    cashea_financing_payable_only = if instance_variable_defined?(:@cashea_financing_payable_only)
+                                      @cashea_financing_payable_only
+                                    else
+                                      cashea_financing_payable_only_filter?
+                                    end
+
     scope = current_business
             .debts
             .excluding_service_cost_records
             .includes(:cliente, :debt_payments, :venta)
 
-    scope = scope.where(debt_kind: 'receivable') if @customer_debt_view
+    scope = scope.where(debt_kind: 'receivable') if customer_debt_view
+
+    if cashea_financing_payable_only
+      scope = scope
+              .where(debt_kind: 'payable')
+              .where('debts.description ILIKE ?', '%[CASHEA_USER_FINANCING]%')
+    end
 
     if @search_query.present?
       query = "%#{ActiveRecord::Base.sanitize_sql_like(@search_query)}%"
@@ -3668,6 +3686,10 @@ class DebtsController < ApplicationController
     end
 
     scope
+  end
+
+  def cashea_financing_payable_only_filter?
+    ActiveModel::Type::Boolean.new.cast(params[:cashea_financing_payable_only])
   end
 
   def debt_balance_scope(scope, paid:)
