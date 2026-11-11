@@ -170,7 +170,7 @@ class ServicesController < ApplicationController
                   .order(created_at: :desc)
 
     sales_scope = apply_pending_cost_sales_date_filters(scope: sales_scope, filters: @pending_cost_filters)
-    sales_scope = sales_scope.limit(PENDING_COSTS_MAX_SALES)
+    sales_scope = sales_scope.limit(PENDING_COSTS_MAX_SALES) if should_limit_pending_cost_sales?(filters: @pending_cost_filters)
 
     sold_rows = build_pending_cost_sold_service_rows_for_sales(sales: sales_scope.to_a)
     sold_rows = filter_pending_cost_sold_rows(rows: sold_rows, filters: @pending_cost_filters)
@@ -1498,13 +1498,15 @@ class ServicesController < ApplicationController
   end
 
   def pending_cost_filters_from_params
+    explicit_date_filter = params[:fecha_desde].present? || params[:fecha_hasta].present?
     filters = {
       query_text: params[:query_text].to_s.strip,
       fecha_desde: parse_pending_cost_filter_date(params[:fecha_desde]),
       fecha_hasta: parse_pending_cost_filter_date(params[:fecha_hasta]),
       system_service_id: parse_pending_cost_filter_integer(params[:system_service_id]),
       manager_id: parse_pending_cost_filter_integer(params[:manager_id]),
-      cost_status: normalize_pending_cost_status_filter(params[:cost_status])
+      cost_status: normalize_pending_cost_status_filter(params[:cost_status]),
+      explicit_date_filter: explicit_date_filter
     }
 
     if filters[:fecha_desde].blank? && filters[:fecha_hasta].blank?
@@ -1512,6 +1514,16 @@ class ServicesController < ApplicationController
     end
 
     filters
+  end
+
+  def should_limit_pending_cost_sales?(filters:)
+    return false if filters[:explicit_date_filter]
+    return false if filters[:query_text].present?
+    return false if filters[:system_service_id].present?
+    return false if filters[:manager_id].present?
+    return false unless filters[:cost_status].to_s == 'all'
+
+    true
   end
 
   def normalize_pending_cost_status_filter(value)
