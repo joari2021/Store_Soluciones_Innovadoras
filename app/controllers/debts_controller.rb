@@ -867,6 +867,7 @@ class DebtsController < ApplicationController
     Debt.transaction do
       debts_to_save.each(&:save!)
       debts_to_remove.each do |debt|
+        remove_loan_primary_movements_for_debt!(debt)
         remove_loan_commission_records_for_debt!(debt)
         next unless debt.persisted?
 
@@ -938,6 +939,7 @@ class DebtsController < ApplicationController
 
     Debt.transaction do
       debts_to_delete.each do |debt|
+        remove_loan_primary_movements_for_debt!(debt) unless remove_movements
         remove_loan_commission_records_for_debt!(debt)
       end
 
@@ -2128,6 +2130,10 @@ class DebtsController < ApplicationController
       loan_account_movements_for_debt(commission_debt).each(&:destroy!)
       commission_debt.destroy!
     end
+  end
+
+  def remove_loan_primary_movements_for_debt!(debt)
+    loan_account_movements_for_debt(debt).each(&:destroy!)
   end
 
   def linked_account_movements_for_debts(debts)
