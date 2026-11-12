@@ -166,11 +166,11 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Deudas asociadas</p>
-      <span class="text-xs font-semibold text-slate-500" data-debts-associated-count="true"><%= @show_debt_rows_visible.size %> deudas</span>
+      <span class="text-xs font-semibold text-slate-500" data-debts-associated-count="true" data-debts-total="<%= @show_debts_total_count %>"><%= @show_debt_rows_visible.size %>/<%= @show_debts_total_count %> deudas</span>
     </div>
     <% if @show_debt_rows_visible.any? %>
-      <% grouped_by_currency = @show_debt_rows_visible.group_by { |row| row[:debt].currency } %>
-      <% grouped_by_currency.each do |currency, rows| %>
+      <% @show_group_currencies.each do |currency| %>
+        <% rows = @show_debt_rows_visible.select { |row| row[:debt].currency.to_s.upcase == currency.to_s.upcase } %>
         <% is_usdt = currency.to_s.upcase == 'USDT' %>
         <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200">
           <div class="flex items-center gap-2 mb-2">
@@ -196,7 +196,7 @@
                 <th class="px-4 py-3 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-slate-100" data-debts-table-body="true" data-cashea-week-target="debts-<%= currency.to_s.upcase %>">
+            <tbody class="divide-y divide-slate-100" data-debts-table-body="true" data-cashea-week-target="debts-<%= currency.to_s.upcase %>" data-group-rows-target="debts-<%= currency.to_s.upcase %>">
               <%= render partial: 'debts/debt_rows', locals: { rows: rows, is_usdt: is_usdt, customer_debt_view: customer_debt_view, weekly_summary_enabled: @show_weekly_summary_enabled } %>
             </tbody>
           </table>
@@ -215,6 +215,19 @@
             Cargar semana anterior
           </button>
         </div>
+      <% elsif @show_next_debt_offset.present? %>
+        <div class="mt-3 flex justify-end">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            data-group-load-more="true"
+            data-group-load-section="debts"
+            data-group-next-offset="<%= @show_next_debt_offset %>"
+            data-group-rows-url="<%= group_rows_debt_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]) %>"
+          >
+            Mostrar mas deudas
+          </button>
+        </div>
       <% end %>
     <% else %>
       <p class="mt-4 text-sm text-slate-500">No hay deudas asociadas.</p>
@@ -223,7 +236,7 @@
   <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
     <div class="flex items-center justify-between">
       <p class="text-xs font-semibold uppercase tracking-widest text-slate-400">Pagos registrados</p>
-      <span class="text-xs font-semibold text-slate-500" data-payments-associated-count="true"><%= @show_payment_rows_visible.count %> pagos</span>
+      <span class="text-xs font-semibold text-slate-500" data-payments-associated-count="true" data-payments-total="<%= @show_payments_total_count %>"><%= @show_payment_rows_visible.count %>/<%= @show_payments_total_count %> pagos</span>
     </div>
     <% if @show_payment_rows_visible.any? %>
       <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
@@ -244,7 +257,7 @@
               <th class="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-slate-100" data-cashea-week-target="payments">
+          <tbody class="divide-y divide-slate-100" data-cashea-week-target="payments" data-group-rows-target="payments">
             <%= render partial: 'debts/payment_rows', locals: { rows: @show_payment_rows_visible, group_is_usdt: group_is_usdt } %>
           </tbody>
         </table>
@@ -260,6 +273,19 @@
             data-cashea-week-url="<%= cashea_week_rows_debt_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]) %>"
           >
             Cargar semana anterior
+          </button>
+        </div>
+      <% elsif @show_next_payment_offset.present? %>
+        <div class="mt-3 flex justify-end">
+          <button
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            data-group-load-more="true"
+            data-group-load-section="payments"
+            data-group-next-offset="<%= @show_next_payment_offset %>"
+            data-group-rows-url="<%= group_rows_debt_path(@debt, group_currency: params[:group_currency], group_cliente_id: params[:group_cliente_id], only_active: params[:only_active], group_token: params[:group_token]) %>"
+          >
+            Mostrar mas pagos
           </button>
         </div>
       <% end %>
@@ -1812,7 +1838,10 @@
                       const countLabel = root.querySelector("[data-debts-associated-count='true']");
                       if (countLabel) {
                         const totalRows = root.querySelectorAll("[data-debt-row-id]").length;
-                        countLabel.textContent = `${totalRows} deudas`;
+                        const totalDebts = Number.parseInt(countLabel.dataset.debtsTotal || "0", 10);
+                        countLabel.textContent = Number.isFinite(totalDebts) && totalDebts > 0
+                          ? `${totalRows}/${totalDebts} deudas`
+                          : `${totalRows} deudas`;
                       }
 
                       const next = String(payload.next_debt_week_start || "").trim();
@@ -1828,7 +1857,10 @@
                         const countLabel = root.querySelector("[data-payments-associated-count='true']");
                         if (countLabel) {
                           const totalRows = target.querySelectorAll("tr").length;
-                          countLabel.textContent = `${totalRows} pagos`;
+                          const totalPayments = Number.parseInt(countLabel.dataset.paymentsTotal || "0", 10);
+                          countLabel.textContent = Number.isFinite(totalPayments) && totalPayments > 0
+                            ? `${totalRows}/${totalPayments} pagos`
+                            : `${totalRows} pagos`;
                         }
                       }
 
@@ -1859,6 +1891,108 @@
                   } finally {
                     loadWeekButton.dataset.loading = "0";
                     loadWeekButton.classList.remove("opacity-60", "pointer-events-none");
+                  }
+                });
+
+                root.addEventListener("click", async (event) => {
+                  const loadMoreButton = event.target.closest("[data-group-load-more='true']");
+                  if (!loadMoreButton) return;
+
+                  event.preventDefault();
+                  if (loadMoreButton.dataset.loading === "1") return;
+
+                  const section = String(loadMoreButton.dataset.groupLoadSection || "").trim();
+                  const nextOffset = String(loadMoreButton.dataset.groupNextOffset || "").trim();
+                  const baseUrl = String(loadMoreButton.dataset.groupRowsUrl || "").trim();
+                  if (!section || !nextOffset || !baseUrl) return;
+
+                  loadMoreButton.dataset.loading = "1";
+                  loadMoreButton.classList.add("opacity-60", "pointer-events-none");
+
+                  try {
+                    const connector = baseUrl.includes("?") ? "&" : "?";
+                    const requestUrl = `${baseUrl}${connector}section=${encodeURIComponent(section)}&offset=${encodeURIComponent(nextOffset)}`;
+                    const response = await fetch(requestUrl, {
+                      headers: {
+                        Accept: "application/json",
+                        "X-Requested-With": "XMLHttpRequest",
+                      },
+                      credentials: "same-origin",
+                      cache: "no-store",
+                    });
+
+                    const payload = await response.json().catch(() => ({}));
+                    if (!response.ok) throw new Error(payload.error || "No se pudo cargar más información.");
+
+                    if (section === "debts") {
+                      const rowsByCurrency = payload.debt_rows_by_currency && typeof payload.debt_rows_by_currency === "object"
+                        ? payload.debt_rows_by_currency
+                        : {};
+
+                      Object.entries(rowsByCurrency).forEach(([currency, html]) => {
+                        if (!html) return;
+                        const target = root.querySelector(`[data-group-rows-target='debts-${String(currency).toUpperCase()}']`);
+                        if (!target) return;
+                        target.insertAdjacentHTML("beforeend", html);
+                      });
+
+                      const countLabel = root.querySelector("[data-debts-associated-count='true']");
+                      if (countLabel) {
+                        const loadedRows = root.querySelectorAll("[data-debt-row-id]").length;
+                        const totalDebts = Number.parseInt(countLabel.dataset.debtsTotal || "0", 10);
+                        countLabel.textContent = Number.isFinite(totalDebts) && totalDebts > 0
+                          ? `${loadedRows}/${totalDebts} deudas`
+                          : `${loadedRows} deudas`;
+                      }
+
+                      const next = payload.next_debt_offset;
+                      if (next !== null && next !== undefined && String(next).length > 0) {
+                        loadMoreButton.dataset.groupNextOffset = String(next);
+                      } else {
+                        loadMoreButton.remove();
+                      }
+                    } else if (section === "payments") {
+                      const target = root.querySelector("[data-group-rows-target='payments']");
+                      if (target && payload.payment_rows_html) {
+                        target.insertAdjacentHTML("beforeend", payload.payment_rows_html);
+                      }
+
+                      const countLabel = root.querySelector("[data-payments-associated-count='true']");
+                      if (countLabel) {
+                        const loadedRows = root.querySelectorAll("[data-group-rows-target='payments'] tr").length;
+                        const totalPayments = Number.parseInt(countLabel.dataset.paymentsTotal || "0", 10);
+                        countLabel.textContent = Number.isFinite(totalPayments) && totalPayments > 0
+                          ? `${loadedRows}/${totalPayments} pagos`
+                          : `${loadedRows} pagos`;
+                      }
+
+                      const next = payload.next_payment_offset;
+                      if (next !== null && next !== undefined && String(next).length > 0) {
+                        loadMoreButton.dataset.groupNextOffset = String(next);
+                      } else {
+                        loadMoreButton.remove();
+                      }
+                    }
+
+                    if (window.lucide?.createIcons) {
+                      window.lucide.createIcons();
+                    }
+                  } catch (error) {
+                    if (window.Swal) {
+                      window.Swal.fire({
+                        icon: "error",
+                        title: "No se pudo cargar",
+                        text: error.message || "Ocurrio un error cargando más registros.",
+                        confirmButtonText: "Entendido",
+                        heightAuto: false,
+                        scrollbarPadding: false,
+                      });
+                    } else {
+                      window.alert(error.message || "Ocurrio un error cargando más registros.");
+                    }
+                  } finally {
+                    loadMoreButton.dataset.loading = "0";
+                    loadMoreButton.classList.remove("opacity-60", "pointer-events-none");
                   }
                 });
 

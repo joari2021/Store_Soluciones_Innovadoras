@@ -127,6 +127,7 @@ Rails.application.routes.draw do
     member do
       post :transfer_group, path: "transferir-grupo"
       get :cashea_week_rows, path: "cashea/semanas"
+      get :group_rows, path: "grupo/filas"
     end
     resources :debt_payments, only: %i[new create destroy]
   end

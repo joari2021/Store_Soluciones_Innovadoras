@@ -1,5 +1,7 @@
 class DebtsController < ApplicationController
   TRANSFER_SOURCE_CLIENT_SENTINEL = '__transfer_source_cliente__'.freeze
+  GROUP_ROWS_PAGE_SIZE = 40
+  GROUP_PAYMENTS_PAGE_SIZE = 40
 
   before_action :require_business
   before_action -> { require_module_access!(:deudas) }
@@ -8,7 +10,7 @@ class DebtsController < ApplicationController
   before_action :ensure_can_edit_debt!, only: %i[edit update]
   before_action :ensure_can_destroy_debt!, only: %i[destroy hide_paid_group]
   before_action :ensure_can_transfer_debt!, only: %i[transfer_group transfer_destination_clients]
-  before_action :set_debt, only: %i[show edit update destroy transfer_group cashea_week_rows]
+  before_action :set_debt, only: %i[show edit update destroy transfer_group cashea_week_rows group_rows]
   before_action :load_parties, only: %i[new create edit update]
   before_action :load_accounts, only: %i[new create edit update]
   before_action :load_currency_rates, only: %i[new create edit update]
@@ -437,8 +439,13 @@ class DebtsController < ApplicationController
     @debt = group_root_for(@debt)
     grouped_debts = debts_for_show(@debt)
     @grouped_debts = sort_debts(grouped_debts).uniq { |item| item.id }
+    @show_group_currencies = @grouped_debts.map { |debt| debt.currency.to_s.upcase }.uniq
     @show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
     @show_weekly_summary_enabled = cashea_group_for_show?(@debt)
+    @show_debt_limit = GROUP_ROWS_PAGE_SIZE
+    @show_payment_limit = GROUP_PAYMENTS_PAGE_SIZE
+    @show_next_debt_offset = nil
+    @show_next_payment_offset = nil
 
     payments_scope = DebtPayment.where(debt_id: @grouped_debts.map(&:id))
     @show_last_payment_at = payments_scope.order(occurred_at: :desc, created_at: :desc).limit(1).pick(:occurred_at)
@@ -450,17 +457,20 @@ class DebtsController < ApplicationController
                                         payment_week_starts[@cashea_visible_payment_week_starts.length]
                                       end
 
+    ordered_payments_scope = payments_scope
+                             .includes(:account, :debt)
+                             .order(occurred_at: :desc, created_at: :desc)
+
     @payments = if @show_weekly_summary_enabled && @cashea_visible_payment_week_starts.any?
                   week_start = @cashea_visible_payment_week_starts.first
                   week_end = week_start + 6.days
-                  payments_scope
-                    .where(occurred_at: week_start..week_end)
-                    .includes(:account, :debt)
-                    .order(occurred_at: :desc, created_at: :desc)
+                  week_scope = ordered_payments_scope.where(occurred_at: week_start..week_end)
+                  @show_payments_total_count = ordered_payments_scope.count
+                  week_scope
                 else
-                  payments_scope
-                    .includes(:account, :debt)
-                    .order(occurred_at: :desc, created_at: :desc)
+                  @show_payments_total_count = ordered_payments_scope.count
+                  @show_next_payment_offset = @show_payments_total_count > @show_payment_limit ? @show_payment_limit : nil
+                  ordered_payments_scope.limit(@show_payment_limit)
                 end
 
     @show_total_amount_usd_bcv = total_usd_amount(@grouped_debts)
@@ -520,11 +530,16 @@ class DebtsController < ApplicationController
     debt_rows_source = @grouped_debts
     if @show_weekly_summary_enabled
       @cashea_debt_week_starts = @grouped_debts.map { |debt| debt_week_start_for(debt) }.uniq.sort.reverse
-      @cashea_visible_debt_week_starts = @cashea_debt_week_starts.first(2)
+      @cashea_visible_debt_week_starts = @cashea_debt_week_starts.first(1)
       @cashea_next_debt_week_start = @cashea_debt_week_starts[@cashea_visible_debt_week_starts.length]
       debt_rows_source = @grouped_debts.select do |debt|
         @cashea_visible_debt_week_starts.include?(debt_week_start_for(debt))
       end
+      @show_debts_total_count = @grouped_debts.size
+    else
+      @show_debts_total_count = @grouped_debts.size
+      @show_next_debt_offset = @show_debts_total_count > @show_debt_limit ? @show_debt_limit : nil
+      debt_rows_source = @grouped_debts.first(@show_debt_limit)
     end
 
     @show_debt_rows = build_show_debt_rows(
@@ -642,6 +657,77 @@ class DebtsController < ApplicationController
     render json: response_payload
   rescue ArgumentError
     render json: { error: 'Semana invalida.' }, status: :unprocessable_entity
+  end
+
+  def group_rows
+    @debt = group_root_for(@debt)
+    grouped_debts = sort_debts(debts_for_show(@debt)).uniq { |item| item.id }
+    show_group_currency = params[:group_currency].to_s.upcase.presence || @debt.currency.to_s.upcase
+
+    if cashea_group_for_show?(@debt)
+      render json: { error: 'Este grupo usa carga semanal de Cashea.' }, status: :unprocessable_entity
+      return
+    end
+
+    section = params[:section].to_s
+    offset = parse_group_rows_offset(params[:offset])
+    response_payload = {}
+
+    if section.blank? || section == 'debts'
+      group_is_usdt = show_group_currency.to_s.upcase == 'USDT'
+      effective_allocations = effective_usd_bcv_allocations_for_group(grouped_debts)
+      effective_native_allocations = group_is_usdt ? effective_native_allocations_for_group(grouped_debts) : {}
+
+      page_debts = grouped_debts.drop(offset).first(GROUP_ROWS_PAGE_SIZE)
+      debt_rows = build_show_debt_rows(
+        grouped_debts: page_debts,
+        group_is_usdt: group_is_usdt,
+        effective_allocations: effective_allocations,
+        effective_native_allocations: effective_native_allocations,
+        weekly_summary_enabled: false,
+      )
+
+      response_payload[:debt_rows_by_currency] = debt_rows.group_by { |row| row[:debt].currency.to_s.upcase }.each_with_object({}) do |(currency, currency_rows), hash|
+        hash[currency] = render_to_string(
+          partial: 'debts/debt_rows',
+          formats: [:html],
+          locals: {
+            rows: currency_rows,
+            is_usdt: currency == 'USDT',
+            customer_debt_view: current_user_customer_mode?,
+            weekly_summary_enabled: false,
+          },
+        )
+      end
+
+      loaded = offset + page_debts.size
+      response_payload[:next_debt_offset] = loaded < grouped_debts.size ? loaded : nil
+      response_payload[:loaded_debt_count] = debt_rows.size
+    end
+
+    if section.blank? || section == 'payments'
+      payments_scope = DebtPayment.where(debt_id: grouped_debts.map(&:id))
+                                .includes(:account, :debt)
+                                .order(occurred_at: :desc, created_at: :desc)
+      page_payments = payments_scope.offset(offset).limit(GROUP_PAYMENTS_PAGE_SIZE)
+      payment_rows = build_show_payment_rows(payments: page_payments)
+
+      response_payload[:payment_rows_html] = render_to_string(
+        partial: 'debts/payment_rows',
+        formats: [:html],
+        locals: {
+          rows: payment_rows,
+          group_is_usdt: show_group_currency.to_s.upcase == 'USDT',
+        },
+      )
+
+      total_count = payments_scope.count
+      loaded = offset + payment_rows.size
+      response_payload[:next_payment_offset] = loaded < total_count ? loaded : nil
+      response_payload[:loaded_payment_count] = payment_rows.size
+    end
+
+    render json: response_payload
   end
 
   def transfer_destination_clients
@@ -2608,6 +2694,11 @@ class DebtsController < ApplicationController
     Date.iso8601(raw).beginning_of_week(:monday)
   rescue Date::Error
     nil
+  end
+
+  def parse_group_rows_offset(value)
+    parsed = value.to_i
+    parsed.negative? ? 0 : parsed
   end
 
   def debt_week_start_for(debt)
