@@ -9,7 +9,7 @@ class AccountSettlementsControllerTest < ActionDispatch::IntegrationTest
     @business = Business.create!(name: "Negocio Cierres #{SecureRandom.hex(4)}")
 
     @admin_password = 'ClaveSegura1!'
-    @admin_user = User.create!(
+    user_attrs = {
       email: "admin-settlement-#{SecureRandom.hex(4)}@example.com",
       username: "adminset#{SecureRandom.hex(3)}",
       password: @admin_password,
@@ -17,10 +17,12 @@ class AccountSettlementsControllerTest < ActionDispatch::IntegrationTest
       business: @business,
       admin: true,
       personal: false,
-      authorization_level: 'admin',
       active: true,
       full_name: 'Admin Settlement'
-    )
+    }
+    user_attrs[:authorization_level] = 'admin' if User.column_names.include?('authorization_level')
+
+    @admin_user = User.create!(user_attrs)
 
     @settlement_bank = @business.accounts.create!(
       name: 'Banco receptor cierre',
@@ -82,6 +84,49 @@ class AccountSettlementsControllerTest < ActionDispatch::IntegrationTest
 
     @settlement_bank.reload
     assert_equal BigDecimal('-10.0'), @settlement_bank.balance.to_d
+  end
+
+  test 'anexa movimientos tardios al cierre pendiente segun rango y recalcula total' do
+    period_start = Time.zone.local(2026, 11, 7, 8, 24, 0)
+    period_end = Time.zone.local(2026, 11, 7, 18, 31, 0)
+
+    @settlement.update_columns(
+      total_amount: BigDecimal('200.0'),
+      movements_count: 1,
+      period_start_at: period_start,
+      period_end_at: period_end,
+      processed_at: nil,
+      updated_at: Time.current,
+    )
+
+    existing_movement = @biopago_account.account_movements.create!(
+      movement_kind: 'income',
+      amount: 200,
+      description: 'Ingreso venta #1 [VENTA:1]',
+      occurred_at: Time.zone.local(2026, 11, 7, 10, 0, 0),
+      account_settlement: @settlement,
+    )
+
+    late_movement = @biopago_account.account_movements.create!(
+      movement_kind: 'income',
+      amount: 10_000,
+      description: 'Cobro de deuda [DEBT:123] [DP:456]',
+      occurred_at: Time.zone.local(2026, 11, 7, 10, 39, 0),
+      created_at: Time.zone.local(2026, 11, 12, 9, 0, 0),
+      updated_at: Time.zone.local(2026, 11, 12, 9, 0, 0),
+    )
+
+    get account_account_settlement_path(@biopago_account, @settlement)
+    assert_response :success
+
+    late_movement.reload
+    @settlement.reload
+    existing_movement.reload
+
+    assert_equal @settlement.id, late_movement.account_settlement_id
+    assert_equal @settlement.id, existing_movement.account_settlement_id
+    assert_equal 2, @settlement.movements_count
+    assert_equal BigDecimal('10200.0'), @settlement.total_amount.to_d
   end
 
   private

@@ -30,6 +30,8 @@ class AccountsController < ApplicationController
     initialize_movement_filters
 
     if @account.settlement_enabled? && current_user_admin?
+      AccountSettlement.sync_pending_movements_for_account!(@account)
+
       pending_scope = @account.account_movements.where(account_settlement_id: nil)
       pending_scope = apply_movement_date_filters(pending_scope)
       pending_scope = apply_movement_verification_filters(pending_scope)

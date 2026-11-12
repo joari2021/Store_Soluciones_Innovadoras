@@ -2,6 +2,7 @@ class AccountSettlementsController < ApplicationController
   before_action :require_business
   before_action :require_admin
   before_action :set_account
+  before_action :sync_pending_settlement_movements!, only: %i[show update]
   before_action :set_settlement, only: %i[show update]
 
   def index
@@ -181,6 +182,10 @@ class AccountSettlementsController < ApplicationController
   end
 
   private
+
+  def sync_pending_settlement_movements!
+    AccountSettlement.sync_pending_movements_for_account!(@account)
+  end
 
   def set_account
     @account = current_business.accounts.find(params[:account_id])
