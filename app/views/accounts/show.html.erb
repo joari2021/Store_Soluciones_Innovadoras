@@ -1,3 +1,12 @@
+<style>
+  @media (max-width: 899px) {
+    .movement-col-type,
+    .movement-col-method {
+      display: none;
+    }
+  }
+</style>
+
 <div class="space-y-6" data-account-verify-root="true">
   <% movement_query_params = @movement_query_params || {} %>
   <% can_verify_bank_movements = current_user_admin? && @account.account_type == 'bank_account' %>
@@ -238,14 +247,25 @@
           <% end %>
         </div>
       <% end %>
+      <div class="mt-3">
+        <label for="account_movement_live_filter" class="block text-xs font-bold uppercase tracking-wider text-slate-500">Buscar por referencia o monto</label>
+        <input type="text"
+               id="account_movement_live_filter"
+               autocomplete="off"
+               inputmode="numeric"
+               pattern="[0-9]*"
+               placeholder="Solo números (ej: 1500)"
+               class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm focus:border-sky-500 focus:ring-sky-500"
+               data-movement-live-filter="true">
+      </div>
     </div>
     <% if @account_movements.any? %>
       <div>
         <table class="min-w-full table-fixed divide-y divide-slate-200">
           <colgroup>
-            <col class="w-[10%]">
+            <col class="movement-col-type w-[10%]">
             <col class="w-[14%]">
-            <col class="w-[11%]">
+            <col class="movement-col-method w-[11%]">
             <col class="w-[9%]">
             <col class="w-[34%]">
             <col class="w-[12%]">
@@ -253,9 +273,9 @@
           </colgroup>
           <thead>
             <tr>
-              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
+              <th class="movement-col-type bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Tipo</th>
               <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Fecha</th>
-              <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
+              <th class="movement-col-method bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Metodo</th>
               <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Referencia</th>
               <th class="bg-slate-50 px-5 py-3 text-left text-xs font-bold uppercase tracking-wider text-slate-500">Descripcion</th>
               <th class="bg-slate-50 px-5 py-3 text-right text-xs font-bold uppercase tracking-wider text-slate-500">Monto</th>
@@ -268,15 +288,20 @@
               <% amount_positive = signed_amount >= 0 %>
               <% highlighted_movement = @highlight_movement_id.present? && movement.id == @highlight_movement_id %>
               <% movement_source_link = account_movement_source_link_data(movement) %>
+              <% movement_reference_value = account_movement_reference(movement).to_s %>
+              <% movement_reference_digits = movement_reference_value.gsub(/\D/, '') %>
+              <% movement_amount_digits = format('%.2f', signed_amount.abs.to_d).gsub(/\D/, '') %>
               <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
                   data-movement-row="true"
                   data-movement-id="<%= movement.id %>"
                   data-movement-occurred-at="<%= movement.occurred_at.in_time_zone('America/Caracas').iso8601 %>"
-                  data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>">
-                <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
+                  data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>"
+                  data-movement-reference-digits="<%= movement_reference_digits %>"
+                  data-movement-amount-digits="<%= movement_amount_digits %>">
+                <td class="movement-col-type px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
                 <td class="px-5 py-3 text-xs text-slate-500" data-movement-date-cell="true"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
-                <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
-                <td class="px-5 py-3 text-xs text-slate-600"><%= account_movement_reference(movement).presence || '-' %></td>
+                <td class="movement-col-method px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
+                <td class="px-5 py-3 text-xs text-slate-600"><%= movement_reference_value.presence || '-' %></td>
                 <td class="px-5 py-3 text-sm text-slate-600"><%= account_movement_display_description(movement) %></td>
                 <td class="px-5 py-3 text-right text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>"><%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %></td>
                 <td class="px-5 py-3 text-right">
@@ -378,6 +403,46 @@
     <% end %>
   </div>
 </div>
+<script>
+  (() => {
+    const tableBody = document.getElementById('account-movements-table-body');
+    const filterInput = document.querySelector('[data-movement-live-filter="true"]');
+    const visibleCountLabel = document.querySelector('[data-movement-visible-count="true"]');
+    if (!tableBody || !filterInput) return;
+    if (filterInput.dataset.liveFilterBound === 'true') return;
+    filterInput.dataset.liveFilterBound = 'true';
+
+    const rows = Array.from(tableBody.querySelectorAll('[data-movement-row="true"]'));
+    const updateVisibleCount = () => {
+      if (!visibleCountLabel) return;
+      const visible = rows.reduce((count, row) => (row.hidden ? count : count + 1), 0);
+      visibleCountLabel.textContent = String(visible);
+    };
+
+    const applyFilter = () => {
+      const query = String(filterInput.value || '').replace(/\D/g, '');
+      filterInput.value = query;
+
+      rows.forEach((row) => {
+        if (!query) {
+          row.hidden = false;
+          return;
+        }
+
+        const referenceDigits = String(row.dataset.movementReferenceDigits || '');
+        const amountDigits = String(row.dataset.movementAmountDigits || '');
+        const matchesReference = referenceDigits.includes(query);
+        const matchesAmount = amountDigits.startsWith(query);
+        row.hidden = !(matchesReference || matchesAmount);
+      });
+
+      updateVisibleCount();
+    };
+
+    filterInput.addEventListener('input', applyFilter);
+    updateVisibleCount();
+  })();
+</script>
 <% if can_verify_bank_movements %>
   <script>
     (() => {
