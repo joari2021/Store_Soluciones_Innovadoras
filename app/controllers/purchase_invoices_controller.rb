@@ -1168,6 +1168,8 @@ class PurchaseInvoicesController < ApplicationController
           if entry[:account].account_type == 'bank_account'
             commission_attrs[:payment_method] = entry[:payment_method].presence || 'third_party_transfer'
           end
+          commission_reference = payment_movement.reference.to_s.strip
+          commission_attrs[:reference] = commission_reference if commission_reference.present?
 
           # create commission movement on the same account
           entry[:account].account_movements.create!(commission_attrs)
