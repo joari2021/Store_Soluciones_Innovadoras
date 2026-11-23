@@ -3,16 +3,21 @@
 <% highlighted_movement = local_assigns.fetch(:highlighted_movement, false) %>
 <% can_verify = local_assigns.fetch(:can_verify_bank_movements, false) %>
 <% movement_source_link = account_movement_source_link_data(movement) %>
+<% movement_reference_value = account_movement_reference(movement).to_s %>
+<% movement_reference_digits = movement_reference_value.gsub(/\D/, '') %>
+<% movement_amount_digits = format('%.2f', signed_amount.abs.to_d).gsub(/\D/, '') %>
 <tr class="<%= highlighted_movement ? 'bg-amber-50 ring-1 ring-inset ring-amber-200' : '' %>"
     data-movement-row="true"
     data-movement-id="<%= movement.id %>"
     data-movement-occurred-at="<%= movement.occurred_at.in_time_zone('America/Caracas').iso8601 %>"
     data-movement-sort-timestamp="<%= movement.occurred_at.in_time_zone('America/Caracas').to_i %>"
-    data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>">
-  <td class="px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
+    data-movement-verified="<%= movement.respond_to?(:verified) && movement.verified? ? 'true' : 'false' %>"
+    data-movement-reference-digits="<%= movement_reference_digits %>"
+    data-movement-amount-digits="<%= movement_amount_digits %>">
+  <td class="movement-col-type px-5 py-3 text-sm font-semibold text-slate-800"><%= movement.movement_kind_label %></td>
   <td class="px-5 py-3 text-xs text-slate-500" data-movement-date-cell="true"><%= l(movement.occurred_at.in_time_zone('Caracas'), format: :short) rescue movement.occurred_at.strftime('%d/%m/%Y %H:%M') %></td>
-  <td class="px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
-  <td class="px-5 py-3 text-xs text-slate-600"><%= account_movement_reference(movement).presence || '-' %></td>
+  <td class="movement-col-method px-5 py-3 text-xs text-slate-600"><%= movement.payment_method.present? ? movement.payment_method_label : '-' %></td>
+  <td class="px-5 py-3 text-xs text-slate-600"><%= movement_reference_value.presence || '-' %></td>
   <td class="px-5 py-3 text-sm text-slate-600"><%= account_movement_display_description(movement) %></td>
   <td class="px-5 py-3 text-right text-sm font-bold <%= amount_positive ? 'text-emerald-600' : 'text-red-600' %>"><%= amount_positive ? '+' : '-' %><%= format_money(signed_amount.abs, unit: @account.currency_symbol) %></td>
   <td class="px-5 py-3 text-right">
