@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_23_134000) do
+ActiveRecord::Schema[7.1].define(version: 2026_11_09_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_trgm"
   enable_extension "plpgsql"
@@ -278,6 +278,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_23_134000) do
     t.index ["closed_by_id"], name: "index_cash_shifts_on_closed_by_id"
     t.index ["opened_at"], name: "index_cash_shifts_on_opened_at"
     t.index ["opened_by_id"], name: "index_cash_shifts_on_opened_by_id"
+  end
+
+  create_table "cashea_user_financings", force: :cascade do |t|
+    t.bigint "business_id", null: false
+    t.bigint "created_by_id"
+    t.string "user_name", null: false
+    t.string "line_mode", null: false
+    t.decimal "initial_ficticia_usd", precision: 14, scale: 2, default: "0.0", null: false
+    t.string "payable_group_token", null: false
+    t.string "receivable_group_token", null: false
+    t.jsonb "installments", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["business_id", "created_at"], name: "idx_cashea_user_financing_business_created_at"
+    t.index ["business_id", "payable_group_token"], name: "idx_cashea_user_financing_payable_group"
+    t.index ["business_id", "receivable_group_token"], name: "idx_cashea_user_financing_receivable_group"
+    t.index ["business_id"], name: "index_cashea_user_financings_on_business_id"
+    t.index ["created_by_id"], name: "index_cashea_user_financings_on_created_by_id"
   end
 
   create_table "categorias", force: :cascade do |t|
@@ -1307,6 +1325,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_23_134000) do
   add_foreign_key "cash_shifts", "users", column: "active_cashier_id"
   add_foreign_key "cash_shifts", "users", column: "closed_by_id"
   add_foreign_key "cash_shifts", "users", column: "opened_by_id"
+  add_foreign_key "cashea_user_financings", "businesses"
+  add_foreign_key "cashea_user_financings", "users", column: "created_by_id"
   add_foreign_key "categorias", "businesses"
   add_foreign_key "clientes", "businesses"
   add_foreign_key "clientes", "users"

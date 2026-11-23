@@ -6,6 +6,7 @@ require 'active_support/time'
 
 class BcvScraperService
   BCV_URL = 'https://www.bcv.org.ve'.freeze
+  INSECURE_SSL_FALLBACK_ENV = 'BCV_ALLOW_INSECURE_SSL_FALLBACK'.freeze
   REQUEST_HEADERS = {
     'User-Agent' => 'Mozilla/5.0 (compatible; BizFlow/1.0)'
   }.freeze
@@ -15,7 +16,7 @@ class BcvScraperService
   ].freeze
 
   def self.call
-    html = fetch_html(BCV_URL)
+    html = fetch_html_with_ssl_fallback(BCV_URL)
     return nil if html.blank?
 
     doc = Nokogiri::HTML(html)
@@ -51,7 +52,18 @@ class BcvScraperService
     nil
   end
 
-  def self.fetch_html(url, redirect_limit = 5)
+  def self.fetch_html_with_ssl_fallback(url, redirect_limit = 5)
+    fetch_html(url, redirect_limit: redirect_limit)
+  rescue OpenSSL::SSL::SSLError => e
+    raise unless retry_with_insecure_ssl?(e)
+
+    Rails.logger.warn("BCV scraper: reintentando sin verificacion SSL por error de certificado: #{e.message}")
+    fetch_html(url, redirect_limit: redirect_limit, insecure_ssl: true)
+  rescue StandardError
+    raise
+  end
+
+  def self.fetch_html(url, redirect_limit: 5, insecure_ssl: false)
     raise ArgumentError, 'Demasiadas redirecciones' if redirect_limit <= 0
 
     uri = URI.parse(url)
@@ -61,8 +73,12 @@ class BcvScraperService
     http.read_timeout = 15
 
     if http.use_ssl?
-      http.verify_mode = OpenSSL::SSL::VERIFY_PEER
-      http.cert_store = certificate_store
+      if insecure_ssl
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      else
+        http.verify_mode = OpenSSL::SSL::VERIFY_PEER
+        http.cert_store = certificate_store
+      end
     end
 
     request = Net::HTTP::Get.new(uri.request_uri, REQUEST_HEADERS)
@@ -75,11 +91,23 @@ class BcvScraperService
       location = response['location']
       return nil if location.blank?
 
-      fetch_html(URI.join(url, location).to_s, redirect_limit - 1)
+      fetch_html(URI.join(url, location).to_s, redirect_limit: redirect_limit - 1, insecure_ssl: insecure_ssl)
     else
       Rails.logger.error "Error HTTP en BcvScraperService: #{response.code} #{response.message}"
       nil
     end
+  end
+
+  def self.retry_with_insecure_ssl?(error)
+    return false unless insecure_ssl_fallback_enabled?
+
+    message = error.message.to_s.downcase
+    message.include?('certificate verify failed') || message.include?('unable to get local issuer certificate')
+  end
+
+  def self.insecure_ssl_fallback_enabled?
+    raw = ENV.fetch(INSECURE_SSL_FALLBACK_ENV, 'true')
+    ActiveModel::Type::Boolean.new.cast(raw)
   end
 
   def self.certificate_store
@@ -179,6 +207,8 @@ class BcvScraperService
     rate.save!
   end
 
-  private_class_method :normalize_decimal, :upsert_rate_for_day!, :fetch_html, :certificate_store, :mark_ssl_failure,
-                       :mark_ssl_success, :extract_fecha_valor, :latest_reference_date_for, :backfill_rate_for
+  private_class_method :normalize_decimal, :upsert_rate_for_day!, :fetch_html, :fetch_html_with_ssl_fallback,
+                       :certificate_store, :mark_ssl_failure, :mark_ssl_success, :extract_fecha_valor,
+                       :latest_reference_date_for, :backfill_rate_for, :retry_with_insecure_ssl?,
+                       :insecure_ssl_fallback_enabled?
 end
