@@ -3,7 +3,7 @@ source "https://rubygems.org"
 ruby "3.4.2"
 
 # Bundle edge Rails instead: gem "rails", github: "rails/rails", branch: "main"
-gem "rails", "~> 7.1.3", ">= 7.1.3.2"
+gem "rails", "~> 8.0.5", ">= 8.0.5.2"
 
 # The original asset pipeline for Rails [https://github.com/rails/sprockets-rails]
 gem "sprockets-rails"
@@ -31,6 +31,7 @@ gem "stimulus-rails"
 
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
+gem "json", "~> 2.19", ">= 2.19.9"
 
 # Use Redis adapter to run Action Cable in production
 # gem "redis", ">= 4.0.1"
@@ -55,7 +56,7 @@ gem "font-awesome-sass"
 # Postgresql FullTextSearch
 gem "pg_search", "~> 2.3"
 # View Components
-gem "view_component", "~> 3.12"
+gem "view_component", "~> 4.14"
 # pagination
 gem "pagy", "~> 8.4"
 # Amazon
