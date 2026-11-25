@@ -1712,7 +1712,10 @@ class VentasController < ApplicationController
 
             next unless account.account_type == "bank_account" && row[:payment_method] == "mobile"
 
-            commission_amount = (row[:amount_original].to_d * 0.003).round(2)
+            commission_amount = calculate_send_commission_amount_for_account(
+              amount: row[:amount_original],
+              account: account,
+            )
             next unless commission_amount.positive?
 
             commission_occurred_at = account_movement_occurred_at_from_payment_date(row[:payment_date])
@@ -5384,6 +5387,24 @@ class VentasController < ApplicationController
     return "mobile_payment" if method.to_s == "mobile"
 
     method.to_s
+  end
+
+  def calculate_send_commission_amount_for_account(amount:, account:)
+    return 0.to_d if account.blank?
+
+    percent = account.send_commission_percent.to_d.round(6)
+    minimum = account.send_commission_min.to_d.round(2)
+    rounding = account.send_commission_rounding.to_s.presence || "superior"
+
+    raw_commission = amount.to_d.abs * (percent / 100)
+    cents = if rounding == "inferior"
+        (raw_commission * 100).floor
+      else
+        (raw_commission * 100).round
+      end
+
+    rounded_commission = (BigDecimal(cents.to_s) / 100).round(2)
+    [rounded_commission, minimum].max.round(2)
   end
 
   def normalize_credit_sale_payload(raw_payload)
