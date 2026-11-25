@@ -4,7 +4,7 @@
 <% can_use_cash_exchange = current_user_admin? || current_user_manager? %>
 <% customer_pos_mode = @customer_pos_mode == true %>
 <% loss_recovery_setting = @loss_recovery_setting || current_business&.loss_recovery_setting %>
-<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>" data-loss-recovery-active="<%= loss_recovery_setting&.active ? 'true' : 'false' %>" data-loss-recovery-percent="<%= loss_recovery_setting&.surcharge_percent.to_d.to_s('F') %>" data-loss-recovery-min-usd="<%= loss_recovery_setting&.min_invoice_total_usd.to_d.to_s('F') %>">
+<div id="ventas-pos-root" class="space-y-8" data-bcv-rate="<%= @tasa_dolar_bcv.to_s %>" data-open-shift="<%= @open_cash_shift.present? %>" data-open-shift-id="<%= @open_cash_shift&.id %>" data-products-next-page="<%= @products_next_page %>" data-services-next-page="<%= @services_next_page %>" data-products-catalog-url="<%= catalog_products_ventas_path %>" data-services-catalog-url="<%= catalog_services_ventas_path %>" data-can-charge-sale="<%= @can_charge_sale ? 'true' : 'false' %>" data-can-view-all-drafts="<%= @can_view_all_drafts ? 'true' : 'false' %>" data-current-user-id="<%= Current.user&.id %>" data-current-user-admin="<%= current_user_admin? ? 'true' : 'false' %>" data-can-use-cash-exchange="<%= can_use_cash_exchange ? 'true' : 'false' %>" data-customer-pos-mode="<%= customer_pos_mode ? 'true' : 'false' %>" data-loss-recovery-active="<%= loss_recovery_setting&.active ? 'true' : 'false' %>" data-loss-recovery-percent="<%= loss_recovery_setting&.surcharge_percent.to_d.to_s('F') %>" data-loss-recovery-min-usd="<%= loss_recovery_setting&.min_invoice_total_usd.to_d.to_s('F') %>">
   <script>
     (() => {
       const initVentasOpenShiftCTA = () => {
@@ -769,6 +769,7 @@
       const isCustomerPosMode = root.dataset.customerPosMode === 'true';
       const canUseCashExchange = root.dataset.canUseCashExchange === 'true';
       const currentUserId = Number(root.dataset.currentUserId || 0);
+      const currentUserIsAdmin = root.dataset.currentUserAdmin === 'true';
 
       const productsDataEl = document.getElementById('ventas-products-data');
       if (!productsDataEl) return;
@@ -1858,6 +1859,7 @@
               amount: row.querySelector(`[data-change-input="${accountId}"]`)?.value || '',
               method: row.querySelector(`[data-change-bank-method="${accountId}"]`)?.value || '',
               reference: row.querySelector(`[data-change-reference="${accountId}"]`)?.value || '',
+              paymentDate: row.querySelector(`[data-change-date="${accountId}"]`)?.value || '',
             };
           });
 
@@ -2018,6 +2020,7 @@
                       <option value="transfer" style="color:#0369a1;background:#ffffff;">Transferencia</option>
                       <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
                     </select>
+                    <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-change-date="${account.id}" value="${todayPaymentDate}" ${currentUserIsAdmin ? '' : 'readonly'} disabled>
                     <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-change-reference="${account.id}" disabled>
                   </div>
                 </div>
@@ -2348,12 +2351,21 @@
                 if (!field) return;
 
                 const isPayDateField = field.matches('input[data-pay-date]');
+                const isChangeDateField = field.matches('input[data-change-date]');
 
                 field.disabled = !enabled;
                 if (!enabled) field.value = '';
                 if (!enabled) field.blur();
-                if (enabled && isPayDateField && String(field.value || '').trim() === '') {
+                if (enabled && (isPayDateField || isChangeDateField) && String(field.value || '').trim() === '') {
                   field.value = todayPaymentDate;
+                }
+                if (isChangeDateField) {
+                  if (currentUserIsAdmin) {
+                    field.removeAttribute('readonly');
+                  } else {
+                    field.setAttribute('readonly', 'readonly');
+                    if (enabled) field.value = todayPaymentDate;
+                  }
                 }
 
                 field.classList.remove(
@@ -2791,6 +2803,18 @@
                 input.addEventListener('input', updateRemaining);
               });
 
+              dialog.querySelectorAll('[data-change-date]').forEach((input) => {
+                input.addEventListener('change', () => {
+                  const normalized = normalizePaymentDateInput(input.value);
+                  if (currentUserIsAdmin) {
+                    input.value = normalized ? normalized.display : '';
+                  } else {
+                    input.value = todayPaymentDate;
+                  }
+                  updateRemaining();
+                });
+              });
+
               dialog.querySelectorAll('[data-change-check]').forEach((checkbox) => {
                 checkbox.addEventListener('change', () => {
                   const accountId = checkbox.dataset.changeCheck;
@@ -3025,6 +3049,16 @@
                   if (referenceInput && typeof entry.reference === 'string') {
                     referenceInput.value = entry.reference;
                   }
+
+                  const paymentDateInput = dialog.querySelector(`[data-change-date="${accountId}"]`);
+                  if (paymentDateInput) {
+                    if (currentUserIsAdmin && typeof entry.paymentDate === 'string') {
+                      const normalizedDate = normalizePaymentDateInput(entry.paymentDate);
+                      paymentDateInput.value = normalizedDate ? normalizedDate.display : '';
+                    } else {
+                      paymentDateInput.value = todayPaymentDate;
+                    }
+                  }
                 });
 
                 (initialState.extraPayments || []).forEach((entry) => {
@@ -3216,6 +3250,7 @@
               let missingChangeMethod = false;
               let missingChangeReference = false;
               let missingChangeConversion = false;
+              let missingChangePaymentDate = false;
 
               if (allowChange && changeToggle?.checked) {
                 dialog.querySelectorAll('[data-change-row]').forEach((row) => {
@@ -3231,10 +3266,26 @@
                   if (amount <= 0) return;
 
                   let method = 'cash';
+                  let paymentDate = '';
                   if (account.account_type === 'bank_account') {
                     const methodSelect = row.querySelector(`[data-change-bank-method="${accountId}"]`);
                     method = methodSelect?.value || '';
                     if (!method) missingChangeMethod = true;
+
+                    const paymentDateInput = row.querySelector(`[data-change-date="${accountId}"]`);
+                    const paymentDateValue = String(paymentDateInput?.value || '').trim();
+                    const normalizedPaymentDate = normalizePaymentDateInput(paymentDateValue);
+                    if (!normalizedPaymentDate) {
+                      missingChangePaymentDate = true;
+                    } else {
+                      paymentDate = normalizedPaymentDate.iso;
+                    }
+                    if (paymentDateInput) {
+                      paymentDateInput.value = currentUserIsAdmin
+                        ? (normalizedPaymentDate ? normalizedPaymentDate.display : '')
+                        : todayPaymentDate;
+                    }
+
                     const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
                     const referenceValue = referenceInput?.value || '';
                     if (!/^\d{4}$/.test(referenceValue)) missingChangeReference = true;
@@ -3269,6 +3320,7 @@
                     amount: amount,
                     currency: account.currency,
                     reference: reference.trim(),
+                    payment_date: paymentDate,
                   });
                 });
 
@@ -3279,6 +3331,11 @@
 
                 if (missingChangeReference) {
                   window.Swal.showValidationMessage('La referencia del vuelto debe tener 4 digitos.');
+                  return null;
+                }
+
+                if (missingChangePaymentDate) {
+                  window.Swal.showValidationMessage('Debes indicar la fecha del vuelto para cuentas bancarias.');
                   return null;
                 }
 
@@ -9215,6 +9272,7 @@
                 amount: row.querySelector(`[data-change-input="${accountId}"]`)?.value || '',
                 method: row.querySelector(`[data-change-bank-method="${accountId}"]`)?.value || '',
                 reference: row.querySelector(`[data-change-reference="${accountId}"]`)?.value || '',
+                paymentDate: row.querySelector(`[data-change-date="${accountId}"]`)?.value || '',
               };
             });
 
@@ -9384,6 +9442,7 @@
                         <option value="transfer" style="color:#0369a1;background:#ffffff;">Transferencia</option>
                         <option value="mobile" style="color:#0369a1;background:#ffffff;">Pago movil</option>
                       </select>
+                      <input type="text" class="${bankFieldClass} js-materialize-datepicker materialize-datepicker-input" placeholder="dd-mm-aaaa" data-change-date="${account.id}" value="${todayPaymentDate}" ${currentUserIsAdmin ? '' : 'readonly'} disabled>
                       <input type="text" inputmode="numeric" maxlength="4" minlength="4" pattern="[0-9]{4}" title="La referencia debe tener exactamente 4 digitos" class="${bankFieldClass}" placeholder="Ultimos 4 digitos" data-change-reference="${account.id}" disabled>
                     </div>
                   </div>
@@ -9739,12 +9798,21 @@
                   if (!field) return;
 
                   const isPayDateField = field.matches('input[data-pay-date]');
+                  const isChangeDateField = field.matches('input[data-change-date]');
 
                   field.disabled = !enabled;
                   if (!enabled) field.value = '';
                   if (!enabled) field.blur();
-                  if (enabled && isPayDateField && String(field.value || '').trim() === '') {
+                  if (enabled && (isPayDateField || isChangeDateField) && String(field.value || '').trim() === '') {
                     field.value = todayPaymentDate;
+                  }
+                  if (isChangeDateField) {
+                    if (currentUserIsAdmin) {
+                      field.removeAttribute('readonly');
+                    } else {
+                      field.setAttribute('readonly', 'readonly');
+                      if (enabled) field.value = todayPaymentDate;
+                    }
                   }
 
                   field.classList.remove(
@@ -10213,6 +10281,18 @@
                   input.addEventListener('input', updateRemaining);
                 });
 
+                dialog.querySelectorAll('[data-change-date]').forEach((input) => {
+                  input.addEventListener('change', () => {
+                    const normalized = normalizePaymentDateInput(input.value);
+                    if (currentUserIsAdmin) {
+                      input.value = normalized ? normalized.display : '';
+                    } else {
+                      input.value = todayPaymentDate;
+                    }
+                    updateRemaining();
+                  });
+                });
+
                 dialog.querySelectorAll('[data-change-check]').forEach((checkbox) => {
                   checkbox.addEventListener('change', () => {
                     const accountId = checkbox.dataset.changeCheck;
@@ -10456,6 +10536,16 @@
                     if (referenceInput && typeof entry.reference === 'string') {
                       referenceInput.value = entry.reference;
                     }
+
+                    const paymentDateInput = dialog.querySelector(`[data-change-date="${accountId}"]`);
+                    if (paymentDateInput) {
+                      if (currentUserIsAdmin && typeof entry.paymentDate === 'string') {
+                        const normalizedDate = normalizePaymentDateInput(entry.paymentDate);
+                        paymentDateInput.value = normalizedDate ? normalizedDate.display : '';
+                      } else {
+                        paymentDateInput.value = todayPaymentDate;
+                      }
+                    }
                   });
 
                   (initialState.extraPayments || []).forEach((entry) => {
@@ -10687,6 +10777,7 @@
                 let missingChangeMethod = false;
                 let missingChangeReference = false;
                 let missingChangeConversion = false;
+                let missingChangePaymentDate = false;
 
                 if (changeToggle?.checked) {
                   dialog.querySelectorAll('[data-change-row]').forEach((row) => {
@@ -10702,10 +10793,26 @@
                     if (amount <= 0) return;
 
                     let method = 'cash';
+                    let paymentDate = '';
                     if (account.account_type === 'bank_account') {
                       const methodSelect = row.querySelector(`[data-change-bank-method="${accountId}"]`);
                       method = methodSelect?.value || '';
                       if (!method) missingChangeMethod = true;
+
+                      const paymentDateInput = row.querySelector(`[data-change-date="${accountId}"]`);
+                      const paymentDateValue = String(paymentDateInput?.value || '').trim();
+                      const normalizedPaymentDate = normalizePaymentDateInput(paymentDateValue);
+                      if (!normalizedPaymentDate) {
+                        missingChangePaymentDate = true;
+                      } else {
+                        paymentDate = normalizedPaymentDate.iso;
+                      }
+                      if (paymentDateInput) {
+                        paymentDateInput.value = currentUserIsAdmin
+                          ? (normalizedPaymentDate ? normalizedPaymentDate.display : '')
+                          : todayPaymentDate;
+                      }
+
                       const referenceInput = row.querySelector(`[data-change-reference="${accountId}"]`);
                       const referenceValue = referenceInput?.value || '';
                       if (!/^\d{4}$/.test(referenceValue)) missingChangeReference = true;
@@ -10740,6 +10847,7 @@
                       amount: amount,
                       currency: account.currency,
                       reference: reference.trim(),
+                      payment_date: paymentDate,
                     });
                   });
 
@@ -10750,6 +10858,11 @@
 
                   if (missingChangeReference) {
                     window.Swal.showValidationMessage('La referencia del vuelto debe tener 4 digitos.');
+                    return null;
+                  }
+
+                  if (missingChangePaymentDate) {
+                    window.Swal.showValidationMessage('Debes indicar la fecha del vuelto para cuentas bancarias.');
                     return null;
                   }
 

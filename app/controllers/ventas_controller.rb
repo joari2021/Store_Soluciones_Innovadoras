@@ -1344,6 +1344,7 @@ class VentasController < ApplicationController
       change_method = default_method_for_account(change_account) if change_method.blank?
 
       change_reference = change_entry[:reference].to_s.strip
+      change_payment_date = parse_payment_date(change_entry[:payment_date])
       if change_account.account_type == "bank_account"
         unless %w[transfer mobile].include?(change_method)
           return render json: { error: "Selecciona transferencia o pago movil para cuentas bancarias." },
@@ -1352,6 +1353,16 @@ class VentasController < ApplicationController
 
         unless valid_reference?(change_reference)
           return render json: { error: "La referencia del vuelto debe tener 4 digitos." }, status: :unprocessable_entity
+        end
+
+        if change_payment_date.blank?
+          return render json: { error: "Debes indicar la fecha del vuelto para cuentas bancarias." },
+                        status: :unprocessable_entity
+        end
+
+        if !current_user_admin? && change_payment_date != today_in_caracas
+          return render json: { error: "Solo administrador puede registrar una fecha distinta a hoy para vueltos bancarios." },
+                        status: :unprocessable_entity
         end
       end
 
@@ -1362,6 +1373,7 @@ class VentasController < ApplicationController
         amount_original: change_amount,
         currency: change_currency,
         reference: change_reference.presence,
+        payment_date: change_payment_date,
         payment_kind: "out",
         pending_validation: customer_mode,
       }
@@ -1686,7 +1698,7 @@ class VentasController < ApplicationController
               movement_kind: "expense",
               amount: row[:amount_original].to_d,
               description: build_movement_description(venta, row, "Vuelto"),
-              occurred_at: Time.current,
+              occurred_at: account_movement_occurred_at_from_payment_date(row[:payment_date]),
             }
             if account.account_type == "bank_account" && %w[transfer mobile].include?(row[:payment_method])
               movement_attrs[:payment_method] = normalize_account_movement_method(row[:payment_method])
@@ -2208,6 +2220,10 @@ class VentasController < ApplicationController
     Date.parse(normalized)
   rescue ArgumentError
     nil
+  end
+
+  def today_in_caracas
+    Time.use_zone("America/Caracas") { Time.zone.today }
   end
 
   def account_movement_occurred_at_from_payment_date(payment_date)
@@ -3945,7 +3961,7 @@ class VentasController < ApplicationController
         { consumable_decisions: %i[service_product_expense_id delivered product_variation_id] },
       ],
       payments: %i[method amount account_id currency reference payment_date],
-      change: %i[method amount account_id currency reference],
+      change: %i[method amount account_id currency reference payment_date],
       credit_sale: %i[enabled due_on],
       checkout_discount: %i[enabled amount reason],
       cashea: [
