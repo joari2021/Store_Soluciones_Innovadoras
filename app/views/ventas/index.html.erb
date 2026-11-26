@@ -11326,11 +11326,15 @@
         }
 
         const list = rows.slice(0, 8).map((row) => {
-          const productName = escapeHtml(String(row?.product_name || `Producto #${row?.product_id || '-'}`));
-          const variationName = escapeHtml(String(row?.variation_name || '-'));
-          const lotId = escapeHtml(String(row?.stock_lot_id || '-'));
-          const reason = escapeHtml(String(row?.reason || 'Conflicto de restauracion'));
-          return `<li class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800"><strong>${productName}</strong> · ${variationName}<br>Lote #${lotId}: ${reason}</li>`;
+          const safeRow = row && typeof row === 'object' ? row : {};
+          const resolvedProductId = safeRow.product_id || '-';
+          const resolvedVariationId = safeRow.variation_id || '-';
+          const resolvedLotId = safeRow.stock_lot_id || null;
+          const productName = escapeHtml(String(safeRow.product_name || `Producto #${resolvedProductId}`));
+          const variationName = escapeHtml(String(safeRow.variation_name || `Variacion #${resolvedVariationId}`));
+          const lotLabel = resolvedLotId ? `Lote #${escapeHtml(String(resolvedLotId))}` : 'Lote no identificado';
+          const reason = escapeHtml(String(safeRow.reason || 'No se pudo restaurar el stock reservado de este item.'));
+          return `<li class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800"><strong>${productName}</strong> · ${variationName}<br>${lotLabel}: ${reason}</li>`;
         }).join('');
 
         const hiddenCount = rows.length > 8 ? `<p class="mt-2 text-[11px] text-slate-500">Y ${rows.length - 8} conflicto(s) adicional(es).</p>` : '';

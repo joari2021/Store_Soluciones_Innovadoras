@@ -3473,6 +3473,7 @@ class VentasController < ApplicationController
 
       producto = current_business.productos.find_by(id: producto_id)
       next unless producto
+      variation_name = draft_conflict_variation_label(producto, variation_id)
 
       lot_breakdown = producto.consume_variation_stock_with_breakdown!(variation_id: variation_id,
                                                                        quantity_units: quantity_units)
@@ -3481,6 +3482,8 @@ class VentasController < ApplicationController
         reservations << {
           "product_id" => producto_id,
           "variation_id" => variation_id,
+          "product_name" => producto.display_name_with_presentation,
+          "variation_name" => variation_name,
           "stock_lot_id" => entry[:stock_lot_id],
           "quantity" => note_decimal_string(entry[:quantity]),
           "unit_cost_usd" => note_decimal_string(entry[:unit_cost_usd], precision: 6),
@@ -3748,24 +3751,48 @@ class VentasController < ApplicationController
     notes_payload = parse_notes_payload(draft.notes)
     rows = Array(notes_payload["product_lot_consumptions"])
     conflicts = []
+    fallback_names = draft_conflict_item_name_map(draft)
 
     rows.each do |row|
       producto_id = (row["product_id"] || row[:product_id]).to_i
       variation_id = (row["variation_id"] || row[:variation_id]).to_i
       stock_lot_id = (row["stock_lot_id"] || row[:stock_lot_id]).to_i
       quantity_units = parse_decimal(row["quantity"] || row[:quantity], default: 0)
+      raw_product_name = (row["product_name"] || row[:product_name]).to_s.strip
+      raw_variation_name = (row["variation_name"] || row[:variation_name]).to_s.strip
 
-      next unless producto_id.positive? && variation_id.positive? && stock_lot_id.positive?
       next unless quantity_units.positive?
 
+      unless producto_id.positive? && variation_id.positive? && stock_lot_id.positive?
+        fallback = fallback_names[[producto_id, variation_id]] || {}
+        conflicts << {
+          product_id: (producto_id.positive? ? producto_id : nil),
+          variation_id: (variation_id.positive? ? variation_id : nil),
+          stock_lot_id: (stock_lot_id.positive? ? stock_lot_id : nil),
+          product_name: raw_product_name.presence || fallback[:product_name].presence || "Producto no identificado",
+          variation_name: raw_variation_name.presence || fallback[:variation_name].presence || "Variacion no identificada",
+          reason: "Registro de consumo incompleto en el borrador (faltan ids de producto, variacion o lote)",
+        }
+        next
+      end
+
       producto = current_business.productos.find_by(id: producto_id)
+      product_name, variation_name = draft_conflict_display_names(
+        producto: producto,
+        producto_id: producto_id,
+        variation_id: variation_id,
+        fallback_names: fallback_names,
+        row_product_name: raw_product_name,
+        row_variation_name: raw_variation_name,
+      )
+
       if producto.blank?
         conflicts << {
           product_id: producto_id,
           variation_id: variation_id,
           stock_lot_id: stock_lot_id,
-          product_name: "Producto ##{producto_id}",
-          variation_name: "Variacion ##{variation_id}",
+          product_name: product_name,
+          variation_name: variation_name,
           reason: "No se encontro el producto en el negocio",
         }
         next
@@ -3777,8 +3804,8 @@ class VentasController < ApplicationController
           product_id: producto_id,
           variation_id: variation_id,
           stock_lot_id: stock_lot_id,
-          product_name: producto.display_name_with_presentation,
-          variation_name: draft_conflict_variation_label(producto, variation_id),
+          product_name: product_name,
+          variation_name: variation_name,
           reason: "No se encontro el lote exacto asociado",
         }
         next
@@ -3796,13 +3823,70 @@ class VentasController < ApplicationController
         product_id: producto_id,
         variation_id: variation_id,
         stock_lot_id: stock_lot_id,
-        product_name: producto.display_name_with_presentation,
-        variation_name: draft_conflict_variation_label(producto, variation_id),
+        product_name: product_name,
+        variation_name: variation_name,
         reason: "No se encontro la variacion en el lote exacto asociado",
       }
     end
 
-    conflicts.uniq { |row| [row[:product_id], row[:variation_id], row[:stock_lot_id], row[:reason]] }
+    normalize_draft_restore_conflicts(
+      conflicts.uniq { |row| [row[:product_id], row[:variation_id], row[:stock_lot_id], row[:reason]] }
+    )
+  end
+
+  def draft_conflict_item_name_map(draft)
+    draft.venta_items.each_with_object({}) do |item, map|
+      product_id = item.producto_id.to_i
+      variation_id = item.product_variation_id.to_i
+      next unless product_id.positive? && variation_id.positive?
+
+      map[[product_id, variation_id]] = {
+        product_name: item.product_name.presence || item.producto&.display_name_with_presentation,
+        variation_name: item.variation_name.presence || item.product_variation&.description,
+      }
+    end
+  end
+
+  def draft_conflict_display_names(producto:, producto_id:, variation_id:, fallback_names:, row_product_name:, row_variation_name:)
+    fallback = fallback_names[[producto_id.to_i, variation_id.to_i]] || {}
+
+    product_name = if producto.present?
+        producto.display_name_with_presentation.presence
+      else
+        fallback[:product_name].presence
+      end
+    product_name = row_product_name.presence if product_name.blank?
+
+    variation_name = if producto.present?
+        draft_conflict_variation_label(producto, variation_id)
+      else
+        fallback[:variation_name].presence || "Variacion ##{variation_id}"
+      end
+    variation_name = row_variation_name.presence if variation_name.blank?
+
+    [product_name.presence || "Producto ##{producto_id}", variation_name.presence || "Variacion ##{variation_id}"]
+  end
+
+  def normalize_draft_restore_conflicts(conflicts)
+    Array(conflicts).map do |entry|
+      row = entry.respond_to?(:with_indifferent_access) ? entry.with_indifferent_access : {}
+
+      product_id = row[:product_id].presence
+      variation_id = row[:variation_id].presence
+      stock_lot_id = row[:stock_lot_id].presence
+      product_name = row[:product_name].to_s.strip
+      variation_name = row[:variation_name].to_s.strip
+      reason = row[:reason].to_s.strip
+
+      {
+        product_id: product_id,
+        variation_id: variation_id,
+        stock_lot_id: stock_lot_id,
+        product_name: product_name.presence || (product_id.present? ? "Producto ##{product_id}" : "Producto no identificado"),
+        variation_name: variation_name.presence || (variation_id.present? ? "Variacion ##{variation_id}" : "Variacion no identificada"),
+        reason: reason.presence || "No se pudo restaurar el stock reservado de este item.",
+      }
+    end
   end
 
   def draft_conflict_variation_label(producto, variation_id)
@@ -3813,7 +3897,7 @@ class VentasController < ApplicationController
   end
 
   def draft_restore_conflicts_summary(conflicts)
-    Array(conflicts).first(3).map do |row|
+    normalize_draft_restore_conflicts(conflicts).first(3).map do |row|
       "#{row[:product_name]} (lote ##{row[:stock_lot_id]}: #{row[:reason]})."
     end.join(" ")
   end
@@ -3827,13 +3911,15 @@ class VentasController < ApplicationController
   end
 
   def render_draft_restore_conflicts_response!(conflicts:, action_key:, payload: nil)
+    normalized_conflicts = normalize_draft_restore_conflicts(conflicts)
+
     if !current_user_admin?
       render json: {
         error: "Este borrador solo lo puede gestionar un administrador porque tiene conflictos de restauracion de stock.",
         restore_conflict: {
           admin_only: true,
           action: action_key,
-          conflicts: conflicts,
+          conflicts: normalized_conflicts,
         },
       }, status: :forbidden
       return true
@@ -3846,7 +3932,7 @@ class VentasController < ApplicationController
       restore_conflict: {
         requires_admin_confirmation: true,
         action: action_key,
-        conflicts: conflicts,
+        conflicts: normalized_conflicts,
       },
     }, status: :conflict
     true
