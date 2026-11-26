@@ -5174,24 +5174,24 @@
         const baseAvailable = variation ? Number(variation.available) || 0 : 0;
         const inCart = getCartQuantityForVariation(product.id, normalizedVariation);
         const syncedReserved = syncedReservedQuantityForVariation(product.id, normalizedVariation);
-        const pendingReservation = Math.max(0, inCart - syncedReserved);
+        const pendingReservationDelta = inCart - syncedReserved;
         const inCartPrintMaterial = getCartQuantityForPrintMaterialVariation(product.id, normalizedVariation);
         const syncedReservedPrintMaterial = syncedReservedQuantityForPrintMaterialVariation(product.id, normalizedVariation);
-        const pendingPrintMaterialReservation = Math.max(0, inCartPrintMaterial - syncedReservedPrintMaterial);
-        return clampProductQuantity(baseAvailable - pendingReservation - pendingPrintMaterialReservation, product);
+        const pendingPrintMaterialReservationDelta = inCartPrintMaterial - syncedReservedPrintMaterial;
+        return clampProductQuantity(baseAvailable - pendingReservationDelta - pendingPrintMaterialReservationDelta, product);
       };
 
       const getAvailableTotal = (product) => {
         const baseTotal = Number(product.available_total) || 0;
         const inCart = getCartQuantityForProduct(product.id);
         const syncedReserved = syncedReservedQuantityForProduct(product.id);
-        const pendingReservation = Math.max(0, inCart - syncedReserved);
+        const pendingReservationDelta = inCart - syncedReserved;
 
         const inCartPrintMaterial = getCartQuantityForPrintMaterialProduct(product.id);
         const syncedReservedPrintMaterial = syncedReservedQuantityForPrintMaterialProduct(product.id);
-        const pendingPrintMaterialReservation = Math.max(0, inCartPrintMaterial - syncedReservedPrintMaterial);
+        const pendingPrintMaterialReservationDelta = inCartPrintMaterial - syncedReservedPrintMaterial;
 
-        return clampProductQuantity(baseTotal - pendingReservation - pendingPrintMaterialReservation, product);
+        return clampProductQuantity(baseTotal - pendingReservationDelta - pendingPrintMaterialReservationDelta, product);
       };
 
       const buildProductCardVariationsHtml = (product) => {
