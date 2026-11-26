@@ -4094,6 +4094,7 @@ class VentasController < ApplicationController
       :tasa_dolar,
       :base_currency,
       :cliente_id,
+      :force_restore_conflict_override,
       items: [
         :item_type,
         :product_id,
@@ -4128,7 +4129,6 @@ class VentasController < ApplicationController
         :price_signature,
         { consumable_decisions: %i[service_product_expense_id delivered product_variation_id] },
       ],
-      :force_restore_conflict_override,
       payments: %i[method amount account_id currency reference payment_date],
       change: %i[method amount account_id currency reference payment_date],
       credit_sale: %i[enabled due_on],
