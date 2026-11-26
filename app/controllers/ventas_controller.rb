@@ -2065,7 +2065,11 @@ class VentasController < ApplicationController
   def destroy_draft_record!(draft)
     Venta.transaction do
       draft.lock!
-      restore_stock_for_sale!(draft, strict: true)
+      restore_stock_for_sale!(
+        draft,
+        strict: false,
+        skip_missing_product_lot_entries: true,
+      )
       delete_payall_draft_movements!(draft)
       draft.destroy!
     end
@@ -2363,8 +2367,12 @@ class VentasController < ApplicationController
     @historial_cash_exchanges = scope.limit(50)
   end
 
-  def restore_stock_for_sale!(venta, strict: true)
-    restored_product_lot_quantities = restore_reserved_product_stock_from_notes!(venta, strict: strict)
+  def restore_stock_for_sale!(venta, strict: true, skip_missing_product_lot_entries: false)
+    restored_product_lot_quantities = restore_reserved_product_stock_from_notes!(
+      venta,
+      strict: strict,
+      skip_missing_product_lot_entries: skip_missing_product_lot_entries,
+    )
 
     grouped_items = venta.venta_items
                          .select { |item| item.producto_id.present? && item.product_variation_id.present? }
@@ -2387,7 +2395,7 @@ class VentasController < ApplicationController
     restore_reserved_service_stock_from_notes!(venta, strict: strict)
   end
 
-  def restore_reserved_product_stock_from_notes!(venta, strict: true)
+  def restore_reserved_product_stock_from_notes!(venta, strict: true, skip_missing_product_lot_entries: false)
     notes_payload = parse_notes_payload(venta.notes)
     rows = Array(notes_payload["product_lot_consumptions"])
     restored_by_key = Hash.new(0.to_d)
@@ -2399,6 +2407,15 @@ class VentasController < ApplicationController
       quantity_units = parse_decimal(row["quantity"] || row[:quantity], default: 0)
       next if producto_id.blank? || variation_id.blank? || !quantity_units.positive?
       next if stock_lot_id.blank?
+
+      if !strict && skip_missing_product_lot_entries
+        producto = current_business.productos.find_by(id: producto_id)
+        if producto.blank? || producto.stock_lots.where(id: stock_lot_id).blank?
+          # Evita fallback FIFO para lotes historicos inexistentes al eliminar borradores.
+          restored_by_key[[producto_id.to_i, variation_id.to_i]] += quantity_units.to_d
+          next
+        end
+      end
 
       restored_exact = restore_product_variation_units_in_lot!(
         producto_id: producto_id,
