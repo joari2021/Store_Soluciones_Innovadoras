@@ -11319,7 +11319,32 @@
         });
       };
 
-      const destroyDraft = async (draftId, { silent = false } = {}) => {
+      const buildDraftRestoreConflictHtml = (restoreConflict) => {
+        const rows = Array(restoreConflict?.conflicts || []);
+        if (rows.length === 0) {
+          return '<p class="text-sm text-slate-600">No se pudo restaurar un lote exacto del borrador.</p>';
+        }
+
+        const list = rows.slice(0, 8).map((row) => {
+          const productName = escapeHtml(String(row?.product_name || `Producto #${row?.product_id || '-'}`));
+          const variationName = escapeHtml(String(row?.variation_name || '-'));
+          const lotId = escapeHtml(String(row?.stock_lot_id || '-'));
+          const reason = escapeHtml(String(row?.reason || 'Conflicto de restauracion'));
+          return `<li class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-left text-xs text-amber-800"><strong>${productName}</strong> · ${variationName}<br>Lote #${lotId}: ${reason}</li>`;
+        }).join('');
+
+        const hiddenCount = rows.length > 8 ? `<p class="mt-2 text-[11px] text-slate-500">Y ${rows.length - 8} conflicto(s) adicional(es).</p>` : '';
+
+        return `
+          <div>
+            <p class="text-sm text-slate-700">Hay conflictos de restauracion de stock en este borrador:</p>
+            <ul class="mt-3 space-y-2 max-h-60 overflow-y-auto pr-1">${list}</ul>
+            ${hiddenCount}
+          </div>
+        `;
+      };
+
+      const destroyDraft = async (draftId, { silent = false, forceRestoreConflictOverride = false } = {}) => {
         const safeId = String(draftId || '').trim();
         if (!safeId) return false;
 
@@ -11344,7 +11369,10 @@
               'Content-Type': 'application/json',
               'X-CSRF-Token': csrfToken,
             },
-            body: JSON.stringify({ draft_lock_token: activeDraftLockToken || readDraftLockToken(safeId) }),
+            body: JSON.stringify({
+              draft_lock_token: activeDraftLockToken || readDraftLockToken(safeId),
+              force_restore_conflict_override: forceRestoreConflictOverride === true,
+            }),
           });
 
           let data = {};
@@ -11355,6 +11383,32 @@
           }
 
           if (!response.ok) {
+            const restoreConflict = data?.restore_conflict;
+            if (
+              currentUserIsAdmin
+              && forceRestoreConflictOverride !== true
+              && restoreConflict
+              && restoreConflict.requires_admin_confirmation === true
+              && window.Swal
+            ) {
+              const confirmation = await window.Swal.fire({
+                icon: 'warning',
+                title: 'Conflicto de restauracion detectado',
+                html: buildDraftRestoreConflictHtml(restoreConflict),
+                showCancelButton: true,
+                confirmButtonText: 'Continuar y eliminar',
+                cancelButtonText: 'Cancelar',
+                heightAuto: false,
+              });
+
+              if (!confirmation.isConfirmed) return false;
+
+              return destroyDraft(safeId, {
+                silent,
+                forceRestoreConflictOverride: true,
+              });
+            }
+
             throw new Error(data.error || 'No se pudo eliminar el borrador.');
           }
 
@@ -11403,7 +11457,7 @@
         }
       };
 
-      const persistDraft = async ({ clearAfterSave = true, releaseLock = null, silent = false, draftVisibility = null, draftCheckoutStatus = null } = {}) => {
+      const persistDraft = async ({ clearAfterSave = true, releaseLock = null, silent = false, draftVisibility = null, draftCheckoutStatus = null, forceRestoreConflictOverride = false } = {}) => {
         if (checkoutSubmissionInProgress && !clearAfterSave) {
           return false;
         }
@@ -11480,6 +11534,7 @@
         const shouldReleaseLock = releaseLock === true || (releaseLock === null && clearAfterSave);
         payload.release_lock = shouldReleaseLock;
         payload.clear_after_save = clearAfterSave;
+        payload.force_restore_conflict_override = forceRestoreConflictOverride === true;
         payload.draft_lock_token = activeDraftLockToken || (activeDraftId ? readDraftLockToken(activeDraftId) : '');
         payload.draft_created_by_id = activeDraftCreatedById;
         const closingDraftId = activeDraftId;
@@ -11505,6 +11560,37 @@
           }
 
           if (!response.ok) {
+            const restoreConflict = data?.restore_conflict;
+            if (
+              currentUserIsAdmin
+              && forceRestoreConflictOverride !== true
+              && restoreConflict
+              && restoreConflict.requires_admin_confirmation === true
+              && window.Swal
+              && !silent
+            ) {
+              const confirmation = await window.Swal.fire({
+                icon: 'warning',
+                title: 'Conflicto de restauracion detectado',
+                html: buildDraftRestoreConflictHtml(restoreConflict),
+                showCancelButton: true,
+                confirmButtonText: clearAfterSave ? 'Continuar y vaciar' : 'Continuar y guardar',
+                cancelButtonText: 'Cancelar',
+                heightAuto: false,
+              });
+
+              if (!confirmation.isConfirmed) return false;
+
+              return persistDraft({
+                clearAfterSave,
+                releaseLock,
+                silent,
+                draftVisibility,
+                draftCheckoutStatus,
+                forceRestoreConflictOverride: true,
+              });
+            }
+
             throw new Error(data.error || 'No se pudo guardar el borrador.');
           }
 

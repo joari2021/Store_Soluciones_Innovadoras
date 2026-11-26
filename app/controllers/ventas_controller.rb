@@ -393,6 +393,14 @@ class VentasController < ApplicationController
   def destroy_draft
     return render json: { error: "Los usuarios cliente no pueden eliminar borradores." }, status: :forbidden if customer_sales_mode?
 
+    conflicts = draft_stock_restore_conflicts(@draft_venta)
+    if conflicts.any?
+      return if render_draft_restore_conflicts_response!(
+        conflicts: conflicts,
+        action_key: "delete",
+      )
+    end
+
     destroy_draft_record!(@draft_venta)
 
     render json: {
@@ -428,6 +436,20 @@ class VentasController < ApplicationController
 
   def destroy_borrador
     return redirect_to ventas_path, alert: "Los usuarios cliente no pueden eliminar borradores." if customer_sales_mode?
+
+    conflicts = draft_stock_restore_conflicts(@draft_venta)
+    if conflicts.any?
+      unless current_user_admin?
+        return redirect_to borradores_ventas_path,
+                           alert: "Este borrador solo lo puede eliminar un administrador porque tiene conflictos de restauracion de stock."
+      end
+
+      unless draft_restore_conflict_override_requested?
+        details = draft_restore_conflicts_summary(conflicts)
+        return redirect_to borradores_ventas_path,
+                           alert: "Conflicto de restauracion detectado. #{details} Revisa y vuelve a intentar."
+      end
+    end
 
     destroy_draft_record!(@draft_venta)
 
@@ -2625,6 +2647,20 @@ class VentasController < ApplicationController
 
     release_lock_requested = ActiveModel::Type::Boolean.new.cast(payload[:release_lock]) ||
                              ActiveModel::Type::Boolean.new.cast(payload[:clear_after_save])
+    restore_conflict_override = draft_restore_conflict_override_requested?(payload: payload)
+    has_restore_conflicts = false
+
+    if draft&.persisted?
+      conflicts = draft_stock_restore_conflicts(draft)
+      has_restore_conflicts = conflicts.any?
+      if conflicts.any?
+        return if render_draft_restore_conflicts_response!(
+          conflicts: conflicts,
+          action_key: (release_lock_requested ? "clear" : "save"),
+          payload: payload,
+        )
+      end
+    end
 
     requested_visibility = normalize_draft_visibility(payload[:draft_visibility], default: draft_visibility(draft))
     requested_checkout_status = normalize_draft_checkout_status(
@@ -2638,7 +2674,11 @@ class VentasController < ApplicationController
       Venta.transaction do
         if draft.persisted?
           draft.lock!
-          restore_stock_for_sale!(draft, strict: true)
+          restore_stock_for_sale!(
+            draft,
+            strict: !(restore_conflict_override && has_restore_conflicts),
+            skip_missing_product_lot_entries: restore_conflict_override && has_restore_conflicts,
+          )
           draft.venta_items.destroy_all
           draft.venta_payments.destroy_all
         end
@@ -3704,6 +3744,114 @@ class VentasController < ApplicationController
     true
   end
 
+  def draft_stock_restore_conflicts(draft)
+    notes_payload = parse_notes_payload(draft.notes)
+    rows = Array(notes_payload["product_lot_consumptions"])
+    conflicts = []
+
+    rows.each do |row|
+      producto_id = (row["product_id"] || row[:product_id]).to_i
+      variation_id = (row["variation_id"] || row[:variation_id]).to_i
+      stock_lot_id = (row["stock_lot_id"] || row[:stock_lot_id]).to_i
+      quantity_units = parse_decimal(row["quantity"] || row[:quantity], default: 0)
+
+      next unless producto_id.positive? && variation_id.positive? && stock_lot_id.positive?
+      next unless quantity_units.positive?
+
+      producto = current_business.productos.find_by(id: producto_id)
+      if producto.blank?
+        conflicts << {
+          product_id: producto_id,
+          variation_id: variation_id,
+          stock_lot_id: stock_lot_id,
+          product_name: "Producto ##{producto_id}",
+          variation_name: "Variacion ##{variation_id}",
+          reason: "No se encontro el producto en el negocio",
+        }
+        next
+      end
+
+      lot = producto.stock_lots.find_by(id: stock_lot_id)
+      if lot.blank?
+        conflicts << {
+          product_id: producto_id,
+          variation_id: variation_id,
+          stock_lot_id: stock_lot_id,
+          product_name: producto.display_name_with_presentation,
+          variation_name: draft_conflict_variation_label(producto, variation_id),
+          reason: "No se encontro el lote exacto asociado",
+        }
+        next
+      end
+
+      resolved_variation_id = resolve_variation_id_for_lot_restore(
+        producto: producto,
+        lot: lot,
+        requested_variation_id: variation_id,
+      )
+      variation_row = lot.variation_row_for(resolved_variation_id, create_if_missing: false)
+      next if variation_row.present?
+
+      conflicts << {
+        product_id: producto_id,
+        variation_id: variation_id,
+        stock_lot_id: stock_lot_id,
+        product_name: producto.display_name_with_presentation,
+        variation_name: draft_conflict_variation_label(producto, variation_id),
+        reason: "No se encontro la variacion en el lote exacto asociado",
+      }
+    end
+
+    conflicts.uniq { |row| [row[:product_id], row[:variation_id], row[:stock_lot_id], row[:reason]] }
+  end
+
+  def draft_conflict_variation_label(producto, variation_id)
+    variation = producto.product_variations.find_by(id: variation_id)
+    return variation.description.to_s if variation.present?
+
+    "Variacion ##{variation_id}"
+  end
+
+  def draft_restore_conflicts_summary(conflicts)
+    Array(conflicts).first(3).map do |row|
+      "#{row[:product_name]} (lote ##{row[:stock_lot_id]}: #{row[:reason]})."
+    end.join(" ")
+  end
+
+  def draft_restore_conflict_override_requested?(payload: nil)
+    source = payload || params
+    raw_value = if source.respond_to?(:[])
+        source[:force_restore_conflict_override] || source["force_restore_conflict_override"]
+      end
+    ActiveModel::Type::Boolean.new.cast(raw_value)
+  end
+
+  def render_draft_restore_conflicts_response!(conflicts:, action_key:, payload: nil)
+    if !current_user_admin?
+      render json: {
+        error: "Este borrador solo lo puede gestionar un administrador porque tiene conflictos de restauracion de stock.",
+        restore_conflict: {
+          admin_only: true,
+          action: action_key,
+          conflicts: conflicts,
+        },
+      }, status: :forbidden
+      return true
+    end
+
+    return false if draft_restore_conflict_override_requested?(payload: payload)
+
+    render json: {
+      error: "Conflicto de restauracion detectado. Revisa el detalle y confirma para continuar.",
+      restore_conflict: {
+        requires_admin_confirmation: true,
+        action: action_key,
+        conflicts: conflicts,
+      },
+    }, status: :conflict
+    true
+  end
+
   def resolve_variation_id_for_lot_restore(producto:, lot:, requested_variation_id:)
     requested_id = requested_variation_id.to_i
     if requested_id.positive? && producto.product_variations.where(id: requested_id).exists?
@@ -3980,6 +4128,7 @@ class VentasController < ApplicationController
         :price_signature,
         { consumable_decisions: %i[service_product_expense_id delivered product_variation_id] },
       ],
+      :force_restore_conflict_override,
       payments: %i[method amount account_id currency reference payment_date],
       change: %i[method amount account_id currency reference payment_date],
       credit_sale: %i[enabled due_on],
